@@ -1,0 +1,26 @@
+.form-group-header { display: flex; justify-content: space-between; align-items: flex-end; }
+.btn-auto-lyric {
+    background: rgba(128, 128, 128, 0.1); color: var(--text-main); border: 1px solid rgba(128, 128, 128, 0.3);
+    padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-auto-lyric:hover { background: rgba(128, 128, 128, 0.2); }
+
+/* 歌詞検索結果リスト */
+.lyric-result-list { 
+    list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; 
+    border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 8px; background: var(--bg-color); 
+}
+.lyric-result-item { 
+    padding: 14px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); cursor: pointer; text-align: left; 
+}
+.lyric-result-item:hover { background: rgba(128, 128, 128, 0.1); }
+.lyric-result-item:last-child { border-bottom: none; }
+.lyric-item-title { font-weight: bold; color: var(--text-main); }
+.lyric-item-artist { font-size: 0.85rem; color: var(--text-sub); margin-top: 4px; }
+
+.lyric-preview { 
+    white-space: pre-wrap; font-size: 1rem; line-height: 2.2; 
+    background: var(--bg-color); padding: 20px; border-radius: 8px; border: 1px solid rgba(128, 128, 128, 0.3); 
+    overflow-y: auto; flex: 1; text-align: left; color: var(--text-main);
+}

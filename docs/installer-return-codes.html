@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Chordia Installer Return Codes</title>
+    </head>
+    <body>
+        <h1>Chordia Installer Return Codes</h1>
+        <p>This page documents return codes for the Chordia Windows installer.</p>
+
+        <h2>Installer</h2>
+        <p>
+            File name: Chordia_3.0.0_x64-setup.exe<br>
+            Installer type: NSIS setup executable<br>
+            Silent install parameter: /S
+        </p>
+
+        <h2>Return codes</h2>
+        <table border="1" cellspacing="0">
+            <tr>
+                <td>Return code</td>
+                <td>Meaning</td>
+                <td>Description</td>
+            </tr>
+            <tr>
+                <td>0</td>
+                <td>Installation successful</td>
+                <td>The installation completed successfully.</td>
+            </tr>
+            <tr>
+                <td>1</td>
+                <td>Installation cancelled by user</td>
+                <td>The installation was cancelled by the user.</td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td>Installation aborted by installer script</td>
+                <td>The installation was aborted before completion. This may occur when the installer cannot complete the operation due to an unexpected installation failure.</td>
+            </tr>
+        </table>
+
+        <h2>Miscellaneous install failure scenarios</h2>
+        <p>
+            Chordia does not currently define separate custom return codes for application already exists, disk full, network failure, package rejection, or reboot required scenarios.<br>
+            If such conditions cause the installer to stop, they are treated as a general installation abort and may return code 2.
+        </p>
+    </body>
+</html>

@@ -1,0 +1,341 @@
+@charset "UTF-8";
+
+.export-container {
+    background: var(--card-bg);
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: var(--shadow-md);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+    margin-left: 8px; /* リストの端に合わせる */
+    border: none;
+    padding: 0;
+}
+
+.export-section {
+    margin-bottom: 40px;
+}
+
+/* --- Apple風設定リスト --- */
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-color); /* ★修正: #fff からテーマの背景色へ */
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.3); /* ★修正 */
+    overflow: hidden; /* 角丸からはみ出ないように */
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2); /* ★修正 */
+    transition: background-color 0.2s;
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+}
+
+.settings-row:hover {
+    background-color: rgba(128, 128, 128, 0.1); /* ★修正 */
+}
+
+.row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.row-title {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 1rem;
+}
+
+.row-desc {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+}
+
+/* --- トグルスイッチ (iOSスタイル) --- */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+    flex-shrink: 0; /* 縮小しないように */
+}
+
+/* checkbox自体は隠す */
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* スライダー（背景） */
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.3); /* ★修正: OFF時の色 */
+    transition: .3s;
+    border-radius: 34px;
+}
+
+/* スライダーの丸ポチ */
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* ON時の背景色 (Apple Green) */
+.toggle-switch input:checked + .slider {
+    background-color: #34c759;
+}
+
+/* ON時の丸ポチ移動 */
+.toggle-switch input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+/* --- パス入力欄 --- */
+.path-input-group {
+    display: flex;
+    gap: 12px;
+    background: var(--bg-color); /* ★修正 */
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.3); /* ★修正 */
+}
+
+.path-input-group input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    font-family: monospace;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+.btn-browse {
+    padding: 0 20px;
+    background: var(--card-bg); /* ★修正 */
+    border: 1px solid rgba(128, 128, 128, 0.3); /* ★修正 */
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-main);
+    transition: all 0.2s;
+}
+
+.btn-browse:hover {
+    background: rgba(128, 128, 128, 0.1); /* ★修正 */
+}
+
+/* --- パスワード入力欄 --- */
+.input-wrapper {
+    width: 200px; /* 入力欄の幅 */
+}
+
+.password-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.3); /* ★修正 */
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    outline: none;
+    transition: border-color 0.2s;
+    background: var(--bg-color); /* ★修正 */
+}
+
+.password-input:focus {
+    border-color: var(--primary-color);
+    background: var(--card-bg); /* ★修正 */
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.password-input::placeholder {
+    color: var(--text-sub);
+    font-size: 0.85rem;
+    opacity: 0.7; /* ★追加 */
+}
+
+/* --- 実行ボタン --- */
+.action-area {
+    text-align: center;
+    margin-top: 16px;
+}
+.btn-export {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 16px 64px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+}
+.btn-export:hover:not(:disabled) {
+    background-color: var(--primary-color-dark); /* ★修正 */
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3);
+}
+.btn-export:disabled {
+    background-color: rgba(128, 128, 128, 0.5); /* ★修正 */
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+.btn-export svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* --- モーダル (ポップアップ) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6); /* ★少し暗く */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+    backdrop-filter: blur(2px); /* 背景ぼかし */
+}
+.modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: var(--card-bg); /* ★修正 */
+    padding: 40px;
+    border-radius: 24px;
+    width: 90%;
+    max-width: 500px;
+    text-align: center;
+    transform: translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+}
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+
+.modal-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(16, 185, 129, 0.1); /* ★修正 (緑の半透明) */
+    color: #10b981; /* ★修正 */
+    border-radius: 50%;
+    margin: 0 auto 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.modal-icon svg {
+    width: 48px;
+    height: 48px;
+}
+
+.modal-content h2 {
+    margin-bottom: 16px;
+    color: var(--text-main);
+    font-size: 1.5rem;
+}
+.modal-content p {
+    color: var(--text-sub);
+    margin-bottom: 24px;
+}
+.result-path {
+    background: var(--bg-color); /* ★修正 */
+    padding: 16px;
+    border-radius: 12px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    word-break: break-all;
+    margin-bottom: 32px;
+    border: 1px solid rgba(128, 128, 128, 0.3); /* ★修正 */
+}
+
+.btn-complete {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 14px 32px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%; /* ボタン幅いっぱいに */
+}
+.btn-complete:hover {
+    background-color: var(--primary-color-dark); /* ★修正 */
+}
+
+/* --- トースト通知 --- */
+.toast {
+    visibility: hidden;
+    min-width: 300px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 12px;
+    padding: 16px;
+    position: fixed;
+    z-index: 3000;
+    right: 30px;
+    top: 30px;
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out, top 0.5s ease-in-out;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+.toast.show {
+    visibility: visible;
+    opacity: 1;
+    top: 50px;
+}
+.toast.success { background-color: #059669; }
+.toast.error { background-color: #ef4444; }

@@ -1,0 +1,254 @@
+.sync-body { justify-content: flex-start; padding-top: 50px; }
+.card-large { background: var(--card-bg); border-radius: 24px; padding: 40px; box-shadow: var(--shadow-md); text-align: center; }
+
+/* IPとポートの分離表示 */
+.connection-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.info-box {
+    background: var(--bg-color);
+    padding: 20px;
+    border-radius: 16px;
+    border: 1px solid rgba(128,128,128,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.info-label {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    font-weight: bold;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.info-value {
+    font-family: monospace;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--primary-color);
+}
+
+/* 左右並びのインタラクティブグリッド */
+.sync-interactive-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin: 20px 0;
+    align-items: stretch;
+}
+
+.interactive-panel {
+    background: rgba(128, 128, 128, 0.03);
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 240px;
+    box-sizing: border-box;
+}
+
+.panel-desc {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    margin: 0 0 12px 0;
+    text-align: left;
+    font-weight: bold;
+}
+
+/* 認証コード表示 */
+.auth-code-large {
+    font-size: 3rem;
+    font-family: 'Courier New', monospace;
+    font-weight: 800;
+    letter-spacing: 12px;
+    color: var(--primary-color);
+    margin: 10px 0;
+    text-align: center;
+    user-select: all;
+}
+
+/* プログレスバー */
+.countdown-container {
+    width: 100%;
+}
+.countdown-text {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    font-weight: bold;
+    text-align: left;
+    margin-bottom: 6px;
+}
+.progress-bar-container {
+    width: 100%;
+    height: 6px;
+    background: rgba(128, 128, 128, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.progress-bar-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--primary-color);
+    border-radius: 3px;
+    transition: width 0.05s linear; 
+}
+
+/* QRコードインタラクティブエリア */
+.qr-interactive-area {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    width: 100%;
+}
+
+.qr-placeholder-btn-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    width: 100%;
+}
+
+.qr-display-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.qr-bg-white {
+    background: white;
+    padding: 12px;
+    border-radius: 12px;
+    display: inline-block;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    margin-bottom: 8px;
+}
+
+.btn-hide-qr {
+    margin-top: 4px;
+    font-size: 0.85rem;
+}
+
+.separator {
+    border: none;
+    border-top: 1px solid rgba(128,128,128,0.1);
+    margin: 30px 0;
+}
+
+/* ボタンの装飾崩れ防止・最優先スタイル指定 */
+.btn-primary, button.btn-primary {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 30px !important;
+    border-radius: 12px !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    font-size: 1rem !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.2s !important;
+    outline: none !important;
+    display: inline-block !important;
+}
+
+.btn-primary:hover, button.btn-primary:hover {
+    background-color: var(--primary-color-dark) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-primary:active, button.btn-primary:active {
+    transform: translateY(0) !important;
+}
+
+/* 新設：セカンダリボタン（QRコードを隠す 等）の装飾 */
+.btn-secondary, button.btn-secondary {
+    background-color: rgba(128, 128, 128, 0.1) !important;
+    color: var(--text-main) !important;
+    border: 1px solid rgba(128, 128, 128, 0.2) !important;
+    padding: 10px 24px !important;
+    border-radius: 12px !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+    font-size: 0.9rem !important;
+    transition: all 0.2s !important;
+    outline: none !important;
+    display: inline-block !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.btn-secondary:hover, button.btn-secondary:hover {
+    background-color: rgba(128, 128, 128, 0.2) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.btn-secondary:active, button.btn-secondary:active {
+    transform: translateY(0) !important;
+}
+
+/* リクエスト一覧 */
+.requests-container { margin-top: 30px; width: 100%; }
+.requests-container h2 { font-size: 1.2rem; margin-bottom: 15px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); padding-bottom: 8px; color: var(--text-main); }
+.request-item { background: var(--bg-color); border: 1px solid var(--primary-color); border-radius: 16px; padding: 15px 25px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.1); }
+.request-info { flex: 1; text-align: left;}
+.request-actions { display: flex; gap: 10px; }
+.btn-approve { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.btn-approve:hover { background: var(--primary-color-dark); }
+.btn-reject { background: #fee2e2; color: #ef4444; border: 1px solid #f87171; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+.btn-reject:hover { background: #fecaca; }
+
+/* 既存セッション */
+.sessions-container { margin-top: 30px; width: 100%; }
+.sessions-container h2 { font-size: 1.2rem; margin-bottom: 15px; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 8px; color: var(--text-main); }
+.session-item { background: var(--card-bg); border-radius: 16px; padding: 15px 25px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-sm); }
+.session-info { flex: 1; text-align: left;}
+.btn-disconnect { background: #fee2e2; color: #ef4444; border: 1px solid #f87171; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+.btn-disconnect:hover { background: #fecaca; }
+
+/* スタック型トースト用コンテナスタイル */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast-item {
+    background: #059669;
+    color: white;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-weight: bold;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    transform: translateX(100px);
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s ease;
+    pointer-events: auto;
+}
+
+.toast-item.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-item.hide {
+    opacity: 0;
+    transform: translateY(-20px);
+}

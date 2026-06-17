@@ -1,0 +1,67 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Chordia",
+	"version": "3.0.1",
+	"identifier": "com.bellrin.chordia",
+	"build": {
+		"beforeDevCommand": "",
+		"beforeBuildCommand": "",
+		"frontendDist": "../app"
+	},
+	"app": {
+		"withGlobalTauri": true,
+		"windows": [
+			{
+			"title": "Chordia",
+			"width": 850,
+			"height": 600,
+			"resizable": true,
+			"fullscreen": false
+			}
+		],
+		"security": {
+			"assetProtocol": {
+			"enable": true,
+			"scope": ["**"]
+			},
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"publisher": "bellrin",
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"android": {
+			"debugApplicationIdSuffix": ".debug"
+		},
+		"windows": {
+			"nsis": {
+				"installMode": "currentUser",
+				"languages": [
+					"Japanese",
+					"English",
+					"SimpChinese",
+					"TradChinese",
+					"Korean"
+				],
+				"displayLanguageSelector": true
+			},
+			"wix": {
+				"language": [
+					"ja-JP",
+					"en-US",
+					"zh-CN",
+					"zh-TW",
+					"ko-KR"
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エクスポート - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/export.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <script src="js/theme_head.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <!-- ヘッダー -->
+        <header class="header form-header">
+            <div class="header-left">
+                <a href="index.html" class="back-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    </svg>
+                    トップへ戻る
+                </a>
+            </div>
+            <h1>データベースをエクスポート</h1>
+            <p class="subtitle">選択したデータをZIPファイルにまとめて保存します</p>
+        </header>
+
+        <main class="export-container">
+            
+            <!-- 1. エクスポート項目の選択 (Apple風トグルリスト) -->
+            <section class="export-section">
+                <h2 class="section-title">エクスポートする項目</h2>
+                <div class="settings-list">
+                    
+                    <!-- 楽曲ファイル -->
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">楽曲ファイル</span>
+                            <span class="row-desc">library/music/ 内の全ての音楽データ</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkMusic" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- アルバムアート -->
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">アルバムアート</span>
+                            <span class="row-desc">library/images/ 内の全ての画像データ</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkImages" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- データベース -->
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">データベース</span>
+                            <span class="row-desc">userfiles/music.json (曲情報リスト)</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkDb" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- 設定ファイル -->
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">設定ファイル</span>
+                            <span class="row-desc">userfiles/settings.ini (アプリ設定)</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkSettings" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- プレイリストなど -->
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">プレイリスト・再生履歴</span>
+                            <span class="row-desc">playlist.json / played_times.json</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkPlaylists" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- 2. 保存先の選択 -->
+            <section class="export-section">
+                <h2 class="section-title">保存先とファイル名</h2>
+                <div class="path-input-group">
+                    <input type="text" id="exportPath" readonly placeholder="保存先を選択してください...">
+                    <button type="button" id="btnBrowse" class="btn-browse">参照</button>
+                </div>
+            </section>
+
+            <!-- 3. セキュリティ -->
+            <section class="export-section">
+                <h2 class="section-title">セキュリティ</h2>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div class="row-text">
+                            <span class="row-title">パスワード保護</span>
+                            <span class="row-desc">ZIPファイルを暗号化します（空欄の場合は暗号化なし）</span>
+                        </div>
+                        <div class="input-wrapper">
+                            <!-- ★ 修正：maxlength="128" を追加 -->
+                            <input type="password" id="exportPassword" class="password-input" placeholder="パスワードを入力" maxlength="128">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 実行ボタン -->
+            <div class="action-area">
+                <button id="btnExport" class="btn-export">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    エクスポートを実行
+                </button>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- 完了ポップアップ -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h2>エクスポート完了</h2>
+            <p>以下の場所に保存されました。</p>
+            <div class="result-path" id="resultPath"></div>
+            <button id="btnComplete" class="btn-complete">トップへ戻る</button>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast"></div>
+
+    
+    <script src="js/export.js"></script>
+    <script src="js/theme.js"></script>
+</body>
+</html>
