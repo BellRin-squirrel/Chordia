@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons'; // ★ 追加: アイコン判別表示のため
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -129,13 +129,12 @@ const AppContent = () => {
     }
   }, [showFocusTab]);
 
-  // ★ 追加: LiquidGlass Alert用のアラートの種類判別＆視覚的なアイコン表示機能
   const getAlertIcon = (title: string) => {
     const t = title.toLowerCase();
     if (t.includes('完了') || t.includes('成功') || t.includes('設定変更') || t.includes('承認')) {
       return <Ionicons name="checkmark-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
     }
-    if (t.includes('エラー') || t.includes('失敗') || t.includes('拒否') || t.includes('切断') || t.includes('エラー')) {
+    if (t.includes('エラー') || t.includes('失敗') || t.includes('拒否') || t.includes('切断')) {
       return <Ionicons name="alert-circle-outline" size={38} color="#ef4444" style={{ marginBottom: 12 }} />;
     }
     return <Ionicons name="information-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
@@ -179,7 +178,7 @@ const AppContent = () => {
               <View style={{ justifyContent: 'center', alignItems: 'center', padding: 25 }}>
                 <View style={[styles.licenseCard, { backgroundColor: actualDynamicStyles.card }]}>
                   <Text style={[styles.appNameLabel, { color: actualDynamicStyles.text }]}>Chordia iOS版</Text>
-                  <Text style={styles.appVersionLabel}>v4.0.0-beta1</Text>
+                  <Text style={styles.appVersionLabel}>v4.0.0-beta2</Text>
                   <View style={[styles.divider, { backgroundColor: actualDynamicStyles.bg, marginTop: 25 }]} />
                   <Text style={[styles.copyrightLabel, { color: actualDynamicStyles.text }]}>© 2026 BellRin</Text>
                 </View>
@@ -216,15 +215,20 @@ const AppContent = () => {
         </View>
       )}
 
+      {/* ★ 修正: Viewの閉じタグ位置を完全に直しました */}
       <Modal visible={isFullScreenSyncing} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
-        <View style={styles.fullScreenModalOverlay}><View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card }]}><ActivityIndicator size="large" color={themeColor} /><Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text }]}>{syncProgress}</Text></View></View>
+        <View style={styles.fullScreenModalOverlay}>
+          <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card }]}>
+            <ActivityIndicator size="large" color={themeColor} />
+            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text }]}>{syncProgress}</Text>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={isFullPlayer} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
-      {/* ★ 修正: より高い視認性（濃度・ぼかし強化）とアイコン表示を備えた本格的なLiquid Glassポップアップ */}
       <Modal visible={!!customAlert} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.modalOverlay}>
           <BlurView 
@@ -235,9 +239,7 @@ const AppContent = () => {
               backgroundColor: isAppDark ? 'rgba(25,25,25,0.7)' : 'rgba(255,255,255,0.6)',
             }]}
           >
-            {/* タイトルからのアイコン自動判別表示 */}
             {customAlert && getAlertIcon(customAlert.title)}
-
             <Text style={[styles.liquidAlertTitle, { color: actualDynamicStyles.text }]}>{customAlert?.title}</Text>
             {customAlert?.message && <Text style={[styles.liquidAlertMessage, { color: actualDynamicStyles.subText }]}>{customAlert.message}</Text>}
             <View style={[styles.liquidAlertButtonGroup, { borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]}>
