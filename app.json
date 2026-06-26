@@ -13,6 +13,8 @@
       "bundleIdentifier": "com.bellrin.chordia",
       "supportsTablet": true,
       "infoPlist": {
+        "CFBundleDevelopmentRegion": "ja_JP",
+        "CFBundleLocalizations": ["ja"],
         "UIBackgroundModes": [
           "audio"
         ],

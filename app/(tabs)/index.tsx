@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView, LogBox } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -27,6 +27,14 @@ export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
 const TAB_BAR_MARGIN = 25;
 const MINI_PLAYER_GAP = 8;
 const MINI_PLAYER_HEIGHT = 58;
+
+LogBox.ignoreLogs([
+  '[expo-av]: Expo AV has been deprecated',
+  'The objective-c `getSleepTimerProgress',
+  'The objective-c `setSleepTimer',
+  'The objective-c `sleepWhenActiveTrackReachesEnd',
+  'The objective-c `clearSleepTimer'
+]);
 
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState<TabType>('PLAYER');
@@ -215,7 +223,6 @@ const AppContent = () => {
         </View>
       )}
 
-      {/* ★ 修正: Viewの閉じタグ位置を完全に直しました */}
       <Modal visible={isFullScreenSyncing} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.fullScreenModalOverlay}>
           <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card }]}>

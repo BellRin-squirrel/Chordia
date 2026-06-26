@@ -1,11 +1,73 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, Animated, ScrollView, FlatList, StyleSheet, PanResponder, useWindowDimensions, Easing } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
 import { styles } from '../styles/styles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
+
+// 押し込み弾性スプリング効果付きのボタンラッパー
+const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }: any) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    // ★ 修正1: ユーザー指示に合わせ、ボタンを押した瞬間「24%縮小（0.76倍）」に戻します
+    // ★ 修正2: アニメーションの効果速度を2倍（従来の10から「20」に変更し、軽快な反応に最適化）
+    Animated.spring(scale, {
+      toValue: 0.76, 
+      useNativeDriver: true,
+      speed: 20,     // 2倍のスピード（効果時間1/2）
+      bounciness: 2,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    // 復帰スピードも2倍速（スピードを20に設定）で小気味よくバウンド復帰
+    Animated.spring(scale, {
+      toValue: 1.0, 
+      useNativeDriver: true,
+      speed: 20,     // 2倍のスピード
+      bounciness: 2,
+    }).start();
+  };
+
+  // スタイルのフラット展開 (トグルの片側角丸、全体の丸み、背景色の自動マッピング)
+  const flatStyle = StyleSheet.flatten(style) || {};
+  const bRadius = flatStyle.borderRadius ?? 0;
+  const bTopLeftRadius = flatStyle.borderTopLeftRadius ?? bRadius;
+  const bBottomLeftRadius = flatStyle.borderBottomLeftRadius ?? bRadius;
+  const bTopRightRadius = flatStyle.borderTopRightRadius ?? bRadius;
+  const bBottomRightRadius = flatStyle.borderBottomRightRadius ?? bRadius;
+
+  return (
+    <Animated.View style={[{ transform: [{ scale }] }, style, { backgroundColor: 'transparent' }]}>
+      <TouchableHighlight
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        underlayColor={underlayColor || "rgba(255,255,255,0.15)"}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          borderTopLeftRadius: bTopLeftRadius, 
+          borderBottomLeftRadius: bBottomLeftRadius,
+          borderTopRightRadius: bTopRightRadius,
+          borderBottomRightRadius: bBottomRightRadius,
+          justifyContent: 'center', 
+          alignItems: 'center',
+          backgroundColor: flatStyle.backgroundColor ?? 'transparent'
+        }}
+        activeOpacity={activeOpacity ?? 0.85}
+      >
+        {children}
+      </TouchableHighlight>
+    </Animated.View>
+  );
+};
 
 const MarqueeText = ({ text, style, containerWidth }: { text: string, style: any, containerWidth: number }) => {
   const scrollAnim = useRef(new Animated.Value(0)).current;
@@ -61,18 +123,25 @@ export const FullScreenPlayer = ({
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const insets = useSafeAreaInsets();
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
   const scrollYRef = useRef(0);
   const maxDyRef = useRef(0);
 
-  // ★ シークバー領域の絶対座標を保持（ジェスチャ判定時にこの領域を除外）
-  const sliderRectRef = useRef<{ top: number; bottom: number; left: number; right: number } | null>(null);
-  const sliderWrapRef = useRef<View>(null);
+  const [isScrollAtTop, setIsScrollAtTop] = useState(true);
+  
+  const isIphone = Platform.OS === 'ios' && !Platform.isPad;
+  const isIpad = Platform.OS === 'ios' && Platform.isPad;
+  const isIphoneLandscape = isLandscape && isIphone;
+  const isIpadPortrait = isIpad && !isLandscape; 
 
-  // ★ 歌詞/キュースクロール領域の絶対座標を保持
-  const subScrollRectRef = useRef<{ top: number; bottom: number; left: number; right: number } | null>(null);
-  const subScrollWrapRef = useRef<View>(null);
+  let btnScale = 1.0;
+  if (isIphoneLandscape) {
+    btnScale = 1.7;
+  } else if (isIpad) {
+    btnScale = 1.2;
+  }
 
   useEffect(() => {
     const toValue = (showLyrics || showQueue) ? 1 : 0;
@@ -86,101 +155,32 @@ export const FullScreenPlayer = ({
 
   useEffect(() => {
     scrollYRef.current = 0;
-    maxDyRef.current = 0;
-    // レイアウト切替時に位置を再計測
-    setTimeout(() => {
-      sliderWrapRef.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) {
-          sliderRectRef.current = { top: y - 12, bottom: y + h + 12, left: x, right: x + w };
-        }
-      });
-      subScrollWrapRef.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) {
-          subScrollRectRef.current = { top: y, bottom: y + h, left: x, right: x + w };
-        }
-      });
-    }, 350);
-  }, [showLyrics, showQueue, isLandscape, width, height]);
+    setIsScrollAtTop(true);
+  }, [showLyrics, showQueue]);
 
-  const measureSlider = () => {
-    requestAnimationFrame(() => {
-      sliderWrapRef.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) {
-          sliderRectRef.current = { top: y - 12, bottom: y + h + 12, left: x, right: x + w };
-        }
-      });
-    });
-  };
+  // アニメーションの補間
+  const mainOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] });
+  const subViewOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] });
+  const mainTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
+  const subViewTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange:[30, 0] });
 
-  const measureSubScroll = () => {
-    requestAnimationFrame(() => {
-      subScrollWrapRef.current?.measureInWindow((x, y, w, h) => {
-        if (w > 0 && h > 0) {
-          subScrollRectRef.current = { top: y, bottom: y + h, left: x, right: x + w };
-        }
-      });
-    });
-  };
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: slideAnim } }],
+    { useNativeDriver: true }
+  );
 
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponderCapture: (evt, g) => {
-      const { pageX, pageY } = evt.nativeEvent;
-      const isDownward = g.dy > 6;
-      const isVertical = Math.abs(g.dy) > Math.abs(g.dx) * 1.3;
+  const onHandlerStateChange = (event: any) => {
+    const { state, translationY, velocityY } = event.nativeEvent;
 
-      if (!isDownward || !isVertical) return false;
-
-      // タッチ開始時の絶対座標（pageY/X からジェスチャ移動量を逆算）
-      const startY = pageY - g.dy;
-      const startX = pageX - g.dx;
-
-      // 1. シークバー領域は常に除外
-      const sliderR = sliderRectRef.current;
-      if (sliderR &&
-          startY >= sliderR.top && startY <= sliderR.bottom &&
-          startX >= sliderR.left && startX <= sliderR.right) {
-        return false;
-      }
-
-      // 2. 歌詞/キュー表示中: スクロール領域内のタッチは、
-      //    スクロール位置が最上部のときのみジェスチャ受付。それ以外はスクロール優先で除外。
-      if (showLyrics || showQueue) {
-        const subR = subScrollRectRef.current;
-        if (subR &&
-            startY >= subR.top && startY <= subR.bottom &&
-            startX >= subR.left && startX <= subR.right) {
-          if (scrollYRef.current > 0) return false;
-        }
-        return true;
-      }
-
-      // 3. メイン再生画面: シークバー以外の全域で下スワイプ受付
-      return true;
-    },
-
-    onMoveShouldSetPanResponder: () => false,
-
-    onPanResponderGrant: () => {},
-    onPanResponderMove: (_, g) => {
-      maxDyRef.current = Math.max(maxDyRef.current, g.dy);
-      if (g.dy > 0) slideAnim.setValue(g.dy);
-    },
-    onPanResponderRelease: (_, g) => {
-      if (maxDyRef.current > 120 || g.vy > 0.5) {
+    if (state === State.END || state === State.CANCELLED) {
+      console.log(`[Gesture End] translationY: ${translationY}, velocityY: ${velocityY}`);
+      if (translationY > 120 || velocityY > 500) {
         closeFullPlayer();
       } else {
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
       }
-      maxDyRef.current = 0;
-    },
-    onPanResponderTerminate: () => {
-      maxDyRef.current = 0;
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
-    },
-    onPanResponderTerminationRequest: () => true,
-    onShouldBlockNativeResponder: () => false,
-  })).current;
+    }
+  };
 
   const formatMillis = (ms: number | undefined) => { if (!ms) return "0:00"; const totalSec = Math.floor(ms / 1000); const min = Math.floor(totalSec / 60); const sec = totalSec % 60; return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
 
@@ -194,121 +194,290 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
-  const renderControls = (iconSize: number, customStyle?: any) => (
-    <View style={[styles.fullControls, customStyle]}>
-      <TouchableOpacity onPress={handlePrev}><Ionicons name="play-skip-back" size={35} color="#fff" /></TouchableOpacity>
-      <TouchableOpacity onPress={togglePlayPause}><Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={iconSize} color="#fff" /></TouchableOpacity>
-      <TouchableOpacity onPress={handleNext}><Ionicons name="play-skip-forward" size={35} color="#fff" /></TouchableOpacity>
-    </View>
-  );
+  const renderControls = (iconSize: number, customStyle?: any) => {
+    const mainIconSize = iconSize * 0.72 * btnScale; 
+    const sideIconSize = iconSize * 0.48 * btnScale;
+
+    const mainBtnSize = iconSize * 0.85 * btnScale;
+    const sideBtnSize = iconSize * 0.65 * btnScale;
+
+    return (
+      <View style={[styles.fullControls, customStyle]}>
+        <BounceButton
+          onPress={handlePrev}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: sideBtnSize, height: sideBtnSize, borderRadius: sideBtnSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name="play-skip-back" size={sideIconSize} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={togglePlayPause}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: mainBtnSize, height: mainBtnSize, borderRadius: mainBtnSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name={isPlaying ? "pause" : "play"} size={mainIconSize} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={handleNext}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: sideBtnSize, height: sideBtnSize, borderRadius: sideBtnSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name="play-skip-forward" size={sideIconSize} color="#fff" />
+        </BounceButton>
+      </View>
+    );
+  };
 
   const renderQueueToggles = (marginBottom: number = 15) => (
     <View style={[styles.queueTogglesWrapper, { marginBottom }]}>
-      <TouchableOpacity style={[styles.toggleBtnSplit, styles.toggleLeft, { backgroundColor: isShuffle ? themeColor : 'rgba(255,255,255,0.1)' }]} onPress={toggleShuffleMode}><Ionicons name="shuffle" size={24} color="#fff" /></TouchableOpacity>
-      <View style={styles.toggleDivider} />
-      <TouchableOpacity style={[styles.toggleBtnSplit, styles.toggleRight, { backgroundColor: loopMode !== 'OFF' ? themeColor : 'rgba(255,255,255,0.1)' }]} onPress={toggleLoopMode}><Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={24} color="#fff" />{loopMode === 'ONE' && <Text style={styles.oneBadgeInline}>1</Text>}</TouchableOpacity>
-    </View>
-  );
-
-  // ★ メイン画面下部用のコンパクトなシャッフル/ループ
-  const renderInlineToggles = () => (
-    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, width: '100%' }}>
-      <TouchableOpacity
+      <BounceButton
         onPress={toggleShuffleMode}
-        style={{
-          width: 56, height: 40, borderRadius: 20,
-          backgroundColor: isShuffle ? themeColor : 'rgba(255,255,255,0.12)',
-          justifyContent: 'center', alignItems: 'center', marginHorizontal: 10
-        }}
+        style={[styles.toggleBtnSplit, styles.toggleLeft, { backgroundColor: isShuffle ? themeColor : 'rgba(255,255,255,0.1)' }]}
+        underlayColor="rgba(255,255,255,0.25)"
       >
-        <Ionicons name="shuffle" size={22} color="#fff" />
-      </TouchableOpacity>
-      <TouchableOpacity
+        <Ionicons name="shuffle" size={24} color="#fff" />
+      </BounceButton>
+      <View style={styles.toggleDivider} />
+      <BounceButton
         onPress={toggleLoopMode}
-        style={{
-          width: 56, height: 40, borderRadius: 20,
-          backgroundColor: loopMode !== 'OFF' ? themeColor : 'rgba(255,255,255,0.12)',
-          justifyContent: 'center', alignItems: 'center', marginHorizontal: 10,
-          flexDirection: 'row'
-        }}
+        style={[styles.toggleBtnSplit, styles.toggleRight, { backgroundColor: loopMode !== 'OFF' ? themeColor : 'rgba(255,255,255,0.1)' }]}
+        underlayColor="rgba(255,255,255,0.25)"
       >
-        <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
-        {loopMode === 'ONE' && (
-          <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold', marginLeft: 3 }}>1</Text>
-        )}
-      </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={24} color="#fff" />
+          {loopMode === 'ONE' && <Text style={styles.oneBadgeInline}>1</Text>}
+        </View>
+      </BounceButton>
     </View>
   );
 
-  const mainOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] });
-  const subViewOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] });
-  const mainTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
-  const subViewTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] });
+  const renderInlineToggles = () => {
+    if (isIpadPortrait) return null;
+    const toggleSize = 48; 
+    return (
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 15, width: '100%' }}>
+        <BounceButton
+          onPress={toggleShuffleMode}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{
+            width: toggleSize, height: toggleSize, borderRadius: toggleSize / 2,
+            backgroundColor: isShuffle ? themeColor : 'transparent',
+            justifyContent: 'center', alignItems: 'center', marginHorizontal: 15
+          }}
+        >
+          <Ionicons name="shuffle" size={22} color="#fff" />
+        </BounceButton>
+        <BounceButton
+          onPress={toggleLoopMode}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{
+            width: toggleSize, height: toggleSize, borderRadius: toggleSize / 2,
+            backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent',
+            justifyContent: 'center', alignItems: 'center', marginHorizontal: 15
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
+            {loopMode === 'ONE' && (
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', position: 'absolute', top: 5, right: 5 }}>1</Text>
+            )}
+          </View>
+        </BounceButton>
+      </View>
+    );
+  };
 
-  let contentLayout;
-  if (isLandscape) {
-    // ★ iPad横画面: 左カラムを「アート上 / タイトル・アーティスト下」の縦並びに変更
-    const leftColumnWidth = (width / 2.2) - 50;
-    const landscapeArtSize = Math.min(leftColumnWidth * 0.75, height * 0.45);
+  const renderIpadPortraitControls = () => {
+    const baseSize = 80 * 1.2; 
+    const iconScale = 1.2;
+    const mainSize = baseSize;       
+    const sideSize = baseSize * 0.75; 
+    const toggleSize = baseSize * 0.6; 
 
-    contentLayout = (
-      <View style={{ flexDirection: 'row', flex: 1 }}>
-        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
-          <TouchableOpacity onPress={toggleLyrics}>
-            <Ionicons name="musical-notes-outline" size={28} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} />
-          </TouchableOpacity>
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingHorizontal: 40, marginTop: 25 }}>
+        <BounceButton
+          onPress={toggleShuffleMode}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{
+            width: toggleSize, height: toggleSize, borderRadius: toggleSize / 2,
+            backgroundColor: isShuffle ? themeColor : 'transparent',
+            justifyContent: 'center', alignItems: 'center'
+          }}
+        >
+          <Ionicons name="shuffle" size={24 * iconScale} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={handlePrev}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: sideSize, height: sideSize, borderRadius: sideSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name="play-skip-back" size={28 * iconScale} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={togglePlayPause}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: mainSize, height: mainSize, borderRadius: mainSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name={isPlaying ? "pause" : "play"} size={45 * iconScale} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={handleNext}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{ width: sideSize, height: sideSize, borderRadius: sideSize / 2, justifyContent: 'center', alignItems: 'center' }}
+        >
+          <Ionicons name="play-skip-forward" size={28 * iconScale} color="#fff" />
+        </BounceButton>
+
+        <BounceButton
+          onPress={toggleLoopMode}
+          underlayColor="rgba(255,255,255,0.15)"
+          style={{
+            width: toggleSize, height: toggleSize, borderRadius: toggleSize / 2,
+            backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent',
+            justifyContent: 'center', alignItems: 'center'
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={24 * iconScale} color="#fff" />
+            {loopMode === 'ONE' && (
+              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', position: 'absolute', top: 6, right: 6 }}>1</Text>
+            )}
+          </View>
+        </BounceButton>
+      </View>
+    );
+  };
+
+  const renderLeftColumnContent = (leftColumnWidth: number, landscapeArtSize: number) => {
+    if (isIphoneLandscape) {
+      const artSize = height * 0.21; 
+      return (
+        <View style={{ flex: 1, width: '100%', justifyContent: 'center', paddingHorizontal: 15 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 15 }}>
+            <Image
+              source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+              style={{ width: artSize, height: artSize, borderRadius: 12 }}
+            />
+            <View style={{ flex: 1, marginLeft: 20, justifyContent: 'center' }}>
+              <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }} containerWidth={leftColumnWidth - artSize - 50} />
+              <View style={{ height: 6 }} />
+              <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }} containerWidth={leftColumnWidth - artSize - 50} />
+            </View>
+          </View>
+          <View style={styles.sliderWithTime}>
+            <Slider style={{ width: '100%', height: 35 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
+            <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+          </View>
+          {renderControls(55, { width: '100%', marginTop: 5, justifyContent: 'space-around' })}
         </View>
-        <View style={{ width: leftColumnWidth, padding: 15, justifyContent: 'center', alignItems: 'center' }}>
-          {/* ★ カバーアート(上) */}
+      );
+    } else {
+      return (
+        <View style={{ flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
           <Image
             source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
             style={{ width: landscapeArtSize, height: landscapeArtSize, borderRadius: 16, marginBottom: 20 }}
           />
-          {/* ★ タイトル/アーティスト(下) */}
           <View style={{ width: '100%', alignItems: 'center', marginBottom: 20 }}>
             <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }} containerWidth={leftColumnWidth - 30} />
             <View style={{ height: 6 }} />
             <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15 }} containerWidth={leftColumnWidth - 30} />
           </View>
-          {/* シークバー & コントロール */}
           <View style={{ width: '100%' }}>
-            <View ref={sliderWrapRef} onLayout={measureSlider} style={styles.sliderWithTime}>
+            <View style={styles.sliderWithTime}>
               <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
               <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
             </View>
             {renderControls(70, { width: '100%', marginTop: 20, justifyContent: 'space-around' })}
           </View>
         </View>
+      );
+    }
+  };
+
+  const handleBar = (
+    <PanGestureHandler
+      activeOffsetY={[-500, 15]}
+      failOffsetX={[-15, 15]}
+      enabled={isLandscape}
+      onGestureEvent={onGestureEvent}
+      onHandlerStateChange={onHandlerStateChange}
+    >
+      <Animated.View style={styles.swipeArea}>
+        <View style={styles.fullPlayerHandle} />
+      </Animated.View>
+    </PanGestureHandler>
+  );
+
+  let contentLayout;
+  if (isLandscape) {
+    const leftColumnWidth = (width / 2.2) - 50;
+    const landscapeArtSize = Math.min(leftColumnWidth * 0.75, height * 0.45);
+
+    contentLayout = (
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
+          <BounceButton
+            onPress={toggleLyrics}
+            underlayColor="rgba(255,255,255,0.15)"
+            style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Ionicons name="musical-notes-outline" size={28} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} />
+          </BounceButton>
+        </View>
+
+        <PanGestureHandler
+          activeOffsetY={[-500, 15]}
+          failOffsetX={[-15, 15]}
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+        >
+          <Animated.View style={{ width: leftColumnWidth, padding: 15, justifyContent: 'center', alignItems: 'center' }}>
+            {renderLeftColumnContent(leftColumnWidth, landscapeArtSize)}
+          </Animated.View>
+        </PanGestureHandler>
+
         <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
+
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: mainOpacity, transform: [{ translateX: mainTranslateX }] }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
             {renderQueueToggles()}
-            <View ref={showLyrics ? null : subScrollWrapRef} onLayout={showLyrics ? undefined : measureSubScroll} style={{ flex: 1 }}>
-              <FlatList
-                data={playQueue}
-                keyExtractor={(item, index) => 'queue-h-' + index}
-                onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-                scrollEventThrottle={16}
-                renderItem={({ item }) => (
-                  <View style={styles.songRowQueue}>
-                    <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                    <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
-                  </View>
-                )} />
-            </View>
+            <FlatList
+              data={playQueue}
+              keyExtractor={(item, index) => 'queue-h-' + index}
+              onScroll={(e) => {
+                const y = e.nativeEvent.contentOffset.y;
+                scrollYRef.current = y;
+                setIsScrollAtTop(y <= 0);
+              }}
+              scrollEventThrottle={16}
+              renderItem={({ item }) => (
+                <View style={styles.songRowQueue}>
+                  <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
+                  <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                </View>
+              )} />
           </Animated.View>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: subViewOpacity, transform: [{ translateX: subViewTranslateX }] }]} pointerEvents={showLyrics ? 'auto' : 'none'}>
             {currentSong?.lyric?.trim() ? (
-              <View ref={showLyrics ? subScrollWrapRef : null} onLayout={showLyrics ? measureSubScroll : undefined} style={{ flex: 1 }}>
-                <ScrollView
-                  style={styles.lyricsScrollView}
-                  contentContainerStyle={{ paddingBottom: 30 }}
-                  onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-                  scrollEventThrottle={16}
-                >
-                  <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
-                </ScrollView>
-              </View>
+              <ScrollView
+                style={styles.lyricsScrollView}
+                contentContainerStyle={{ paddingBottom: 30 }}
+                onScroll={(e) => {
+                  const y = e.nativeEvent.contentOffset.y;
+                  scrollYRef.current = y;
+                  setIsScrollAtTop(y <= 0);
+                }}
+                scrollEventThrottle={16}
+              >
+                <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
+              </ScrollView>
             ) : (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
@@ -319,7 +488,6 @@ export const FullScreenPlayer = ({
       </View>
     );
   } else {
-    // ★ 縦画面: カバーアートサイズを画面高さでも制限（iPad縦で下部見切れ対策）
     const artSizeBig = Math.min(width * 0.8, height * 0.4);
     const artSizeSmall = 60;
     const artSizeAnim = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [artSizeBig, artSizeSmall] });
@@ -349,18 +517,27 @@ export const FullScreenPlayer = ({
         <View style={{ flex: 1 }}>
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: mainOpacity, transform: [{ translateX: mainTranslateX }] }]} pointerEvents={(showLyrics || showQueue) ? 'none' : 'auto'}>
             <View style={styles.mainPlaybackLayout}>
-              <View style={styles.mainTitlesCenter}>
-                <Text style={styles.fullTitle} numberOfLines={1}>{currentSong?.title}</Text>
-                <Text style={styles.fullArtist} numberOfLines={1}>{currentSong?.artist}</Text>
+              {/* アーティスト名とシークバーの間隔を最適化 */}
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                <View style={styles.mainTitlesCenter}>
+                  <Text style={styles.fullTitle} numberOfLines={1}>{currentSong?.title}</Text>
+                  <Text style={[styles.fullArtist, { marginBottom: 16 }]} numberOfLines={1}>{currentSong?.artist}</Text>
+                </View>
+
+                <View style={styles.sliderWithTime}>
+                  <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
+                  <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+                </View>
               </View>
-              {/* ★ シークバー領域をrefで計測（ジェスチャ除外用） */}
-              <View ref={sliderWrapRef} onLayout={measureSlider} style={styles.sliderWithTime}>
-                <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-                <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+
+              <View style={{ width: '100%' }}>
+                {isIpadPortrait ? renderIpadPortraitControls() : (
+                  <>
+                    {renderControls(80, { width: '100%', justifyContent: 'space-around' })}
+                    {renderInlineToggles()}
+                  </>
+                )}
               </View>
-              {renderControls(80, { width: '100%', justifyContent: 'space-around' })}
-              {/* ★ 再生コントロール下にシャッフル/ループを追加（縦画面のみ） */}
-              {renderInlineToggles()}
             </View>
           </Animated.View>
 
@@ -368,16 +545,18 @@ export const FullScreenPlayer = ({
             <View style={[styles.queueViewArea, { paddingHorizontal: 20 }]}>
               {showLyrics ? (
                 currentSong?.lyric?.trim() ? (
-                  <View ref={subScrollWrapRef} onLayout={measureSubScroll} style={{ flex: 1 }}>
-                    <ScrollView
-                      style={styles.lyricsScrollView}
-                      contentContainerStyle={{ paddingBottom: 30 }}
-                      onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-                      scrollEventThrottle={16}
-                    >
-                      <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
-                    </ScrollView>
-                  </View>
+                  <ScrollView
+                    style={styles.lyricsScrollView}
+                    contentContainerStyle={{ paddingBottom: 30 }}
+                    onScroll={(e) => {
+                      const y = e.nativeEvent.contentOffset.y;
+                      scrollYRef.current = y;
+                      setIsScrollAtTop(y <= 0);
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
+                  </ScrollView>
                 ) : (
                   <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
@@ -386,19 +565,21 @@ export const FullScreenPlayer = ({
               ) : (
                 <>
                   {renderQueueToggles()}
-                  <View ref={subScrollWrapRef} onLayout={measureSubScroll} style={{ flex: 1 }}>
-                    <FlatList
-                      data={playQueue}
-                      keyExtractor={(item, index) => 'queue-v-' + index}
-                      onScroll={(e) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-                      scrollEventThrottle={16}
-                      renderItem={({ item }) => (
-                        <View style={styles.songRowQueue}>
-                          <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                          <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
-                        </View>
-                      )} />
-                  </View>
+                  <FlatList
+                    data={playQueue}
+                    keyExtractor={(item, index) => 'queue-v-' + index}
+                    onScroll={(e) => {
+                      const y = e.nativeEvent.contentOffset.y;
+                      scrollYRef.current = y;
+                      setIsScrollAtTop(y <= 0);
+                    }}
+                    scrollEventThrottle={16}
+                    renderItem={({ item }) => (
+                      <View style={styles.songRowQueue}>
+                        <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
+                        <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                      </View>
+                    )} />
                 </>
               )}
             </View>
@@ -406,38 +587,75 @@ export const FullScreenPlayer = ({
         </View>
 
         <View style={styles.bottomButtonsRow}>
-          <View style={styles.bottomButtonContainer}><TouchableOpacity onPress={toggleLyrics}><Ionicons name="musical-notes-outline" size={26} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} /></TouchableOpacity></View>
-          <View style={styles.bottomButtonContainer}><TouchableOpacity onPress={toggleQueue}><Ionicons name="list" size={26} color={showQueue ? themeColor : "rgba(255,255,255,0.6)"} /></TouchableOpacity></View>
+          <View style={styles.bottomButtonContainer}>
+            <BounceButton
+              onPress={toggleLyrics}
+              underlayColor="rgba(255,255,255,0.15)"
+              style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Ionicons name="musical-notes-outline" size={26} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} />
+            </BounceButton>
+          </View>
+          <View style={styles.bottomButtonContainer}>
+            <BounceButton
+              onPress={toggleQueue}
+              underlayColor="rgba(255,255,255,0.15)"
+              style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Ionicons name="list" size={26} color={showQueue ? themeColor : "rgba(255,255,255,0.6)"} />
+            </BounceButton>
+          </View>
         </View>
       </View>
     );
   }
 
-  return (
-    <View style={styles.fullPlayerOverlay}>
-      <Animated.View
-        style={[styles.fullPlayerContainer, { transform: [{ translateY: slideAnim }] }]}
-        {...panResponder.panHandlers}
-      >
-        <Image
-          source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : null}
-          style={StyleSheet.absoluteFill}
-          blurRadius={60}
-          pointerEvents="none"
-        />
+  const containerStyle = isIphoneLandscape
+    ? { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const }
+    : styles.fullPlayerContainer;
 
-        <BlurView intensity={80} tint="dark" style={styles.fullPlayerContent}>
-          <View style={styles.swipeArea}>
-            <View style={styles.fullPlayerHandle} />
-          </View>
-          {contentLayout}
-          {toastVisible && (
-            <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-              <BlurView intensity={50} tint="dark" style={styles.toastBlur}><Text style={styles.toastText}>{toastMessage}</Text></BlurView>
-            </Animated.View>
-          )}
-        </BlurView>
-      </Animated.View>
-    </View>
+  const contentStyle = isIphoneLandscape
+    ? { 
+        flex: 1, 
+        paddingLeft: Math.max(insets.left, 16), 
+        paddingRight: Math.max(insets.right, 16), 
+        paddingTop: Math.max(insets.top, 12), 
+        paddingBottom: Math.max(insets.bottom, 16) 
+      }
+    : styles.fullPlayerContent;
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.fullPlayerOverlay}>
+        <PanGestureHandler
+          activeOffsetY={[-500, 15]}
+          failOffsetX={[-15, 15]}
+          enabled={!isLandscape ? (!showLyrics && !showQueue ? true : isScrollAtTop) : false}
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+        >
+          <Animated.View
+            style={[containerStyle, { transform: [{ translateY: slideAnim }] }]}
+          >
+            <Image
+              source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : null}
+              style={StyleSheet.absoluteFill}
+              blurRadius={60}
+              pointerEvents="none"
+            />
+
+            <BlurView intensity={80} tint="dark" style={contentStyle}>
+              {handleBar}
+              {contentLayout}
+              {toastVisible && (
+                <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+                  <BlurView intensity={50} tint="dark" style={styles.toastBlur}><Text style={styles.toastText}>{toastMessage}</Text></BlurView>
+                </Animated.View>
+              )}
+            </BlurView>
+          </Animated.View>
+        </PanGestureHandler>
+      </View>
+    </GestureHandlerRootView>
   );
 };
