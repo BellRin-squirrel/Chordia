@@ -30,24 +30,26 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios
 
-      # ★ 究極の修正: Xcode が絶対に Node を見失わないように設定を強制上書き
-      - name: Force Node Path for Xcode ReactCodegen
+      # XcodeビルドがNodeを完全解決できるように .xcode.env.local を強制生成
+      - name: Configure Node for Xcode Build
         run: |
           NODE_PATH=$(which node)
-          echo "Node is at: $NODE_PATH"
-          
-          # 1. Xcode の環境変数ファイルに直接書き込む
-          echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env
           echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
           
-          # 2. React Native の find-node.sh を上書きして強制的にパスを返させる
-          FIND_NODE_SCRIPT="node_modules/react-native/scripts/find-node.sh"
-          if [ -f "$FIND_NODE_SCRIPT" ]; then
+          # 追加フェールセーフ: react-native内部の .xcode.env も強制的に上書き
+          if [ -d "node_modules/react-native/scripts" ]; then
+            echo "export NODE_BINARY=$NODE_PATH" > node_modules/react-native/scripts/.xcode.env.local
+            
+            # find-node.sh自体を、確実にパスを返すだけのスクリプトに上書き
+            FIND_NODE_SCRIPT="node_modules/react-native/scripts/find-node.sh"
             echo "#!/bin/bash" > "$FIND_NODE_SCRIPT"
             echo "set -e" >> "$FIND_NODE_SCRIPT"
             echo "echo \"$NODE_PATH\"" >> "$FIND_NODE_SCRIPT"
             chmod +x "$FIND_NODE_SCRIPT"
           fi
+          
+          echo "Configured local xcode env with node path:"
+          cat ios/.xcode.env.local
 
       - name: Build Unsigned IPA with Xcode
         run: echo "Began to build Unsigned IPA with Xcode"
@@ -59,9 +61,10 @@ jobs:
           echo "Found project: $PROJECT_NAME"
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # xcpretty を通してログを劇的に圧縮し、エラーのみを目立たせます
+      # ★ 修正: xcpretty を一時的に外し、生のエラーログ（Generate Specsの失敗理由）を出力させます
       - name: Make archive as for iPhones. (Unsigned)
         run: |
+          # 途中でエラーが起きてもGitHub Actionsに失敗を伝える
           set -o pipefail
           
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
@@ -73,10 +76,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO | xcpretty
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
 
       - name: Make Payload Folder and Make It IPA file
         run: |
+          # Payloadフォルダを作ってIPA化
           mkdir Payload
           cp -r "./build/$PROJECT_NAME.xcarchive/Products/Applications/$PROJECT_NAME.app" ./Payload/
           zip -r Chordia.ipa Payload
