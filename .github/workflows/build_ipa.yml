@@ -27,16 +27,13 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ 修正: 対話プロンプトによるフリーズを防ぎ、常にクリーンな状態でネイティブプロジェクトを生成する
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # React Nativeのすべてのシェルスクリプトに実行権限を一括付与する
       - name: Give execute permission to all React Native shell scripts
         run: |
           find node_modules/react-native/scripts -name "*.sh" -exec chmod +x {} \;
 
-      # XcodeビルドがNodeを完全解決できるよう、ios/.xcode.env.local を生成
       - name: Configure Node for Xcode Build
         run: |
           NODE_PATH=$(which node)
@@ -48,18 +45,15 @@ jobs:
       - name: Build Unsigned IPA with Xcode
         run: echo "Began to build Unsigned IPA with Xcode"
 
-      # 取得したプロジェクト名を $GITHUB_ENV に書き出し、ジョブ全体で共有
       - name: Get Workspace Name
         run: |
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "Found project: $PROJECT_NAME"
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # xcpretty を通してログを圧縮し、エラーのみを目立たせます
+      # ★ 修正: エラー原因特定のため xcpretty を外し、生ログをすべて出力させます
       - name: Make archive as for iPhones. (Unsigned)
         run: |
-          set -o pipefail
-          
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
             -scheme "$PROJECT_NAME" \
             -configuration Release \
@@ -69,11 +63,10 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO | xcpretty
+            ENABLE_USER_SCRIPT_SANDBOXING=NO
 
       - name: Make Payload Folder and Make It IPA file
         run: |
-          # Payloadフォルダを作ってIPA化
           mkdir Payload
           cp -r "./build/$PROJECT_NAME.xcarchive/Products/Applications/$PROJECT_NAME.app" ./Payload/
           zip -r Chordia.ipa Payload
