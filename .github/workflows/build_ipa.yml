@@ -27,26 +27,20 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
+      # ★ 修正: 対話プロンプトによるフリーズを防ぎ、常にクリーンな状態でネイティブプロジェクトを生成する
       - name: Prebuild (Convert to Native Project)
-        run: ./node_modules/.bin/expo prebuild --platform ios
+        run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # XcodeビルドがNodeを完全解決できるように .xcode.env.local を強制生成
+      # React Nativeのすべてのシェルスクリプトに実行権限を一括付与する
+      - name: Give execute permission to all React Native shell scripts
+        run: |
+          find node_modules/react-native/scripts -name "*.sh" -exec chmod +x {} \;
+
+      # XcodeビルドがNodeを完全解決できるよう、ios/.xcode.env.local を生成
       - name: Configure Node for Xcode Build
         run: |
           NODE_PATH=$(which node)
           echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
-          
-          # 追加フェールセーフ: react-native内部の .xcode.env も強制的に上書き
-          if [ -d "node_modules/react-native/scripts" ]; then
-            echo "export NODE_BINARY=$NODE_PATH" > node_modules/react-native/scripts/.xcode.env.local
-            
-            # find-node.sh自体を、確実にパスを返すだけのスクリプトに上書き
-            FIND_NODE_SCRIPT="node_modules/react-native/scripts/find-node.sh"
-            echo "#!/bin/bash" > "$FIND_NODE_SCRIPT"
-            echo "set -e" >> "$FIND_NODE_SCRIPT"
-            echo "echo \"$NODE_PATH\"" >> "$FIND_NODE_SCRIPT"
-            chmod +x "$FIND_NODE_SCRIPT"
-          fi
           
           echo "Configured local xcode env with node path:"
           cat ios/.xcode.env.local
@@ -61,10 +55,9 @@ jobs:
           echo "Found project: $PROJECT_NAME"
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ 修正: xcpretty を一時的に外し、生のエラーログ（Generate Specsの失敗理由）を出力させます
+      # xcpretty を通してログを圧縮し、エラーのみを目立たせます
       - name: Make archive as for iPhones. (Unsigned)
         run: |
-          # 途中でエラーが起きてもGitHub Actionsに失敗を伝える
           set -o pipefail
           
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
@@ -76,7 +69,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO
+            ENABLE_USER_SCRIPT_SANDBOXING=NO | xcpretty
 
       - name: Make Payload Folder and Make It IPA file
         run: |
