@@ -1,4 +1,16 @@
-バグ・新機能
+アプリバージョン変更で変更する箇所
+beta版内アップデート
+README.md
+app/(tabs)/index.tsx
+build_ipa.yml
+
+それ以外のアップデート
+README.md
+app.json
+eas.json
+package-lock.json ２か所
+package.json
+
 
 v4.0.0-beta3（現在開発中）
 
