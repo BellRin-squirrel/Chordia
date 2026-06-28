@@ -30,9 +30,10 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      - name: Give execute permission to all React Native shell scripts
+      # ★ 修正: React Nativeだけでなく、node_modules配下の「すべて」のシェルスクリプトに実行権限を付与する
+      - name: Give execute permission to all shell scripts in node_modules
         run: |
-          find node_modules/react-native/scripts -name "*.sh" -exec chmod +x {} \;
+          find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
       - name: Configure Node for Xcode Build
         run: |
@@ -51,7 +52,6 @@ jobs:
           echo "Found project: $PROJECT_NAME"
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ 修正: エラー原因特定のため xcpretty を外し、生ログをすべて出力させます
       - name: Make archive as for iPhones. (Unsigned)
         run: |
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
@@ -63,7 +63,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO
+            ENABLE_USER_SCRIPT_SANDBOXING=NO 2>&1 | tee build.log
 
       - name: Make Payload Folder and Make It IPA file
         run: |
@@ -76,3 +76,9 @@ jobs:
         with:
           name: Chordia-IPA
           path: Chordia.ipa
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
