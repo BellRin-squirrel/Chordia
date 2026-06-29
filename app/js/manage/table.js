@@ -33,16 +33,19 @@
                 
                 s.searchQuery = s.searchQuery || "";
                 s.advancedConditions = s.advancedConditions || null; 
-                
-                s.totalItems = await invoke("get_library_count", {
+
+                // 総件数の取得（高度な検索の条件を引数として正しく渡します）
+                const totalItems = await invoke("get_library_count", {
                     searchQuery: s.searchQuery,
                     advancedConditions: s.advancedConditions
                 });
                 
+                s.totalItems = totalItems;
+                
                 await this.fetchChunk();
                 this.updateSearchUI();
             } catch (e) {
-                console.error("[DEBUG] LOAD ERROR DETAIL:", e);
+                console.error("LOAD ERROR DETAIL:", e);
                 u.showToast("読み込み失敗: " + e.message, true);
             } finally {
                 hideLoading();
@@ -86,19 +89,26 @@
         fetchChunk: async function() {
             const limit = s.isSelectionMode ? 0 : (s.isShowAll ? 0 : s.itemsPerPage);
             
-            s.libraryData = await invoke("get_library_chunk", {
-                page: s.currentPage,
-                limit: limit,
-                sortField: s.sortState.field,
-                sortDesc: s.sortState.direction === 'desc',
-                searchQuery: s.searchQuery,
-                advancedConditions: s.advancedConditions
-            });
+            try {
+                const res = await invoke("get_library_chunk", {
+                    page: s.currentPage,
+                    limit: limit,
+                    sortField: s.sortState.field,
+                    sortDesc: s.sortState.direction === 'desc',
+                    searchQuery: s.searchQuery,
+                    advancedConditions: s.advancedConditions
+                });
 
-            this.renderHeader();
-            this.renderTable();
-            this.renderPagination();
-            this.updateBulkBar();
+                s.libraryData = res;
+
+                this.renderHeader();
+                this.renderTable();
+                this.renderPagination();
+                this.updateBulkBar();
+            } catch (err) {
+                console.error("fetchChunk Error:", err);
+                u.showToast("データの取得に失敗しました", true);
+            }
         },
 
         toggleSelectionMode: function() {
@@ -225,7 +235,7 @@
 
         updateHeaderIcons: function() {
             document.querySelectorAll('.sort-icon').forEach(i => i.textContent = '');
-            const icon = document.getElementById(`sort-${s.sortState.field}`);
+            const icon = document.getElementById('sort-' + s.sortState.field);
             if (icon) icon.textContent = s.sortState.direction === 'asc' ? '▲' : '▼';
         },
 

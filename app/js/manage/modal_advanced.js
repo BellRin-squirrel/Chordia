@@ -5,6 +5,7 @@
 
     window.AdvancedSearchController = {
         activeTags: [],
+        isOpening: false, // ★ 追加：二重展開を防ぐセーフガードフラグ
         textOps: [
             { val: 'contains', label: 'を含む' },
             { val: 'not_contains', label: 'を含まない' },
@@ -32,14 +33,22 @@
         },
 
         open: async function() {
+            if (this.isOpening) return; // 既に展開中の場合は多重実行をガード
             const container = document.getElementById('advSearchRootContainer');
             if (container.children.length === 0) {
-                const settings = await invoke("get_app_settings");
-                const allTags = await invoke("get_available_tags");
-                this.activeTags = allTags.filter(t => settings.active_tags.includes(t.key)).map(t => ({val: t.key, label: t.label}));
-                this.activeTags.push({val: 'lyric', label: '歌詞'});
-                container.appendChild(this.createConditionGroup(true));
-                this.updateAllMinusButtons();
+                this.isOpening = true;
+                try {
+                    const settings = await invoke("get_app_settings");
+                    const allTags = await invoke("get_available_tags");
+                    this.activeTags = allTags.filter(t => settings.active_tags.includes(t.key)).map(t => ({val: t.key, label: t.label}));
+                    this.activeTags.push({val: 'lyric', label: '歌詞'});
+                    container.appendChild(this.createConditionGroup(true));
+                    this.updateAllMinusButtons();
+                } catch (e) {
+                    console.error(e);
+                } finally {
+                    this.isOpening = false;
+                }
             }
             document.getElementById('advancedSearchModal').classList.add('show');
         },
@@ -224,13 +233,36 @@
                         const tag = child.dataset.tag;
                         const op = child.dataset.op;
                         const inputs = child.querySelectorAll('.smart-input');
-                        const val = inputs.length > 1 ? [inputs[0].value, inputs[1].value] : inputs[0].value;
+                        
+                        // ★ 修正と改善: 数値型のタグ（track, year, disc, bpm）の場合に、JS側で明示的に数値型へパース
+                        // これを行わない場合、Rustのデシリアライザが厳格に処理しようとする際、型ミスマッチとして条件が無効化（サイレント失敗）されます。
+                        const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
+                        let val;
+                        if (isNum) {
+                            if (op === 'range') {
+                                val = [
+                                    inputs[0] ? (parseFloat(inputs[0].value) || 0) : 0,
+                                    inputs[1] ? (parseFloat(inputs[1].value) || 0) : 0
+                                ];
+                            } else {
+                                val = inputs[0] ? (parseFloat(inputs[0].value) || 0) : 0;
+                            }
+                        } else {
+                            val = inputs.length > 1 ? [inputs[0].value, inputs[1].value] : (inputs[0] ? inputs[0].value : "");
+                        }
+
                         items.push({ type: 'filter', tag, op, val });
-                    } else if (child.classList.contains('smart-group-wrapper')) items.push(parseGroup(child));
+                    } else if (child.classList.contains('smart-group-wrapper')) {
+                        items.push(parseGroup(child));
+                    }
                 });
                 return { type: 'group', match, items };
             };
             const conditions = parseGroup(rootElement);
+            
+            // ★ デバッグログの出力（F12デベロッパーツールで確認可能）
+            console.log("[DEBUG] apply advanced search conditions (generated JSON):", JSON.stringify(conditions, null, 2));
+
             document.getElementById('advancedSearchModal').classList.remove('show');
             if (window.TableController) window.TableController.execAdvancedSearch(conditions);
         },

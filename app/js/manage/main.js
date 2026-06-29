@@ -34,23 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const btnBulkEdit = document.getElementById('btnBulkEdit');
-    if (btnBulkEdit) {
-        btnBulkEdit.addEventListener('click', () => {
-            if (window.ModalController && typeof window.ModalController.openBulkEditModal === 'function') {
-                window.ModalController.openBulkEditModal();
-            }
-        });
-    }
-
-    const btnBulkDelete = document.getElementById('btnBulkDelete');
-    if (btnBulkDelete) {
-        btnBulkDelete.addEventListener('click', () => {
-            if (window.ModalController && typeof window.ModalController.openBulkDeleteModal === 'function') {
-                window.ModalController.openBulkDeleteModal();
-            }
-        });
-    }
+    // 重複していた一括変更(btnBulkEdit), 一括削除(btnBulkDelete), 高度な検索(btnAdvancedSearch)の
+    // イベントリスナー登録は、各モーダルモジュールの init() 側で一元管理するためここからは削除しました。
 
     const btnSearch = document.getElementById('btnSearchManage');
     const inputSearch = document.getElementById('searchInputManage');
@@ -73,15 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnClear.addEventListener('click', () => {
             inputSearch.value = ''; 
             window.TableController.execSearch(''); 
-        });
-    }
-
-    const btnAdvanced = document.getElementById('btnAdvancedSearch');
-    if (btnAdvanced) {
-        btnAdvanced.addEventListener('click', () => {
-            if (window.ModalController && typeof window.ModalController.openAdvancedSearch === 'function') {
-                window.ModalController.openAdvancedSearch();
-            }
         });
     }
 });

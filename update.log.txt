@@ -12,7 +12,10 @@ Cargo.lock
 issue
 https://github.com/BellRin-squirrel/Chordia_Windows_Portable/issues
 
-v3.0.1（現在開発中）
+v3.0.2 （現在開発中）
+・現在、データベース画面で、高度な検索ができないというバグを修正しました。
+
+v3.0.1
 ・インストーラーの対応言語を英語だけから日本語、英語、中国語（繁体字）、中国語（簡体字）、韓国語に対応するようになりました。
 ・MIT-LICENSEを設定しました。
 
