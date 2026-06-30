@@ -2,20 +2,19 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::utils::get_base_dir;
-use zip::write::SimpleFileOptions;
 
 #[tauri::command]
 pub fn get_default_export_path() -> Result<String, String> {
     let doc_dir = dirs::download_dir().unwrap_or_else(|| dirs::document_dir().unwrap_or_else(|| PathBuf::from(".")));
-    Ok(doc_dir.join("Chordia_Export.zip").to_string_lossy().to_string())
+    Ok(doc_dir.join("Chordia_Backup.zip").to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn ask_save_path(current_path: String) -> Option<String> {
     let mut dialog = rfd::FileDialog::new()
-        .set_title("エクスポート先を選択")
+        .set_title("引継ぎファイルの保存先を選択")
         .add_filter("ZIP Archive", &["zip"])
-        .set_file_name("Chordia_Export.zip");
+        .set_file_name("Chordia_Backup.zip");
         
     if !current_path.is_empty() {
         if let Some(parent) = Path::new(&current_path).parent() {
@@ -30,7 +29,6 @@ pub fn ask_save_path(current_path: String) -> Option<String> {
 pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: String, password: Option<String>) -> Result<Value, String> {
     let save_path_clone = save_path.clone();
     
-    // ★ 修正：パスワードの文字数チェック (128文字以内)
     let password_static: &'static str = if let Some(pass) = password {
         if pass.chars().count() > 128 {
             return Err("パスワードは128文字以内にしてください".to_string());
@@ -52,16 +50,16 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
             let _ = fs::create_dir_all(p);
         }
 
-        let file = fs::File::create(&save_path_obj).map_err(|e| format!("ZIPファイルの作成に失敗しました: {}", e))?;
+        let file = fs::File::create(&save_path_obj).map_err(|e| format!("引継ぎファイルの作成に失敗しました: {}", e))?;
         let mut zip = zip::ZipWriter::new(file);
         
         let options = if !password_static.is_empty() {
-            SimpleFileOptions::default()
+            zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated)
                 .unix_permissions(0o755)
                 .with_aes_encryption(zip::AesMode::Aes256, password_static)
         } else {
-            SimpleFileOptions::default()
+            zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated)
                 .unix_permissions(0o755)
         };
@@ -97,9 +95,71 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
     }
 }
 
+// ★ 修正：型推論エラーを回避するため、他のZIP関連機能に倣い、同期（非async）コマンドに安全に変更
+#[tauri::command]
+pub fn execute_migration_import(zip_path: String, password: Option<String>) -> Result<Value, String> {
+    if let Some(ref pass) = password {
+        if pass.chars().count() > 128 {
+            return Err("パスワードは128文字以内にしてください".to_string());
+        }
+    }
+
+    let base_dir = get_base_dir();
+    let file = fs::File::open(&zip_path).map_err(|e| format!("ZIPファイルの読み込みに失敗しました: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
+
+    // 実際に暗号化されたファイルが存在するか確認
+    let mut needs_password = false;
+    for i in 0..archive.len() {
+        if let Ok(file) = archive.by_index(i) {
+            if file.is_file() && file.encrypted() {
+                needs_password = true;
+                break;
+            }
+        }
+    }
+
+    let pass_str = password.as_deref().unwrap_or("");
+    if needs_password && pass_str.is_empty() {
+        return Ok(serde_json::json!({"status": "password_required"}));
+    }
+
+    // 展開（リストア）開始
+    for i in 0..archive.len() {
+        let mut file = if needs_password {
+            match archive.by_index_decrypt(i, pass_str.as_bytes()) {
+                Ok(f) => f,
+                Err(zip::result::ZipError::InvalidPassword) => return Err("パスワードが間違っています".to_string()),
+                Err(e) => return Err(e.to_string()),
+            }
+        } else {
+            archive.by_index(i).map_err(|e| e.to_string())?
+        };
+
+        let outpath = match file.enclosed_name() {
+            Some(path) => base_dir.join(path),
+            None => continue,
+        };
+
+        if (*file.name()).ends_with('/') {
+            fs::create_dir_all(&outpath).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+                }
+            }
+            let mut outfile = fs::File::create(&outpath).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut outfile).map_err(|e| format!("展開ファイル書き込みエラー: {}", e))?;
+        }
+    }
+
+    Ok(serde_json::json!({"status": "success"}))
+}
+
 fn add_file_to_zip(
     zip: &mut zip::ZipWriter<fs::File>,
-    options: SimpleFileOptions,
+    options: zip::write::SimpleFileOptions,
     src: &Path,
     dst_name: &str,
 ) -> Result<(), String> {
@@ -112,7 +172,7 @@ fn add_file_to_zip(
 
 fn add_dir_to_zip(
     zip: &mut zip::ZipWriter<fs::File>,
-    options: SimpleFileOptions,
+    options: zip::write::SimpleFileOptions,
     src_dir: &Path,
     dst_prefix: &str,
 ) -> Result<(), String> {

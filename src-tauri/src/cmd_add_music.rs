@@ -49,6 +49,7 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
             if let Ok(out) = std::process::Command::new(&exe).arg(arg).creation_flags(0x08000000).output() {
                 let stdout = String::from_utf8_lossy(&out.stdout).to_lowercase();
                 let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
+                stdout.contains(keyword) || stderr.contains(keyword);
                 stdout.contains(keyword) || stderr.contains(keyword)
             } else { 
                 false 
@@ -64,7 +65,6 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
     
     Ok(())
 }
-
 
 #[tauri::command]
 pub fn get_default_art_url() -> String { get_asset_url("library/images/default.png") }
@@ -102,10 +102,11 @@ pub fn get_autocomplete_lists(state: State<'_, AppState>) -> AutocompleteLists {
         if let Some(s) = item.get("artist").and_then(|v| v.as_str()) { if !s.trim().is_empty() { ar.insert(s.trim().into()); } }
         if let Some(s) = item.get("album").and_then(|v| v.as_str()) { if !s.trim().is_empty() { al.insert(s.trim().into()); } }
     }
-    let mut tv: Vec<_> = t.into_iter().collect(); tv.sort();
-    let mut arv: Vec<_> = ar.into_iter().collect(); arv.sort();
-    let mut alv: Vec<_> = al.into_iter().collect(); alv.sort();
-    AutocompleteLists { title: tv, artist: arv, album: alv }
+    
+    let mut vec_t: Vec<String> = t.into_iter().collect(); vec_t.sort();
+    let mut vec_ar: Vec<String> = ar.into_iter().collect(); vec_ar.sort();
+    let mut vec_al: Vec<String> = al.into_iter().collect(); vec_al.sort();
+    AutocompleteLists { title: vec_t, artist: vec_ar, album: vec_al }
 }
 
 #[tauri::command]
@@ -125,132 +126,9 @@ pub fn check_duplicate_songs(title: String, artist: String, state: State<'_, App
     }).collect()
 }
 
-// ★ 修正：非同期コマンド化し、重いプロセス起動を spawn_blocking に移譲
+// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、日本語タイトルを取得する
 #[tauri::command]
-pub async fn check_tools_status() -> Result<Value, String> {
-    tokio::task::spawn_blocking(|| {
-        Ok(serde_json::json!({
-            "yt-dlp": verify_tool_executable("yt-dlp").is_ok(),
-            "ffmpeg": verify_tool_executable("ffmpeg").is_ok(),
-            "deno": verify_tool_executable("deno").is_ok()
-        }))
-    }).await.map_err(|e| format!("ステータス確認スレッドエラー: {}", e))?
-}
-
-#[tauri::command]
-pub fn fetch_video_info(url: String) -> Value {
-    if let Err(msg) = verify_tool_executable("yt-dlp") {
-        return serde_json::json!({"status": "error", "message": msg});
-    }
-
-    let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
-    let out = std::process::Command::new(exe).args(&["--dump-json", "--no-playlist", "--skip-download", &url]).creation_flags(0x08000000).output();
-    match out {
-        Ok(o) if o.status.success() => serde_json::from_str::<Value>(&String::from_utf8_lossy(&o.stdout)).map(|i| serde_json::json!({
-            "status": "success", "title": i["title"], "duration": i["duration"], "thumbnail": i["thumbnail"], "uploader": i["uploader"]
-        })).unwrap_or(serde_json::json!({"status": "error", "message": "JSON error"})),
-        Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
-        Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
-    }
-}
-
-#[tauri::command]
-pub fn fetch_youtube_playlist(url: String) -> Value {
-    if let Err(msg) = verify_tool_executable("yt-dlp") {
-        return serde_json::json!({"status": "error", "message": msg});
-    }
-
-    let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
-    let out = std::process::Command::new(exe).args(&["--dump-json", "--flat-playlist", &url]).creation_flags(0x08000000).output();
-    match out {
-        Ok(o) if o.status.success() => {
-            let v: Vec<_> = String::from_utf8_lossy(&o.stdout).lines().filter_map(|l| serde_json::from_str::<Value>(l).ok())
-                .filter(|i| i["title"] != "[Private video]" && i["title"] != "[Deleted video]")
-                .map(|i| {
-                    let id = i["id"].as_str().unwrap_or("");
-                    let thumb_url = if let Some(t) = i["thumbnail"].as_str() {
-                        t.to_string()
-                    } else if !id.is_empty() {
-                        format!("https://img.youtube.com/vi/{}/hqdefault.jpg", id)
-                    } else {
-                        "".to_string()
-                    };
-                    
-                    serde_json::json!({
-                        "title": i["title"], "uploader": i["uploader"], "duration": i["duration"], "thumbnail": thumb_url,
-                        "url": i["url"].as_str().map(|s| s.into()).unwrap_or(format!("https://www.youtube.com/watch?v={}", id))
-                    })
-                }).collect();
-            serde_json::json!({"status": "success", "videos": v})
-        },
-        Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
-        Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
-    }
-}
-
-#[tauri::command]
-pub fn fetch_and_crop_thumbnail(url: String) -> Option<String> {
-    let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
-    let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok()?;
-    let b = c.get(&u).send().ok()?.bytes().ok()?;
-    let i = image::load_from_memory(&b).ok()?;
-    
-    let (width, height) = (i.width(), i.height());
-    let (eff_w, eff_h, off_x, off_y) = if (width as f32 / height as f32 - 1.333).abs() < 0.05 {
-        let real_h = (width as f32 * 9.0 / 16.0) as u32;
-        (width, real_h, 0, (height - real_h) / 2) 
-    } else {
-        (width, height, 0, 0)
-    };
-
-    let s = std::cmp::min(eff_w, eff_h);
-    let mut ic = i.crop_imm(off_x + (eff_w - s) / 2, off_y + (eff_h - s) / 2, s, s);
-    
-    if ic.color().has_alpha() {
-        let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
-        image::imageops::overlay(&mut bg, &ic, 0, 0); 
-        ic = bg;
-    }
-    
-    let mut buf = std::io::Cursor::new(Vec::new()); 
-    ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
-    Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
-}
-
-#[tauri::command]
-pub fn fetch_and_crop_image_url(url: String) -> Value {
-    fetch_and_crop_thumbnail(url).map(|b| serde_json::json!({"status": "success", "data": b})).unwrap_or(serde_json::json!({"status": "error", "message": "Failed"}))
-}
-
-#[tauri::command]
-pub fn extract_artwork_from_local_file(b64_music: String) -> Option<String> {
-    let b64c = if b64_music.contains(',') { b64_music.split(',').nth(1).unwrap() } else { &b64_music };
-    let b = general_purpose::STANDARD.decode(b64c).ok()?;
-    let t = id3::Tag::read_from2(&mut std::io::Cursor::new(&b)).ok()?;
-    let p = t.pictures().next()?;
-    let i = image::load_from_memory(&p.data).ok()?;
-    let s = std::cmp::min(i.width(), i.height());
-    let mut ic = i.crop_imm((i.width()-s)/2, (i.height()-s)/2, s, s);
-    if ic.color().has_alpha() {
-        let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
-        image::imageops::overlay(&mut bg, &ic, 0, 0); ic = bg;
-    }
-    let mut buf = std::io::Cursor::new(Vec::new()); ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
-    Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
-}
-
-#[tauri::command]
-pub fn download_original_thumbnail(url: String) -> Value {
-    if let Some(p) = rfd::FileDialog::new().set_title("Save Thumbnail").add_filter("Image", &["png", "jpg"]).save_file() {
-        let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
-        let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok().and_then(|c| c.get(&u).send().ok()).and_then(|r| r.bytes().ok());
-        if let Some(b) = c { if fs::write(p, b).is_ok() { return serde_json::json!({"status": "success", "message": "Saved"}); } }
-        serde_json::json!({"status": "error", "message": "Failed"})
-    } else { serde_json::json!({"status": "cancel", "message": "Canceled"}) }
-}
-
-#[tauri::command]
-pub fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
+pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     verify_tool_executable("yt-dlp")?;
     verify_tool_executable("ffmpeg")?;
 
@@ -258,13 +136,30 @@ pub fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: 
     let bin = base.join("userfiles/bin");
     let url = data.get("video_url").and_then(|v| v.as_str()).ok_or("No URL")?.to_string();
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
-    let _ = fs::create_dir_all(base.join("library/music")); let _ = fs::create_dir_all(base.join("library/images"));
+    let _ = fs::create_dir_all(base.join("library/music")); 
+    let _ = fs::create_dir_all(base.join("library/images"));
     
-    let out = std::process::Command::new(bin.join("yt-dlp.exe"))
-        .args(&["--no-playlist", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "-o", base.join(format!("library/music/{}.%(ext)s", f_id)).to_str().unwrap(), &url])
-        .creation_flags(0x08000000)
-        .output()
-        .map_err(|e| e.to_string())?;
+    let f_id_clone = f_id.clone();
+    let bin_clone = bin.clone();
+    let base_clone = base.clone();
+
+    // ダウンロードプロセス時も日本語優先オプションを付与
+    let out = tokio::task::spawn_blocking(move || {
+        std::process::Command::new(bin_clone.join("yt-dlp.exe"))
+            .args(&[
+                "--add-header", "Accept-Language:ja-JP",
+                "--extractor-args", "youtube:lang=ja",
+                "--no-playlist", 
+                "--extract-audio", 
+                "--audio-format", "mp3", 
+                "--audio-quality", "0", 
+                "-o", 
+                base_clone.join(format!("library/music/{}.%(ext)s", f_id_clone)).to_str().unwrap(), 
+                &url
+            ])
+            .creation_flags(0x08000000)
+            .output()
+    }).await.map_err(|e| format!("スレッドプール待機エラー: {}", e))?.map_err(|e| e.to_string())?;
         
     if !out.status.success() { return Err(String::from_utf8_lossy(&out.stderr).into()); }
     
@@ -274,7 +169,14 @@ pub fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: 
             let bc = if art.contains(',') { art.split(',').nth(1).unwrap() } else { art };
             if let Ok(by) = general_purpose::STANDARD.decode(bc) {
                 let ir = format!("library/images/{}.png", f_id);
-                if force_save_as_png(&by, &base.join(&ir)) { i_rel = ir; }
+                let base_for_img = base.clone();
+                let ir_for_img = ir.clone();
+                
+                let success = tokio::task::spawn_blocking(move || {
+                    force_save_as_png(&by, &base_for_img.join(&ir_for_img))
+                }).await.map_err(|e| e.to_string())?;
+                
+                if success { i_rel = ir; }
             }
         }
     }
@@ -303,23 +205,48 @@ pub fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: 
 }
 
 #[tauri::command]
-pub fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
+pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     let base = get_base_dir();
     let _ = fs::create_dir_all(base.join("library/music"));
     let _ = fs::create_dir_all(base.join("library/images"));
     let _ = fs::create_dir_all(base.join("userfiles"));
 
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
-    let mut ext = "mp3".to_string();
+    let base_clone = base.clone();
+    let f_id_clone = f_id.clone();
+    let data_clone = data.clone();
 
-    if let Some(music_data_b64) = data.get("music_data").and_then(|v| v.as_str()) {
-        let b64_clean = if music_data_b64.contains(',') { music_data_b64.split(',').nth(1).unwrap() } else { music_data_b64 };
-        let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|e| e.to_string())?;
-        if let Some(name) = data.get("music_name").and_then(|v| v.as_str()) {
-            if let Some(e) = std::path::Path::new(name).extension().and_then(|e| e.to_str()) { ext = e.to_string(); }
+    let result = tokio::task::spawn_blocking(move || -> Result<(String, String), String> {
+        let mut ext_inner = "mp3".to_string();
+        let mut rel_music_path = "".to_string();
+        let mut rel_img_path = "".to_string();
+
+        if let Some(music_data_b64) = data_clone.get("music_data").and_then(|v| v.as_str()) {
+            let b64_clean = if music_data_b64.contains(',') { music_data_b64.split(',').nth(1).unwrap() } else { music_data_b64 };
+            let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|e| e.to_string())?;
+            if let Some(name) = data_clone.get("music_name").and_then(|v| v.as_str()) {
+                if let Some(e) = std::path::Path::new(name).extension().and_then(|e| e.to_str()) { ext_inner = e.to_string(); }
+            }
+            rel_music_path = format!("library/music/{}.{}", f_id_clone, ext_inner);
+            fs::write(base_clone.join(&rel_music_path), bytes).map_err(|e| e.to_string())?;
         }
-        let rel_music_path = format!("library/music/{}.{}", f_id, ext);
-        fs::write(base.join(&rel_music_path), bytes).map_err(|e| e.to_string())?;
+
+        if let Some(artwork_data) = data_clone.get("artwork_data").and_then(|v| v.as_str()) {
+            let b64_clean = if artwork_data.contains(',') { artwork_data.split(',').nth(1).unwrap() } else { artwork_data };
+            if let Ok(bytes) = general_purpose::STANDARD.decode(b64_clean) {
+                let img_path = format!("library/images/{}.png", f_id_clone);
+                if force_save_as_png(&bytes, &base_clone.join(&img_path)) {
+                    rel_img_path = img_path;
+                }
+            }
+        }
+
+        Ok((rel_music_path, rel_img_path))
+    }).await.map_err(|e| e.to_string())??;
+
+    let (rel_music_path, rel_img_path) = result;
+
+    if !rel_music_path.is_empty() {
         data.insert("musicFilename".to_string(), Value::String(rel_music_path.clone()));
         data.insert("streamUrl".to_string(), Value::String(get_asset_url(&rel_music_path)));
 
@@ -327,15 +254,9 @@ pub fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_
         data.insert("duration".to_string(), Value::String(duration_str));
     }
 
-    if let Some(artwork_data) = data.get("artwork_data").and_then(|v| v.as_str()) {
-        let b64_clean = if artwork_data.contains(',') { artwork_data.split(',').nth(1).unwrap() } else { artwork_data };
-        if let Ok(bytes) = general_purpose::STANDARD.decode(b64_clean) {
-            let rel_img_path = format!("library/images/{}.png", f_id);
-            if force_save_as_png(&bytes, &base.join(&rel_img_path)) {
-                data.insert("imageFilename".to_string(), Value::String(rel_img_path.clone()));
-                data.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
-            }
-        }
+    if !rel_img_path.is_empty() {
+        data.insert("imageFilename".to_string(), Value::String(rel_img_path.clone()));
+        data.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
     } else {
         data.insert("imageFilename".to_string(), Value::String("library/images/default.png".to_string()));
         data.insert("imageData".to_string(), Value::String(get_asset_url("library/images/default.png")));
@@ -354,6 +275,136 @@ pub fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_
     Ok(true)
 }
 
+// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、日本語タイトルを取得する
+#[tauri::command]
+pub async fn fetch_video_info(url: String) -> Result<Value, String> {
+    verify_tool_executable("yt-dlp")?;
+
+    tokio::task::spawn_blocking(move || {
+        let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
+        let out = std::process::Command::new(exe)
+            .args(&[
+                "--add-header", "Accept-Language:ja-JP",
+                "--extractor-args", "youtube:lang=ja",
+                "--dump-json", 
+                "--no-playlist", 
+                "--skip-download", 
+                &url
+            ])
+            .creation_flags(0x08000000)
+            .output();
+        match out {
+            Ok(o) if o.status.success() => serde_json::from_str::<Value>(&String::from_utf8_lossy(&o.stdout)).map(|i| serde_json::json!({
+                "status": "success", "title": i["title"], "duration": i["duration"], "thumbnail": i["thumbnail"], "uploader": i["uploader"]
+            })).unwrap_or(serde_json::json!({"status": "error", "message": "JSON error"})),
+            Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
+            Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
+        }
+    }).await.map_err(|e| format!("非同期スレッドエラー: {}", e))
+}
+
+// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、YouTubeプレイリストからのスキャン時も日本語タイトルを取得する
+#[tauri::command]
+pub async fn fetch_youtube_playlist(url: String) -> Result<Value, String> {
+    verify_tool_executable("yt-dlp")?;
+
+    tokio::task::spawn_blocking(move || {
+        let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
+        // HTTP要求ヘッダーに日本語環境を最優先にバインド。およびyoutube用言語判定にjaを指定
+        let out = std::process::Command::new(exe)
+            .args(&[
+                "--add-header", "Accept-Language:ja-JP",
+                "--extractor-args", "youtube:lang=ja",
+                "--dump-json", 
+                "--flat-playlist", 
+                &url
+            ])
+            .creation_flags(0x08000000)
+            .output();
+        match out {
+            Ok(o) if o.status.success() => {
+                let v: Vec<_> = String::from_utf8_lossy(&o.stdout).lines().filter_map(|l| serde_json::from_str::<Value>(l).ok())
+                    .filter(|i| i["title"] != "[Private video]" && i["title"] != "[Deleted video]")
+                    .map(|i| serde_json::json!({
+                        "title": i["title"], "uploader": i["uploader"], "duration": i["duration"], "thumbnail": i["thumbnail"],
+                        "url": i["url"].as_str().map(|s| s.into()).unwrap_or(format!("https://www.youtube.com/watch?v={}", i["id"].as_str().unwrap_or("")))
+                    })).collect();
+                serde_json::json!({"status": "success", "videos": v})
+            },
+            Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
+            Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
+        }
+    }).await.map_err(|e| format!("非同期スレッドエラー: {}", e))
+}
+
+// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、Webサムネイル画像取得中も操作可能
+#[tauri::command]
+pub async fn fetch_and_crop_thumbnail(url: String) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
+        let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok()?;
+        let b = c.get(&u).send().ok()?.bytes().ok()?;
+        let i = image::load_from_memory(&b).ok()?;
+        
+        let (width, height) = (i.width(), i.height());
+        let (eff_w, eff_h, off_x, off_y) = if (width as f32 / height as f32 - 1.333).abs() < 0.05 {
+            let real_h = (width as f32 * 9.0 / 16.0) as u32;
+            (width, real_h, 0, (height - real_h) / 2) 
+        } else {
+            (width, height, 0, 0)
+        };
+
+        let s = std::cmp::min(eff_w, eff_h);
+        let mut ic = i.crop_imm(off_x + (eff_w - s) / 2, off_y + (eff_h - s) / 2, s, s);
+        
+        if ic.color().has_alpha() {
+            let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
+            image::imageops::overlay(&mut bg, &ic, 0, 0); 
+            ic = bg;
+        }
+        
+        let mut buf = std::io::Cursor::new(Vec::new()); 
+        ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
+        Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
+    }).await.unwrap_or(None)
+}
+
+#[tauri::command]
+pub async fn fetch_and_crop_image_url(url: String) -> Value {
+    fetch_and_crop_thumbnail(url).await.map(|b| serde_json::json!({"status": "success", "data": b})).unwrap_or(serde_json::json!({"status": "error", "message": "Failed"}))
+}
+
+#[tauri::command]
+pub async fn extract_artwork_from_local_file(b64_music: String) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        let b64c = if b64_music.contains(',') { b64_music.split(',').nth(1).unwrap() } else { &b64_music };
+        let b = general_purpose::STANDARD.decode(b64c).ok()?;
+        let t = id3::Tag::read_from2(&mut std::io::Cursor::new(&b)).ok()?;
+        let p = t.pictures().next()?;
+        let i = image::load_from_memory(&p.data).ok()?;
+        let s = std::cmp::min(i.width(), i.height());
+        let mut ic = i.crop_imm((i.width()-s)/2, (i.height()-s)/2, s, s);
+        if ic.color().has_alpha() {
+            let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
+            image::imageops::overlay(&mut bg, &ic, 0, 0); ic = bg;
+        }
+        let mut buf = std::io::Cursor::new(Vec::new()); ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
+        Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
+    }).await.unwrap_or(None)
+}
+
+#[tauri::command]
+pub async fn download_original_thumbnail(url: String) -> Value {
+    if let Some(p) = rfd::FileDialog::new().set_title("Save Thumbnail").add_filter("Image", &["png", "jpg"]).save_file() {
+        tokio::task::spawn_blocking(move || {
+            let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
+            let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok().and_then(|c| c.get(&u).send().ok()).and_then(|r| r.bytes().ok());
+            if let Some(b) = c { if fs::write(p, b).is_ok() { return serde_json::json!({"status": "success", "message": "Saved"}); } }
+            serde_json::json!({"status": "error", "message": "Failed"})
+        }).await.unwrap_or(serde_json::json!({"status": "error", "message": "Thread error"}))
+    } else { serde_json::json!({"status": "cancel", "message": "Canceled"}) }
+}
+
 #[tauri::command]
 pub async fn search_lyrics_online(title: String, artist: String) -> Result<Value, String> {
     let url = format!("https://lrclib.net/api/search?track_name={}&artist_name={}", urlencoding::encode(&title), urlencoding::encode(&artist));
@@ -361,4 +412,17 @@ pub async fn search_lyrics_online(title: String, artist: String) -> Result<Value
     let res = client.get(url).send().await.map_err(|e| e.to_string())?;
     let json: Value = res.json().await.map_err(|e| e.to_string())?;
     Ok(json)
+}
+
+// ★ 復元：メインスレッド非同期化に伴い消去されていた、外部ツール確認用コマンドを完全に再統合
+#[tauri::command]
+pub async fn check_tools_status() -> Result<Value, String> {
+    tokio::task::spawn_blocking(|| {
+        let b = get_base_dir().join("userfiles/bin");
+        Ok(serde_json::json!({
+            "yt-dlp": b.join("yt-dlp.exe").exists(), 
+            "ffmpeg": b.join("ffmpeg.exe").exists(), 
+            "deno": b.join("deno.exe").exists()
+        }))
+    }).await.map_err(|e| format!("ステータス確認スレッドエラー: {}", e))?
 }
