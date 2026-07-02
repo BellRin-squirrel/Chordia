@@ -15,10 +15,9 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    // ★ 修正1: ユーザー指示に合わせ、ボタンを押した瞬間「24%縮小（0.76倍）」に戻します
-    // ★ 修正2: アニメーションの効果速度を2倍（従来の10から「20」に変更し、軽快な反応に最適化）
+    // 弾性収縮スピードを 20 に設定（軽快でダイナミックな反発感）
     Animated.spring(scale, {
-      toValue: 0.76, 
+      toValue: 0.64, // ★ 変更: ユーザー指示に合わせ、ボタンを押した瞬間「36%深く縮小（0.64倍）」に変更
       useNativeDriver: true,
       speed: 20,     // 2倍のスピード（効果時間1/2）
       bounciness: 2,
@@ -44,6 +43,7 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
   const bBottomRightRadius = flatStyle.borderBottomRightRadius ?? bRadius;
 
   return (
+    // スケールアニメーションを最外殻の Animated.View に当て、背景色を内側の TouchableHighlight へ移します
     <Animated.View style={[{ transform: [{ scale }] }, style, { backgroundColor: 'transparent' }]}>
       <TouchableHighlight
         onPress={onPress}

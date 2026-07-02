@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { Animated, Dimensions, Alert } from 'react-native';
-import TrackPlayer, { State as RNTPState, usePlaybackState, useProgress, RepeatMode, Capability, AppKilledBehavior, Event } from 'react-native-track-player';
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import TrackPlayer, { State as RNTPState, usePlaybackState, useProgress, RepeatMode, Capability, Event } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ★ 移行: expo-av を完全に排除し、最新の expo-audio をインポート
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 const { height } = Dimensions.get('window');
 
 let isRNTPInitialized = false;
 
 export const useAudioPlayer = () => {
-  // ★ エンジンの状態 (デフォルトは rntp)
+  // エンジンの状態 (互換性維持のため、状態名 'expo-av' を引き継ぎつつ内部は expo-audio で駆動)
   const[audioEngine, setAudioEngine] = useState<'expo-av'|'rntp'>('rntp');
 
   const[isPlaying, setIsPlaying] = useState(false);
@@ -37,9 +39,12 @@ export const useAudioPlayer = () => {
   const loopRef = useRef<any>('OFF');
   const shuffleRef = useRef<boolean>(false);
   
-  // Expo-AV用のRefとState
-  const soundRefExpo = useRef<Audio.Sound | null>(null);
-  const[playbackStatusExpo, setPlaybackStatusExpo] = useState<any>(null);
+  // ★ 変更1: Expo-Audio用のRefと再生ステータスの互換定義
+  const expoAudioPlayerRef = useRef<any>(null);
+  const [playbackStatusExpo, setPlaybackStatusExpo] = useState<any>({
+    positionMillis: 0,
+    durationMillis: 0,
+  });
 
   useEffect(() => { currentSongRef.current = currentSong; },[currentSong]);
   useEffect(() => { queueRef.current = playQueue; }, [playQueue]);
@@ -47,14 +52,14 @@ export const useAudioPlayer = () => {
   useEffect(() => { loopRef.current = loopMode; }, [loopMode]);
   useEffect(() => { shuffleRef.current = isShuffle; }, [isShuffle]);
 
-  // ★ AsyncStorageからエンジン設定をロード
+  // AsyncStorageからエンジン設定をロード
   useEffect(() => {
     AsyncStorage.getItem('audioEngine').then(val => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
   },[]);
 
-  // ★ エンジンの切り替え関数
+  // エンジンの切り替え関数
   const changeAudioEngine = async (engine: 'expo-av'|'rntp') => {
     if (engine === audioEngine) return;
     setIsPlaying(false);
@@ -62,8 +67,8 @@ export const useAudioPlayer = () => {
     // 現在の再生を強制停止
     if (audioEngine === 'rntp') {
       try { await TrackPlayer.stop(); await TrackPlayer.reset(); } catch(e){}
-    } else if (soundRefExpo.current) {
-      try { await soundRefExpo.current.unloadAsync(); soundRefExpo.current = null; } catch(e){}
+    } else if (expoAudioPlayerRef.current) {
+      try { expoAudioPlayerRef.current.pause(); } catch(e){}
     }
     
     setAudioEngine(engine);
@@ -73,21 +78,21 @@ export const useAudioPlayer = () => {
     Alert.alert("設定変更", "再生エンジンを切り替えました。");
   };
 
-  // 【初期化】Expo-AV (MixWithOthersで干渉回避)
+  // ★ 変更2: 【初期化】Expo-Audio (最新の文字列引数設定で、他アプリとの干渉を回避)
   useEffect(() => {
-    const initExpoAv = async () => {
+    const initExpoAudio = async () => {
       try {
-        await Audio.setAudioModeAsync({
+        await setAudioModeAsync({
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
-          interruptionModeIOS: InterruptionModeIOS.MixWithOthers, // ★ これが他アプリと干渉させない設定
-          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+          interruptionModeIOS: 'mixWithOthers', 
+          interruptionModeAndroid: 'duckOthers',
           shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
         });
-      } catch (e) { console.warn("Expo-AV init failed", e); }
+      } catch (e) { console.warn("Expo-Audio init failed", e); }
     };
-    initExpoAv();
+    initExpoAudio();
   },[]);
 
   // 【初期化】RNTP (ロック画面コントロール用)
@@ -159,7 +164,43 @@ export const useAudioPlayer = () => {
     } catch(e){}
   };
 
-  // ★ 再生ロジック（エンジン分岐）
+  // ★ 変更3: Expo-Audio のプレイヤー生成＆再生ライフサイクル監視
+  const initExpoAudioPlayer = (uri: string, isLoopOne: boolean) => {
+    if (expoAudioPlayerRef.current) {
+      expoAudioPlayerRef.current.replace({ uri });
+      expoAudioPlayerRef.current.isLooping = isLoopOne;
+      expoAudioPlayerRef.current.play();
+      return;
+    }
+
+    const player = createAudioPlayer({ uri });
+    player.isLooping = isLoopOne;
+
+    // 現在位置の監視 (秒からミリ秒へ互換変換)
+    player.addListener('timeUpdate', (event: any) => {
+      setPlaybackStatusExpo({
+        positionMillis: event.currentTime * 1000,
+        durationMillis: player.duration * 1000,
+      });
+    });
+
+    // 再生状態の監視
+    player.addListener('playbackStateChange', (event: any) => {
+      const isPlay = event.newState === 'playing';
+      setIsPlaying(isPlay);
+
+      // 曲が終了したときの自動次曲スキップ
+      if (event.newState === 'finished') {
+        if (!player.isLooping) {
+          handleNextInternal();
+        }
+      }
+    });
+
+    player.play();
+    expoAudioPlayerRef.current = player;
+  };
+
   const loadAndPlayInternal = async (song: any, queue: any[] =[], startIndex: number = 0) => {
     try {
       if (audioEngine === 'rntp') {
@@ -180,22 +221,9 @@ export const useAudioPlayer = () => {
         saveHistory(queue[startIndex]);
 
       } else {
-        // Expo-AV の場合
-        if (soundRefExpo.current) await soundRefExpo.current.unloadAsync();
+        // ★ 変更4: Expo-Audio による再生開始
         const isLoopOne = loopRef.current === 'ONE';
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: song.localMusicUri }, 
-          { shouldPlay: true, isLooping: isLoopOne },
-          (status: any) => {
-            if (!status.isLoaded) return;
-            setPlaybackStatusExpo(status);
-            setIsPlaying(status.isPlaying);
-            if (status.didJustFinish && !status.isLooping) {
-              handleNextInternal(); // 曲が終わったら自前で次へ
-            }
-          }
-        );
-        soundRefExpo.current = newSound;
+        initExpoAudioPlayer(song.localMusicUri, isLoopOne);
         setCurrentSong(song);
         saveHistory(song);
       }
@@ -279,8 +307,10 @@ export const useAudioPlayer = () => {
       else if (nextLoop === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
       else await TrackPlayer.setRepeatMode(RepeatMode.Off);
     } else {
-      // expo-av の 1曲ループは即時反映
-      if (soundRefExpo.current) await soundRefExpo.current.setIsLoopingAsync(nextLoop === 'ONE');
+      // ★ 変更5: Expo-Audio のループ制御
+      if (expoAudioPlayerRef.current) {
+        expoAudioPlayerRef.current.isLooping = (nextLoop === 'ONE');
+      }
     }
     
     if (currentSongRef.current) {
@@ -342,8 +372,10 @@ export const useAudioPlayer = () => {
       const original = originalQueueRef.current;
       if (!current || original.length === 0) return;
 
-      if (playbackStatusExpo?.positionMillis > 3000) {
-        soundRefExpo.current?.setPositionAsync(0);
+      const currentPos = playbackStatusExpo?.positionMillis || 0;
+      if (currentPos > 3000) {
+        // ★ 変更6: Expo-Audio のミリ秒→秒互換シーク
+        expoAudioPlayerRef.current?.seekTo(0);
         return;
       }
 
@@ -365,10 +397,11 @@ export const useAudioPlayer = () => {
       if (state === RNTPState.Playing) await TrackPlayer.pause();
       else await TrackPlayer.play();
     } else {
-      const currentSound = soundRefExpo.current;
-      if (!currentSound) return;
-      if (isPlaying) await currentSound.pauseAsync();
-      else await currentSound.playAsync();
+      // ★ 変更7: Expo-Audio の再生・一時停止切り替え
+      const player = expoAudioPlayerRef.current;
+      if (!player) return;
+      if (isPlaying) player.pause();
+      else player.play();
     }
   };
 
@@ -376,7 +409,8 @@ export const useAudioPlayer = () => {
     if (audioEngine === 'rntp') {
       await TrackPlayer.seekTo(v / 1000);
     } else {
-      await soundRefExpo.current?.setPositionAsync(v);
+      // ★ 変更8: Expo-Audio の秒シーク互換
+      expoAudioPlayerRef.current?.seekTo(v / 1000);
     }
   };
 
@@ -406,7 +440,7 @@ export const useAudioPlayer = () => {
 
   return { 
     sound: { setPositionAsync },
-    audioEngine, changeAudioEngine, // ★ UI側に渡す
+    audioEngine, changeAudioEngine, 
     isPlaying, currentSong, playbackStatus, playQueue, currentIndex, 
     loopMode, toggleLoopMode, isShuffle, toggleShuffleMode, isFullPlayer, setIsFullPlayer, 
     showQueue, setShowQueue, showLyrics, setShowLyrics, 

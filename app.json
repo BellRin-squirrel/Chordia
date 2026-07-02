@@ -14,7 +14,9 @@
       "supportsTablet": true,
       "infoPlist": {
         "CFBundleDevelopmentRegion": "ja_JP",
-        "CFBundleLocalizations": ["ja"],
+        "CFBundleLocalizations": [
+          "ja"
+        ],
         "UIBackgroundModes": [
           "audio"
         ],
@@ -57,7 +59,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,
