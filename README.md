@@ -29,4 +29,4 @@ Chordia_Mobile v1.1.0
 Chordia_DesktopやChordia_Mobileをリリースした後にChordia_WindowsやChordia_iOSをリリースすることは原則ありません。
 
 # Desktop版とMobile版の互換性
-Desktop版とMobile版の互換性は[こちらのGitHubPages](https://github.com/BellRin-squirrel/Chordia/index.md)に移動しました。
+Desktop版とMobile版の互換性は[こちらのGitHubPages](https://bellrin-squirrel.github.io/Chordia/docs/index.md)に移動しました。
