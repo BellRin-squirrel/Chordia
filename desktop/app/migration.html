@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>データの引継ぎ - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/migration.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <script src="js/theme_head.js"></script>
+</head>
+<body class="migration-body">
+
+    <!-- ヘッダー部分のみを div.container (max-width: 800px) で包み、中央配置にします -->
+    <div class="container">
+        <!-- ヘッダー -->
+        <header class="header form-header">
+            <div class="header-left">
+                <a href="index.html" class="back-link">
+                    <!-- SVGsのサイズを物理固定して巨大化を防止 -->
+                    <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    </svg>
+                    トップへ戻る
+                </a>
+            </div>
+            <h1>データの引継ぎ</h1>
+            <p class="subtitle">Chordiaの環境全体を一括エクスポート、またはバックアップから復元します</p>
+        </header>
+    </div>
+
+    <!-- メイングリッドを div.container の外側に独立させ、極端な縮小を完全に防止して 1200px ののびのびとした最大幅を確保します -->
+    <main class="migration-main-grid">
+        
+        <!-- 左カラム：エクスポート（バックアップ作成） -->
+        <section class="migration-pane">
+            <h2 class="pane-title">1. 引継ぎデータのエクスポート</h2>
+            <p class="desc-text" style="margin-bottom: 24px;">現在のライブラリ、設定情報、プレイリストを暗号化ZIPにまとめてエクスポートします。</p>
+            
+            <div class="settings-list" style="margin-bottom: 24px;">
+                <!-- 楽曲ファイル -->
+                <div class="settings-row">
+                    <div class="row-text">
+                        <span class="row-title">楽曲ファイル</span>
+                        <span class="row-desc">library/music/ 内のすべての音声ファイル</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkMusic" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- アルバムアート -->
+                <div class="settings-row">
+                    <div class="row-text">
+                        <span class="row-title">アルバムアート</span>
+                        <span class="row-desc">library/images/ 内のすべての画像データ</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkImages" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- データベース -->
+                <div class="settings-row">
+                    <div class="row-text">
+                        <span class="row-title">データベース</span>
+                        <span class="row-desc">userfiles/music.json (曲情報リスト)</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkDb" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- 設定ファイル -->
+                <div class="settings-row">
+                    <div class="row-text">
+                        <span class="row-title">設定ファイル</span>
+                        <span class="row-desc"> settings.ini / themes.json</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkSettings" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <!-- プレイリストなど -->
+                <div class="settings-row">
+                    <div class="row-text">
+                        <span class="row-title">プレイリスト・履歴</span>
+                        <span class="row-desc"> playlist /played_times / history</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkPlaylists" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label>保存先とファイル名</label>
+                <div class="path-input-group">
+                    <input type="text" id="exportPath" readonly placeholder="保存先を選択してください...">
+                    <button type="button" id="btnBrowse" class="btn-browse">参照</button>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 28px;">
+                <label>パスワード保護 (任意)</label>
+                <input type="password" id="exportPassword" class="password-input" placeholder="パスワードを入力（空欄は暗号化なし）" maxlength="128" style="width: 100%;">
+            </div>
+
+            <div style="text-align: center;">
+                <button id="btnExport" class="btn-migration-action primary">
+                    <!-- SVGsのサイズを物理固定して巨大化を防止 -->
+                    <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    エクスポートを実行
+                </button>
+            </div>
+        </section>
+
+        <!-- 右カラム：インポート（バックアップ復元） -->
+        <section class="migration-pane">
+            <h2 class="pane-title">2. 引継ぎデータのインポート</h2>
+            <p class="desc-text" style="margin-bottom: 24px;">エクスポートしたバックアップデータ（ZIP）を選択し、現在の環境に丸ごと復元します。</p>
+            
+            <!-- D&Dファイルドロップエリア -->
+            <div class="file-drop-area" id="dropAreaImport" style="margin-bottom: 24px;">
+                <p class="main-msg">ここに引継ぎZIPファイルをドロップ</p>
+                <p class="sub-msg">またはクリックしてファイルを選択</p>
+                <input type="file" id="fileInputImport" accept=".zip" style="display: none;">
+            </div>
+
+            <!-- ファイル読み込み状況表示 -->
+            <div id="importFileInfo" class="file-info" style="display: none; margin-bottom: 20px;">
+                <span class="file-name" id="importFileName"></span>
+                <button class="btn-clear" id="btnClearImportFile">×</button>
+            </div>
+
+            <!-- パスワード要求時に入力エリアが出現 -->
+            <div class="form-group" id="importPasswordContainer" style="display: none; margin-bottom: 28px;">
+                <label>引継ぎファイルの復号パスワード</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="password" id="importPassword" class="password-input" placeholder="パスワードを入力してください" maxlength="128" style="flex: 1;">
+                    <button id="btnSubmitPassword" class="btn-migration-action primary" style="padding: 10px 24px; font-size: 0.9rem; white-space: nowrap;">適用</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 完了ポップアップ -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <svg width="48" height="48" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h2 id="modalTitle">引継ぎ(復元)完了</h2>
+            <p id="modalMessage">引継ぎデータの適用が完了しました。トップ画面に戻ります。</p>
+            <div class="result-path" id="resultPath" style="display: none; word-break: break-all; margin-bottom: 24px;"></div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px; justify-content: center; width: 100%;">
+                <!-- 出力ファイルのディレクトリ展開用ボタン -->
+                <button id="btnShowInExplorer" class="btn-migration-action secondary" style="display: none; flex: 1; justify-content: center; padding: 12px;">エクスプローラーで表示</button>
+                <button id="btnComplete" class="btn-complete" style="flex: 1; padding: 12px;">トップへ戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 開発者向け警告モーダル（UI共通パーツ） -->
+    <div id="alertModal" class="modal-overlay" style="display: none; z-index: 4000;">
+        <div class="modal-content" style="width: 320px; padding: 30px; text-align: center;">
+            <h3 style="margin-top: 0; color: var(--text-main); font-size: 1.2rem;" id="alertTitle">お知らせ</h3>
+            <p id="alertMessage" style="color: var(--text-sub); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.5;"></p>
+            <button type="button" id="btnAlertOk" class="btn-primary" style="width: 100%;">OK</button>
+        </div>
+    </div>
+
+    <!-- キャンセルボタンをオーバーレイ内に新規配置 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p id="loadingText" class="loading-text">処理しています...</p>
+        <p style="margin-top: 12px; color: var(--text-sub); font-size: 0.9rem;">このまましばらくお待ちください</p>
+        <button id="btnCancelLoading" class="btn-secondary" style="margin-top: 24px; padding: 10px 24px; font-weight: bold; width: auto;">キャンセル</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/theme.js"></script>
+    <script src="js/migration.js"></script>
+</body>
+</html>

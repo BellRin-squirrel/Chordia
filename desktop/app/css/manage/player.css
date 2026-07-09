@@ -1,0 +1,132 @@
+@charset "UTF-8";
+
+.player-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: var(--card-bg); /* ★修正 */
+    border-top: 1px solid rgba(128, 128, 128, 0.2); /* ★修正 */
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+    z-index: 1000;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.player-bar.active {
+    transform: translateY(0);
+}
+
+.seek-wrapper {
+    width: 100%;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    background: transparent;
+    position: relative;
+    cursor: pointer;
+    margin-bottom: -7px;
+}
+
+.seek-range {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    border-radius: 3px;
+    outline: none;
+    margin: 0;
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    z-index: 2;
+}
+
+.seek-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    margin-top: -5px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    transition: transform 0.1s;
+}
+
+.seek-range:hover::-webkit-slider-thumb { transform: scale(1.1); }
+.seek-range:active::-webkit-slider-thumb { transform: scale(1.2); }
+
+.seek-range::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: rgba(128, 128, 128, 0.3); /* ★プログレスバーの背景色を追加(見やすくするため) */
+    border-radius: 3px;
+}
+
+.player-content {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    gap: 20px;
+    height: 80px;
+}
+
+.player-art-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-color); /* ★修正 */
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+}
+.player-art-wrapper img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+
+.player-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+}
+.info-row {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.info-row.main { margin-bottom: 4px; }
+.p-title { font-weight: 700; font-size: 1rem; color: var(--text-main); }
+.p-artist { font-size: 0.95rem; color: var(--text-main); }
+.p-divider { margin: 0 8px; color: var(--text-sub); font-size: 0.8rem; }
+.info-row.sub {
+    font-size: 0.85rem; color: var(--text-sub);
+    min-height: 1.2em;
+    display: flex; align-items: center; gap: 6px;
+}
+
+.player-controls { display: flex; align-items: center; gap: 16px; }
+.time-display {
+    font-family: monospace; font-size: 0.9rem; color: var(--text-sub);
+    width: 100px; text-align: right;
+}
+.btn-bar-play {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+.btn-bar-play:hover { background: var(--primary-color-dark); transform: scale(1.05); }
+.btn-bar-play svg { width: 24px; height: 24px; }

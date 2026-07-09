@@ -1,0 +1,51 @@
+.source-selector {
+    display: flex; gap: 16px; margin-bottom: 20px;
+}
+.radio-label {
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 0.95rem; font-weight: bold; color: var(--text-main);
+}
+.source-area { display: none; }
+.source-area.active { display: block; }
+
+/* ドロップゾーン */
+.drop-zone {
+    border: 2px dashed rgba(128, 128, 128, 0.4); border-radius: 12px;
+    background-color: var(--bg-color); transition: all 0.2s; cursor: pointer;
+    position: relative; overflow: hidden; display: block;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--primary-color); background-color: rgba(128, 128, 128, 0.1);
+}
+
+.file-drop { padding: 40px 20px; text-align: center; }
+.drop-content-vertical { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.drop-icon { width: 48px; height: 48px; color: var(--text-sub); }
+.drop-text-main { font-weight: 700; font-size: 1rem; color: var(--text-main); margin: 0; }
+.drop-text-sub { font-size: 0.85rem; color: var(--text-sub); margin: 0; }
+.browse-link { color: var(--primary-color); text-decoration: underline; }
+
+/* 動画情報 */
+.video-info-display { margin-top: 16px; }
+.video-thumb-container {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    border-radius: 8px; overflow: hidden; background: #000; margin-bottom: 12px;
+}
+.video-thumb-container img { width: 100%; height: 100%; object-fit: cover; }
+.video-duration {
+    position: absolute; bottom: 8px; right: 8px;
+    background: rgba(0,0,0,0.8); color: #fff; font-size: 0.8rem;
+    font-weight: bold; font-family: monospace; padding: 2px 6px; border-radius: 4px;
+}
+.video-title-display { font-weight: bold; color: var(--text-main); margin-bottom: 12px; line-height: 1.4; }
+
+.btn-fetch-info {
+    width: 100%; background: var(--primary-color); color: white;
+    border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer;
+}
+.btn-fetch-info:hover { background: var(--primary-color-dark); }
+.btn-cancel-video {
+    width: 100%; background: rgba(239, 68, 68, 0.1); color: #ef4444;
+    border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer;
+}
+.btn-cancel-video:hover { background: #ef4444; color: white; }

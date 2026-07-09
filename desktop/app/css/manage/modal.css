@@ -1,0 +1,474 @@
+@charset "UTF-8";
+
+/* --- モーダル共通オーバーレイ --- */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: flex-start;
+    overflow-y: auto;        
+    padding: 40px 20px;      
+    box-sizing: border-box;
+    z-index: 2000;
+    backdrop-filter: blur(8px);
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show { display: flex; }
+
+.modal-content {
+    background: var(--card-bg);
+    padding: 32px;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    position: relative;
+    max-width: 90vw;
+    margin: auto;      
+    flex-shrink: 0;    
+    overflow: visible; 
+    color: var(--text-main);
+    border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.4rem;
+    font-weight: 800;
+    text-align: left;
+}
+
+/* --- 閉じるボタン (右上の丸ボタン) --- */
+.btn-close-circle {
+    position: absolute; 
+    top: 20px; 
+    right: 20px;
+    width: 32px; 
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(128, 128, 128, 0.1); 
+    border: none;
+    color: var(--text-sub); 
+    cursor: pointer; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.btn-close-circle:hover {
+    background-color: #ef4444;
+    color: white;
+    transform: rotate(90deg);
+}
+.btn-close-circle:active { opacity: 0; }
+
+/* --- アートワークミニタブ --- */
+.art-tabs-mini {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    background: var(--bg-color);
+    padding: 4px;
+    border-radius: 10px;
+}
+
+.art-mini-tab-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    padding: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.art-mini-tab-btn.active {
+    background: var(--card-bg);
+    color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.art-mini-tab-content { display: none; }
+.art-mini-tab-content.active { display: block; }
+
+/* --- アルバムアート編集モーダル --- */
+.art-preview-area {
+    background: var(--bg-color);
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+    text-align: center;
+    border: 1px solid rgba(128, 128, 128, 0.1);
+}
+.art-preview-area img {
+    width: 240px;
+    height: 240px;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 12px;
+}
+#artStatusText { font-size: 0.85rem; color: var(--text-sub); font-weight: 700; }
+
+.art-error-msg {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-top: 10px;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    text-align: left;
+}
+
+.art-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.btn-select-art {
+    flex: 1;
+    background: var(--bg-color);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    padding: 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text-main);
+    transition: all 0.2s;
+}
+.btn-select-art:hover { background: rgba(128, 128, 128, 0.1); }
+.btn-delete-art {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-delete-art:hover { background: #ef4444; color: white; }
+
+/* --- 歌詞編集モーダル --- */
+.lyric-modal textarea {
+    width: 100%;
+    background: var(--bg-color);
+    color: var(--text-main);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.lyric-modal textarea:focus { border-color: var(--primary-color); }
+.btn-auto-lyric {
+    background: var(--bg-color);
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.btn-auto-lyric:hover { background: var(--primary-color); color: white; }
+
+/* 歌詞検索結果リストとプレビュー用スタイル */
+.modal-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+.lyric-result-list { 
+    list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; 
+    border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 8px; background: var(--bg-color); 
+    max-height: 300px;
+}
+.lyric-result-item { 
+    padding: 14px; border-bottom: 1px solid rgba(128, 128, 128, 0.2); cursor: pointer; text-align: left; 
+}
+.lyric-result-item:hover { background: rgba(128, 128, 128, 0.1); }
+.lyric-result-item:last-child { border-bottom: none; }
+.lyric-item-title { font-weight: bold; color: var(--text-main); }
+.lyric-item-artist { font-size: 0.85rem; color: var(--text-sub); margin-top: 4px; }
+
+.lyric-preview { 
+    white-space: pre-wrap; font-size: 1rem; line-height: 2.2; 
+    background: var(--bg-color); padding: 20px; border-radius: 8px; border: 1px solid rgba(128, 128, 128, 0.3); 
+    overflow-y: auto; flex: 1; text-align: left; color: var(--text-main);
+    max-height: 300px;
+}
+
+/* --- 一括変更モーダル --- */
+.bulk-form-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 20px 0;
+}
+.bulk-form-container .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bulk-input {
+    width: 100%;
+    background: var(--bg-color);
+    color: var(--text-main);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    outline: none;
+}
+.bulk-input:focus { border-color: var(--primary-color); }
+
+/* --- 汎用ボタン --- */
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+.btn-primary, .btn-save {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.1s;
+}
+.btn-primary:hover, .btn-save:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-primary:active, .btn-save:active { transform: translateY(0); }
+
+.btn-cancel, .btn-secondary {
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--text-main);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.btn-cancel:hover { background: rgba(128, 128, 128, 0.2); }
+
+
+/* =========================================
+   高度な検索 UI 用スタイル
+========================================= */
+
+#advSearchRootContainer {
+    text-align: left;
+}
+
+.smart-group-wrapper {
+    background: rgba(128, 128, 128, 0.03);
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.smart-group-header, .smart-condition-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.smart-input-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 150px;
+}
+
+.smart-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    outline: none;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.smart-input:focus {
+    border-color: var(--primary-color);
+}
+
+.smart-text {
+    color: var(--text-main);
+    font-size: 0.9rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.smart-btn-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    width: 110px;
+    justify-content: flex-end;
+}
+
+.smart-row-btn {
+    background: transparent;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-sub);
+    transition: all 0.2s;
+    padding: 0;
+}
+
+.smart-row-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.smart-row-btn:hover:not(.disabled) {
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--text-main);
+}
+
+.smart-row-btn.disabled, .smart-row-btn:disabled {
+    opacity: 0.15;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+
+/* --- カスタムセレクター --- */
+.custom-select-wrapper {
+    position: relative;
+}
+
+.custom-select-trigger {
+    background-color: var(--bg-color);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
+    color: var(--text-main);
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+    min-height: 36px;
+    gap: 8px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+}
+
+.custom-select-trigger span {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.custom-chevron {
+    width: 12px;
+    height: 12px;
+    color: var(--text-sub);
+}
+
+.custom-select-dropdown {
+    display: none;
+    position: absolute;
+    top: 0;   
+    left: 0;
+    min-width: 100%;
+    width: max-content;
+    background-color: color-mix(in srgb, var(--card-bg) 85%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid rgba(128, 128, 128, 0.3);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    padding: 4px;
+    z-index: 9999; 
+}
+
+.custom-select-dropdown.show {
+    display: block;
+    animation: customPop 0.1s ease-out; 
+}
+
+@keyframes customPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.custom-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    cursor: pointer;
+    gap: 8px;
+}
+
+.custom-option:hover {
+    background-color: var(--primary-color);
+    color: #ffffff !important;
+}
+
+.custom-option:hover .custom-check,
+.custom-option:hover span {
+    color: #ffffff !important;
+}
+
+.custom-check {
+    width: 12px;
+    height: 12px;
+    visibility: hidden;
+    color: var(--primary-color);
+}
+
+.custom-option.active .custom-check {
+    visibility: visible;
+}
+
+/* ★ 修正：トーストを画面下部中央に表示し、1曲追加画面と完全に統一 */
+.toast {
+    visibility: hidden;
+    min-width: 300px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 50px;
+    padding: 14px 28px;
+    position: fixed;
+    z-index: 10000;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%);
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.3s, bottom 0.3s;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+.toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+.toast.success { background-color: #059669; }
+.toast.error { background-color: #ef4444; }
