@@ -1,0 +1,120 @@
+@charset "UTF-8";
+
+.table-wrapper {
+    overflow-x: auto;
+    max-height: 70vh;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1000px;
+}
+
+.data-table thead th {
+    background: var(--bg-color);
+    position: sticky;
+    top: 0; z-index: 10;
+    padding: 12px 8px;
+    text-align: left; font-weight: 700; color: var(--text-sub);
+    font-size: 0.85rem; border-bottom: 2px solid rgba(128, 128, 128, 0.2);
+    user-select: none;
+}
+
+.data-table thead th.sortable { cursor: pointer; transition: background-color 0.2s; }
+.data-table thead th.sortable:hover { background-color: rgba(128, 128, 128, 0.1); }
+
+.sort-icon { display: inline-block; width: 12px; text-align: center; color: var(--primary-color); margin-left: 4px; }
+
+.data-table tbody tr { border-bottom: 1px solid rgba(128, 128, 128, 0.1); transition: background 0.1s; }
+.data-table tbody tr:hover { background-color: rgba(128, 128, 128, 0.05); }
+.data-table tbody tr.selected { background-color: rgba(var(--primary-color-rgb, 79, 70, 229), 0.1); }
+
+.data-table td { padding: 8px; font-size: 0.9rem; color: var(--text-main); vertical-align: middle; }
+
+/* 列幅 */
+.col-select { width: 40px; text-align: center; }
+.col-art { width: 60px; text-align: center; }
+.col-play { width: 50px; text-align: center; }
+.col-track { width: 50px; text-align: center; }
+.col-time { width: 60px; text-align: center; font-family: monospace; }
+.col-action { width: 140px; text-align: center; }
+th.col-action { text-align: center; }
+
+/* 丸いチェックボックス */
+.row-check {
+    appearance: none; -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border: 2px solid rgba(128, 128, 128, 0.4); border-radius: 50%;
+    cursor: pointer; outline: none; transition: all 0.2s;
+    position: relative; vertical-align: middle;
+}
+.row-check:checked { background-color: var(--primary-color); border-color: var(--primary-color); }
+.row-check:checked::after {
+    content: ''; position: absolute;
+    top: 5px; left: 4px; width: 10px; height: 5px;
+    border-left: 2px solid white; border-bottom: 2px solid white;
+    transform: rotate(-45deg);
+}
+
+.thumb-art {
+    width: 40px; height: 40px; object-fit: cover;
+    border-radius: 4px; background: var(--bg-color);
+}
+
+.editable {
+    cursor: pointer; border: 1px solid transparent;
+    border-radius: 4px; padding: 4px 6px; transition: border-color 0.2s;
+}
+.editable:hover { border-color: rgba(128, 128, 128, 0.4); }
+
+.inline-input {
+    width: 100%; padding: 4px; font-size: 0.9rem;
+    border: 2px solid var(--primary-color); border-radius: 4px; outline: none;
+    background: var(--bg-color); color: var(--text-main);
+}
+
+.btn-play {
+    background: none; border: none; cursor: pointer;
+    color: var(--primary-color); display: flex; align-items: center; justify-content: center;
+}
+.btn-play:hover { color: var(--primary-color-dark); }
+
+.action-btns { display: flex; gap: 8px; justify-content: center; }
+.btn-icon {
+    background: var(--bg-color); border: none; border-radius: 6px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-sub); transition: all 0.2s;
+    position: relative; /* 疑似要素の基準 */
+}
+.btn-icon:hover { background: rgba(128, 128, 128, 0.2); color: var(--text-main); }
+.btn-icon.delete:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+/* ★ 歌詞アイコンの出し分けスタイル */
+
+/* 歌詞がある場合：テーマカラーにする */
+.btn-icon.lyric-btn.has-lyric {
+    color: var(--primary-color);
+}
+.btn-icon.lyric-btn.has-lyric:hover {
+    color: var(--primary-color-dark);
+}
+
+/* 歌詞がない場合：アイコンを透過させ斜線を引く */
+.btn-icon.lyric-btn.no-lyric {
+    color: var(--text-sub);
+    opacity: 0.5;
+}
+.btn-icon.lyric-btn.no-lyric::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 2px;
+    background-color: var(--text-sub);
+    transform: translate(-50%, -50%) rotate(-45deg);
+    border-radius: 1px;
+    pointer-events: none;
+}

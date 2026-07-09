@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>歌詞 - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <!-- テーマ適用用のヘッダーJSを読み込み -->
+    <script src="js/theme_head.js"></script>
+    <style>
+        body {
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+            /* ★ 背景色と文字色を強制適用 */
+            background-color: var(--bg-color) !important;
+            color: var(--text-main) !important;
+        }
+        .lyrics-container {
+            flex: 1; padding: 40px 30px;
+            overflow-y: auto; text-align: center;
+            background-color: var(--card-bg); 
+            margin: 20px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(128, 128, 128, 0.1);
+        }
+        .lyrics-header { margin-bottom: 40px; flex-shrink: 0; }
+        .song-title { font-size: 1.8rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
+        .song-artist { font-size: 1.1rem; color: var(--text-sub); font-weight: 500; }
+        .lyrics-body {
+            font-size: 1.25rem; line-height: 2.5;
+            color: var(--text-main); white-space: pre-wrap;
+            padding-bottom: 60px;
+        }
+        .no-lyrics { color: var(--text-sub); font-style: italic; margin-top: 100px; opacity: 0.6; }
+
+        .lyrics-container::-webkit-scrollbar { width: 8px; }
+        .lyrics-container::-webkit-scrollbar-track { background: transparent; }
+        .lyrics-container::-webkit-scrollbar-thumb { background: rgba(128, 128, 128, 0.2); border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="lyrics-container">
+        <div class="lyrics-header">
+            <div id="songTitle" class="song-title">楽曲未選択</div>
+            <div id="songArtist" class="song-artist">--</div>
+        </div>
+        <div id="lyricsBody" class="lyrics-body"></div>
+    </div>
+
+    
+    <script src="js/lyrics.js"></script>
+    <script src="js/theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+.info-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.license-card {
+    background-color: var(--card-bg);
+    border-radius: 24px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: var(--shadow-md);
+    width: 100%;
+    max-width: 450px;
+}
+
+.app-name {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 4px;
+}
+
+.app-version {
+    font-size: 1.1rem;
+    color: var(--text-sub);
+    margin-bottom: 24px;
+}
+
+.divider {
+    width: 40px;
+    height: 2px;
+    background-color: var(--bg-color);
+    margin: 0 auto 24px;
+}
+
+.copyright {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}

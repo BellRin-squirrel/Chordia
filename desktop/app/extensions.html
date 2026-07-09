@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>拡張機能 - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/extensions.css">
+    <script src="js/theme_head.js"></script>
+</head>
+<body>
+
+    <div class="container-fluid ext-layout">
+        <header class="header form-header">
+            <div class="header-left">
+                <a href="index.html" class="back-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                    </svg>
+                    トップへ戻る
+                </a>
+            </div>
+            <div class="header-center">
+                <h1>拡張機能</h1>
+                <p class="subtitle">外部ツールのインストールと管理</p>
+            </div>
+        </header>
+
+        <main class="ext-container">
+            
+            <div class="status-card">
+                <h2>インストール状況</h2>
+                <div class="tools-list" id="toolsList">
+                    <div class="tool-item loading">読み込み中...</div>
+                </div>
+            </div>
+
+            <div class="action-card">
+                <div class="action-info">
+                    <h3 id="actionTitle">確認中...</h3>
+                    <p id="actionDesc">必要なツールをチェックしています。</p>
+                </div>
+                <button id="btnMainAction" class="btn-primary" disabled>処理を選択</button>
+            </div>
+
+            <!-- アップデート確認結果エリア -->
+            <div id="updateCard" class="status-card" style="display: none;">
+                <h2>アップデートの確認結果</h2>
+                <div class="tools-list" id="updateResultList">
+                    <!-- JSで描画 -->
+                </div>
+                <div style="margin-top: 16px; text-align: right;">
+                    <button id="btnExecUpdate" class="btn-primary" disabled>アップデートを実行</button>
+                </div>
+            </div>
+
+            <!-- 進捗エリア -->
+            <div id="progressArea" style="display: none; background: #fff; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-md);">
+                <p id="progressText" style="margin-top: 0; margin-bottom: 12px; font-weight: bold; color: var(--text-main); font-size: 0.95rem;">ダウンロード準備中...</p>
+                <div style="width: 100%; height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden;">
+                    <div id="progressBar" style="height: 100%; width: 0%; background: var(--primary-color); transition: width 0.1s linear;"></div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- 汎用アラートモーダル -->
+    <div id="alertModal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="alertTitle" style="margin-top: 0; font-size: 1.2rem;">お知らせ</h3>
+            <p id="alertMessage" style="margin-bottom: 24px; color: var(--text-main); font-size: 0.95rem; line-height: 1.5; word-break: break-word;"></p>
+            <button id="btnAlertOk" class="btn-primary" style="width: 100%;">OK</button>
+        </div>
+    </div>
+
+    
+    <script src="js/extensions.js"></script>
+    <script src="js/theme.js"></script>
+</body>
+</html>

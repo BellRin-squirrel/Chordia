@@ -1,0 +1,161 @@
+@charset "UTF-8";
+
+/* --- 美しいカスタムセレクター --- */
+.custom-select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    background-color: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.custom-select-trigger span {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.custom-chevron {
+    width: 12px;
+    height: 12px;
+    color: var(--text-sub);
+}
+
+.custom-select-dropdown {
+    display: none;
+    position: absolute;
+    top: 0; 
+    left: 0;
+    width: 100%;
+    background-color: color-mix(in srgb, var(--card-bg) 85%, transparent);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 0.5px solid rgba(128, 128, 128, 0.3);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    padding: 4px;
+    z-index: 1000; 
+    box-sizing: border-box;
+}
+
+.custom-select-dropdown.show {
+    display: block;
+    animation: customPop 0.1s ease-out;
+}
+
+@keyframes customPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.custom-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    cursor: pointer;
+    position: relative;
+    gap: 8px;
+    transition: background-color 0.1s step-end;
+}
+
+.custom-option:hover {
+    background-color: var(--primary-color);
+    color: #ffffff !important;
+}
+
+.custom-option:hover span,
+.custom-option:hover .custom-check {
+    color: #ffffff !important;
+}
+
+.custom-check {
+    width: 14px;
+    height: 14px;
+    visibility: hidden;
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.custom-option.active .custom-check {
+    visibility: visible;
+}
+
+.custom-option span {
+    flex: 1;
+    font-weight: 500;
+}
+
+/* --- コンテンツエリア --- */
+.art-tab-content { 
+    display: none; 
+}
+.art-tab-content.active { 
+    display: block; 
+}
+
+.desc-text { 
+    font-size: 0.85rem; 
+    color: var(--text-sub); 
+    line-height: 1.5; 
+}
+
+.artwork-drop {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    position: relative; 
+}
+
+.artwork-drop .drop-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.artwork-preview { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+    z-index: 10; 
+    border-radius: 10px; 
+}
+
+.remove-btn {
+    position: absolute; 
+    top: 4px; 
+    right: 4px; 
+    z-index: 20;
+    background: rgba(0,0,0,0.6); 
+    color: white; 
+    border: none; 
+    border-radius: 50%;
+    width: 24px; 
+    height: 24px; 
+    cursor: pointer; 
+    line-height: 24px;
+}
