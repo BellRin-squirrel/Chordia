@@ -67,3 +67,5 @@ fastlane/test_output
 expo-env.d.ts
 # @end expo-cli
 .expo/
+
+./node_modules
