@@ -231,8 +231,18 @@ body {
     border-top: 5px solid var(--primary-color); border-radius: 50%;
     animation: spin 1s linear infinite; margin-bottom: 24px;
 }
-.loading-text { color: var(--text-main); font-weight: 700; font-size: 1.2rem; }
+.loading-text { color: var(--text-main); font-weight: 700; font-size: 1.1rem; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* ★ 修正：フレックス垂直センタリングを完全に解除し、タブ切り替え時のコンテナ上下位置の揺れ・跳ねを防ぐ */
+body {
+    background-color: var(--bg-color) !important;
+    display: block !important;
+    padding: 20px 0 !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow-y: auto !important;
+}
 
 /* レスポンシブ */
 @media (max-width: 1024px) {

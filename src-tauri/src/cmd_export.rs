@@ -2,6 +2,9 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::utils::get_base_dir;
+use base64::{Engine as _, engine::general_purpose};
+use tauri::{State, AppHandle, Emitter};
+use crate::AppState;
 
 #[tauri::command]
 pub fn get_default_export_path() -> Result<String, String> {
@@ -95,9 +98,14 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
     }
 }
 
-// ★ 修正：型推論エラーを回避するため、他のZIP関連機能に倣い、同期（非async）コマンドに安全に変更
+// ★ 修正：AES暗号化ZIPが、パスワードなしで目録取得を行った際のエラー（UnsupportedArchive）も安全にキャッチして needs_password を判定します
 #[tauri::command]
-pub fn execute_migration_import(zip_path: String, password: Option<String>) -> Result<Value, String> {
+pub fn execute_migration_import(
+    zip_data_b64: String, 
+    password: Option<String>,
+    state: State<'_, AppState>,
+    app_handle: AppHandle
+) -> Result<Value, String> {
     if let Some(ref pass) = password {
         if pass.chars().count() > 128 {
             return Err("パスワードは128文字以内にしてください".to_string());
@@ -105,17 +113,32 @@ pub fn execute_migration_import(zip_path: String, password: Option<String>) -> R
     }
 
     let base_dir = get_base_dir();
-    let file = fs::File::open(&zip_path).map_err(|e| format!("ZIPファイルの読み込みに失敗しました: {}", e))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
+    
+    // Base64デコード処理
+    let b64_clean = if zip_data_b64.contains(',') { zip_data_b64.split(',').nth(1).unwrap() } else { &zip_data_b64 };
+    let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|e| format!("デコードエラー: {}", e))?;
+    
+    // メモリ上のCursorを用いて解凍を実行
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
 
-    // 実際に暗号化されたファイルが存在するか確認
+    // 実際に暗号化されたファイルが存在するか確認（確実なエラーマッチング仕様へアップグレード）
     let mut needs_password = false;
     for i in 0..archive.len() {
-        if let Ok(file) = archive.by_index(i) {
-            if file.is_file() && file.encrypted() {
-                needs_password = true;
-                break;
+        match archive.by_index(i) {
+            Ok(file) => {
+                if file.is_file() && file.encrypted() {
+                    needs_password = true;
+                    break;
+                }
             }
+            Err(zip::result::ZipError::UnsupportedArchive(msg)) => {
+                if msg.contains("Password required") {
+                    needs_password = true;
+                    break;
+                }
+            }
+            _ => {}
         }
     }
 
@@ -152,6 +175,22 @@ pub fn execute_migration_import(zip_path: String, password: Option<String>) -> R
             let mut outfile = fs::File::create(&outpath).map_err(|e| e.to_string())?;
             std::io::copy(&mut file, &mut outfile).map_err(|e| format!("展開ファイル書き込みエラー: {}", e))?;
         }
+    }
+
+    // ファイル書込み完了後、メモリ再書込み中の表示をJSへ指示するためイベントをエミット
+    let _ = app_handle.emit("migration_status", "rewriting_cache");
+
+    // ディスク上の新しい music.json と playlist.json を再ロードし、インメモリのAppStateを完全に書き換えてキャッシュクリーンを完了
+    let new_db = crate::utils::load_db();
+    let new_playlists = crate::utils::load_playlists_master();
+
+    {
+        let mut db_guard = state.db.lock().unwrap();
+        *db_guard = new_db;
+    }
+    {
+        let mut pl_guard = state.playlists.lock().unwrap();
+        *pl_guard = new_playlists;
     }
 
     Ok(serde_json::json!({"status": "success"}))

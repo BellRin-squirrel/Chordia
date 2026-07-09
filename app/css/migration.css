@@ -1,0 +1,474 @@
+@charset "UTF-8";
+
+.migration-body {
+    display: block !important;
+    padding: 20px 0 !important;
+    overflow-y: auto;
+}
+
+/* ★ 修正：グリッドの最大横幅を 1200px に設定し、左右対称（1:1）の二等分レイアウトにします。
+   同時に左右の padding を確保することで、ヘッダー（.container内）のセンタリング配置と美しく整列します。 */
+.migration-main-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto 50px;
+    padding: 0 24px;
+    box-sizing: border-box;
+}
+
+.migration-pane {
+    background: var(--card-bg);
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.pane-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 8px;
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
+    padding-bottom: 12px;
+}
+
+.desc-text {
+    font-size: 0.9rem;
+    color: var(--text-sub);
+    line-height: 1.6;
+}
+
+.settings-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-color);
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    overflow: hidden;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    transition: background-color 0.2s;
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+}
+
+.settings-row:hover {
+    background-color: rgba(128, 128, 128, 0.05);
+}
+
+.row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.row-title {
+    font-weight: 700;
+    color: var(--text-main);
+    font-size: 0.95rem;
+}
+
+.row-desc {
+    font-size: 0.78rem;
+    color: var(--text-sub);
+}
+
+/* トグルスイッチ */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(128, 128, 128, 0.3);
+    transition: .3s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.toggle-switch input:checked + .slider {
+    background-color: #34c759;
+}
+
+.toggle-switch input:checked + .slider:before {
+    transform: translateX(20px);
+}
+
+/* パスグループ */
+.path-input-group {
+    display: flex;
+    gap: 12px;
+    background: var(--bg-color);
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.path-input-group input {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-main);
+    font-family: monospace;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+.btn-browse {
+    padding: 0 16px;
+    background: var(--card-bg);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-main);
+    transition: all 0.2s;
+    font-size: 0.85rem;
+}
+
+.btn-browse:hover {
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.password-input {
+    padding: 10px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    outline: none;
+    background: var(--bg-color);
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.password-input:focus {
+    border-color: var(--primary-color);
+    background: var(--card-bg);
+}
+
+/* アクションボタン */
+.btn-migration-action {
+    border: none;
+    padding: 12px 36px;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-migration-action.primary {
+    background-color: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+}
+
+.btn-migration-action.primary:hover:not(:disabled) {
+    background-color: var(--primary-color-dark);
+    transform: translateY(-2px);
+}
+
+.btn-migration-action.secondary {
+    background: var(--bg-color);
+    color: var(--text-main);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    padding: 10px 24px;
+    border-radius: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-migration-action.secondary:hover:not(:disabled) {
+    background-color: rgba(128, 128, 128, 0.1);
+    transform: translateY(-2px);
+}
+
+.btn-migration-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn-migration-action svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* ローディングオーバーレイ & スピナーのカプセル化指定（引継ぎ画面専用に完全分離） */
+.loading-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: color-mix(in srgb, var(--bg-color) 85%, transparent) !important;
+    display: none; /* JSで flex に切り替え */
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 9999 !important;
+    backdrop-filter: blur(4px) !important;
+}
+
+.spinner {
+    width: 50px !important;
+    height: 50px !important;
+    border: 5px solid rgba(128, 128, 128, 0.2) !important;
+    border-top: 5px solid var(--primary-color) !important;
+    border-radius: 50% !important;
+    animation: migrationSpin 1s linear infinite !important;
+    margin-bottom: 24px !important;
+}
+
+@keyframes migrationSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: var(--text-main) !important;
+    font-weight: 700 !important;
+    font-size: 1.2rem !important;
+    margin: 0 !important;
+}
+
+/* キャンセルボタンの専用のスタイル定義 */
+#btnCancelLoading {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    padding: 10px 24px !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+    font-size: 0.9rem !important;
+}
+
+#btnCancelLoading:hover {
+    background-color: #ef4444 !important;
+    color: white !important;
+    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* モーダル（ポップアップ）共通オーバーレイの完全装飾 */
+.modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    display: none; /* JSで show クラス時に flex に切り替え */
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 9999 !important;
+    backdrop-filter: blur(4px) !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.modal-overlay.show {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.modal-content {
+    background: var(--card-bg) !important;
+    padding: 40px !important;
+    border-radius: 24px !important;
+    width: 90% !important;
+    max-width: 500px !important;
+    text-align: center !important;
+    transform: translateY(20px) !important;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(128, 128, 128, 0.15) !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+}
+
+.modal-overlay.show .modal-content {
+    transform: translateY(0) !important;
+}
+
+.modal-icon {
+    width: 80px !important;
+    height: 80px !important;
+    background: rgba(16, 185, 129, 0.1) !important; /* 緑の半透明 */
+    color: #10b981 !important;
+    border-radius: 50% !important;
+    margin: 0 auto 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.modal-icon svg {
+    width: 48px !important;
+    height: 48px !important;
+}
+
+.modal-content h2 {
+    margin-bottom: 16px !important;
+    color: var(--text-main) !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+}
+
+.modal-content p {
+    color: var(--text-sub) !important;
+    margin-bottom: 24px !important;
+    font-size: 0.95rem !important;
+    line-height: 1.6 !important;
+}
+
+.result-path {
+    background: var(--bg-color) !important;
+    padding: 16px !important;
+    border-radius: 12px !important;
+    font-family: monospace !important;
+    font-size: 0.9rem !important;
+    color: var(--text-main) !important;
+    word-break: break-all !important;
+    margin-bottom: 32px !important;
+    border: 1px solid rgba(128, 128, 128, 0.3) !important;
+}
+
+.btn-complete {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 32px !important;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    transition: background 0.2s !important;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2) !important;
+}
+
+.btn-complete:hover {
+    background-color: var(--primary-color-dark) !important;
+}
+
+/* 引継ぎデータのインポートにおける D&D 領域 (.file-drop-area) の専用装飾定義 */
+.file-drop-area {
+    border: 2px dashed rgba(128, 128, 128, 0.3) !important;
+    border-radius: 16px !important;
+    padding: 60px 40px !important;
+    text-align: center !important;
+    background: var(--bg-color) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease-in-out !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+}
+
+.file-drop-area:hover, .file-drop-area.dragover {
+    border-color: var(--primary-color) !important;
+    background: color-mix(in srgb, var(--primary-color) 5%, var(--bg-color)) !important;
+}
+
+.main-msg {
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
+    color: var(--text-main) !important;
+    margin-bottom: 8px !important;
+}
+
+.sub-msg {
+    font-size: 0.85rem !important;
+    color: var(--text-sub) !important;
+    margin: 0 !important;
+}
+
+/* 点滅や初期化崩れを回避するため、display: none となる inline-style が正しく作動するよう「!important」を排除 */
+.file-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.file-name {
+    font-weight: 700 !important;
+    color: #10b981 !important;
+    font-family: monospace !important;
+    word-break: break-all !important;
+}
+
+.btn-clear {
+    background: none !important;
+    border: none !important;
+    font-size: 1.2rem !important;
+    cursor: pointer !important;
+    color: #10b981 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+
+/* ウィンドウサイズ（解像度）が小さすぎる場合に、左右を美しく縦積み（ブロック化）させるブレークポイントの適用 */
+@media (max-width: 900px) {
+    .migration-main-grid {
+        grid-template-columns: 1fr !important;
+        gap: 24px !important;
+        padding: 0 16px !important;
+    }
+}

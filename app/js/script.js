@@ -3,8 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnAddMusic = document.getElementById('btnAddMusic');
     const btnManage = document.getElementById('btnManage');
-    const btnExport = document.getElementById('btnExport');
-    const btnImport = document.getElementById('btnImport');
+    const btnMigration = document.getElementById('btnMigration'); // ★ 引継ぎ
     const btnPlayer = document.getElementById('btnPlayer');
     const btnMobileSync = document.getElementById('btnMobileSync');
     const btnSettings = document.getElementById('btnSettings');
@@ -19,7 +18,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (settings.open_manage_new_window) {
                 await invoke("open_new_window", {
                     label: "manage_window", 
-                    // ★ 修正：現在のURLをベースにした絶対URLとして組み立てる
                     url: new URL("manage.html", window.location.href).href,
                     title: "データベース管理 - Chordia",
                     width: 1200.0,
@@ -31,8 +29,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    if (btnExport) btnExport.addEventListener('click', () => window.location.href = 'export.html');
-    if (btnImport) btnImport.addEventListener('click', () => window.location.href = 'import.html');
+    // ★ 修正：引継ぎ用へのリダイレクト
+    if (btnMigration) btnMigration.addEventListener('click', () => window.location.href = 'migration.html');
 
     if (btnPlayer) {
         btnPlayer.addEventListener('click', async () => {
@@ -87,8 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         switch(e.key.toUpperCase()) {
             case '1': case 'A': targetBtn = btnAddMusic; break;
             case '2': case 'D': targetBtn = btnManage; break;
-            case '3': case 'X': targetBtn = btnExport; break;
-            case '4': case 'M': targetBtn = btnImport; break;
+            case '3': case 'M': targetBtn = btnMigration; break; // ★ 引継ぎ
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;

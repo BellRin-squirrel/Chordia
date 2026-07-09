@@ -12,17 +12,17 @@
 		"withGlobalTauri": true,
 		"windows": [
 			{
-			"title": "Chordia",
-			"width": 850,
-			"height": 600,
-			"resizable": true,
-			"fullscreen": false
+				"title": "Chordia",
+				"width": 850,
+				"height": 600,
+				"resizable": true,
+				"fullscreen": false
 			}
 		],
 		"security": {
 			"assetProtocol": {
-			"enable": true,
-			"scope": ["**"]
+				"enable": true,
+				"scope": ["**"]
 			},
 			"csp": null
 		}

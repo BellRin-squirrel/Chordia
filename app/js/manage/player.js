@@ -42,9 +42,35 @@
 
             barPlayBtn.addEventListener('click', () => {
                 if (s.currentPlayingIndex === -1) return;
-                if (audioPlayer.paused) { audioPlayer.play(); this.updatePlayIcons(true); } 
-                else { audioPlayer.pause(); this.updatePlayIcons(false); }
+                if (audioPlayer.paused) { 
+                    audioPlayer.play(); 
+                    this.updatePlayIcons(true); 
+                    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+                } 
+                else { 
+                    audioPlayer.pause(); 
+                    this.updatePlayIcons(false); 
+                    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+                }
             });
+
+            // ★ 修正：管理画面の試聴用プレイヤーも、OSのメディア物理キー操作に追従させます。
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('play', () => {
+                    if (audioPlayer.paused && s.currentPlayingIndex !== -1) {
+                        audioPlayer.play();
+                        this.updatePlayIcons(true);
+                        navigator.mediaSession.playbackState = 'playing';
+                    }
+                });
+                navigator.mediaSession.setActionHandler('pause', () => {
+                    if (!audioPlayer.paused && s.currentPlayingIndex !== -1) {
+                        audioPlayer.pause();
+                        this.updatePlayIcons(false);
+                        navigator.mediaSession.playbackState = 'paused';
+                    }
+                });
+            }
         },
 
         playPreview: async function(index) {
@@ -56,9 +82,11 @@
                 if (audioPlayer.paused) { 
                     audioPlayer.play(); 
                     this.updatePlayIcons(true); 
+                    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                 } else { 
                     audioPlayer.pause(); 
                     this.updatePlayIcons(false); 
+                    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
                 }
                 return;
             }
@@ -73,15 +101,28 @@
 
             if (item.musicFilename) {
                 try {
-                    // ★ 修正: 相対パスを絶対パスに解決
+                    // 相対パスを絶対パスに解決
                     const absPath = await invoke("resolve_path", { relPath: item.musicFilename });
-                    // ★ 修正: 絶対パスをAssetプロトコルのURLに変換
+                    // 絶対パスをAssetプロトコルのURLに変換
                     const assetUrl = convertFileSrc(absPath);
                     
                     audioPlayer.src = assetUrl;
                     audioPlayer.load();
                     await audioPlayer.play();
                     this.updatePlayIcons(true);
+
+                    // ★ 修正：管理画面の試聴プレイヤー再生時もOSの Now Playing にメタデータをプッシュ
+                    if ('mediaSession' in navigator) {
+                        navigator.mediaSession.metadata = new MediaMetadata({
+                            title: item.title || 'Unknown Title',
+                            artist: item.artist || 'Unknown Artist',
+                            album: item.album || '',
+                            artwork: [
+                                { src: item.imageData || s.DEFAULT_ICON, sizes: '256x256', type: 'image/png' }
+                            ]
+                        });
+                        navigator.mediaSession.playbackState = 'playing';
+                    }
                 } catch (e) {
                     console.error("Playback failed:", e);
                     u.showToast("再生できません", true);
@@ -101,6 +142,11 @@
                 if (btn) { btn.innerHTML = s.SVG_PLAY; btn.classList.remove('playing'); }
             }
             document.getElementById('barPlayBtn').innerHTML = s.SVG_PLAY;
+
+            // ★ 修正：OS側に停止ステータスを通知
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'none';
+            }
         },
 
         updatePlayIcons: function(isPlaying) {
