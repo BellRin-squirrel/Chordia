@@ -14,21 +14,17 @@ use crate::utils::*;
 #[tauri::command]
 pub fn get_library_count(
     search_query: String,
-    advanced_conditions: Option<Value>, // ★ 追加：高度な検索用の条件ツリーを受け取る
+    advanced_conditions: Option<Value>, 
     state: State<'_, AppState>
 ) -> usize {
     let db = state.db.lock().unwrap();
     db.iter().filter(|i| {
-        // 通常の簡易検索クエリの合致判定
         let match_search_query = if search_query.is_empty() { true } else { match_search(i, &search_query) };
-        
-        // 高度な検索条件ツリー（Conditions）が存在する場合、utils.rs のスマートプレイリスト評価器に引き渡す
         let match_advanced = if let Some(ref conds) = advanced_conditions {
             evaluate_smart_rules(i, conds)
         } else {
             true
         };
-        
         match_search_query && match_advanced
     }).count()
 }
@@ -40,12 +36,11 @@ pub fn get_library_chunk(
     sort_field: Option<String>,
     sort_desc: bool,
     search_query: String,
-    advanced_conditions: Option<Value>, // ★ 追加：高度な検索用の条件ツリーを受け取る
+    advanced_conditions: Option<Value>, 
     state: State<'_, AppState>
 ) -> Vec<serde_json::Map<String, Value>> {
     let mut db = state.db.lock().unwrap().clone();
     
-    // 通常のクエリ判定 ＆ 高度な検索のフィルタ処理
     db.retain(|i| {
         let match_search_query = if search_query.is_empty() { true } else { match_search(i, &search_query) };
         let match_advanced = if let Some(ref conds) = advanced_conditions {
@@ -86,7 +81,12 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
 pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<String>, remove: bool, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(target) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
-        if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { if !old.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(old)); } }
+        // ★ 修正：パスの正規化
+        if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { 
+            if !old.contains("default.png") { 
+                let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(old))); 
+            } 
+        }
         if remove {
             target.insert("imageFilename".into(), "library/images/default.png".into());
             target.insert("imageData".into(), get_asset_url("library/images/default.png").into());
@@ -111,8 +111,9 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
     let mut db = state.db.lock().unwrap();
     if let Some(pos) = db.iter().position(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         let i = db.remove(pos);
-        if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(p)); }
-        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(p)); } }
+        // ★ 修正：パスの正規化
+        if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
+        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
         save_db(&db).is_ok()
     } else { false }
 }
@@ -127,6 +128,23 @@ pub fn get_common_values_for_selected(filenames: Vec<String>, state: State<'_, A
         let first = sel[0].get(k).and_then(|v| v.as_str()).unwrap_or("");
         res.insert(k.into(), if sel.iter().all(|i| i.get(k).and_then(|v| v.as_str()).unwrap_or("") == first) { first.into() } else { "< 維持 >".into() });
     }
+
+    let first_img = sel[0].get("imageFilename").and_then(|v| v.as_str()).unwrap_or("");
+    let common_img = if sel.iter().all(|i| i.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("") == first_img) {
+        first_img
+    } else {
+        "< 維持 >"
+    };
+    res.insert("imageFilename".into(), common_img.into());
+
+    let first_data = sel[0].get("imageData").and_then(|v| v.as_str()).unwrap_or("");
+    let common_data = if sel.iter().all(|i| i.get("imageData").and_then(|v| v.as_str()).unwrap_or("") == first_data) {
+        first_data
+    } else {
+        "< 維持 >"
+    };
+    res.insert("imageData".into(), common_data.into());
+    
     res
 }
 
@@ -134,10 +152,53 @@ pub fn get_common_values_for_selected(filenames: Vec<String>, state: State<'_, A
 pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Value {
     let mut db = state.db.lock().unwrap();
     let mut count = 0;
-    let up: Vec<_> = updates.into_iter().filter(|(_, v)| v.as_str() != Some("< 維持 >")).collect();
+    
+    let mut artwork_b64 = None;
+    let mut up_map = updates.clone();
+    if let Some(art) = up_map.remove("artworkBase64") {
+        if art.as_str() != Some("< 維持 >") {
+            artwork_b64 = art.as_str().map(|s| s.to_string());
+        }
+    }
+    
+    let up: Vec<_> = up_map.into_iter().filter(|(_, v)| v.as_str() != Some("< 維持 >")).collect();
+    let base = get_base_dir();
+    
     for i in db.iter_mut() {
-        if filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into()) {
-            for (k, v) in &up { i.insert(k.clone(), v.clone()); }
+        let file_name_only = i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("");
+        if filenames.contains(&file_name_only.to_string()) {
+            for (k, v) in &up {
+                if k == "lyric" {
+                    let clean_val = v.as_str().unwrap_or("").replace("\r\n", "\n").replace("\r", "\n");
+                    i.insert(k.clone(), Value::String(clean_val));
+                } else {
+                    i.insert(k.clone(), v.clone());
+                }
+            }
+            
+            if let Some(ref b64) = artwork_b64 {
+                // ★ 修正：パスの正規化
+                if let Some(old) = i.get("imageFilename").and_then(|v| v.as_str()) {
+                    if !old.contains("default.png") {
+                        let _ = fs::remove_file(base.join(normalize_rel_path(old)));
+                    }
+                }
+                
+                if b64 == "REMOVE" {
+                    i.insert("imageFilename".into(), "library/images/default.png".into());
+                    i.insert("imageData".into(), get_asset_url("library/images/default.png").into());
+                } else {
+                    let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
+                    let path = format!("library/images/{}.png", f_id);
+                    let b64c = if b64.contains(',') { b64.split(',').nth(1).unwrap() } else { b64 };
+                    if let Ok(bytes) = general_purpose::STANDARD.decode(b64c) {
+                        if force_save_as_png(&bytes, &base.join(&path)) { 
+                            i.insert("imageFilename".into(), path.clone().into());
+                            i.insert("imageData".into(), get_asset_url(&path).into());
+                        }
+                    }
+                }
+            }
             count += 1;
         }
     }
@@ -151,12 +212,14 @@ pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>)
     let mut count = 0;
     db.retain(|i| {
         if filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into()) {
-            if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(p)); }
-            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(p)); } }
+            // ★ 修正：パスの正規化
+            if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
+            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
             count += 1; false
         } else { true }
     });
-    let _ = save_db(&db); serde_json::json!({"success": true, "count": count})
+    if count > 0 { let _ = save_db(&db); }
+    serde_json::json!({"success": true, "count": count})
 }
 
 #[tauri::command]
@@ -185,7 +248,7 @@ pub fn parse_list_import(content: String, file_type: String) -> Result<serde_jso
                 }
             }
             item.insert("status".to_string(), Value::String("スキャン完了".to_string()));
-            data.push(item);
+            data.push(Value::Object(item));
         }
         Ok(serde_json::json!({"status": "success", "data": data}))
     }
@@ -210,7 +273,6 @@ pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, V
             item.insert("streamUrl".to_string(), Value::String(get_asset_url(&rel_music_path)));
         }
         
-        // アートワーク処理
         let mut img_saved = false;
         if let Some(art_b64) = item.get("artworkBase64").and_then(|v| v.as_str()) {
             if !art_b64.is_empty() {
@@ -275,7 +337,6 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
     let cursor = Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
     
-    // 実際に暗号化されたファイルが存在するかどうかを事前に検証する
     let mut needs_password = false;
     for i in 0..archive.len() {
         match archive.by_index(i) {
@@ -325,7 +386,9 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                 let mut buffer = Vec::new();
                 let _ = file.read_to_end(&mut buffer);
                 
-                let mut title = name.split('/').last().unwrap_or(&name).to_string();
+                // ★ 修正：ZIP内のパスの正規化
+                let normalized_name = normalize_rel_path(&name);
+                let mut title = normalized_name.split('/').last().unwrap_or(&name).to_string();
                 let mut artist = String::new();
                 let mut album = String::new();
                 let mut artwork_base64 = String::new();
@@ -353,7 +416,7 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                 }
                 
                 data_list.push(serde_json::json!({
-                    "relPath": name,
+                    "relPath": normalized_name,
                     "title": title,
                     "artist": artist,
                     "album": album,
@@ -381,8 +444,8 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
     let mut count = 0;
     
     for mut item in import_data_list {
-        let fname = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("");
-        if fname.is_empty() { continue; }
+        let rel_path = item.get("relPath").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        if rel_path.is_empty() { continue; }
         
         let mut found_file = None;
         for i in 0..archive.len() {
@@ -391,8 +454,9 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
                 _ => archive.by_index(i)
             };
             if let Ok(file) = file_res {
-                let archive_fname = file.name().split(&['/', '\\'][..]).last().unwrap_or("");
-                if archive_fname == fname {
+                // ★ 修正：ZIP内部名との照合時にパスを正規化
+                let archive_name = normalize_rel_path(file.name());
+                if archive_name == rel_path {
                     found_file = Some(i);
                     break;
                 }
@@ -413,7 +477,7 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
 
             let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
             let mut ext = "mp3".to_string();
-            if let Some(e) = std::path::Path::new(fname).extension().and_then(|e| e.to_str()) { ext = e.to_string(); }
+            if let Some(e) = std::path::Path::new(&rel_path).extension().and_then(|e| e.to_str()) { ext = e.to_string(); }
             let m_rel = format!("library/music/{}.{}", f_id, ext);
             
             let mut buffer = Vec::new();

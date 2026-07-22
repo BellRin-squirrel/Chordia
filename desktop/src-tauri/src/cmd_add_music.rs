@@ -5,7 +5,6 @@ use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
 use std::collections::HashSet;
-use std::os::windows::process::CommandExt;
 use tauri::State;
 
 use crate::AppState;
@@ -15,13 +14,20 @@ use crate::utils::*;
 fn verify_tool_executable(tool: &str) -> Result<(), String> {
     let b = crate::utils::get_base_dir().join("userfiles/bin");
     
-    let allowed_files = ["yt-dlp.exe", "ffmpeg.exe", "deno.exe"];
+    // 実行プラットフォームに応じた拡張子の動的解決
+    let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+    let allowed_files = [
+        format!("yt-dlp{}", ext),
+        format!("ffmpeg{}", ext),
+        format!("deno{}", ext),
+    ];
+
     if let Ok(entries) = std::fs::read_dir(&b) {
         for entry in entries.filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if !allowed_files.contains(&file_name) {
+                    if !allowed_files.contains(&file_name.to_string()) {
                         let _ = std::fs::remove_file(path);
                     }
                 }
@@ -31,7 +37,7 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
         }
     }
 
-    let exe = b.join(format!("{}.exe", tool));
+    let exe = b.join(format!("{}{}", tool, ext));
     if !exe.exists() {
         return Err(format!("{} が見つかりません。拡張機能画面でインストールしてください。", tool));
     }
@@ -46,10 +52,20 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
                 "deno" => ("--version", "deno"),
                 _ => ("--version", tool),
             };
-            if let Ok(out) = std::process::Command::new(&exe).arg(arg).creation_flags(0x08000000).output() {
+
+            let mut cmd = std::process::Command::new(&exe);
+            cmd.arg(arg);
+
+            // ★ 修正：Windows環境でのみローカルでCommandExtを読み込み非表示フラグを適用
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000);
+            }
+
+            if let Ok(out) = cmd.output() {
                 let stdout = String::from_utf8_lossy(&out.stdout).to_lowercase();
                 let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
-                stdout.contains(keyword) || stderr.contains(keyword);
                 stdout.contains(keyword) || stderr.contains(keyword)
             } else { 
                 false 
@@ -126,7 +142,78 @@ pub fn check_duplicate_songs(title: String, artist: String, state: State<'_, App
     }).collect()
 }
 
-// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、日本語タイトルを取得する
+// 内部用共通情報取得処理 (yt-dlpプロセスを並行スレッドで起動して詳細動画メタデータJSONをパース)
+async fn fetch_video_info_internal(url: &str) -> Result<Value, String> {
+    let url_string = url.to_string();
+    tokio::task::spawn_blocking(move || {
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let exe_path = get_base_dir().join(format!("userfiles/bin/yt-dlp{}", ext));
+        let bin_dir = get_base_dir().join("userfiles/bin");
+        
+        let mut cmd = std::process::Command::new(exe_path);
+        cmd.args(&[
+            "--add-header", "Accept-Language:ja-JP",
+            "--extractor-args", "youtube:lang=ja",
+            "--dump-json", 
+            "--no-playlist", 
+            "--skip-download", 
+            &url_string
+        ]);
+
+        let mut path_env = bin_dir.to_string_lossy().to_string();
+        if let Ok(existing) = std::env::var("PATH") {
+            let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+            path_env = format!("{}{}{}", path_env, sep, existing);
+        }
+        cmd.env("PATH", path_env);
+
+        // ★ 修正：Windowsでのみ呼び出すようガード
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+
+        let out = cmd.output();
+        match out {
+            Ok(o) if o.status.success() => serde_json::from_str::<Value>(&String::from_utf8_lossy(&o.stdout)).map_err(|e| e.to_string()),
+            Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    }).await.map_err(|e| format!("スレッドエラー: {}", e))?
+}
+
+// 内部用共通画像処理 (オンラインサムネイルをダウンロードし、中央判定を施したうえで1:1正方形PNGにクロップしてBase64で返却)
+async fn fetch_and_crop_thumbnail_internal(url: String) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
+        let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok()?;
+        let b = c.get(&u).send().ok()?.bytes().ok()?;
+        let i = image::load_from_memory(&b).ok()?;
+        
+        let (width, height) = (i.width(), i.height());
+        let (eff_w, eff_h, off_x, off_y) = if (width as f32 / height as f32 - 1.333).abs() < 0.05 {
+            let real_h = (width as f32 * 9.0 / 16.0) as u32;
+            (width, real_h, 0, (height - real_h) / 2) 
+        } else {
+            (width, height, 0, 0)
+        };
+
+        let s = std::cmp::min(eff_w, eff_h);
+        let mut ic = i.crop_imm(off_x + (eff_w - s) / 2, off_y + (eff_h - s) / 2, s, s);
+        
+        if ic.color().has_alpha() {
+            let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
+            image::imageops::overlay(&mut bg, &ic, 0, 0); 
+            ic = bg;
+        }
+        
+        let mut buf = std::io::Cursor::new(Vec::new()); 
+        ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
+        Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
+    }).await.unwrap_or(None)
+}
+
 #[tauri::command]
 pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     verify_tool_executable("yt-dlp")?;
@@ -143,46 +230,94 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let bin_clone = bin.clone();
     let base_clone = base.clone();
 
-    // ダウンロードプロセス時も日本語優先オプションを付与
+    // 所有権の移動エラーを回避するためクローンを作成
+    let url_for_download = url.clone();
+
     let out = tokio::task::spawn_blocking(move || {
-        std::process::Command::new(bin_clone.join("yt-dlp.exe"))
-            .args(&[
-                "--add-header", "Accept-Language:ja-JP",
-                "--extractor-args", "youtube:lang=ja",
-                "--no-playlist", 
-                "--extract-audio", 
-                "--audio-format", "mp3", 
-                "--audio-quality", "0", 
-                "-o", 
-                base_clone.join(format!("library/music/{}.%(ext)s", f_id_clone)).to_str().unwrap(), 
-                &url
-            ])
-            .creation_flags(0x08000000)
-            .output()
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let mut cmd = std::process::Command::new(bin_clone.join(format!("yt-dlp{}", ext)));
+        cmd.args(&[
+            "--add-header", "Accept-Language:ja-JP",
+            "--extractor-args", "youtube:lang=ja",
+            "--ffmpeg-location", bin_clone.to_str().unwrap(),
+            "--no-playlist", 
+            "--extract-audio", 
+            "--audio-format", "mp3", 
+            "--audio-quality", "0", 
+            "-o", 
+            base_clone.join(format!("library/music/{}.%(ext)s", f_id_clone)).to_str().unwrap(), 
+            &url_for_download
+        ]);
+
+        let mut path_env = bin_clone.to_string_lossy().to_string();
+        if let Ok(existing) = std::env::var("PATH") {
+            let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+            path_env = format!("{}{}{}", path_env, sep, existing);
+        }
+        cmd.env("PATH", path_env);
+
+        // ★ 修正：Windowsでのみ呼び出すようガード
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+
+        cmd.output()
     }).await.map_err(|e| format!("スレッドプール待機エラー: {}", e))?.map_err(|e| e.to_string())?;
         
-    if !out.status.success() { return Err(String::from_utf8_lossy(&out.stderr).into()); }
+    if !out.status.success() {
+        let stderr_str = String::from_utf8_lossy(&out.stderr).to_string();
+        eprintln!("[Server Error] yt-dlp download failed: {}", stderr_str); 
+        return Err(stderr_str);
+    }
     
-    let mut i_rel = "library/images/default.png".to_string();
+    let mut artwork_bytes = None;
     if let Some(art) = data.get("artwork_data").and_then(|v| v.as_str()) {
         if !art.is_empty() {
             let bc = if art.contains(',') { art.split(',').nth(1).unwrap() } else { art };
             if let Ok(by) = general_purpose::STANDARD.decode(bc) {
-                let ir = format!("library/images/{}.png", f_id);
-                let base_for_img = base.clone();
-                let ir_for_img = ir.clone();
-                
-                let success = tokio::task::spawn_blocking(move || {
-                    force_save_as_png(&by, &base_for_img.join(&ir_for_img))
-                }).await.map_err(|e| e.to_string())?;
-                
-                if success { i_rel = ir; }
+                artwork_bytes = Some(by);
             }
         }
     }
+
+    if artwork_bytes.is_none() {
+        let mut thumb_url_opt = data.get("thumbnail").and_then(|v| v.as_str()).map(|s| s.to_string());
+        
+        if thumb_url_opt.is_none() {
+            if let Ok(info) = fetch_video_info_internal(&url).await {
+                thumb_url_opt = info.get("thumbnail").and_then(|v| v.as_str()).map(|s| s.to_string());
+            }
+        }
+
+        if let Some(thumb_url) = thumb_url_opt {
+            if !thumb_url.is_empty() {
+                if let Some(cropped_b64) = fetch_and_crop_thumbnail_internal(thumb_url).await {
+                    let b64_clean = if cropped_b64.contains(',') { cropped_b64.split(',').nth(1).unwrap() } else { &cropped_b64 };
+                    if let Ok(by) = general_purpose::STANDARD.decode(b64_clean) {
+                        artwork_bytes = Some(by);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut i_rel = "library/images/default.png".to_string();
+    if let Some(by) = artwork_bytes {
+        let ir = format!("library/images/{}.png", f_id);
+        let base_for_img = base.clone();
+        let ir_for_img = ir.clone();
+        
+        let success = tokio::task::spawn_blocking(move || {
+            force_save_as_png(&by, &base_for_img.join(&ir_for_img))
+        }).await.map_err(|e| e.to_string())?;
+        
+        if success { i_rel = ir; }
+    }
     
     let mut db = state.db.lock().unwrap();
-    data.remove("video_url"); data.remove("artwork_data");
+    data.remove("video_url"); data.remove("artwork_data"); data.remove("thumbnail");
     
     if let Some(l) = data.get("lyric").and_then(|v| v.as_str()) {
         let clean = l.replace("\r\n", "\n").replace("\r", "\n");
@@ -275,98 +410,97 @@ pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: St
     Ok(true)
 }
 
-// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、日本語タイトルを取得する
 #[tauri::command]
 pub async fn fetch_video_info(url: String) -> Result<Value, String> {
     verify_tool_executable("yt-dlp")?;
-
-    tokio::task::spawn_blocking(move || {
-        let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
-        let out = std::process::Command::new(exe)
-            .args(&[
-                "--add-header", "Accept-Language:ja-JP",
-                "--extractor-args", "youtube:lang=ja",
-                "--dump-json", 
-                "--no-playlist", 
-                "--skip-download", 
-                &url
-            ])
-            .creation_flags(0x08000000)
-            .output();
-        match out {
-            Ok(o) if o.status.success() => serde_json::from_str::<Value>(&String::from_utf8_lossy(&o.stdout)).map(|i| serde_json::json!({
-                "status": "success", "title": i["title"], "duration": i["duration"], "thumbnail": i["thumbnail"], "uploader": i["uploader"]
-            })).unwrap_or(serde_json::json!({"status": "error", "message": "JSON error"})),
-            Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
-            Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
+    match fetch_video_info_internal(&url).await {
+        Ok(i) => Ok(serde_json::json!({
+            "status": "success", "title": i["title"], "duration": i["duration"], "thumbnail": i["thumbnail"], "uploader": i["uploader"]
+        })),
+        Err(e) => {
+            eprintln!("[Server Error] yt-dlp fetch_video_info failed: {}", e);
+            Ok(serde_json::json!({"status": "error", "message": e}))
         }
-    }).await.map_err(|e| format!("非同期スレッドエラー: {}", e))
+    }
 }
 
-// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、YouTubeプレイリストからのスキャン時も日本語タイトルを取得する
 #[tauri::command]
 pub async fn fetch_youtube_playlist(url: String) -> Result<Value, String> {
     verify_tool_executable("yt-dlp")?;
 
     tokio::task::spawn_blocking(move || {
-        let exe = get_base_dir().join("userfiles/bin/yt-dlp.exe");
-        // HTTP要求ヘッダーに日本語環境を最優先にバインド。およびyoutube用言語判定にjaを指定
-        let out = std::process::Command::new(exe)
-            .args(&[
-                "--add-header", "Accept-Language:ja-JP",
-                "--extractor-args", "youtube:lang=ja",
-                "--dump-json", 
-                "--flat-playlist", 
-                &url
-            ])
-            .creation_flags(0x08000000)
-            .output();
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let exe = get_base_dir().join(format!("userfiles/bin/yt-dlp{}", ext));
+        let bin_dir = get_base_dir().join("userfiles/bin");
+        
+        let mut cmd = std::process::Command::new(exe);
+        cmd.args(&[
+            "--add-header", "Accept-Language:ja-JP",
+            "--extractor-args", "youtube:lang=ja",
+            "--dump-json", 
+            "--flat-playlist", 
+            &url
+        ]);
+
+        let mut path_env = bin_dir.to_string_lossy().to_string();
+        if let Ok(existing) = std::env::var("PATH") {
+            let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+            path_env = format!("{}{}{}", path_env, sep, existing);
+        }
+        cmd.env("PATH", path_env);
+
+        // ★ 修正：Windowsでのみ呼び出すようガード
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+
+        let out = cmd.output();
         match out {
             Ok(o) if o.status.success() => {
                 let v: Vec<_> = String::from_utf8_lossy(&o.stdout).lines().filter_map(|l| serde_json::from_str::<Value>(l).ok())
                     .filter(|i| i["title"] != "[Private video]" && i["title"] != "[Deleted video]")
-                    .map(|i| serde_json::json!({
-                        "title": i["title"], "uploader": i["uploader"], "duration": i["duration"], "thumbnail": i["thumbnail"],
-                        "url": i["url"].as_str().map(|s| s.into()).unwrap_or(format!("https://www.youtube.com/watch?v={}", i["id"].as_str().unwrap_or("")))
-                    })).collect();
+                    .map(|i| {
+                        let id = i["id"].as_str().unwrap_or("");
+                        
+                        let thumb_url = if let Some(t) = i["thumbnail"].as_str() {
+                            t.to_string()
+                        } else if let Some(thumbnails) = i.get("thumbnails").and_then(|t| t.as_array()) {
+                            if let Some(last_thumb) = thumbnails.last() {
+                                last_thumb.get("url").and_then(|u| u.as_str()).unwrap_or("").to_string()
+                            } else {
+                                format!("https://img.youtube.com/vi/{}/hqdefault.jpg", id)
+                            }
+                        } else if !id.is_empty() {
+                            format!("https://img.youtube.com/vi/{}/hqdefault.jpg", id)
+                        } else {
+                            "".to_string()
+                        };
+
+                        serde_json::json!({
+                            "title": i["title"], "uploader": i["uploader"], "duration": i["duration"], "thumbnail": thumb_url,
+                            "url": i["url"].as_str().map(|s| s.into()).unwrap_or(format!("https://www.youtube.com/watch?v={}", id))
+                        })
+                    }).collect();
                 serde_json::json!({"status": "success", "videos": v})
             },
-            Ok(o) => serde_json::json!({"status": "error", "message": String::from_utf8_lossy(&o.stderr).trim()}),
-            Err(e) => serde_json::json!({"status": "error", "message": e.to_string()}),
+            Ok(o) => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                eprintln!("[Server Error] yt-dlp fetch_youtube_playlist failed: {}", stderr); 
+                serde_json::json!({"status": "error", "message": stderr})
+            },
+            Err(e) => {
+                eprintln!("[Server Error] yt-dlp fetch_youtube_playlist spawn failed: {}", e); 
+                serde_json::json!({"status": "error", "message": e.to_string()})
+            },
         }
     }).await.map_err(|e| format!("非同期スレッドエラー: {}", e))
 }
 
-// ★ 修正：非同期化 ＆ 日本語（ja-JP）の通信要求を強制し、Webサムネイル画像取得中も操作可能
 #[tauri::command]
 pub async fn fetch_and_crop_thumbnail(url: String) -> Option<String> {
-    tokio::task::spawn_blocking(move || {
-        let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
-        let c = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(10)).user_agent("Mozilla/5.0").build().ok()?;
-        let b = c.get(&u).send().ok()?.bytes().ok()?;
-        let i = image::load_from_memory(&b).ok()?;
-        
-        let (width, height) = (i.width(), i.height());
-        let (eff_w, eff_h, off_x, off_y) = if (width as f32 / height as f32 - 1.333).abs() < 0.05 {
-            let real_h = (width as f32 * 9.0 / 16.0) as u32;
-            (width, real_h, 0, (height - real_h) / 2) 
-        } else {
-            (width, height, 0, 0)
-        };
-
-        let s = std::cmp::min(eff_w, eff_h);
-        let mut ic = i.crop_imm(off_x + (eff_w - s) / 2, off_y + (eff_h - s) / 2, s, s);
-        
-        if ic.color().has_alpha() {
-            let mut bg = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(s, s, image::Rgba([255, 255, 255, 255])));
-            image::imageops::overlay(&mut bg, &ic, 0, 0); 
-            ic = bg;
-        }
-        
-        let mut buf = std::io::Cursor::new(Vec::new()); 
-        ic.write_to(&mut buf, image::ImageFormat::Png).ok()?;
-        Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buf.into_inner())))
-    }).await.unwrap_or(None)
+    fetch_and_crop_thumbnail_internal(url).await
 }
 
 #[tauri::command]
@@ -414,15 +548,15 @@ pub async fn search_lyrics_online(title: String, artist: String) -> Result<Value
     Ok(json)
 }
 
-// ★ 復元：メインスレッド非同期化に伴い消去されていた、外部ツール確認用コマンドを完全に再統合
 #[tauri::command]
 pub async fn check_tools_status() -> Result<Value, String> {
     tokio::task::spawn_blocking(|| {
         let b = get_base_dir().join("userfiles/bin");
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
         Ok(serde_json::json!({
-            "yt-dlp": b.join("yt-dlp.exe").exists(), 
-            "ffmpeg": b.join("ffmpeg.exe").exists(), 
-            "deno": b.join("deno.exe").exists()
+            "yt-dlp": b.join(format!("yt-dlp{}", ext)).exists(), 
+            "ffmpeg": b.join(format!("ffmpeg{}", ext)).exists(), 
+            "deno": b.join(format!("deno{}", ext)).exists()
         }))
     }).await.map_err(|e| format!("ステータス確認スレッドエラー: {}", e))?
 }

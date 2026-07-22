@@ -2,36 +2,40 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 use std::fs;
 use std::io::Read;
-use std::os::windows::process::CommandExt;
 use crate::utils::get_base_dir;
 
 #[tauri::command]
 pub async fn check_tool_updates() -> Result<Value, String> {
-    // ★ 修正：プロセス起動処理が非同期スレッドプールをブロックしないよう spawn_blocking で保護
     tokio::task::spawn_blocking(move || {
         let base = get_base_dir().join("userfiles/bin");
         let mut results = serde_json::Map::new();
 
-        // 1. クリーンアップ処理
-        let allowed_files = ["yt-dlp.exe", "ffmpeg.exe", "deno.exe"];
+        // 1. クリーンアップ処理 (実行環境に応じた拡張子の動的解決)
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let allowed_files = [
+            format!("yt-dlp{}", ext),
+            format!("ffmpeg{}", ext),
+            format!("deno{}", ext),
+        ];
+
         if let Ok(entries) = fs::read_dir(&base) {
             for entry in entries.filter_map(|e| e.ok()) {
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                        if !allowed_files.contains(&file_name) {
-                            let _ = fs::remove_file(path);
+                        if !allowed_files.contains(&file_name.to_string()) {
+                            let _ = std::fs::remove_file(path);
                         }
                     }
                 } else if path.is_dir() {
-                    let _ = fs::remove_dir_all(path);
+                    let _ = std::fs::remove_dir_all(path);
                 }
             }
         }
 
         // 2. 整合性チェックとバージョン情報の生成
         for tool in ["yt-dlp", "ffmpeg", "deno"] {
-            let exe_path = base.join(format!("{}.exe", tool));
+            let exe_path = base.join(format!("{}{}", tool, ext));
             let exists = exe_path.exists();
             
             let mut is_valid = false;
@@ -45,7 +49,17 @@ pub async fn check_tool_updates() -> Result<Value, String> {
                             _ => ("--version", ""),
                         };
                         
-                        if let Ok(out) = std::process::Command::new(&exe_path).arg(arg).creation_flags(0x08000000).output() {
+                        let mut cmd = std::process::Command::new(&exe_path);
+                        cmd.arg(arg);
+
+                        // ★ 修正：Windows環境でのみローカルでCommandExtを読み込み非表示フラグを適用
+                        #[cfg(target_os = "windows")]
+                        {
+                            use std::os::windows::process::CommandExt;
+                            cmd.creation_flags(0x08000000);
+                        }
+
+                        if let Ok(out) = cmd.output() {
                             let stdout = String::from_utf8_lossy(&out.stdout).to_lowercase();
                             let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
                             is_valid = stdout.contains(keyword) || stderr.contains(keyword);
@@ -82,9 +96,37 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
         let _ = fs::create_dir_all(&base_dir);
         
         let url = match tool_name.as_str() {
-            "yt-dlp" => "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
-            "ffmpeg" => "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
-            "deno" => "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip",
+            "yt-dlp" => {
+                if cfg!(target_os = "windows") {
+                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+                } else if cfg!(target_os = "macos") {
+                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+                } else {
+                    return Err("未対応のOSです".to_string());
+                }
+            },
+            "ffmpeg" => {
+                if cfg!(target_os = "windows") {
+                    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+                } else if cfg!(target_os = "macos") {
+                    "https://evermeet.cx/ffmpeg/getrelease/zip"
+                } else {
+                    return Err("未対応のOSです".to_string());
+                }
+            },
+            "deno" => {
+                if cfg!(target_os = "windows") {
+                    "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+                } else if cfg!(target_os = "macos") {
+                    if cfg!(target_arch = "aarch64") {
+                        "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip"
+                    } else {
+                        "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip"
+                    }
+                } else {
+                    return Err("未対応のOSです".to_string());
+                }
+            },
             _ => return Err(format!("不明なツールです: {}", tool_name)),
         };
 
@@ -122,16 +164,24 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
             "total": total_size
         }));
 
-        let exe_path = base_dir.join(format!("{}.exe", tool_name));
+        let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let exe_path = base_dir.join(format!("{}{}", tool_name, ext));
 
-        if url.ends_with(".zip") {
+        if url.ends_with(".zip") || tool_name == "ffmpeg" {
             let cursor = std::io::Cursor::new(data);
             let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
             let mut extracted = false;
             for i in 0..archive.len() {
                 let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
                 let name = file.name().to_lowercase();
-                if name.ends_with(&format!("{}.exe", tool_name)) {
+                
+                let target_match = if cfg!(target_os = "windows") {
+                    name.ends_with(&format!("{}.exe", tool_name))
+                } else {
+                    name == tool_name || name.ends_with(&format!("/{}", tool_name))
+                };
+
+                if target_match {
                     let mut out = fs::File::create(&exe_path).map_err(|e| e.to_string())?;
                     std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
                     extracted = true;
@@ -139,10 +189,21 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
                 }
             }
             if !extracted {
-                return Err(format!("ZIP内に {}.exe が見つかりませんでした", tool_name));
+                return Err(format!("ZIP内に {} が見つかりませんでした", tool_name));
             }
         } else {
             fs::write(&exe_path, data).map_err(|e| e.to_string())?;
+        }
+
+        // macOS / Linux 等のUnixシステムにおいて、ダウンロードしたバイナリに実行権限（chmod +x）を付与
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(metadata) = fs::metadata(&exe_path) {
+                let mut perms = metadata.permissions();
+                perms.set_mode(0o755); 
+                let _ = fs::set_permissions(&exe_path, perms);
+            }
         }
 
         Ok(())

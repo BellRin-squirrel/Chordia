@@ -7,8 +7,6 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
         return Ok(()); 
     }
     
-    // ★ 修正：フロントから渡された絶対URLを安全にパースして External で開く。
-    // これにより、dev モード (localhost:1420等) でも prod モードでも確実に接続できる。
     let webview_url = match url.parse() {
         Ok(parsed) => WebviewUrl::External(parsed),
         Err(_) => WebviewUrl::App(url.clone().into()),
@@ -20,7 +18,12 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
         .resizable(true);
 
     if label == "mini_player_window" {
-        builder = builder.decorations(false).transparent(true);
+        builder = builder.decorations(false);
+        
+        #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
+        {
+            builder = builder.transparent(true);
+        }
     }
 
     builder.build().map_err(|e| e.to_string())?;
@@ -84,18 +87,35 @@ pub async fn make_window_square(app: tauri::AppHandle, width_is_master: bool) ->
     Ok(())
 }
 
+// Windows(Explorer/select) と macOS(Finder/open -R) 双方のハイライト展開に完全対応
 #[tauri::command]
 pub fn show_in_explorer(path: String) -> Result<(), String> {
     let abs_path = crate::utils::get_base_dir().join(&path);
+
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         let path_str = abs_path.to_str().unwrap_or("");
-        
         std::process::Command::new("explorer")
             .raw_arg(format!("/select,\"{}\"", path_str))
             .spawn()
             .map_err(|e| e.to_string())?;
     }
+
+    #[cfg(target_os = "macos")]
+    {
+        let path_str = abs_path.to_str().unwrap_or("");
+        std::process::Command::new("open")
+            .args(&["-R", path_str])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    // 非Windows/非macOSのビルド環境での unused_variables 警告を回避
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = abs_path;
+    }
+
     Ok(())
 }

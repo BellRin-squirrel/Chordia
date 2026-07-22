@@ -27,7 +27,9 @@ pub struct AppState {
 
 #[tauri::command]
 fn resolve_path(rel_path: String) -> Result<String, String> {
-    let abs_path = crate::utils::get_base_dir().join(&rel_path);
+    // ★ 修正：共通正規化関数を用いてパスを解決
+    let normalized = crate::utils::normalize_rel_path(&rel_path);
+    let abs_path = crate::utils::get_base_dir().join(&normalized);
     Ok(abs_path.to_string_lossy().to_string())
 }
 
@@ -36,13 +38,33 @@ fn get_app_version() -> &'static str {
     APP_VERSION
 }
 
-// ★ 追加：引継ぎインポート時に、Rustメモリ状態を完全にリセットして適用するためにアプリを安全に再起動する
 #[tauri::command]
 fn restart_app(app: AppHandle) {
     app.restart();
 }
 
+#[cfg(target_os = "windows")]
+fn set_app_user_model_id() {
+    use std::os::windows::ffi::OsStrExt;
+    
+    let app_id: Vec<u16> = std::ffi::OsStr::new("BellRin.Chordia")
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    
+    extern "system" {
+        fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
+    }
+    
+    unsafe {
+        let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr());
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "windows")]
+    set_app_user_model_id();
+
     let initial_db = load_db();
     let initial_playlists = load_playlists_master();
     
@@ -84,7 +106,7 @@ fn main() {
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs,
             cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import,
             cmd_history::record_playback, cmd_history::get_playback_history,
-            cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
+            cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
             cmd_api::start_sync_server, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session,
             resolve_path, restart_app

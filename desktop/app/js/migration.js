@@ -16,7 +16,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const exportPassword = document.getElementById('exportPassword');
     
     const dropArea = document.getElementById('dropAreaImport');
-    const fileInputImport = document.getElementById('fileInputImport');
     const importFileInfo = document.getElementById('importFileInfo');
     const importFileName = document.getElementById('importFileName');
     const btnClearImportFile = document.getElementById('btnClearImportFile');
@@ -31,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadingOverlay = document.getElementById('loadingOverlay');
     const btnCancelLoading = document.getElementById('btnCancelLoading');
 
-    let selectedImportFile = null;
+    let selectedImportPath = "";
     let isCancelled = false;
 
     // Rust側でファイルの書き出しが終わって「キャッシュ（AppState）上書き」に遷移した瞬間のイベントを監視し表示を書き換えます
@@ -107,7 +106,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     password: pass
                 });
                 
-                // 待機中にキャンセルが押されていた場合は結果を破棄する
                 if (isCancelled) return;
 
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
@@ -122,7 +120,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (btnComplete) {
                         btnComplete.textContent = "トップへ戻る";
                     }
-                    // エクスポート成功時のみエクスプローラー展開ボタンを表示
                     if (btnShowInExplorer) {
                         btnShowInExplorer.style.display = 'inline-flex';
                     }
@@ -161,14 +158,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // --- インポート（復元）側の初期設定 ---
+    // ★ 修正：クリック時はネイティブダイアログ（ask_import_path）で直接絶対パスを取得（ブラウザメモリ上限を回避）
     if (dropArea) {
-        dropArea.onclick = () => fileInputImport.click();
-        fileInputImport.onclick = (e) => e.stopPropagation(); // バブリング防止
-        setupDragAndDrop(dropArea, handleImportFile);
-    }
-    if (fileInputImport) {
-        fileInputImport.onchange = (e) => handleImportFile(e.target.files[0]);
+        dropArea.onclick = async () => {
+            try {
+                const path = await invoke("ask_import_path");
+                if (path) {
+                    selectedImportPath = path;
+                    const fileName = path.split(/[\\/]/).pop();
+                    if (importFileName) importFileName.textContent = fileName;
+                    if (dropArea) dropArea.style.display = 'none';
+                    if (importFileInfo) importFileInfo.style.display = 'flex';
+                    
+                    await runImportRestore("");
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        // D&D時も File オブジェクトからダイレクトパスを取得
+        setupDragAndDrop(dropArea, async (file) => {
+            if (!file) return;
+            const path = file.path || file.name;
+            if (!path.toLowerCase().endsWith('.zip')) {
+                showToast("引継ぎファイルはZIP形式である必要があります", true);
+                return;
+            }
+            selectedImportPath = path;
+            const fileName = file.name || path.split(/[\\/]/).pop();
+            if (importFileName) importFileName.textContent = fileName;
+            if (dropArea) dropArea.style.display = 'none';
+            if (importFileInfo) importFileInfo.style.display = 'flex';
+
+            await runImportRestore("");
+        });
     }
 
     // パスワード手動入力適用時のリトライ処理
@@ -196,28 +220,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // インポートファイル読み込み時の全自動実行トリガー
-    async function handleImportFile(file) {
-        if (!file) return;
-        if (!file.name.toLowerCase().endsWith('.zip')) {
-            showToast("引継ぎファイルはZIP形式である必要があります", true);
-            return;
-        }
-        selectedImportFile = file;
-        
-        // ファイル情報表示領域にファイル名を代入して表示
-        if (importFileName) importFileName.textContent = file.name;
-        if (dropArea) dropArea.style.display = 'none';
-        if (importFileInfo) importFileInfo.style.display = 'flex';
-        
-        // 選択と同時にインポート復元を完全に自動処理
-        await runImportRestore("");
-    }
-
     if (btnClearImportFile) {
         btnClearImportFile.onclick = () => {
-            fileInputImport.value = '';
-            selectedImportFile = null;
+            selectedImportPath = "";
             if (importFileInfo) importFileInfo.style.display = 'none';
             if (dropArea) dropArea.style.display = 'block';
             if (importPasswordContainer) importPasswordContainer.style.display = 'none';
@@ -225,10 +230,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // JS側でのテンポラリZIPファイル書込みを完全に廃止し、Base64文字列をそのままRustに引き渡すことで、
-    // writeBinaryFile の未定義エラー（ブラウザシステム制限）を完全に回避して復元を実行します。
+    // ★ 修正：Base64エンコードを行わず、ファイルのパス文字列だけをRustへ渡して直接解凍
     async function runImportRestore(pass = "") {
-        if (!selectedImportFile) return;
+        if (!selectedImportPath) return;
 
         isCancelled = false;
         if (loadingOverlay) {
@@ -237,18 +241,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            // ファイルをBase64に変換してRustへ直接ストリーム転送
-            const base64Data = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result.split(',')[1]);
-                reader.readAsDataURL(selectedImportFile);
-            });
-
-            if (isCancelled) return;
-
-            // Rustの「execute_migration_import」にBase64データを直接渡してメモリ上で復元を実行
+            // パスを直接Rustへ渡してディスクからストリーム解凍（Out of Memoryを100%回避）
             const result = await invoke("execute_migration_import", {
-                zipDataB64: base64Data,
+                zipPath: selectedImportPath,
                 password: pass || null
             });
 
@@ -284,7 +279,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 完了時、再起動を挟まずそのままトップ画面に戻る仕様に統一
     if (btnComplete) {
         btnComplete.addEventListener('click', () => {
             window.location.href = 'index.html';

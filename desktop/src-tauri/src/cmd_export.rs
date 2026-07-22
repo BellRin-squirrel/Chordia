@@ -2,7 +2,6 @@ use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use crate::utils::get_base_dir;
-use base64::{Engine as _, engine::general_purpose};
 use tauri::{State, AppHandle, Emitter};
 use crate::AppState;
 
@@ -26,6 +25,16 @@ pub fn ask_save_path(current_path: String) -> Option<String> {
     }
     
     dialog.save_file().map(|p| p.to_string_lossy().to_string())
+}
+
+// ★ 追加：引継ぎ用インポートファイルをダイレクト選択するネイティブファイルダイアログ
+#[tauri::command]
+pub fn ask_import_path() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("引継ぎファイル(ZIP)を選択")
+        .add_filter("ZIP Archive", &["zip"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -98,10 +107,10 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
     }
 }
 
-// ★ 修正：AES暗号化ZIPが、パスワードなしで目録取得を行った際のエラー（UnsupportedArchive）も安全にキャッチして needs_password を判定します
+// ★ 修正：JavaScriptメモリの上限（Out of memory）を100%回避するため、ファイルパス（zip_path）を受け取りディスクから直接ストリーム読み込み展開する仕様へ改修
 #[tauri::command]
 pub fn execute_migration_import(
-    zip_data_b64: String, 
+    zip_path: String, 
     password: Option<String>,
     state: State<'_, AppState>,
     app_handle: AppHandle
@@ -114,15 +123,11 @@ pub fn execute_migration_import(
 
     let base_dir = get_base_dir();
     
-    // Base64デコード処理
-    let b64_clean = if zip_data_b64.contains(',') { zip_data_b64.split(',').nth(1).unwrap() } else { &zip_data_b64 };
-    let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|e| format!("デコードエラー: {}", e))?;
-    
-    // メモリ上のCursorを用いて解凍を実行
-    let cursor = std::io::Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
+    // JSメモリを経由せず、ディスクから直接ストリームオープン
+    let file = fs::File::open(&zip_path).map_err(|e| format!("ZIPファイルの読み込みに失敗しました: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
 
-    // 実際に暗号化されたファイルが存在するか確認（確実なエラーマッチング仕様へアップグレード）
+    // 実際に暗号化されたファイルが存在するか確認
     let mut needs_password = false;
     for i in 0..archive.len() {
         match archive.by_index(i) {
@@ -177,7 +182,7 @@ pub fn execute_migration_import(
         }
     }
 
-    // ファイル書込み完了後、メモリ再書込み中の表示をJSへ指示するためイベントをエミット
+    // メモリ再書込み中の表示をJSへ指示するためイベントをエミット
     let _ = app_handle.emit("migration_status", "rewriting_cache");
 
     // ディスク上の新しい music.json と playlist.json を再ロードし、インメモリのAppStateを完全に書き換えてキャッシュクリーンを完了
