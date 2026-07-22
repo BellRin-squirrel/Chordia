@@ -18,7 +18,7 @@ use tokio::sync::Mutex;
 use tauri::{Manager, Emitter, AppHandle};
 use utils::{load_db, load_playlists_master};
 
-const APP_VERSION: &str = "v3.1.0";
+const APP_VERSION: &str = "v3.2.0";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,

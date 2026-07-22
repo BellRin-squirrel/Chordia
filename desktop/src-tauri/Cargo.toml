@@ -1,10 +1,10 @@
 [package]
 name = "Chordia"
-version = "3.1.0"
-description = "Chordia Windows Portable"
+version = "3.2.0"
+description = "Chordia - for a Comfortable Life with Music"
 authors = ["BellRin"]
 license = "(c) BellRin all rights reserved."
-repository = ""
+repository = "https://github.com/BellRin-squirrel/Chordia"
 edition = "2021"
 rust-version = "1.77.2"
 
