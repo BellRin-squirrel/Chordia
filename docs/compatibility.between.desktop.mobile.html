@@ -5,47 +5,6 @@
         <title>Desktop版とMobile版の同期互換性</title>
     </head>
     <body>
-        # Desktop版とMobile版の互換性
-
-|desktop - mobile|v1.0.0|v1.0.1|v2.0.0 #1|v2.0.0|v2.1.0 #1|v2.1.0|v2.1.0(RNTP)|v2.1.1|v2.1.2|v2.1.3|v3.0.0|v3.0.1|v3.0.2|v4.0.0#1|v4.0.0#2|
-|:-|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-|v1.0.0-beta1|$$〇^{※1,2}$$|$$〇^{※1,2}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4,6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|
-|v1.0.0-beta2|$$〇^{※2}$$|$$〇^{※2}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4,6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|
-|v1.0.0-beta3|〇|〇|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4,6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|
-|v1.0.0|〇|〇|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4,6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|
-|v2.0.0 #1|$$×^{※4}$$|$$×^{※4}$$|〇|〇|〇|〇|〇|〇|$$×^{※6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$△^{※8, 9}$$|$$△^{※8, 9}$$|
-|v2.0.0|$$×^{※4}$$|$$×^{※4}$$|〇|〇|〇|〇|〇|〇|$$×^{※6}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$×^{※4}$$|$$△^{※8, 9}$$|$$△^{※8, 9}$$|
-|v2.1.0 #1|$$×^{※4}$$|$$×^{※4}$$|〇|〇|〇|〇|〇|〇|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.1.0|$$×^{※4}$$|$$×^{※4}$$|〇|〇|〇|〇|〇|〇|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.2.0|$$×^{※4}$$|$$×^{※4}$$|〇|〇|〇|〇|〇|〇|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.3.0|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.3.1|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.4.0|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.5.0-beta1|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.5.0|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.6.0|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.6.1|$$×^{※4}$$|$$×^{※4}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$〇^{※5}$$|$$×^{※6}$$|〇|〇|〇|$$△^{※7}$$|$$△^{※8}$$|$$△^{※8}$$|$$△^{※8}$$|
-|v2.6.2|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|$$△^{※8}$$|$$△^{※8}$$|
-|v2.6.3|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|$$△^{※8}$$|$$△^{※8}$$|
-|v3.0.0 #1|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.0.0 #2|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.0.0 #3|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.0.0|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.0.1|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.0.2|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-|v3.1.0|$$×^{※4,7}$$|$$×^{※4,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※6,7}$$|$$×^{※7}$$|$$×^{※7}$$|$$×^{※7}$$|〇|〇|〇|
-
-vx.y.z #wとはvx.y.z-beta wを意味します。（例えばv2.0.0 #1はv2.0.0-beta1を意味します）<br>
-※1 iPhoneに同期という項目がないため、PCのIPアドレスはご自身で調べていただく必要がございます。コマンドプロンプトを起動し、「ipconfig」を実行するとPCのIPアドレスを調べることができます。<br>
-※2 v1.0.0-beta3_iOSは歌詞同期・歌詞表示に対応していますが、v1.0.0-beta1_Windowsやv1.0.0-beta2_Windowsから同期することはできません。<br>
-※3 v1.0.0-beta1_iOS, v1.0.0-beta2_iOSは歌詞同期・歌詞表示に対応していないため、Windows版から歌詞を同期したり、歌詞を表示したりすることができません。<br>
-※4 v2.0.0-beta1_iOS_ipa, v2.0.0-beta1_Windows_Portableでは同期の際のセキュリティを向上させたため、それ以前のバージョンと同期することができません。<br>
-※5 v2.3.0_Windows_Portable以降ははプレイリストの楽曲順序並び替えに対応していますが、v2.1.1_iOS_ipa以前(v2.1.0(RNTP)を含む)は楽曲順序並び替えが行われたプレイリストの同期に対応していません。楽曲順序並び替えが行われたプレイリストを同期しても、タイトルを昇順で同期されます。（並び替えはiOS版には同期されません）<br>
-※6 v2.1.2_iOS_ipaはバグにより楽曲を同期することができません。<br>
-※7 v2.6.2_Windows_Portableは同期用のポート番号が5000固定ではなくなったため、ポート番号を設定できるv3.0.2_iOS_ipaより前のバージョンでは同期することができません。また、v3.0.2_iOS_ipaはポート番号を設定できますが、v2.6.2_Windows_Portableより前のバージョンではポート番号の表示がないため、原則同期することはできません。ただし、Windows版を複数立ち上げていない場合（または最後にWindows版を終了してからプロセスが完全に終了する程度の十分な時間を置いた場合）は、同期用ポート番号が5000に固定で割り振られ、5000はv3.0.2_iOS_ipaより前のバージョンが自動で設定していたポート番号のため、同期できる場合がございます。また、flaskサーバーのポート番号を無理やり調べることで可能になる場合もございます。
-※8 v3.0.0-beta1_Windows_Portable以降はRustにより書かれており、同期速度が向上していますが、それ以前のバージョンはpythonで書かれているため、v3.0.0-beta1_Windows_Portable以降より相対的に同期速度が遅く感じる場合がございます。
-※9 v2.0.0_Windows_Portable以前について改めてv4.0.0#1との同期を確認したところ、QRコードでの自動接続はできないが、IPアドレスをWindows版に表示されているものを入力し、ポート番号を5000にすると同期できることを確認しました。また、歌詞のデータも同期されることも確認済みです。
-
         <h1 id="desktop-mobile-">Desktop版とMobile版の互換性</h1>
         <table>
             <thead>
@@ -70,463 +29,463 @@ vx.y.z #wとはvx.y.z-beta wを意味します。（例えばv2.0.0 #1はv2.0.0-
             </thead>
             <tbody>
                 <tr>
-                <td style="text-align:left">v1.0.0-beta1</td>
-                <td style="text-align:center">$$〇^{※1,2}$$</td>
-                <td style="text-align:center">$$〇^{※1,2}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4,6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:left">v1.0.0-beta1</td>
+                    <td style="text-align:center">$$〇^{※1,2}$$</td>
+                    <td style="text-align:center">$$〇^{※1,2}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4,6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v1.0.0-beta2</td>
-                <td style="text-align:center">$$〇^{※2}$$</td>
-                <td style="text-align:center">$$〇^{※2}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4,6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:left">v1.0.0-beta2</td>
+                    <td style="text-align:center">$$〇^{※2}$$</td>
+                    <td style="text-align:center">$$〇^{※2}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4,6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v1.0.0-beta3</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4,6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:left">v1.0.0-beta3</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4,6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
                 <td>$$×^{※4}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v1.0.0</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4,6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td>$$×^{※4}$$</td>
+                    <td style="text-align:left">v1.0.0</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4,6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td>$$×^{※4}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.0.0 #1</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$△^{※8, 9}$$</td>
-                <td style="text-align:center">$$△^{※8, 9}$$</td>
+                    <td style="text-align:left">v2.0.0 #1</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$△^{※8, 9}$$</td>
+                    <td style="text-align:center">$$△^{※8, 9}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.0.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$△^{※8, 9}$$</td>
-                <td style="text-align:center">$$△^{※8, 9}$$</td>
+                    <td style="text-align:left">v2.0.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$△^{※8, 9}$$</td>
+                    <td style="text-align:center">$$△^{※8, 9}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.1.0 #1</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.1.0 #1</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.1.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.1.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.2.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.2.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.3.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.3.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.3.1</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.3.1</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.4.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.4.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.5.0-beta1</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.5.0-beta1</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.5.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.5.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.6.0</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.6.0</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.6.1</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$×^{※4}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$〇^{※5}$$</td>
-                <td style="text-align:center">$$×^{※6}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※7}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td>$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.6.1</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$×^{※4}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$〇^{※5}$$</td>
+                    <td style="text-align:center">$$×^{※6}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※7}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td>$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.6.2</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.6.2</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v2.6.3</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
-                <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:left">v2.6.3</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
+                    <td style="text-align:center">$$△^{※8}$$</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.0 #1</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.0 #1</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.0 #2</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.0 #2</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.0 #3</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.0 #3</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.0</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.0</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.1</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.1</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.0.2</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.0.2</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
                 <tr>
-                <td style="text-align:left">v3.1.0</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※4,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※6,7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">$$×^{※7}$$</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
-                <td style="text-align:center">〇</td>
+                    <td style="text-align:left">v3.1.0</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※4,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※6,7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">$$×^{※7}$$</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
+                    <td style="text-align:center">〇</td>
                 </tr>
             </tbody>
         </table>
@@ -537,8 +496,8 @@ vx.y.z #wとはvx.y.z-beta wを意味します。（例えばv2.0.0 #1はv2.0.0-
         ※4 v2.0.0-beta1_iOS_ipa, v2.0.0-beta1_Windows_Portableでは同期の際のセキュリティを向上させたため、それ以前のバージョンと同期することができません。<br>
         ※5 v2.3.0_Windows_Portable以降ははプレイリストの楽曲順序並び替えに対応していますが、v2.1.1_iOS_ipa以前(v2.1.0(RNTP)を含む)は楽曲順序並び替えが行われたプレイリストの同期に対応していません。楽曲順序並び替えが行われたプレイリストを同期しても、タイトルを昇順で同期されます。（並び替えはiOS版には同期されません）<br>
         ※6 v2.1.2_iOS_ipaはバグにより楽曲を同期することができません。<br>
-        ※7 v2.6.2_Windows_Portableは同期用のポート番号が5000固定ではなくなったため、ポート番号を設定できるv3.0.2_iOS_ipaより前のバージョンでは同期することができません。また、v3.0.2_iOS_ipaはポート番号を設定できますが、v2.6.2_Windows_Portableより前のバージョンではポート番号の表示がないため、原則同期することはできません。ただし、Windows版を複数立ち上げていない場合（または最後にWindows版を終了してからプロセスが完全に終了する程度の十分な時間を置いた場合）は、同期用ポート番号が5000に固定で割り振られ、5000はv3.0.2_iOS_ipaより前のバージョンが自動で設定していたポート番号のため、同期できる場合がございます。また、flaskサーバーのポート番号を無理やり調べることで可能になる場合もございます。
-        ※8 v3.0.0-beta1_Windows_Portable以降はRustにより書かれており、同期速度が向上していますが、それ以前のバージョンはpythonで書かれているため、v3.0.0-beta1_Windows_Portable以降より相対的に同期速度が遅く感じる場合がございます。
+        ※7 v2.6.2_Windows_Portableは同期用のポート番号が5000固定ではなくなったため、ポート番号を設定できるv3.0.2_iOS_ipaより前のバージョンでは同期することができません。また、v3.0.2_iOS_ipaはポート番号を設定できますが、v2.6.2_Windows_Portableより前のバージョンではポート番号の表示がないため、原則同期することはできません。ただし、Windows版を複数立ち上げていない場合（または最後にWindows版を終了してからプロセスが完全に終了する程度の十分な時間を置いた場合）は、同期用ポート番号が5000に固定で割り振られ、5000はv3.0.2_iOS_ipaより前のバージョンが自動で設定していたポート番号のため、同期できる場合がございます。また、flaskサーバーのポート番号を無理やり調べることで可能になる場合もございます。<br>
+        ※8 v3.0.0-beta1_Windows_Portable以降はRustにより書かれており、同期速度が向上していますが、それ以前のバージョンはpythonで書かれているため、v3.0.0-beta1_Windows_Portable以降より相対的に同期速度が遅く感じる場合がございます。<br>
         ※9 v2.0.0_Windows_Portable以前について改めてv4.0.0#1との同期を確認したところ、QRコードでの自動接続はできないが、IPアドレスをWindows版に表示されているものを入力し、ポート番号を5000にすると同期できることを確認しました。また、歌詞のデータも同期されることも確認済みです。</p>
     </body>
 </html>
