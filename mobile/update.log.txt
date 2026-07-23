@@ -10,7 +10,6 @@ eas.json
 package-lock.json ２か所
 package.json
 
-
 v4.0.0-beta3（現在開発中）
 ・BGM再生ライブラリをExpo-AVからExpo-Audioに切り替えました。
 
