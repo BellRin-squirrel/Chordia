@@ -3,12 +3,12 @@ use std::fs;
 use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
-use tauri::State;
+use tauri::{State, AppHandle, Emitter};
 use std::io::{Cursor, Read};
 use id3::TagLike;
 
-// Tokioの非同期プロセスと並列制御用セマフォを導入
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::sync::Semaphore;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -17,63 +17,76 @@ use crate::AppState;
 use crate::utils::*;
 
 #[tauri::command]
-pub async fn calculate_max_volume_all(state: State<'_, AppState>) -> Result<f32, String> {
-    // ライフタイムの問題を回避するため、DBから必要な楽曲情報のみを所有権付きで抽出
-    let songs_to_analyze: Vec<(String, String)> = {
+pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32> {
+    let cache = state.lufs_cache.lock().unwrap();
+    cache.get(&filename).copied()
+}
+
+#[tauri::command]
+pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    let mut targets_to_calc = Vec::new();
+    
+    // 計算対象（未計測の楽曲）を抽出
+    {
         let db = state.db.lock().unwrap();
-        db.iter().filter_map(|song| {
-            let rel_path = song.get("musicFilename").and_then(|v| v.as_str())?;
-            let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-            Some((rel_path.to_string(), title))
-        }).collect()
-    };
+        let cache = state.lufs_cache.lock().unwrap();
+        for song in db.iter() {
+            if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
+                if !cache.contains_key(rel_path) {
+                    let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+                    targets_to_calc.push((rel_path.to_string(), title));
+                }
+            }
+        }
+    }
+
+    let total = targets_to_calc.len();
+    if total == 0 {
+        let _ = app.emit("lufs_calc_progress", serde_json::json!({
+            "current": 0, "total": 0, "message": "すべての楽曲の音量解析は完了しています"
+        }));
+        return Ok(());
+    }
 
     let base_dir = get_base_dir();
     let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
     let ffmpeg_path = base_dir.join(format!("userfiles/bin/ffmpeg{}", ext));
 
     if !ffmpeg_path.exists() {
-        return Err("FFmpegが見つかりません。拡張機能からインストールしてください。".to_string());
+        return Err("FFmpegが見つかりません。".to_string());
     }
 
-    println!("==================================================");
-    println!("[Loudness Analysis] FFmpegによる並列LUFS解析を開始します...");
-
-    // 同時に 4 つのファイルを並行処理するためのセマフォ（PCの負荷を抑えつつ高速化）
+    // 4並列で高速処理
     let semaphore = Arc::new(Semaphore::new(4));
     let mut handles = Vec::new();
+    
+    // アトミックカウンターで完了済み件数を安全に共有・カウント
+    let current_counter = Arc::new(AtomicUsize::new(0));
 
-    let mut sample_index = 0;
-
-    for (rel_path, title) in songs_to_analyze {
-        let permit = semaphore.clone().acquire_owned().await.map_err(|e| e.to_string())?;
-        let ffmpeg_path = ffmpeg_path.clone();
+    for (rel_path, title) in targets_to_calc {
+        let semaphore_clone = semaphore.clone();
+        let ffmpeg = ffmpeg_path.clone();
         let abs_path = base_dir.join(normalize_rel_path(&rel_path));
+        let path_key = rel_path.clone();
+        let app_clone = app.clone();
+        let counter_clone = current_counter.clone();
 
         handles.push(tokio::spawn(async move {
-            let mut lufs_val: Option<f32> = None;
+            // タスク内部でセマフォを取得（メインループがブロックするのを防ぐ）
+            let _permit = semaphore_clone.acquire_owned().await.unwrap();
             
+            let mut lufs_val: Option<f32> = None;
             if abs_path.exists() {
-                // TokioのCommand用に、まずstdのCommandを作成してフラグを付与する
-                let mut std_cmd = std::process::Command::new(&ffmpeg_path);
-                std_cmd.args(&[
-                    "-hide_banner",
-                    "-i", abs_path.to_str().unwrap(),
-                    "-af", "ebur128",  // ITU-R BS.1770規格（LUFS）計算フィルタ
-                    "-f", "null",
-                    "-"
-                ]);
-
-                // Windowsの場合はコマンドプロンプト画面を非表示にする
+                let mut std_cmd = std::process::Command::new(&ffmpeg);
+                // ★ -nostdin を追加して標準入力待機によるハングを防止
+                std_cmd.args(&["-hide_banner", "-nostdin", "-i", abs_path.to_str().unwrap(), "-af", "ebur128", "-f", "null", "-"]);
+                
                 #[cfg(target_os = "windows")]
                 std_cmd.creation_flags(0x08000000);
-
-                // stdのCommandをtokioの非同期Commandに変換して実行
+                
                 let mut cmd = tokio::process::Command::from(std_cmd);
                 if let Ok(output) = cmd.output().await {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    
-                    // FFmpegのログから "I: -14.5 LUFS" のような統合ラウドネス値を抽出
                     for line in stderr.lines() {
                         if line.contains("I:") && line.contains("LUFS") {
                             let parts: Vec<&str> = line.split_whitespace().collect();
@@ -87,43 +100,41 @@ pub async fn calculate_max_volume_all(state: State<'_, AppState>) -> Result<f32,
                 }
             }
             
-            // 処理完了後、セマフォ（実行枠）を解放
-            drop(permit);
-            (title, lufs_val)
-        }));
+            // 処理が1件終わるごとにカウントアップしてフロントにイベントを飛ばす
+            let current = counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
+            let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
+                "current": current,
+                "total": total,
+                "message": format!("{} を解析中...", title)
+            }));
 
-        println!("{}", sample_index);
-        sample_index += 1;
+            (path_key, lufs_val)
+        }));
     }
 
-    let mut scanned_count = 0;
-    // 初期値として極端に小さい音量（-99.0 LUFS）を設定
-    let mut overall_max_lufs: f32 = -99.0;
-    let mut max_song_title = String::new();
+    let mut newly_calculated = false;
 
+    // 全ての非同期タスクの終了を待ち合わせる
     for handle in handles {
-        if let Ok((title, Some(lufs))) = handle.await {
-            scanned_count += 1;
-            println!("  - [{}] LUFS: {:>6.2} | {}", scanned_count, lufs, title);
-
-            // 値が 0 に近いほど音が大きい（負の数であるため、最大値を更新）
-            if lufs > overall_max_lufs {
-                overall_max_lufs = lufs;
-                max_song_title = title;
+        if let Ok((path_key, lufs_opt)) = handle.await {
+            if let Some(lufs) = lufs_opt {
+                let mut cache = state.lufs_cache.lock().unwrap();
+                cache.insert(path_key, lufs);
+                newly_calculated = true;
             }
         }
     }
 
-    println!("--------------------------------------------------");
-    println!("[Loudness Analysis] 解析結果:");
-    println!("  - 対象曲数          : {} 曲", scanned_count);
-    println!("  - 最大ラウドネス    : {:.2} LUFS", overall_max_lufs);
-    if !max_song_title.is_empty() {
-        println!("  - 最もうるさい曲    : 「{}」", max_song_title);
+    if newly_calculated {
+        let cache = state.lufs_cache.lock().unwrap();
+        save_lufs_cache(&cache);
     }
-    println!("==================================================");
 
-    Ok(overall_max_lufs)
+    let _ = app.emit("lufs_calc_progress", serde_json::json!({
+        "current": total, "total": total, "message": "すべての解析が完了しました！"
+    }));
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -225,7 +236,12 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
     let mut db = state.db.lock().unwrap();
     if let Some(pos) = db.iter().position(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         let i = db.remove(pos);
-        if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
+        if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { 
+            let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); 
+            let mut cache = state.lufs_cache.lock().unwrap();
+            cache.remove(p);
+            save_lufs_cache(&cache);
+        }
         if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
         save_db(&db).is_ok()
     } else { false }
@@ -322,14 +338,27 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
 pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>) -> Value {
     let mut db = state.db.lock().unwrap();
     let mut count = 0;
+    let mut removed_paths = Vec::new();
+
     db.retain(|i| {
         if filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into()) {
-            if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
+            if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { 
+                let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); 
+                removed_paths.push(p.to_string());
+            }
             if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
             count += 1; false
         } else { true }
     });
-    if count > 0 { let _ = save_db(&db); }
+
+    if count > 0 { 
+        let _ = save_db(&db); 
+        let mut cache = state.lufs_cache.lock().unwrap();
+        for p in removed_paths {
+            cache.remove(&p);
+        }
+        save_lufs_cache(&cache);
+    }
     serde_json::json!({"success": true, "count": count})
 }
 

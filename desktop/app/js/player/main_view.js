@@ -61,6 +61,13 @@
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
             const setClick = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
 
+            // ★ OS判別を行って右クリックメニューのテキスト（Finder / エクスプローラー）を変更
+            const isMac = navigator.userAgent.includes('Mac') || navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const menuShowBtn = document.getElementById('menuShowInExplorer');
+            if (menuShowBtn) {
+                menuShowBtn.textContent = isMac ? "Finderで表示" : "エクスプローラーで表示";
+            }
+
             setClick('menuSongInfo', () => this.openSongInfoModal());
             setClick('menuEditSmartRules', () => window.SidebarController.openSmartPlaylistModal(s.playlists[s.currentPlaylistIndex]));
             
@@ -68,12 +75,10 @@
                 const songs = this.getSelectedSongs();
                 if (songs.length > 0) {
                     try {
-                        let path = songs[0].musicFilename;
-                        // すべてのスラッシュをバックスラッシュに変換する
-                        path = path.replace(/\//g, "\\");
+                        const path = songs[0].musicFilename;
                         await invoke("show_in_explorer", { path: path });
                     } catch(e) {
-                        u.showToast("エクスプローラーの起動に失敗しました", true);
+                        u.showToast(isMac ? "Finderの起動に失敗しました" : "エクスプローラーの起動に失敗しました", true);
                     }
                 }
             });

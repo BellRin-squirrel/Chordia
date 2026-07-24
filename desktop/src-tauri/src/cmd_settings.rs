@@ -18,7 +18,6 @@ pub fn get_app_settings() -> AppSettings {
         items_per_page: get_int("Database", "items_per_page", 50),
         open_player_new_window: get_bool("Database", "open_player_new_window", false),
         open_manage_new_window: get_bool("Database", "open_manage_new_window", false),
-        developer_mode: get_bool("Database", "developer_mode", false),
         lazy_load_playlists: false,
         primary_color: get_str("Theme", "primary_color", "#4f46e5"),
         background_color: get_str("Theme", "background_color", "#f3f4f6"),
@@ -27,6 +26,7 @@ pub fn get_app_settings() -> AppSettings {
         theme_mode: get_str("Theme", "theme_mode", "light"),
         active_tags: get_str("Tags", "active_tags", "title,artist,album,genre,track").split(',').map(|s| s.trim().to_string()).collect(),
         player_visible_tags: get_str("Tags", "player_visible_tags", "title,artist,album,track").split(',').map(|s| s.trim().to_string()).collect(),
+        normalize_volume: get_bool("Player", "normalize_volume", false),
     }
 }
 
@@ -34,7 +34,6 @@ pub fn get_app_settings() -> AppSettings {
 pub fn save_app_settings(settings: AppSettings) -> bool {
     let base = get_base_dir();
     let dir = base.join("userfiles");
-    // ★修正: ファイルを作成する前に、確実に親ディレクトリを生成する
     let _ = fs::create_dir_all(&dir);
 
     let path = dir.join("settings.ini");
@@ -43,7 +42,6 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
         .set("items_per_page", settings.items_per_page.to_string())
         .set("open_player_new_window", settings.open_player_new_window.to_string())
         .set("open_manage_new_window", settings.open_manage_new_window.to_string())
-        .set("developer_mode", settings.developer_mode.to_string())
         .set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
     
     conf.with_section(Some("Theme"))
@@ -56,6 +54,9 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
     conf.with_section(Some("Tags"))
         .set("active_tags", settings.active_tags.join(","))
         .set("player_visible_tags", settings.player_visible_tags.join(","));
+
+    conf.with_section(Some("Player"))
+        .set("normalize_volume", settings.normalize_volume.to_string());
         
     conf.write_to_file(path).is_ok()
 }

@@ -1,28 +1,15 @@
 (async function() {
+    // ★ ブラウザ標準の不要な右クリックメニュー（コンテキストメニュー）を全画面で無効化
+    // アプリ固有の要素（楽曲行やプレイリスト等）で登録された右クリックイベントは阻害されず正常に動作します
+    document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+    }, false);
+
     try {
-        // Tauriのinvokeを取得
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         
-        // Rustから設定を取得
         const settings = await invoke("get_app_settings");
         const root = document.documentElement;
-
-        // --- グローバルUI保護設定 ---
-        // デベロッパーモードが無効な場合のみ制限をかける
-        if (!settings.developer_mode) {
-            // 全画面での右クリックメニューをブロック
-            document.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-            }, false);
-
-            // F12キー（デベロッパーツール）をブロック
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'F12' || e.keyCode === 123) {
-                    e.preventDefault();
-                    return false;
-                }
-            }, false);
-        }
 
         function adjustColorBrightness(hex, amount) {
             let usePound = false;

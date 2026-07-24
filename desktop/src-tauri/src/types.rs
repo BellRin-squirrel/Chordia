@@ -5,7 +5,6 @@ pub struct AppSettings {
     pub items_per_page: i32,
     pub open_player_new_window: bool,
     pub open_manage_new_window: bool,
-    pub developer_mode: bool,
     pub lazy_load_playlists: bool,
     pub primary_color: String,
     pub background_color: String,
@@ -14,6 +13,7 @@ pub struct AppSettings {
     pub theme_mode: String,
     pub active_tags: Vec<String>,
     pub player_visible_tags: Vec<String>,
+    pub normalize_volume: bool,
 }
 
 #[derive(Serialize, Clone)]

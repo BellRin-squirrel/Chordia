@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>音量解析の実行 - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/lufs_calc.css">
+    <script src="js/theme_head.js"></script>
+</head>
+<body style="padding: 0 !important; margin: 0; background: var(--card-bg) !important;">
+    <div class="lufs-container">
+        <h2 style="margin-top: 0; color: var(--text-main); font-size: 1.3rem;">ライブラリの音量解析</h2>
+        <p style="color: var(--text-sub); font-size: 0.9rem; line-height: 1.6; margin-bottom: 30px;">
+            一定音量（ラウドネス・ノーマライゼーション）を適用するため、まだ計測されていない楽曲の解析を行います。
+            このウィンドウを閉じても、処理はバックグラウンドで継続されます。
+        </p>
+        
+        <div class="progress-info" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span id="calcMessage" style="font-weight: 700; color: var(--primary-color);">準備中...</span>
+            <span id="calcCount" style="font-family: monospace; color: var(--text-sub); font-weight: bold;">0 / 0</span>
+        </div>
+        
+        <div class="progress-bar-bg" style="width: 100%; height: 10px; background: rgba(128,128,128,0.2); border-radius: 5px; overflow: hidden; margin-bottom: 30px;">
+            <div id="progressBar" style="height: 100%; background: var(--primary-color); width: 0%; transition: width 0.2s;"></div>
+        </div>
+
+        <div style="text-align: right;">
+            <button id="btnClose" class="btn-primary" style="background: var(--primary-color); color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; cursor: pointer;">バックグラウンドで続行</button>
+        </div>
+    </div>
+    
+    <script src="js/theme.js"></script>
+    <script src="js/lufs_calc.js"></script>
+</body>
+</html>

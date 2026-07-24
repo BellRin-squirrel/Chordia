@@ -6,7 +6,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnRestoreArt = document.getElementById('btnRestoreArt');
     const chkNewWindow = document.getElementById('openPlayerNewWindow');
     const chkManageNewWindow = document.getElementById('openManageNewWindow');
-    const chkDevMode = document.getElementById('developerMode'); 
+    
+    const chkNormalizeVolume = document.getElementById('normalizeVolume');
+    const ffmpegWarningText = document.getElementById('ffmpegWarningText');
+
     const itemsPerPage = document.getElementById('itemsPerPage');
     const primaryColor = document.getElementById('primaryColor');
 
@@ -25,9 +28,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmTheme = document.getElementById('btnConfirmTheme');
     const btnCancelTheme = document.getElementById('btnCancelTheme');
 
-    const devWarningModal = document.getElementById('devWarningModal');
-    const btnConfirmDev = document.getElementById('btnConfirmDev');
-    const btnCancelDev = document.getElementById('btnCancelDev');
+    const ffmpegWarningModal = document.getElementById('ffmpegWarningModal');
+    const btnConfirmFfmpeg = document.getElementById('btnConfirmFfmpeg');
+    const btnCancelFfmpeg = document.getElementById('btnCancelFfmpeg');
 
     const THEME_PRESETS = {
         light: { bg: '#f3f4f6', subBg: '#ffffff', text: '#1f2937' },
@@ -56,8 +59,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     itemsPerPage.value = settings.items_per_page;
     chkNewWindow.checked = settings.open_player_new_window;
     chkManageNewWindow.checked = settings.open_manage_new_window;
-    chkDevMode.checked = settings.developer_mode;
+    chkNormalizeVolume.checked = settings.normalize_volume;
     primaryColor.value = settings.primary_color;
+
+    const checkFfmpegStatus = async () => {
+        const status = await invoke("check_tools_status");
+        const hasFfmpeg = status['ffmpeg'];
+        if (chkNormalizeVolume.checked && !hasFfmpeg) {
+            ffmpegWarningText.style.display = 'block';
+        } else {
+            ffmpegWarningText.style.display = 'none';
+        }
+        return hasFfmpeg;
+    };
+    checkFfmpegStatus();
 
     customSelectTrigger.onclick = (e) => {
         e.stopPropagation();
@@ -96,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectedThemeMode = opt.val;
                 customSelectValue.textContent = opt.label;
                 updateThemeUI();
-                handleChange(); // 変更と同時に即時保存
+                handleChange(); 
                 customSelectDropdown.classList.remove('show');
             };
 
@@ -152,7 +167,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let saveTimeout = null;
 
-    // ★修正：全ての変更を即時反映・保存するメイン関数
     async function saveAllSettings(showNotify = false) {
         const active_tags = Array.from(document.querySelectorAll('.chk-db:checked')).map(cb => cb.value);
         const player_visible_tags = Array.from(document.querySelectorAll('.chk-player:checked')).map(cb => cb.value);
@@ -161,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             items_per_page: parseInt(itemsPerPage.value) || 50,
             open_player_new_window: chkNewWindow.checked,
             open_manage_new_window: chkManageNewWindow.checked,
-            developer_mode: chkDevMode.checked,
+            normalize_volume: chkNormalizeVolume.checked,
             lazy_load_playlists: false, 
             primary_color: primaryColor.value,
             theme_mode: selectedThemeMode,
@@ -188,49 +202,68 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem('theme_text_color', newSettings.text_color);
 
             if (showNotify) showToast("設定を保存しました");
+            checkFfmpegStatus();
         } else {
             if (showNotify) showToast("保存に失敗しました", true);
         }
     }
 
-    // デバウンスをかけた保存処理（カラーピッカーなどのドラッグ中用）
     function handleInput() {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => saveAllSettings(false), 100);
     }
 
-    // 確定時の保存処理
     function handleChange() {
         saveAllSettings(true);
     }
 
-    chkDevMode.addEventListener('click', (e) => {
-        if (chkDevMode.checked) {
-            e.preventDefault(); 
-            devWarningModal.style.display = 'flex';
+    chkNormalizeVolume.addEventListener('click', async (e) => {
+        if (chkNormalizeVolume.checked) {
+            e.preventDefault();
+            const hasFfmpeg = await checkFfmpegStatus();
+            if (!hasFfmpeg) {
+                ffmpegWarningModal.style.display = 'flex';
+            } else {
+                chkNormalizeVolume.checked = true;
+                handleChange();
+                launchLufsCalcWindow();
+            }
         } else {
             handleChange();
         }
     });
 
-    btnConfirmDev.addEventListener('click', () => {
-        chkDevMode.checked = true;
-        devWarningModal.style.display = 'none';
+    btnConfirmFfmpeg.addEventListener('click', () => {
+        chkNormalizeVolume.checked = true;
+        ffmpegWarningModal.style.display = 'none';
         handleChange();
-        showToast("デベロッパーモードを有効にしました");
+        showToast("一定音量機能を有効にしました（FFmpeg導入後に機能します）");
+        launchLufsCalcWindow();
     });
 
-    btnCancelDev.addEventListener('click', () => {
-        chkDevMode.checked = false;
-        devWarningModal.style.display = 'none';
+    btnCancelFfmpeg.addEventListener('click', () => {
+        chkNormalizeVolume.checked = false;
+        ffmpegWarningModal.style.display = 'none';
     });
 
-    // ★修正：各種入力フィールドの変更を監視して即時保存をフックする
+    async function launchLufsCalcWindow() {
+        try {
+            await invoke("open_new_window", {
+                label: "lufs_calc_window",
+                url: new URL("lufs_calc.html", window.location.href).href,
+                title: "音量解析の実行 - Chordia",
+                width: 600.0,
+                height: 400.0
+            });
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
     [itemsPerPage, chkNewWindow, chkManageNewWindow, primaryColor, backgroundColor, subBackgroundColor, textColor].forEach(el => {
         if (el) {
             el.addEventListener('change', handleChange);
             if (el.type === 'color' || el.type === 'number') {
-                // 色や数値のリアルタイム変更（ドラッグ等）でも随時保存とUI反映を行う
                 el.addEventListener('input', handleInput);
             }
         }
@@ -294,7 +327,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             container.appendChild(li);
         });
         
-        // ★修正：タグのチェックボックスが操作された際も即時保存
         container.querySelectorAll('input').forEach(chk => {
             chk.addEventListener('change', handleChange);
         });

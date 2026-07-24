@@ -3,7 +3,8 @@
     const u = window.PlayerUtils;
 
     window.PlayerController = {
-        lastMiniPushTime: 0, 
+        lastMiniPushTime: 0,
+        userVolume: 1.0,
 
         init: function() {
             this.audio = document.getElementById('mainAudio');
@@ -14,12 +15,18 @@
                 const savedVolume = localStorage.getItem('player_volume');
                 const initialVolume = (savedVolume !== null) ? parseFloat(savedVolume) : 100;
                 this.volumeBar.value = initialVolume;
-                this.setVolume(initialVolume);
+                this.userVolume = initialVolume / 100;
+                this.applyVolume();
+
+                // ★ 修正：初期起動時にもスライダーの左側にテーマカラーのグラデーションを即座に適用する
+                this.volumeBar.style.background = `linear-gradient(to right, var(--primary-color) ${initialVolume}%, rgba(128,128,128,0.2) ${initialVolume}%)`;
 
                 this.volumeBar.oninput = (e) => {
                     const val = parseFloat(e.target.value);
-                    this.setVolume(val);
+                    this.userVolume = val / 100;
+                    this.applyVolume();
                     localStorage.setItem('player_volume', val);
+                    this.volumeBar.style.background = `linear-gradient(to right, var(--primary-color) ${val}%, rgba(128,128,128,0.2) ${val}%)`;
                 };
             }
 
@@ -75,7 +82,6 @@
                 this.updateSeekColor(0);
             }
 
-            // ★ 修正：Windows10/11等のOSメディアコントロール（および物理キー・ヘッドホンキー）とのバインド
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('play', () => this.togglePlayPause());
                 navigator.mediaSession.setActionHandler('pause', () => this.togglePlayPause());
@@ -144,6 +150,45 @@
             });
         },
 
+        initAudioContext: function() {
+            if (!this.audioCtx && this.audio) {
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                this.track = this.audioCtx.createMediaElementSource(this.audio);
+                this.gainNode = this.audioCtx.createGain();
+                this.track.connect(this.gainNode).connect(this.audioCtx.destination);
+            }
+        },
+
+        applyVolume: async function() {
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+            
+            if (!this.gainNode) {
+                if (this.audio) this.audio.volume = this.userVolume;
+                return;
+            }
+
+            let targetGain = this.userVolume;
+            const settings = await invoke("get_app_settings");
+
+            if (settings.normalize_volume && s.queue[s.currentIndex]) {
+                const song = s.queue[s.currentIndex];
+                const lufs = await invoke("get_song_lufs", { filename: song.musicFilename });
+                
+                if (lufs !== null && lufs !== undefined) {
+                    const TARGET_LUFS = -14.0;
+                    let diff = TARGET_LUFS - lufs;
+                    diff = Math.max(-15, Math.min(15, diff));
+                    
+                    const factor = Math.pow(10, diff / 20);
+                    targetGain = this.userVolume * factor;
+                    
+                    console.log(`[Volume Normalized] LUFS: ${lufs}, Diff: ${diff}dB, GainFactor: ${factor}`);
+                }
+            }
+
+            this.gainNode.gain.setTargetAtTime(targetGain, this.audioCtx.currentTime, 0.05);
+        },
+
         generateSection: function(isShuffle) {
             if (isShuffle) {
                 return u.shuffleArray([...s.originalList]);
@@ -181,16 +226,6 @@
                 queue: displayQueue
             };
             localStorage.setItem('mini_player_state', JSON.stringify(state));
-        },
-
-        setVolume: function(val) {
-            if (this.audio) {
-                const normalized = val / 100;
-                this.audio.volume = normalized;
-                if (this.volumeBar) {
-                    this.volumeBar.style.background = `linear-gradient(to right, var(--primary-color) ${val}%, rgba(128,128,128,0.2) ${val}%)`;
-                }
-            }
         },
 
         startPlaybackSession: function(mode, startIndex = 0) {
@@ -239,6 +274,12 @@
             const playPromise = this.audio.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
+                    this.initAudioContext();
+                    if (this.audioCtx.state === 'suspended') {
+                        this.audioCtx.resume();
+                    }
+                    this.applyVolume();
+
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.afterPlayStarted(song);
@@ -262,7 +303,6 @@
             if (window.HeaderController) window.HeaderController.updateHeaderUI(song);
             if (window.MainViewController) window.MainViewController.renderMainView(); 
             
-            // ★ 修正：WindowsのOSオーバーレイ(SMTC)に対して、楽曲タイトル、アーティスト、アルバムアートを設定
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.metadata = new MediaMetadata({
                     title: song.title || 'Unknown Title',
@@ -288,12 +328,16 @@
         togglePlayPause: function() {
             if (s.queue.length === 0 || !this.audio || !this.audio.src) return;
             if (this.audio.paused) {
+                this.initAudioContext();
+                if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+
                 this.audio.play().then(() => {
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.pushStateToMini(true);
                     
-                    // ★ 修正：OS側に再生中ステータスを通知
                     if ('mediaSession' in navigator) {
                         navigator.mediaSession.playbackState = 'playing';
                     }
@@ -304,7 +348,6 @@
                 if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
                 this.pushStateToMini(true);
                 
-                // ★ 修正：OS側に一時停止ステータスを通知
                 if ('mediaSession' in navigator) {
                     navigator.mediaSession.playbackState = 'paused';
                 }
@@ -332,7 +375,6 @@
             if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
             if (window.MainViewController) window.MainViewController.renderMainView();
             
-            // ★ 修正：OS側に停止ステータスを通知
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'none';
             }

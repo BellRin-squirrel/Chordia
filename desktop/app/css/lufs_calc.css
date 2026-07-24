@@ -1,0 +1,14 @@
+@charset "UTF-8";
+
+.lufs-container {
+    padding: 40px;
+    height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.btn-primary:hover {
+    filter: brightness(1.1);
+}

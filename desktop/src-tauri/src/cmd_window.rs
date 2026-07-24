@@ -62,6 +62,15 @@ pub async fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ★ 追加：音量解析ウィンドウを確実に閉じるTauriコマンド
+#[tauri::command]
+pub async fn close_lufs_calc_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lufs_calc_window") { 
+        let _ = window.close(); 
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn minimize_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("mini_player_window") {
@@ -89,7 +98,8 @@ pub async fn make_window_square(app: tauri::AppHandle, width_is_master: bool) ->
 
 #[tauri::command]
 pub fn show_in_explorer(path: String) -> Result<(), String> {
-    let abs_path = crate::utils::get_base_dir().join(&path);
+    let normalized = crate::utils::normalize_rel_path(&path);
+    let abs_path = crate::utils::get_base_dir().join(&normalized);
 
     #[cfg(target_os = "windows")]
     {

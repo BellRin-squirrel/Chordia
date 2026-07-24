@@ -14,15 +14,20 @@ mod server;
 mod cmd_api;
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Semaphore};
 use tauri::{Manager, Emitter, AppHandle};
-use utils::{load_db, load_playlists_master};
+use std::collections::HashMap;
+use utils::{load_db, load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir};
+
+#[cfg(target_os = "macos")]
+use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
 const APP_VERSION: &str = "v3.2.0";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
     pub playlists: std::sync::Mutex<Vec<serde_json::Value>>,
+    pub lufs_cache: std::sync::Mutex<HashMap<String, f32>>,
 }
 
 #[tauri::command]
@@ -45,19 +50,46 @@ fn restart_app(app: AppHandle) {
 #[cfg(target_os = "windows")]
 fn set_app_user_model_id() {
     use std::os::windows::ffi::OsStrExt;
-    
     let app_id: Vec<u16> = std::ffi::OsStr::new("BellRin.Chordia")
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
-    
-    extern "system" {
-        fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32;
-    }
-    
-    unsafe {
-        let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr());
-    }
+    extern "system" { fn SetCurrentProcessExplicitAppUserModelID(app_id: *const u16) -> i32; }
+    unsafe { let _ = SetCurrentProcessExplicitAppUserModelID(app_id.as_ptr()); }
+}
+
+#[cfg(target_os = "macos")]
+fn create_japanese_mac_menu(app: &AppHandle) -> Result<tauri::menu::Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let app_menu = SubmenuBuilder::new(app, "Chordia")
+        .item(&PredefinedMenuItem::about(app, Some("Chordia について"), None)?)
+        .separator()
+        .item(&PredefinedMenuItem::hide(app, Some("Chordia を非表示"))?)
+        .item(&PredefinedMenuItem::hide_others(app, Some("ほかを非表示"))?)
+        .item(&PredefinedMenuItem::show_all(app, Some("すべてを表示"))?)
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some("Chordia を終了"))?)
+        .build()?;
+
+    let edit_menu = SubmenuBuilder::new(app, "編集")
+        .item(&PredefinedMenuItem::undo(app, Some("元に戻す"))?)
+        .item(&PredefinedMenuItem::redo(app, Some("やり直す"))?)
+        .separator()
+        .item(&PredefinedMenuItem::cut(app, Some("切り取り"))?)
+        .item(&PredefinedMenuItem::copy(app, Some("コピー"))?)
+        .item(&PredefinedMenuItem::paste(app, Some("貼り付け"))?)
+        .item(&PredefinedMenuItem::select_all(app, Some("すべてを選択"))?)
+        .build()?;
+
+    let window_menu = SubmenuBuilder::new(app, "ウィンドウ")
+        .item(&PredefinedMenuItem::minimize(app, Some("最小化"))?)
+        .item(&PredefinedMenuItem::maximize(app, Some("拡大"))?)
+        .build()?;
+
+    let menu = MenuBuilder::new(app)
+        .items(&[&app_menu, &edit_menu, &window_menu])
+        .build()?;
+
+    Ok(menu)
 }
 
 fn main() {
@@ -66,6 +98,7 @@ fn main() {
 
     let initial_db = load_db();
     let initial_playlists = load_playlists_master();
+    let initial_lufs_cache = load_lufs_cache();
     
     let auth_state = Arc::new(Mutex::new(server::AuthState::new()));
     let auth_state_for_task = auth_state.clone();
@@ -74,9 +107,17 @@ fn main() {
         .manage(AppState {
             db: std::sync::Mutex::new(initial_db),
             playlists: std::sync::Mutex::new(initial_playlists),
+            lufs_cache: std::sync::Mutex::new(initial_lufs_cache),
         })
         .manage(auth_state.clone()) 
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                if let Ok(menu) = create_japanese_mac_menu(app.handle()) {
+                    let _ = app.set_menu(menu);
+                }
+            }
+
             let app_handle_for_timer = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use rand::{rng, Rng};
@@ -95,15 +136,104 @@ fn main() {
                 }
             });
 
+            let app_handle_for_lufs = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+                let ffmpeg_path = get_base_dir().join(format!("userfiles/bin/ffmpeg{}", ext));
+                let semaphore = Arc::new(Semaphore::new(2)); 
+                
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    if !ffmpeg_path.exists() { continue; } 
+                    
+                    let settings = cmd_settings::get_app_settings();
+                    if !settings.normalize_volume { continue; }
+
+                    let mut targets_to_calc = Vec::new();
+                    
+                    {
+                        let state = app_handle_for_lufs.state::<AppState>();
+                        let db = state.db.lock().unwrap();
+                        let cache = state.lufs_cache.lock().unwrap();
+                        
+                        for song in db.iter() {
+                            if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
+                                if !cache.contains_key(rel_path) {
+                                    targets_to_calc.push(rel_path.to_string());
+                                }
+                            }
+                        }
+                    }
+
+                    if targets_to_calc.is_empty() { continue; }
+
+                    let mut handles = Vec::new();
+
+                    for rel_path in targets_to_calc {
+                        let semaphore_clone = semaphore.clone();
+                        let ffmpeg = ffmpeg_path.clone();
+                        let abs_path = get_base_dir().join(crate::utils::normalize_rel_path(&rel_path));
+                        let path_key = rel_path.clone();
+
+                        handles.push(tokio::spawn(async move {
+                            let _permit = semaphore_clone.acquire_owned().await.unwrap();
+                            let mut lufs_val: Option<f32> = None;
+                            
+                            if abs_path.exists() {
+                                let mut std_cmd = std::process::Command::new(&ffmpeg);
+                                std_cmd.args(&["-hide_banner", "-nostdin", "-i", abs_path.to_str().unwrap(), "-af", "ebur128", "-f", "null", "-"]);
+                                #[cfg(target_os = "windows")]
+                                {
+                                    use std::os::windows::process::CommandExt;
+                                    std_cmd.creation_flags(0x08000000);
+                                }
+                                let mut cmd = tokio::process::Command::from(std_cmd);
+                                if let Ok(output) = cmd.output().await {
+                                    let stderr = String::from_utf8_lossy(&output.stderr);
+                                    for line in stderr.lines() {
+                                        if line.contains("I:") && line.contains("LUFS") {
+                                            let parts: Vec<&str> = line.split_whitespace().collect();
+                                            if parts.len() >= 2 {
+                                                if let Ok(val) = parts[1].parse::<f32>() {
+                                                    lufs_val = Some(val);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            (path_key, lufs_val)
+                        }));
+                    }
+
+                    let mut newly_calculated = false;
+                    for handle in handles {
+                        if let Ok((path_key, Some(lufs))) = handle.await {
+                            let state = app_handle_for_lufs.state::<AppState>();
+                            let mut cache = state.lufs_cache.lock().unwrap();
+                            cache.insert(path_key, lufs);
+                            newly_calculated = true;
+                        }
+                    }
+
+                    if newly_calculated {
+                        let state = app_handle_for_lufs.state::<AppState>();
+                        let cache = state.lufs_cache.lock().unwrap();
+                        save_lufs_cache(&cache);
+                    }
+                }
+            });
+
             let _window = app.get_webview_window("main").unwrap();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            cmd_window::open_new_window, cmd_window::set_mini_player_mode, cmd_window::close_mini_player, cmd_window::make_window_square, cmd_window::minimize_mini_player, cmd_window::show_in_explorer,
+            cmd_window::open_new_window, cmd_window::set_mini_player_mode, cmd_window::close_mini_player, cmd_window::close_lufs_calc_window, cmd_window::make_window_square, cmd_window::minimize_mini_player, cmd_window::show_in_explorer,
             cmd_settings::get_app_settings, cmd_settings::save_app_settings, cmd_settings::get_custom_themes, cmd_settings::save_custom_theme, cmd_settings::delete_custom_theme,
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs,
-            cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import, cmd_library::calculate_max_volume_all,
+            cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import, 
+            cmd_library::start_lufs_calculation_all, cmd_library::get_song_lufs,
             cmd_history::record_playback, cmd_history::get_playback_history,
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,

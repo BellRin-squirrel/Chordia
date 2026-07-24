@@ -2,11 +2,11 @@ use std::path::PathBuf;
 use std::fs;
 use serde_json::Value;
 use image::load_from_memory;
+use std::collections::HashMap;
 
 pub fn get_base_dir() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if cfg!(debug_assertions) {
-        // 開発時はカレントディレクトリから上に遡り、"app" フォルダが存在するプロジェクトルートを全自動で探索する
         let mut temp = path.clone();
         loop {
             if temp.join("app").exists() {
@@ -23,7 +23,6 @@ pub fn get_base_dir() -> PathBuf {
     path
 }
 
-// ★ 追加：バックスラッシュ（\ や \\）や重複スラッシュ（//）など、混在したパス表記をクロスプラットフォームで安全な単一スラッシュ "/" へ正規化する関数
 pub fn normalize_rel_path(rel_path: &str) -> String {
     if rel_path.is_empty() { return "".to_string(); }
     let clean = rel_path.replace('\\', "/");
@@ -32,26 +31,15 @@ pub fn normalize_rel_path(rel_path: &str) -> String {
 
 pub fn get_asset_url(rel_path: &str) -> String {
     if rel_path.is_empty() { return "".to_string(); }
-    
-    // パスを標準形式に正規化
     let normalized_path = normalize_rel_path(rel_path);
     let path = get_base_dir().join(&normalized_path);
-    
     if !path.exists() { return "".to_string(); }
     let abs_path = path.to_string_lossy().to_string();
     let encoded = urlencoding::encode(&abs_path);
-
-    // Windowsビルド時は http://asset.localhost/ 形式にバインド
     #[cfg(target_os = "windows")]
-    {
-        format!("http://asset.localhost/{}", encoded)
-    }
-
-    // macOS / Linux (Unix) ビルド時は、WebKitがセキュリティ検証をパスしてファイルをレンダリング可能な asset://localhost/ 形式にバインド
+    { format!("http://asset.localhost/{}", encoded) }
     #[cfg(not(target_os = "windows"))]
-    {
-        format!("asset://localhost/{}", encoded)
-    }
+    { format!("asset://localhost/{}", encoded) }
 }
 
 pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
@@ -62,7 +50,6 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     let mut db: Vec<serde_json::Map<String, Value>> = serde_json::from_str(&data).unwrap_or_else(|_| Vec::new());
     
     for item in db.iter_mut() {
-        // ★ 修正：DBロード時に全楽曲の相対パス（musicFilename, imageFilename）を正規化クレンジング
         if let Some(m_path) = item.get("musicFilename").and_then(|v| v.as_str()) {
             let norm = normalize_rel_path(m_path);
             item.insert("musicFilename".to_string(), Value::String(norm));
@@ -102,6 +89,25 @@ pub fn save_playlists_master(playlists: &[Value]) {
     if let Ok(data) = serde_json::to_string_pretty(playlists) { let _ = fs::write(path, data); }
 }
 
+// ★ 追加：LUFSキャッシュの読み書き関数
+pub fn load_lufs_cache() -> HashMap<String, f32> {
+    let path = get_base_dir().join("userfiles/lufs_cache.json");
+    if !path.exists() { return HashMap::new(); }
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|d| serde_json::from_str(&d).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_lufs_cache(cache: &HashMap<String, f32>) {
+    let dir = get_base_dir().join("userfiles");
+    let _ = fs::create_dir_all(&dir);
+    let path = dir.join("lufs_cache.json");
+    if let Ok(data) = serde_json::to_string_pretty(cache) {
+        let _ = fs::write(path, data);
+    }
+}
+
 pub fn force_save_as_png(image_bytes: &[u8], target_path: &std::path::PathBuf) -> bool {
     if let Ok(img) = load_from_memory(image_bytes) {
         let mut final_img = img;
@@ -125,7 +131,6 @@ pub fn match_search(item: &serde_json::Map<String, Value>, query: &str) -> bool 
 
 pub fn get_duration_str(path_val: Option<&Value>) -> String {
     if let Some(rel_path) = path_val.and_then(|v| v.as_str()) {
-        // パスの正規化
         let normalized = normalize_rel_path(rel_path);
         let abs_path = get_base_dir().join(&normalized);
         if let Ok(duration) = mp3_duration::from_path(&abs_path) {
