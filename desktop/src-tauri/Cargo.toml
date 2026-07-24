@@ -8,7 +8,9 @@ repository = "https://github.com/BellRin-squirrel/Chordia"
 edition = "2021"
 rust-version = "1.77.2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
+macos-private-api = []
 
 [lib]
 name = "app_lib"
@@ -41,4 +43,3 @@ tower-http = { version = "0.6.11", features = ["cors", "fs"] }
 zip = { version = "2.2.0", features = ["aes-crypto"] }
 walkdir = "2.5.0"
 dirs = "5.0.1"
-symphonia = "0.5.5"

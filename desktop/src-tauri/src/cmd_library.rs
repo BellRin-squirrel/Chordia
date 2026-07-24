@@ -7,199 +7,123 @@ use tauri::State;
 use std::io::{Cursor, Read};
 use id3::TagLike;
 
-use symphonia::core::codecs::DecoderOptions;
-use symphonia::core::errors::Error;
-use symphonia::core::formats::FormatOptions;
-use symphonia::core::io::MediaSourceStream;
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
-use symphonia::core::audio::AudioBufferRef;
-use symphonia::core::audio::Signal;
+// Tokioの非同期プロセスと並列制御用セマフォを導入
+use std::sync::Arc;
+use tokio::sync::Semaphore;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 use crate::AppState;
 use crate::utils::*;
 
-/// 単一音声ファイルをデコードし、最大振幅（0.0 ~ 1.0）を取得する
-fn get_file_peak_volume(path: &std::path::Path) -> Result<f32, String> {
-    let file = fs::File::open(path).map_err(|e| e.to_string())?;
-    let mss = MediaSourceStream::new(Box::new(file), Default::default());
-
-    let mut hint = Hint::new();
-    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-        hint.with_extension(ext);
-    }
-
-    let format_opts: FormatOptions = Default::default();
-    let metadata_opts: MetadataOptions = Default::default();
-    let decoder_opts: DecoderOptions = Default::default();
-
-    let probed = symphonia::default::get_probe()
-        .format(&hint, mss, &format_opts, &metadata_opts)
-        .map_err(|e| format!("Probe error: {}", e))?;
-
-    let mut format = probed.format;
-    let track = format
-        .default_track()
-        .ok_or_else(|| "No default audio track".to_string())?;
-
-    let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &decoder_opts)
-        .map_err(|e| format!("Decoder error: {}", e))?;
-
-    let track_id = track.id;
-    let mut max_peak: f32 = 0.0;
-
-    loop {
-        let packet = match format.next_packet() {
-            Ok(packet) => packet,
-            Err(Error::IoError(_)) | Err(Error::ResetRequired) => break,
-            Err(e) => return Err(e.to_string()),
-        };
-
-        if packet.track_id() != track_id {
-            continue;
-        }
-
-        match decoder.decode(&packet) {
-            Ok(audio_buf) => {
-                match audio_buf {
-                    AudioBufferRef::F32(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = sample.abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::S16(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = (sample as f32 / 32768.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::S24(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = (sample.inner() as f32 / 8388608.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::S32(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = (sample as f32 / 2147483648.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::U8(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = ((sample as f32 - 128.0) / 128.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::U16(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = ((sample as f32 - 32768.0) / 32768.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::U24(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = ((sample.inner() as f32 - 8388608.0) / 8388608.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::U32(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = ((sample as f32 - 2147483648.0) / 2147483648.0).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                    AudioBufferRef::F64(buf) => {
-                        for &chan in buf.planes().planes() {
-                            for &sample in chan {
-                                let abs = (sample as f32).abs();
-                                if abs > max_peak { max_peak = abs; }
-                            }
-                        }
-                    }
-                }
-            }
-            Err(Error::DecodeError(_)) => continue,
-            Err(e) => return Err(e.to_string()),
-        }
-    }
-
-    Ok(max_peak)
-}
-
 #[tauri::command]
 pub async fn calculate_max_volume_all(state: State<'_, AppState>) -> Result<f32, String> {
-    tokio::task::spawn_blocking(move || {
+    // ライフタイムの問題を回避するため、DBから必要な楽曲情報のみを所有権付きで抽出
+    let songs_to_analyze: Vec<(String, String)> = {
         let db = state.db.lock().unwrap();
-        let base_dir = get_base_dir();
+        db.iter().filter_map(|song| {
+            let rel_path = song.get("musicFilename").and_then(|v| v.as_str())?;
+            let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            Some((rel_path.to_string(), title))
+        }).collect()
+    };
 
-        let mut overall_max_peak: f32 = 0.0;
-        let mut max_song_title = String::new();
-        let mut max_song_file = String::new();
-        let mut scanned_count = 0;
+    let base_dir = get_base_dir();
+    let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
+    let ffmpeg_path = base_dir.join(format!("userfiles/bin/ffmpeg{}", ext));
 
-        println!("==================================================");
-        println!("[Volume Analysis] 楽曲ライブラリの音量解析を開始します...");
+    if !ffmpeg_path.exists() {
+        return Err("FFmpegが見つかりません。拡張機能からインストールしてください。".to_string());
+    }
 
-        for song in db.iter() {
-            if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                let norm_path = normalize_rel_path(rel_path);
-                let abs_path = base_dir.join(&norm_path);
+    println!("==================================================");
+    println!("[Loudness Analysis] FFmpegによる並列LUFS解析を開始します...");
 
-                if abs_path.exists() {
-                    match get_file_peak_volume(&abs_path) {
-                        Ok(peak) => {
-                            scanned_count += 1;
-                            let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
-                            let dbfs = if peak > 0.0 { 20.0 * peak.log10() } else { -96.0 };
-                            
-                            println!("  - [{}] Peak: {:.4} ({:.2} dBFS) | {}", scanned_count, peak, dbfs, title);
+    // 同時に 4 つのファイルを並行処理するためのセマフォ（PCの負荷を抑えつつ高速化）
+    let semaphore = Arc::new(Semaphore::new(4));
+    let mut handles = Vec::new();
 
-                            if peak > overall_max_peak {
-                                overall_max_peak = peak;
-                                max_song_title = title;
-                                max_song_file = norm_path;
+    let mut sample_index = 0;
+
+    for (rel_path, title) in songs_to_analyze {
+        let permit = semaphore.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+        let ffmpeg_path = ffmpeg_path.clone();
+        let abs_path = base_dir.join(normalize_rel_path(&rel_path));
+
+        handles.push(tokio::spawn(async move {
+            let mut lufs_val: Option<f32> = None;
+            
+            if abs_path.exists() {
+                // TokioのCommand用に、まずstdのCommandを作成してフラグを付与する
+                let mut std_cmd = std::process::Command::new(&ffmpeg_path);
+                std_cmd.args(&[
+                    "-hide_banner",
+                    "-i", abs_path.to_str().unwrap(),
+                    "-af", "ebur128",  // ITU-R BS.1770規格（LUFS）計算フィルタ
+                    "-f", "null",
+                    "-"
+                ]);
+
+                // Windowsの場合はコマンドプロンプト画面を非表示にする
+                #[cfg(target_os = "windows")]
+                std_cmd.creation_flags(0x08000000);
+
+                // stdのCommandをtokioの非同期Commandに変換して実行
+                let mut cmd = tokio::process::Command::from(std_cmd);
+                if let Ok(output) = cmd.output().await {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    
+                    // FFmpegのログから "I: -14.5 LUFS" のような統合ラウドネス値を抽出
+                    for line in stderr.lines() {
+                        if line.contains("I:") && line.contains("LUFS") {
+                            let parts: Vec<&str> = line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                if let Ok(val) = parts[1].parse::<f32>() {
+                                    lufs_val = Some(val);
+                                }
                             }
-                        }
-                        Err(e) => {
-                            eprintln!("  - [Error] {} の解析失敗: {}", norm_path, e);
                         }
                     }
                 }
             }
+            
+            // 処理完了後、セマフォ（実行枠）を解放
+            drop(permit);
+            (title, lufs_val)
+        }));
+
+        println!("{}", sample_index);
+        sample_index += 1;
+    }
+
+    let mut scanned_count = 0;
+    // 初期値として極端に小さい音量（-99.0 LUFS）を設定
+    let mut overall_max_lufs: f32 = -99.0;
+    let mut max_song_title = String::new();
+
+    for handle in handles {
+        if let Ok((title, Some(lufs))) = handle.await {
+            scanned_count += 1;
+            println!("  - [{}] LUFS: {:>6.2} | {}", scanned_count, lufs, title);
+
+            // 値が 0 に近いほど音が大きい（負の数であるため、最大値を更新）
+            if lufs > overall_max_lufs {
+                overall_max_lufs = lufs;
+                max_song_title = title;
+            }
         }
+    }
 
-        let overall_dbfs = if overall_max_peak > 0.0 { 20.0 * overall_max_peak.log10() } else { -96.0 };
+    println!("--------------------------------------------------");
+    println!("[Loudness Analysis] 解析結果:");
+    println!("  - 対象曲数          : {} 曲", scanned_count);
+    println!("  - 最大ラウドネス    : {:.2} LUFS", overall_max_lufs);
+    if !max_song_title.is_empty() {
+        println!("  - 最もうるさい曲    : 「{}」", max_song_title);
+    }
+    println!("==================================================");
 
-        println!("--------------------------------------------------");
-        println!("[Volume Analysis] 解析結果:");
-        println!("  - 対象曲数          : {} 曲", scanned_count);
-        println!("  - 全体最大音量 Peak : {:.6} ({:.2} dBFS)", overall_max_peak, overall_dbfs);
-        if !max_song_title.is_empty() {
-            println!("  - 最大音量楽曲      : 「{}」 ({})", max_song_title, max_song_file);
-        }
-        println!("==================================================");
-
-        Ok(overall_max_peak)
-    }).await.map_err(|e| e.to_string())?
+    Ok(overall_max_lufs)
 }
 
 #[tauri::command]

@@ -87,7 +87,6 @@ pub async fn make_window_square(app: tauri::AppHandle, width_is_master: bool) ->
     Ok(())
 }
 
-// Windows(Explorer/select) と macOS(Finder/open -R) 双方のハイライト展開に完全対応
 #[tauri::command]
 pub fn show_in_explorer(path: String) -> Result<(), String> {
     let abs_path = crate::utils::get_base_dir().join(&path);
@@ -111,7 +110,6 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
-    // 非Windows/非macOSのビルド環境での unused_variables 警告を回避
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = abs_path;
