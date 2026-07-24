@@ -27,7 +27,6 @@ pub struct AppState {
 
 #[tauri::command]
 fn resolve_path(rel_path: String) -> Result<String, String> {
-    // ★ 修正：共通正規化関数を用いてパスを解決
     let normalized = crate::utils::normalize_rel_path(&rel_path);
     let abs_path = crate::utils::get_base_dir().join(&normalized);
     Ok(abs_path.to_string_lossy().to_string())
@@ -104,7 +103,7 @@ fn main() {
             cmd_settings::get_app_settings, cmd_settings::save_app_settings, cmd_settings::get_custom_themes, cmd_settings::save_custom_theme, cmd_settings::delete_custom_theme,
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs,
-            cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import,
+            cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import, cmd_library::calculate_max_volume_all,
             cmd_history::record_playback, cmd_history::get_playback_history,
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,

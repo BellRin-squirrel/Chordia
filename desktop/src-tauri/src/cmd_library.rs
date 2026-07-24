@@ -5,11 +5,202 @@ use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
 use tauri::State;
 use std::io::{Cursor, Read};
+use id3::TagLike;
 
-use id3::TagLike; 
+use symphonia::core::codecs::DecoderOptions;
+use symphonia::core::errors::Error;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
+use symphonia::core::audio::AudioBufferRef;
+use symphonia::core::audio::Signal;
 
 use crate::AppState;
 use crate::utils::*;
+
+/// 単一音声ファイルをデコードし、最大振幅（0.0 ~ 1.0）を取得する
+fn get_file_peak_volume(path: &std::path::Path) -> Result<f32, String> {
+    let file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+    let mut hint = Hint::new();
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(ext);
+    }
+
+    let format_opts: FormatOptions = Default::default();
+    let metadata_opts: MetadataOptions = Default::default();
+    let decoder_opts: DecoderOptions = Default::default();
+
+    let probed = symphonia::default::get_probe()
+        .format(&hint, mss, &format_opts, &metadata_opts)
+        .map_err(|e| format!("Probe error: {}", e))?;
+
+    let mut format = probed.format;
+    let track = format
+        .default_track()
+        .ok_or_else(|| "No default audio track".to_string())?;
+
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &decoder_opts)
+        .map_err(|e| format!("Decoder error: {}", e))?;
+
+    let track_id = track.id;
+    let mut max_peak: f32 = 0.0;
+
+    loop {
+        let packet = match format.next_packet() {
+            Ok(packet) => packet,
+            Err(Error::IoError(_)) | Err(Error::ResetRequired) => break,
+            Err(e) => return Err(e.to_string()),
+        };
+
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        match decoder.decode(&packet) {
+            Ok(audio_buf) => {
+                match audio_buf {
+                    AudioBufferRef::F32(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = sample.abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::S16(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = (sample as f32 / 32768.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::S24(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = (sample.inner() as f32 / 8388608.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::S32(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = (sample as f32 / 2147483648.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::U8(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = ((sample as f32 - 128.0) / 128.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::U16(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = ((sample as f32 - 32768.0) / 32768.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::U24(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = ((sample.inner() as f32 - 8388608.0) / 8388608.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::U32(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = ((sample as f32 - 2147483648.0) / 2147483648.0).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                    AudioBufferRef::F64(buf) => {
+                        for &chan in buf.planes().planes() {
+                            for &sample in chan {
+                                let abs = (sample as f32).abs();
+                                if abs > max_peak { max_peak = abs; }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(Error::DecodeError(_)) => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+
+    Ok(max_peak)
+}
+
+#[tauri::command]
+pub async fn calculate_max_volume_all(state: State<'_, AppState>) -> Result<f32, String> {
+    tokio::task::spawn_blocking(move || {
+        let db = state.db.lock().unwrap();
+        let base_dir = get_base_dir();
+
+        let mut overall_max_peak: f32 = 0.0;
+        let mut max_song_title = String::new();
+        let mut max_song_file = String::new();
+        let mut scanned_count = 0;
+
+        println!("==================================================");
+        println!("[Volume Analysis] 楽曲ライブラリの音量解析を開始します...");
+
+        for song in db.iter() {
+            if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
+                let norm_path = normalize_rel_path(rel_path);
+                let abs_path = base_dir.join(&norm_path);
+
+                if abs_path.exists() {
+                    match get_file_peak_volume(&abs_path) {
+                        Ok(peak) => {
+                            scanned_count += 1;
+                            let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+                            let dbfs = if peak > 0.0 { 20.0 * peak.log10() } else { -96.0 };
+                            
+                            println!("  - [{}] Peak: {:.4} ({:.2} dBFS) | {}", scanned_count, peak, dbfs, title);
+
+                            if peak > overall_max_peak {
+                                overall_max_peak = peak;
+                                max_song_title = title;
+                                max_song_file = norm_path;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("  - [Error] {} の解析失敗: {}", norm_path, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        let overall_dbfs = if overall_max_peak > 0.0 { 20.0 * overall_max_peak.log10() } else { -96.0 };
+
+        println!("--------------------------------------------------");
+        println!("[Volume Analysis] 解析結果:");
+        println!("  - 対象曲数          : {} 曲", scanned_count);
+        println!("  - 全体最大音量 Peak : {:.6} ({:.2} dBFS)", overall_max_peak, overall_dbfs);
+        if !max_song_title.is_empty() {
+            println!("  - 最大音量楽曲      : 「{}」 ({})", max_song_title, max_song_file);
+        }
+        println!("==================================================");
+
+        Ok(overall_max_peak)
+    }).await.map_err(|e| e.to_string())?
+}
 
 #[tauri::command]
 pub fn get_library_count(
@@ -81,7 +272,6 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
 pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<String>, remove: bool, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(target) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
-        // ★ 修正：パスの正規化
         if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { 
             if !old.contains("default.png") { 
                 let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(old))); 
@@ -111,7 +301,6 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
     let mut db = state.db.lock().unwrap();
     if let Some(pos) = db.iter().position(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         let i = db.remove(pos);
-        // ★ 修正：パスの正規化
         if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
         if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
         save_db(&db).is_ok()
@@ -177,7 +366,6 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
             }
             
             if let Some(ref b64) = artwork_b64 {
-                // ★ 修正：パスの正規化
                 if let Some(old) = i.get("imageFilename").and_then(|v| v.as_str()) {
                     if !old.contains("default.png") {
                         let _ = fs::remove_file(base.join(normalize_rel_path(old)));
@@ -212,7 +400,6 @@ pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>)
     let mut count = 0;
     db.retain(|i| {
         if filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into()) {
-            // ★ 修正：パスの正規化
             if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); }
             if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
             count += 1; false
@@ -386,7 +573,6 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                 let mut buffer = Vec::new();
                 let _ = file.read_to_end(&mut buffer);
                 
-                // ★ 修正：ZIP内のパスの正規化
                 let normalized_name = normalize_rel_path(&name);
                 let mut title = normalized_name.split('/').last().unwrap_or(&name).to_string();
                 let mut artist = String::new();
@@ -454,7 +640,6 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
                 _ => archive.by_index(i)
             };
             if let Ok(file) = file_res {
-                // ★ 修正：ZIP内部名との照合時にパスを正規化
                 let archive_name = normalize_rel_path(file.name());
                 if archive_name == rel_path {
                     found_file = Some(i);
