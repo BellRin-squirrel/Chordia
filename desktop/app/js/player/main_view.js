@@ -6,7 +6,8 @@
         playerSettings: null,
         selectedTrackIndices: new Set(), 
         lastTrackClickedIndex: null,    
-        selectedCoverData: { type: 'keep', val: null }, // モーダル内一時保存用
+        selectedCoverData: { type: 'keep', val: null },
+        currentPlSongsForCover: [], // カバー選択モーダル用楽曲データ配列
 
         init: function() {
             const setClick = (id, fn) => {
@@ -66,7 +67,15 @@
                 };
             });
 
-            // ローカルファイル選択
+            // リアルタイム検索バインド
+            const songSearchInput = document.getElementById('plCoverSongSearch');
+            if (songSearchInput) {
+                songSearchInput.oninput = (e) => {
+                    this.filterCoverSongGrid(e.target.value);
+                };
+            }
+
+            // ローカルファイル選択 & ドラッグオーバー装飾
             const dropZone = document.getElementById('plCoverDropZone');
             const fileInput = document.getElementById('plCoverFileInput');
 
@@ -77,8 +86,17 @@
                     if (file) this.handleCoverFile(file);
                 };
 
-                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
-                    dropZone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+                ['dragenter', 'dragover'].forEach(ev => {
+                    dropZone.addEventListener(ev, (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        dropZone.classList.add('dragover');
+                    }, false);
+                });
+                ['dragleave', 'drop'].forEach(ev => {
+                    dropZone.addEventListener(ev, (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        dropZone.classList.remove('dragover');
+                    }, false);
                 });
                 dropZone.addEventListener('drop', (e) => {
                     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -158,52 +176,75 @@
             statusText.textContent = "現在のカバーアート";
             this.selectedCoverData = { type: 'keep', val: null };
 
-            // 楽曲グリッドの生成
-            const grid = document.getElementById('plCoverSongGrid');
-            grid.innerHTML = '';
+            const searchInput = document.getElementById('plCoverSongSearch');
+            if (searchInput) searchInput.value = '';
 
+            // 楽曲データの保持と初期グリッド生成
             if (targetPl.songs && targetPl.songs.length > 0) {
-                // 重複排除した画像リストを作成
-                const uniqueImages = [];
-                const seenPaths = new Set();
+                const songImages = targetPl.songs.map(song => ({
+                    path: song.imageFilename || "library/images/default.png",
+                    url: song.imageData || s.DEFAULT_ICON,
+                    title: song.title || "Unknown Title",
+                    artist: song.artist || "Unknown Artist"
+                }));
 
-                targetPl.songs.forEach(song => {
-                    const imgPath = song.imageFilename || "library/images/default.png";
-                    if (!seenPaths.has(imgPath)) {
-                        seenPaths.add(imgPath);
-                        uniqueImages.push({
-                            path: imgPath,
-                            url: song.imageData || s.DEFAULT_ICON,
-                            title: song.title
-                        });
-                    }
-                });
-
-                uniqueImages.forEach(item => {
-                    const div = document.createElement('div');
-                    div.style.cursor = 'pointer';
-                    div.style.borderRadius = '8px';
-                    div.style.overflow = 'hidden';
-                    div.style.border = '2px solid transparent';
-                    div.style.transition = 'all 0.15s ease';
-                    div.title = item.title;
-                    div.innerHTML = `<img src="${item.url}" style="width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block;">`;
-
-                    div.onclick = () => {
-                        grid.querySelectorAll('div').forEach(d => d.style.borderColor = 'transparent');
-                        div.style.borderColor = 'var(--primary-color)';
-                        this.selectedCoverData = { type: 'song', val: item.path };
-                        previewImg.src = item.url;
-                        statusText.textContent = `楽曲「${u.escapeHtml(item.title)}」のアート`;
-                    };
-
-                    grid.appendChild(div);
-                });
+                this.currentPlSongsForCover = songImages;
+                this.renderCoverSongGrid(this.currentPlSongsForCover);
             } else {
+                this.currentPlSongsForCover = [];
+                const grid = document.getElementById('plCoverSongGrid');
                 grid.innerHTML = '<p style="grid-column: 1/-1; color: var(--text-sub); font-size: 0.85rem; text-align: center; padding: 20px 0;">登録されている楽曲がありません</p>';
             }
 
             modal.classList.add('show');
+        },
+
+        filterCoverSongGrid: function(query) {
+            const q = query ? query.toLowerCase().trim() : '';
+            if (!q) {
+                this.renderCoverSongGrid(this.currentPlSongsForCover);
+                return;
+            }
+
+            const filtered = this.currentPlSongsForCover.filter(item => {
+                return (item.title && item.title.toLowerCase().includes(q)) ||
+                       (item.artist && item.artist.toLowerCase().includes(q));
+            });
+
+            this.renderCoverSongGrid(filtered);
+        },
+
+        renderCoverSongGrid: function(songs) {
+            const grid = document.getElementById('plCoverSongGrid');
+            const previewImg = document.getElementById('plCoverPreviewImg');
+            const statusText = document.getElementById('plCoverStatusText');
+            grid.innerHTML = '';
+
+            if (!songs || songs.length === 0) {
+                grid.innerHTML = '<p style="grid-column: 1/-1; color: var(--text-sub); font-size: 0.85rem; text-align: center; padding: 20px 0;">一致する楽曲がありません</p>';
+                return;
+            }
+
+            songs.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'cover-song-item';
+                div.title = `${item.title} - ${item.artist}`;
+                div.innerHTML = `<img src="${item.url}">`;
+
+                if (this.selectedCoverData.type === 'song' && this.selectedCoverData.val === item.path) {
+                    div.classList.add('selected');
+                }
+
+                div.onclick = () => {
+                    grid.querySelectorAll('.cover-song-item').forEach(d => d.classList.remove('selected'));
+                    div.classList.add('selected');
+                    this.selectedCoverData = { type: 'song', val: item.path };
+                    previewImg.src = item.url;
+                    statusText.textContent = `楽曲「${u.escapeHtml(item.title)}」のアート`;
+                };
+
+                grid.appendChild(div);
+            });
         },
 
         initInfoModal: function() {
@@ -586,7 +627,6 @@
             });
             document.getElementById('currentPlaylistDuration').textContent = u.formatTotalDuration(totalSec);
 
-            // ★ 修正：カバーアートの動的取得とホバー編集ボタンの表示制御
             const cover = document.getElementById('playlistCoverArt');
             const editCoverBtn = document.getElementById('btnEditPlaylistCover');
 
