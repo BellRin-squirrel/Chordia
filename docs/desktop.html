@@ -35,7 +35,6 @@
         まずはあなたの環境に適したファイルを<a href="https://github.com/BellRin-squirrel/Chordia/releases">Releases</a>よりダウンロードします。<br>
         Chordia_%version%_Windows.zipはzipファイル形式のWindows用のパッケージファイルです。展開すると中にChordia.exeが配置されており、楽曲データやプレイリストなどはChordia.exeと同じディレクトリに保存されるようになっています。他のディレクトリを汚すことなく、展開したフォルダ内で完結します。<br>
         Chordia_%version%_Windows_x64_setup.exeはインストーラーです。インストーラーに対応している言語は日本語、英語、中国語(簡体字)、中国語(繁体字), 韓国語になります。<br>
-        Chordia_%version%_Windows_x64_%lang%.msiはインストーラーです。インストーラーに対応している言語はファイル名に記載されています。<br>
         ※ 現在、このインストール方法でインストールするとアプリを開けないというバグが発生しています。<br>
         Chordia_%version%_macos_portable.appはこのファイル一つで完結するMacOS用のアプリケーションファイルです。楽曲データやプレイリストなどはappファイルの中に保存されています。他のディレクトリを汚すことなく、appファイル一つで完結します。<br>
         Chordia_%version%_macos_aarch64.dmgはMacOS用のインストーラーファイルです。実行するとApplicationsフォルダにドラッグ＆ドロップしてインストールする画面が表示されます。<br><br>
@@ -45,9 +44,6 @@
         <h3>Chordia_%version%_windows_x64_setup.exe</h3>
         ダウンロードしたファイルをダブルクリックしてインストーラーを起動します。<br>
         もし「WindowsによってPCが保護されました。」と表示されたら、アンダーラインの引かれている「詳細情報」をクリックして実行ボタンをクリックします。画面の指示に従ってアプリをインストールします。初期設定のままインストールすると、デスクトップにChordiaのショートカットが作成されます。次回以降はこれを使用してアプリを起動します。
-        <h3>Chordia_%version%_Windows_x64_%lang%.msi</h3>
-        ダウンロードしたファイルをダブルクリックしてインストーラーを起動します。<br>
-        もし「WindowsによってPCが保護されました。」と表示されたら、アンダーラインの引かれている「詳細情報」をクリックして実行ボタンをクリックします。画面の指示に従ってアプリをインストールします。初期設定のままインストールすると、管理者権限が必要になり、パブリックのデスクトップにショートカットが作成されます。次回以降はこれを使用してアプリを起動します。
         <h3>Chordia_%version%_macos_portable.zip</h3>
         ダウンロードしたファイルをダブルクリックしてファイルを展開します。<br>
         展開して作成されたappファルを開きます。
@@ -80,7 +76,7 @@
             「すぐ使いたいならここ読んで！（アプリの起動方法、使い方）」の通りにアプリを（インストールと）起動します。<br>
             Chordia.exe / Chordia.appを実行して設定を変えたり、曲を追加したりすると、libraryフォルダとuserfilesフォルダが生成されます。<br>
             MacOSの場合は、.appファイルを右クリックし、「パッケージの内容を表示」をクリックし、Contents/MacOS/にが作成されます。<br>
-            WindowsOSのポータオブル版(.zip)の場合、展開したフォルダの中のChordia.exeと同じディレクトリに作成されます。setup.exeの場合は%userfiles%/AppData/Local/Chordia/にサック製されます。msiは調整中です。<br>
+            WindowsOSのポータオブル版(.zip)の場合、展開したフォルダの中のChordia.exeと同じディレクトリに作成されます。setup.exeの場合は%userfiles%/AppData/Local/Chordia/にサック製されます。
             libraryフォルダにはimagesフォルダ、musicフォルダが生成されます。<br>
             userfilesフォルダにはsettings.ini（アプリ内設定）, history.json（楽曲再生履歴）, lyric.json（歌詞情報）, music.json（楽曲情報）, played_times.json（各楽曲の再生回数）, playlist.json（通常のプレイリストのプレイリスト情報、スマートプレイリストのプレイリスト情報とフィルター設定）, tool_versions.json（拡張機能の導入済みバージョン）, binフォルダ（拡張機能のアプリケーション保存先）, playlistフォルダ（通常プレイリストの楽曲一覧）が生成されます。<br>
             基本的にlibraryフォルダやuserfilesフォルダには手を加えないことを推奨します。（拡張機能にバグが発生したらlibrary/binを削除すると修正されることがあります）<br>
