@@ -144,12 +144,16 @@
             <!-- メインビュー -->
             <section class="content-area">
                 <div class="playlist-header">
+                    <!-- ★ 修正：カバーアート上にオーバーレイ編集ペンボタンを追加 -->
                     <div class="ph-left-art">
                         <img id="playlistCoverArt" src="icon/Chordia.png" alt="Cover">
+                        <button id="btnEditPlaylistCover" class="btn-edit-cover" title="カバーアートを変更" style="display: none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.89 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="ph-right-info">
-                        
-                        <!-- ★ 検索ボックスをタイトルと同じ行の右端に追加 -->
                         <div class="ph-title-row">
                             <h2 id="currentPlaylistTitle">プレイリストを選択</h2>
                             <div class="ph-local-search">
@@ -191,8 +195,49 @@
         </div>
     </div>
     
+    <!-- ★ 追加：プレイリストカバーアート変更モーダル -->
+    <div id="playlistCoverModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content art-modal" style="width: 520px; position: relative;">
+            <button id="btnClosePlCoverModalX" class="btn-close-circle">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h3 style="margin-bottom: 16px;">カバーアートを変更</h3>
+
+            <div class="art-tabs-mini" id="plCoverTabsMini">
+                <button class="art-mini-tab-btn active" data-target="pl-cover-tab-local">ローカル画像 (PNG)</button>
+                <button class="art-mini-tab-btn" data-target="pl-cover-tab-song">楽曲から選択</button>
+            </div>
+
+            <div id="pl-cover-tab-local" class="art-mini-tab-content active">
+                <div class="drop-zone file-drop" id="plCoverDropZone" style="padding: 24px; border: 2px dashed rgba(128,128,128,0.3); border-radius: 12px; cursor: pointer; text-align: center; background: var(--bg-color);">
+                    <p style="margin: 0; font-weight: bold; color: var(--text-main);">PNG画像をドラッグ＆ドロップ</p>
+                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-sub);">またはクリックしてファイルを選択 (.png)</p>
+                    <input type="file" id="plCoverFileInput" accept=".png" style="display: none;">
+                </div>
+            </div>
+
+            <div id="pl-cover-tab-song" class="art-mini-tab-content">
+                <div id="plCoverSongGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; max-height: 220px; overflow-y: auto; padding: 4px;">
+                    <!-- JSで動的生成 -->
+                </div>
+            </div>
+
+            <div class="art-preview-area" style="margin-top: 16px; padding: 12px; display: flex; align-items: center; gap: 16px; background: var(--bg-color); border-radius: 12px; border: 1px solid rgba(128,128,128,0.1);">
+                <img id="plCoverPreviewImg" src="icon/Chordia.png" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">
+                <div style="text-align: left;">
+                    <p id="plCoverStatusText" style="font-size: 0.85rem; font-weight: bold; color: var(--text-sub); margin: 0 0 4px 0;">選択中のカバーアート</p>
+                    <small style="color: var(--text-sub); font-size: 0.75rem;">「変更を適用」を押すと決定されます</small>
+                </div>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button id="btnCancelPlCover" class="btn-cancel">キャンセル</button>
+                <button id="btnSavePlCover" class="btn-save">変更を適用</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 各種モーダル -->
-    <!-- ... (以降のモーダルHTMLは変更なしのため省略せずにそのまま記述) ... -->
     <div id="queueLyricsModal" class="modal-overlay" style="display: none;">
         <div class="modal-content info-modal" style="width: 750px;">
             <div class="info-header" style="text-align: left;">

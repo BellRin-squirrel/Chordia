@@ -154,7 +154,6 @@
         loadPlaylists: async function() {
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
             try {
-                // ★ 修正: 楽曲選択モーダル等で使うための全楽曲リストを最初に取得しておく
                 s.fullLibrary = await invoke("get_library_chunk", {
                     page: 1, limit: 0, sortField: null, sortDesc: false, searchQuery: "", advancedConditions: null
                 });
@@ -190,6 +189,13 @@
                         () => window.MainViewController.selectPlaylist(index),
                         (e) => {
                             e.preventDefault(); e.stopPropagation(); s.contextTargetIndex = index;
+                            
+                            // ★ 修正：右クリックされた項目がスマートプレイリストの場合、「ルールを編集」にテキストを変更
+                            const menuEditSongs = document.getElementById('menuEditSongs');
+                            if (menuEditSongs) {
+                                menuEditSongs.textContent = pl.type === 'smart' ? "ルールを編集" : "曲を編集";
+                            }
+
                             const menu = document.getElementById('playlistItemMenu');
                             if (menu) window.SidebarController.showContextMenu(menu, e.clientX, e.clientY);
                         }

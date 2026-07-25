@@ -2,7 +2,7 @@
     const s = window.PlayerState;
     const u = window.PlayerUtils;
 
-    // ★ 修正: ドロップダウンの外側をクリックしたら閉じる処理をグローバルに追加
+    // ドロップダウンの外側をクリックしたら閉じる処理をグローバルに追加
     document.addEventListener('click', (e) => {
         document.querySelectorAll('.smart-group-wrapper .custom-select-dropdown').forEach(d => {
             if (!e.target.closest('.custom-select-wrapper')) {
@@ -198,12 +198,12 @@
                         inputContainer.appendChild(i2);
                     } else {
                         const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = '数字...';
-                        if (val) i.value = val;
+                        if (val !== null && val !== undefined) i.value = val;
                         inputContainer.appendChild(i);
                     }
                 } else {
                     const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = '検索ワード...';
-                    if (val) i.value = val;
+                    if (val !== null && val !== undefined) i.value = val;
                     inputContainer.appendChild(i);
                 }
             };
@@ -293,22 +293,43 @@
             }
             const rootElement = document.querySelector('#smartConditionRoot > .smart-group-wrapper');
             if (!rootElement) return;
+
+            // ★ 修正：dataset.match / dataset.tag / dataset.op を正確に解析・キャスト
             const parseGroup = (groupWrap) => {
-                const match = groupWrap.querySelector('.smart-group-match').value;
+                const match = groupWrap.dataset.match || 'all';
                 const items = [];
                 Array.from(groupWrap.querySelector('.smart-group-body').children).forEach(child => {
                     if (child.classList.contains('smart-condition-row')) {
-                        const tag = child.querySelector('.smart-filter-tag').value;
-                        const op = child.querySelector('.smart-filter-op').value;
+                        const tag = child.dataset.tag;
+                        const op = child.dataset.op;
                         const inputs = child.querySelectorAll('.smart-input');
-                        const val = inputs.length > 1 ? [inputs[0].value, inputs[1].value] : inputs[0].value;
+                        
+                        const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
+                        let val;
+                        if (isNum) {
+                            if (op === 'range') {
+                                val = [
+                                    inputs[0] ? (parseFloat(inputs[0].value) || 0) : 0,
+                                    inputs[1] ? (parseFloat(inputs[1].value) || 0) : 0
+                                ];
+                            } else {
+                                val = inputs[0] ? (parseFloat(inputs[0].value) || 0) : 0;
+                            }
+                        } else {
+                            val = inputs.length > 1 ? [inputs[0].value, inputs[1].value] : (inputs[0] ? inputs[0].value : "");
+                        }
+
                         items.push({ type: 'filter', tag, op, val });
-                    } else if (child.classList.contains('smart-group-wrapper')) items.push(parseGroup(child));
+                    } else if (child.classList.contains('smart-group-wrapper')) {
+                        items.push(parseGroup(child));
+                    }
                 });
                 return { type: 'group', match, items };
             };
+
             const rules = parseGroup(rootElement);
             document.getElementById('smartPlaylistModal').classList.remove('show');
+
             try {
                 let resultPl;
                 if (this.editingSmartId) {
@@ -324,7 +345,10 @@
                 s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
                 this.renderSidebar();
                 window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === resultPl.id));
-            } catch(e) { u.showToast("処理に失敗しました", true); }
+            } catch(e) { 
+                console.error("Smart Playlist Create/Update Error:", e);
+                u.showToast("処理に失敗しました", true); 
+            }
         }
     });
 })();

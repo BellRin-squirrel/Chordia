@@ -14,7 +14,6 @@ use crate::utils::*;
 fn verify_tool_executable(tool: &str) -> Result<(), String> {
     let b = crate::utils::get_base_dir().join("userfiles/bin");
     
-    // 実行プラットフォームに応じた拡張子の動的解決
     let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
     let allowed_files = [
         format!("yt-dlp{}", ext),
@@ -56,7 +55,6 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
             let mut cmd = std::process::Command::new(&exe);
             cmd.arg(arg);
 
-            // ★ 修正：Windows環境でのみローカルでCommandExtを読み込み非表示フラグを適用
             #[cfg(target_os = "windows")]
             {
                 use std::os::windows::process::CommandExt;
@@ -142,7 +140,6 @@ pub fn check_duplicate_songs(title: String, artist: String, state: State<'_, App
     }).collect()
 }
 
-// 内部用共通情報取得処理 (yt-dlpプロセスを並行スレッドで起動して詳細動画メタデータJSONをパース)
 async fn fetch_video_info_internal(url: &str) -> Result<Value, String> {
     let url_string = url.to_string();
     tokio::task::spawn_blocking(move || {
@@ -167,7 +164,6 @@ async fn fetch_video_info_internal(url: &str) -> Result<Value, String> {
         }
         cmd.env("PATH", path_env);
 
-        // ★ 修正：Windowsでのみ呼び出すようガード
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
@@ -183,7 +179,6 @@ async fn fetch_video_info_internal(url: &str) -> Result<Value, String> {
     }).await.map_err(|e| format!("スレッドエラー: {}", e))?
 }
 
-// 内部用共通画像処理 (オンラインサムネイルをダウンロードし、中央判定を施したうえで1:1正方形PNGにクロップしてBase64で返却)
 async fn fetch_and_crop_thumbnail_internal(url: String) -> Option<String> {
     tokio::task::spawn_blocking(move || {
         let u = if url.starts_with("//") { format!("https:{}", url) } else { url };
@@ -230,7 +225,6 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let bin_clone = bin.clone();
     let base_clone = base.clone();
 
-    // 所有権の移動エラーを回避するためクローンを作成
     let url_for_download = url.clone();
 
     let out = tokio::task::spawn_blocking(move || {
@@ -256,7 +250,6 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
         }
         cmd.env("PATH", path_env);
 
-        // ★ 修正：Windowsでのみ呼び出すようガード
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
@@ -334,6 +327,9 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let duration_str = get_duration_str(Some(&Value::String(m_rel)));
     data.insert("duration".to_string(), Value::String(duration_str));
     
+    // ★ 追加：ダウンロード完了したMP3ファイルへID3タグを埋め込み
+    update_mp3_tags_from_song_map(&data);
+
     db.push(data.clone()); 
     let _ = save_db(&db); 
     Ok(true)
@@ -405,6 +401,9 @@ pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: St
         data.insert("lyric".to_string(), Value::String(clean));
     }
 
+    // ★ 追加：保存した音声ファイル本体へID3タグを埋め込み
+    update_mp3_tags_from_song_map(&data);
+
     db_guard.push(data);
     let _ = save_db(&db_guard);
     Ok(true)
@@ -449,7 +448,6 @@ pub async fn fetch_youtube_playlist(url: String) -> Result<Value, String> {
         }
         cmd.env("PATH", path_env);
 
-        // ★ 修正：Windowsでのみ呼び出すようガード
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;

@@ -25,8 +25,7 @@ pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32
 #[tauri::command]
 pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     let mut targets_to_calc = Vec::new();
-    
-    // 計算対象（未計測の楽曲）を抽出
+
     {
         let db = state.db.lock().unwrap();
         let cache = state.lufs_cache.lock().unwrap();
@@ -56,11 +55,8 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         return Err("FFmpegが見つかりません。".to_string());
     }
 
-    // 4並列で高速処理
     let semaphore = Arc::new(Semaphore::new(4));
     let mut handles = Vec::new();
-    
-    // アトミックカウンターで完了済み件数を安全に共有・カウント
     let current_counter = Arc::new(AtomicUsize::new(0));
 
     for (rel_path, title) in targets_to_calc {
@@ -72,13 +68,11 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         let counter_clone = current_counter.clone();
 
         handles.push(tokio::spawn(async move {
-            // タスク内部でセマフォを取得（メインループがブロックするのを防ぐ）
             let _permit = semaphore_clone.acquire_owned().await.unwrap();
             
             let mut lufs_val: Option<f32> = None;
             if abs_path.exists() {
                 let mut std_cmd = std::process::Command::new(&ffmpeg);
-                // ★ -nostdin を追加して標準入力待機によるハングを防止
                 std_cmd.args(&["-hide_banner", "-nostdin", "-i", abs_path.to_str().unwrap(), "-af", "ebur128", "-f", "null", "-"]);
                 
                 #[cfg(target_os = "windows")]
@@ -100,7 +94,6 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
                 }
             }
             
-            // 処理が1件終わるごとにカウントアップしてフロントにイベントを飛ばす
             let current = counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
             let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
                 "current": current,
@@ -114,7 +107,6 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
 
     let mut newly_calculated = false;
 
-    // 全ての非同期タスクの終了を待ち合わせる
     for handle in handles {
         if let Ok((path_key, lufs_opt)) = handle.await {
             if let Some(lufs) = lufs_opt {
@@ -199,6 +191,10 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
         } else {
             i.insert(field, value.into()); 
         }
+
+        // ★ 追加：変更後の情報をMP3ファイル本体へ保存
+        update_mp3_tags_from_song_map(i);
+
         save_db(&db).is_ok()
     } else { false }
 }
@@ -227,6 +223,10 @@ pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<
                 } else { return false; }
             } else { return false; }
         }
+
+        // ★ 追加：変更後のカバーアートをMP3ファイル本体へ埋め込み
+        update_mp3_tags_from_song_map(target);
+
         save_db(&db).is_ok()
     } else { false }
 }
@@ -327,6 +327,10 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
                     }
                 }
             }
+
+            // ★ 追加：一括変更された各MP3ファイル本体へタグを反映・保存
+            update_mp3_tags_from_song_map(i);
+
             count += 1;
         }
     }
@@ -435,6 +439,9 @@ pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, V
         }
         item.remove("artworkBase64");
         
+        // ★ 追加：リストインポート時にも対象ファイル本体へタグを書き込み
+        update_mp3_tags_from_song_map(&item);
+
         db.push(item);
         count += 1;
     }
@@ -651,7 +658,10 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
                 item.remove("artworkBase64");
                 item.remove("relPath");
                 item.remove("status");
-                
+
+                // ★ 追加：ZIP解凍インポート後のファイルへID3タグを埋め込み
+                update_mp3_tags_from_song_map(&item);
+
                 db.push(item);
                 count += 1;
             }

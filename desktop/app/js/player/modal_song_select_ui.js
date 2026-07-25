@@ -41,14 +41,40 @@
                 });
             }
 
+            // ★ 修正：「曲を編集 / ルールを編集」がクリックされた際の分岐処理
             const menuEditSongs = document.getElementById('menuEditSongs');
             if (menuEditSongs) {
-                menuEditSongs.addEventListener('click', () => {
+                menuEditSongs.addEventListener('click', async () => {
                     const itemMenu = document.getElementById('playlistItemMenu');
                     if (itemMenu) itemMenu.style.display = 'none';
-                    const targetId = this.findTargetPlaylistId();
-                    if (targetId) this.open(targetId);
-                    else u.showToast("対象のプレイリストが見つかりません。", true);
+
+                    const targetIndex = s.contextTargetIndex;
+                    const targetPl = s.playlists[targetIndex];
+
+                    if (!targetPl) {
+                        u.showToast("対象のプレイリストが見つかりません。", true);
+                        return;
+                    }
+
+                    if (targetPl.type === 'smart') {
+                        // スマートプレイリストの場合は「ルールを編集」モーダルを起動
+                        let plData = targetPl;
+                        if (!plData.conditions) {
+                            try {
+                                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                                plData = await invoke("get_playlist_details", { plId: targetPl.id });
+                                if (plData) s.playlists[targetIndex] = plData;
+                            } catch (e) {
+                                console.error(e);
+                            }
+                        }
+                        if (window.SidebarController && window.SidebarController.openSmartPlaylistModal) {
+                            window.SidebarController.openSmartPlaylistModal(plData || targetPl);
+                        }
+                    } else {
+                        // 通常プレイリストの場合は楽曲選択・編集モーダルを起動
+                        this.open(targetPl.id);
+                    }
                 });
             }
 
@@ -246,12 +272,12 @@
                         inputContainer.appendChild(i2);
                     } else {
                         const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = '数字...';
-                        if (val) i.value = val;
+                        if (val !== null && val !== undefined) i.value = val;
                         inputContainer.appendChild(i);
                     }
                 } else {
                     const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = '検索ワード...';
-                    if (val) i.value = val;
+                    if (val !== null && val !== undefined) i.value = val;
                     inputContainer.appendChild(i);
                 }
             };

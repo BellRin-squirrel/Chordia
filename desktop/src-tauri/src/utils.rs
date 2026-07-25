@@ -4,6 +4,9 @@ use serde_json::Value;
 use image::load_from_memory;
 use std::collections::HashMap;
 
+use id3::{Tag, TagLike};
+use id3::frame::{Picture, PictureType, Comment, Lyrics};
+
 pub fn get_base_dir() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if cfg!(debug_assertions) {
@@ -78,6 +81,114 @@ pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     fs::write(path, data).map_err(|e| e.to_string())
 }
 
+// 楽曲Map(JSON)からMP3ファイル本体へID3v2タグを直接書き込む処理
+pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
+    let rel_music_path = match song.get("musicFilename").and_then(|v| v.as_str()) {
+        Some(p) if !p.is_empty() => p,
+        _ => return,
+    };
+
+    let norm_path = normalize_rel_path(rel_music_path);
+    let abs_music_path = get_base_dir().join(&norm_path);
+
+    if !abs_music_path.exists() {
+        return;
+    }
+
+    // MP3ファイルのみID3タグ書き込み対象とする
+    if abs_music_path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("mp3".to_string()) {
+        return;
+    }
+
+    let mut tag = Tag::read_from_path(&abs_music_path).unwrap_or_else(|_| Tag::new());
+
+    // タイトル
+    if let Some(v) = song.get("title").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_title(v); } else { tag.remove_title(); }
+    }
+    // アーティスト
+    if let Some(v) = song.get("artist").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_artist(v); } else { tag.remove_artist(); }
+    }
+    // アルバム
+    if let Some(v) = song.get("album").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_album(v); } else { tag.remove_album(); }
+    }
+    // ジャンル
+    if let Some(v) = song.get("genre").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_genre(v); } else { tag.remove_genre(); }
+    }
+    // トラック番号
+    if let Some(v) = song.get("track").and_then(|v| v.as_str()) {
+        if let Ok(num) = v.parse::<u32>() { tag.set_track(num); } else { tag.remove_track(); }
+    }
+    // 年/日付
+    if let Some(v) = song.get("year").and_then(|v| v.as_str()) {
+        if let Ok(num) = v.parse::<i32>() { tag.set_year(num); } else { tag.remove_year(); }
+    }
+    // アルバムアーティスト
+    if let Some(v) = song.get("album_artist").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_album_artist(v); } else { tag.remove_album_artist(); }
+    }
+    // ディスク番号
+    if let Some(v) = song.get("disc").and_then(|v| v.as_str()) {
+        if let Ok(num) = v.parse::<u32>() { tag.set_disc(num); } else { tag.remove_disc(); }
+    }
+    // BPM (ID3v2 "TBPM")
+    if let Some(v) = song.get("bpm").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_text("TBPM", v); } else { tag.remove("TBPM"); }
+    }
+    // 作曲者 (ID3v2 "TCOM")
+    if let Some(v) = song.get("composer").and_then(|v| v.as_str()) {
+        if !v.is_empty() { tag.set_text("TCOM", v); } else { tag.remove("TCOM"); }
+    }
+    // コメント (ID3v2 "COMM")
+    if let Some(v) = song.get("comment").and_then(|v| v.as_str()) {
+        tag.remove("COMM");
+        if !v.is_empty() {
+            tag.add_frame(Comment {
+                lang: "eng".to_string(),
+                description: "".to_string(),
+                text: v.to_string(),
+            });
+        }
+    }
+    // 歌詞 (ID3v2 "USLT")
+    if let Some(v) = song.get("lyric").and_then(|v| v.as_str()) {
+        tag.remove("USLT");
+        if !v.is_empty() {
+            tag.add_frame(Lyrics {
+                lang: "eng".to_string(),
+                description: "".to_string(),
+                text: v.to_string(),
+            });
+        }
+    }
+
+    // カバーアート（画像 ID3v2 "APIC"）の埋め込み
+    if let Some(rel_img_path) = song.get("imageFilename").and_then(|v| v.as_str()) {
+        if !rel_img_path.is_empty() && !rel_img_path.contains("default.png") {
+            let norm_img = normalize_rel_path(rel_img_path);
+            let abs_img_path = get_base_dir().join(&norm_img);
+            if abs_img_path.exists() {
+                if let Ok(img_bytes) = fs::read(&abs_img_path) {
+                    tag.remove("APIC");
+                    let mime = if norm_img.ends_with(".png") { "image/png" } else { "image/jpeg" };
+                    tag.add_frame(Picture {
+                        mime_type: mime.to_string(),
+                        picture_type: PictureType::CoverFront,
+                        description: "Cover".to_string(),
+                        data: img_bytes,
+                    });
+                }
+            }
+        }
+    }
+
+    // MP3ファイルへID3v2.4規格で書き込みを保存
+    let _ = tag.write_to_path(&abs_music_path, id3::Version::Id3v24);
+}
+
 pub fn load_playlists_master() -> Vec<Value> {
     let path = get_base_dir().join("userfiles/playlist.json");
     if !path.exists() { return Vec::new(); }
@@ -89,7 +200,6 @@ pub fn save_playlists_master(playlists: &[Value]) {
     if let Ok(data) = serde_json::to_string_pretty(playlists) { let _ = fs::write(path, data); }
 }
 
-// ★ 追加：LUFSキャッシュの読み書き関数
 pub fn load_lufs_cache() -> HashMap<String, f32> {
     let path = get_base_dir().join("userfiles/lufs_cache.json");
     if !path.exists() { return HashMap::new(); }

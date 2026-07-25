@@ -5,9 +5,99 @@ use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use std::collections::HashSet;
 use tauri::State;
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::AppState;
 use crate::utils::*;
+
+// 独自カバーアート管理JSONの読み込み・保存ヘルパー
+fn load_playlist_covers() -> serde_json::Map<String, Value> {
+    let path = get_base_dir().join("userfiles/playlist_covers.json");
+    if !path.exists() { return serde_json::Map::new(); }
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|d| serde_json::from_str(&d).ok())
+        .unwrap_or_default()
+}
+
+fn save_playlist_covers(covers: &serde_json::Map<String, Value>) {
+    let dir = get_base_dir().join("userfiles");
+    let _ = fs::create_dir_all(&dir);
+    let path = dir.join("playlist_covers.json");
+    if let Ok(data) = serde_json::to_string_pretty(covers) {
+        let _ = fs::write(path, data);
+    }
+}
+
+// ★ 追加：プレイリストのカバーアートURLを取得（未設定時は1曲目またはデフォルトを自動追加・保存）
+#[tauri::command]
+pub fn get_playlist_cover(pl_id: String, first_song_image: Option<String>) -> Result<String, String> {
+    let mut covers = load_playlist_covers();
+    if let Some(path) = covers.get(&pl_id).and_then(|v| v.as_str()) {
+        if !path.is_empty() {
+            let asset_url = get_asset_url(path);
+            if !asset_url.is_empty() {
+                return Ok(asset_url);
+            }
+        }
+    }
+
+    // JSONに定義が存在しない場合の自動セット
+    let target_path = if let Some(ref img) = first_song_image {
+        if !img.is_empty() {
+            img.clone()
+        } else {
+            "app/icon/Chordia.png".to_string()
+        }
+    } else {
+        "app/icon/Chordia.png".to_string()
+    };
+
+    covers.insert(pl_id, Value::String(target_path.clone()));
+    save_playlist_covers(&covers);
+
+    let url = get_asset_url(&target_path);
+    if url.is_empty() {
+        Ok("icon/Chordia.png".to_string())
+    } else {
+        Ok(url)
+    }
+}
+
+// ★ 追加：ローカル画像（PNG）を library/cover_image に一意の名前で保存しJSON更新
+#[tauri::command]
+pub fn save_playlist_cover_image(pl_id: String, b64_data: String) -> Result<String, String> {
+    let base = get_base_dir();
+    let cover_dir = base.join("library/cover_image");
+    let _ = fs::create_dir_all(&cover_dir);
+
+    // 一意の32文字ランダムファイル名生成
+    let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
+    let rel_path = format!("library/cover_image/{}.png", f_id);
+
+    let b64_clean = if b64_data.contains(',') { b64_data.split(',').nth(1).unwrap() } else { &b64_data };
+    let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|e| e.to_string())?;
+
+    if force_save_as_png(&bytes, &base.join(&rel_path)) {
+        let mut covers = load_playlist_covers();
+        covers.insert(pl_id, Value::String(rel_path.clone()));
+        save_playlist_covers(&covers);
+
+        Ok(get_asset_url(&rel_path))
+    } else {
+        Err("画像の保存に失敗しました".to_string())
+    }
+}
+
+// ★ 追加：既存楽曲のカバーアートパスをプレイリストカバーにセット
+#[tauri::command]
+pub fn set_playlist_cover_from_song(pl_id: String, song_image_path: String) -> Result<String, String> {
+    let mut covers = load_playlist_covers();
+    covers.insert(pl_id, Value::String(song_image_path.clone()));
+    save_playlist_covers(&covers);
+
+    Ok(get_asset_url(&song_image_path))
+}
 
 #[tauri::command]
 pub fn get_playlist_summaries(state: State<'_, AppState>) -> Vec<Value> {
@@ -175,6 +265,12 @@ pub fn delete_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> bool 
         save_playlists_master(&master);
         let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
         if path.exists() { let _ = fs::remove_file(path); }
+        
+        // パスに対応するカバーアート設定も削除
+        let mut covers = load_playlist_covers();
+        covers.remove(&pl_id);
+        save_playlist_covers(&covers);
+
         return true;
     }
     false
@@ -208,6 +304,14 @@ pub fn duplicate_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> Op
             
             master.push(new_pl.clone());
             save_playlists_master(&master);
+
+            // 元プレイリストのカバーアート設定があれば複製先にも継承
+            let mut covers = load_playlist_covers();
+            if let Some(cover_path) = covers.get(&pl_id).cloned() {
+                covers.insert(new_id, cover_path);
+                save_playlist_covers(&covers);
+            }
+
             new_pl_result = Some(new_pl);
         }
     }
@@ -290,8 +394,6 @@ pub fn convert_smart_to_normal_and_remove_songs(pl_id: String, filenames: Vec<St
     
     {
         let mut master = state.playlists.lock().unwrap();
-        
-        // 条件を取得して合致する曲を抽出（mutable borrow の回避）
         let mut conditions_opt = None;
         if let Some(pl) = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
             conditions_opt = pl.get("conditions").cloned();
@@ -308,7 +410,6 @@ pub fn convert_smart_to_normal_and_remove_songs(pl_id: String, filenames: Vec<St
             }
         }
         
-        // プレイリスト自体を更新
         if let Some(pl) = master.iter_mut().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
             if let Some(obj) = pl.as_object_mut() {
                 obj.insert("type".to_string(), Value::String("normal".to_string()));

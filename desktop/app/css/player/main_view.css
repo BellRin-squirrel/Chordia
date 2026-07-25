@@ -23,7 +23,9 @@
     z-index: 50; 
 }
 
+/* ★ 修正：カバーアート領域とオーバーレイ編集ペンボタン */
 .ph-left-art {
+    position: relative;
     width: 160px;
     height: 160px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -36,6 +38,41 @@
     width: 100%; height: 100%; object-fit: cover;
 }
 
+.btn-edit-cover {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 10;
+}
+
+.ph-left-art:hover .btn-edit-cover {
+    opacity: 1;
+}
+
+.btn-edit-cover:hover {
+    transform: scale(1.1);
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-edit-cover svg {
+    width: 16px;
+    height: 16px;
+}
+
 .ph-right-info {
     flex: 1;
     display: flex;
@@ -46,7 +83,6 @@
     overflow: visible; 
 }
 
-/* ★ 修正: タイトルと検索ボックスのレイアウト */
 .ph-title-row {
     display: flex;
     justify-content: space-between;
@@ -67,7 +103,6 @@
     flex: 1;
 }
 
-/* ★ 検索ボックスのスタイル */
 .ph-local-search {
     flex-shrink: 0;
 }

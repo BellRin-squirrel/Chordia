@@ -1,9 +1,9 @@
 (async function() {
     // ★ ブラウザ標準の不要な右クリックメニュー（コンテキストメニュー）を全画面で無効化
     // アプリ固有の要素（楽曲行やプレイリスト等）で登録された右クリックイベントは阻害されず正常に動作します
-    document.addEventListener('contextmenu', (e) => {
+    /*document.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-    }, false);
+    }, false);*/
 
     try {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
