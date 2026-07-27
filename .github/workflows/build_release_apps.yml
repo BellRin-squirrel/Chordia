@@ -121,27 +121,29 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
+      # ★ 解決策: Node.js を使用して MusicModule.kt 内の Arguments.fromBundle の全呼び出し箇所に ( ... )!! を自動付与
+      - name: Patch react-native-track-player for Kotlin 2.x
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            const lines = content.split("\n").map(line => {
+              if (line.includes("Arguments.fromBundle(") && !line.includes("!!")) {
+                return line.replace(/Arguments\.fromBundle\((.+)\)/, "Arguments.fromBundle(($1)!!)");
+              }
+              return line;
+            });
+            fs.writeFileSync(file, lines.join("\n"));
+            console.log("Successfully patched MusicModule.kt");
+          } else {
+            console.log("MusicModule.kt not found at:", file);
+          }
+          '
+
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
-
-      # ★ 修正: EOFの前にあるスペースを取り除き、シェルスクリプトの構文エラーを解決
-      - name: Inject Kotlin compiler arguments to bypass strict null checks
-        run: |
-          BUILD_GRADLE="node_modules/react-native-track-player/android/build.gradle"
-          if [ -f "$BUILD_GRADLE" ]; then
-            echo "Injecting lenient Kotlin flags into react-native-track-player..."
-            cat << 'EOF' >> "$BUILD_GRADLE"
-
-            android {
-                kotlinOptions {
-                    freeCompilerArgs += ["-Xsuppress-version-warnings", "-Xnullability-annotations=@<kotlin.annotations.jvm.UnderMigration>:ignore"]
-                }
-            }
-          EOF
-            echo "Injection complete."
-          else
-            echo "build.gradle not found for react-native-track-player."
-          fi
 
       - name: Build Android APK
         run: |

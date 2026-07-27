@@ -54,8 +54,8 @@
     "shaka-player": "^4.16.28"
   },
   "devDependencies": {
+    "@react-native-community/cli": "^20.2.0",
     "@types/react": "~19.1.0",
-    "@react-native-community/cli": "latest",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
