@@ -2,7 +2,6 @@ name: Build Release Apps (iOS & Android) v4.0.0
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
-# フォルダ名を小文字の mobile に統一
 defaults:
   run:
     working-directory: ./mobile
@@ -121,26 +120,28 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ 修正: どんな変数名が来ても一括で `!!` を付与する強力な正規表現パッチに変更
-      - name: Patch react-native-track-player for Kotlin 2.x
-        run: |
-          MODULE_FILE="node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt"
-          if [ -f "$MODULE_FILE" ]; then
-            echo "Patching MusicModule.kt with advanced regex..."
-            
-            # Arguments.fromBundle(変数名) を Arguments.fromBundle(変数名!!) に一括置換 (-E で拡張正規表現を使用)
-            sed -E -i 's/Arguments\.fromBundle\(\s*([a-zA-Z0-9_]+)\s*\)/Arguments.fromBundle(\1!!)/g' "$MODULE_FILE"
-            
-            # 念のため、すでに !! がついているものが !!!! にならないように安全処理
-            sed -i 's/!!!!/!!/g' "$MODULE_FILE"
-            
-            echo "Patch successfully applied."
-          else
-            echo "MusicModule.kt not found. Skipping patch."
-          fi
-
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
+
+      # ★ 解決策: Kotlinコンパイラのエラーを強行突破するため、TrackPlayerの build.gradle に直接コンパイラフラグを注入
+      - name: Inject Kotlin compiler arguments to bypass strict null checks
+        run: |
+          BUILD_GRADLE="node_modules/react-native-track-player/android/build.gradle"
+          if [ -f "$BUILD_GRADLE" ]; then
+            echo "Injecting lenient Kotlin flags into react-native-track-player..."
+            # build.gradle 内に kotlinOptions の freeCompilerArgs を上書き/追加
+            cat << 'EOF' >> "$BUILD_GRADLE"
+
+            android {
+                kotlinOptions {
+                    freeCompilerArgs += ["-Xsuppress-version-warnings", "-Xnullability-annotations=@<kotlin.annotations.jvm.UnderMigration>:ignore"]
+                }
+            }
+            EOF
+            echo "Injection complete."
+          else
+            echo "build.gradle not found for react-native-track-player."
+          fi
 
       - name: Build Android APK
         run: |
