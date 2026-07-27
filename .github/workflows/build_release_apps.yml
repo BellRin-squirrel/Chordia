@@ -2,6 +2,7 @@ name: Build Release Apps (iOS & Android) v4.0.0
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
+# フォルダ名を小文字の mobile に統一
 defaults:
   run:
     working-directory: ./mobile
@@ -123,13 +124,12 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # ★ 解決策: Kotlinコンパイラのエラーを強行突破するため、TrackPlayerの build.gradle に直接コンパイラフラグを注入
+      # ★ 修正: EOFの前にあるスペースを取り除き、シェルスクリプトの構文エラーを解決
       - name: Inject Kotlin compiler arguments to bypass strict null checks
         run: |
           BUILD_GRADLE="node_modules/react-native-track-player/android/build.gradle"
           if [ -f "$BUILD_GRADLE" ]; then
             echo "Injecting lenient Kotlin flags into react-native-track-player..."
-            # build.gradle 内に kotlinOptions の freeCompilerArgs を上書き/追加
             cat << 'EOF' >> "$BUILD_GRADLE"
 
             android {
@@ -137,7 +137,7 @@ jobs:
                     freeCompilerArgs += ["-Xsuppress-version-warnings", "-Xnullability-annotations=@<kotlin.annotations.jvm.UnderMigration>:ignore"]
                 }
             }
-            EOF
+          EOF
             echo "Injection complete."
           else
             echo "build.gradle not found for react-native-track-player."

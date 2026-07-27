@@ -527,6 +527,8 @@
             </tbody>
         </table>
 
+        <table border="1" cellspacing="0" id="compatibilityTable"></table>
+
         <script>
             document.addEventListener("DOMContentLoaded", () => {
                 const compatibility = {
@@ -990,6 +992,11 @@
                         "4.0.0#2": [1, "10"]
                     }
                 };
+                const compatibilityTable = document.getElementById("compatibilityTable");
+                
+                document.createElement("tr");
+                /* show table */
+
             });
             /*
             compatibility["mobile"]["desktop"]
