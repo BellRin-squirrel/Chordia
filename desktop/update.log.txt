@@ -12,8 +12,6 @@ Cargo.lock
 issue
 https://github.com/BellRin-squirrel/Chordia/issues
 
-引き継ぎの画面でデータエクスポート中は、画面を操作できなくしたい。(キャンセルボタンを設置)
-
 v3.2.1
 ・一定音量機能を導入しました。
 ・デベロッパーモードを削除し、F12キー, 標準右クリックメニューが無効化されました。
