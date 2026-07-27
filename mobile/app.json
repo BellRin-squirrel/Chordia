@@ -41,7 +41,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "kotlinVersion": "1.9.22"
+      "kotlinVersion": "1.9.24"
     },
     "web": {
       "output": "static",
