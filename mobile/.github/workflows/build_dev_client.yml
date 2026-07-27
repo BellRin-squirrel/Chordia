@@ -1,4 +1,4 @@
-name: Build Chordia Dev Client (iOS Only) v4.0.0-beta3
+name: Build Chordia Dev Client (iOS Only) v4.0.0
 on:
   workflow_dispatch: # 手動実行ボタン（入力パラメーターなしのシンプル起動）
 
