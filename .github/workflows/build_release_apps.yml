@@ -57,6 +57,7 @@ jobs:
 
       - name: Make archive as for iPhones. (Unsigned)
         run: |
+          set -o pipefail
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
             -scheme "$PROJECT_NAME" \
             -configuration Release \
@@ -66,7 +67,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_USER_SCRIPT_SANDBOXING=NO 2>&1 | tee build.log
+            ENABLE_USER_SCRIPT_SANDBOXING=NO 2>&1 | xcpretty
 
       - name: Make Payload Folder and Make It IPA file
         run: |
@@ -81,7 +82,7 @@ jobs:
           path: mobile/Chordia.ipa
           
       - name: Upload build log
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-log
@@ -120,14 +121,20 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ 修正: react-native-track-player の Kotlin 2.0 型不一致エラーを自動修正するパッチを復活させました
-      - name: Patch react-native-track-player for Kotlin 2.0
+      # ★ 修正: どんな変数名が来ても一括で `!!` を付与する強力な正規表現パッチに変更
+      - name: Patch react-native-track-player for Kotlin 2.x
         run: |
           MODULE_FILE="node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt"
           if [ -f "$MODULE_FILE" ]; then
-            echo "Patching MusicModule.kt..."
-            sed -i 's/Arguments.fromBundle(item)/Arguments.fromBundle(item!!)/g' "$MODULE_FILE"
-            sed -i 's/Arguments.fromBundle(bundle)/Arguments.fromBundle(bundle!!)/g' "$MODULE_FILE"
+            echo "Patching MusicModule.kt with advanced regex..."
+            
+            # Arguments.fromBundle(変数名) を Arguments.fromBundle(変数名!!) に一括置換 (-E で拡張正規表現を使用)
+            sed -E -i 's/Arguments\.fromBundle\(\s*([a-zA-Z0-9_]+)\s*\)/Arguments.fromBundle(\1!!)/g' "$MODULE_FILE"
+            
+            # 念のため、すでに !! がついているものが !!!! にならないように安全処理
+            sed -i 's/!!!!/!!/g' "$MODULE_FILE"
+            
+            echo "Patch successfully applied."
           else
             echo "MusicModule.kt not found. Skipping patch."
           fi
