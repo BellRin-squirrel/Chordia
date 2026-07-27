@@ -2,15 +2,14 @@ name: Build Release Apps (iOS & Android) v4.0.0
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
-# ★重要★
-# コマンド (run) がすべて `Mobile` ディレクトリ内で実行されるようにする
+# ★修正: フォルダ名を小文字の mobile に統一
 defaults:
   run:
-    working-directory: ./Mobile
+    working-directory: ./mobile
 
 jobs:
   # ==========================================
-  # iOSビルド (既存のコードをMobile対応に修正)
+  # iOSビルド
   # ==========================================
   build_ios:
     runs-on: macos-latest
@@ -75,25 +74,26 @@ jobs:
           cp -r "./build/$PROJECT_NAME.xcarchive/Products/Applications/$PROJECT_NAME.app" ./Payload/
           zip -r Chordia.ipa Payload
 
-      # ★注意: upload-artifactはworking-directoryの影響を受けないため、Mobile/ を付与する
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: Chordia-iOS-IPA
-          path: Mobile/Chordia.ipa
+          # ★修正: mobile (小文字) に変更
+          path: mobile/Chordia.ipa
           
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ios-build-log
-          path: Mobile/build.log
+          # ★修正: mobile (小文字) に変更
+          path: mobile/build.log
 
   # ==========================================
-  # Androidビルド (新規追加)
+  # Androidビルド
   # ==========================================
   build_android:
-    runs-on: ubuntu-latest # AndroidビルドはLinux(Ubuntu)の方が高速で安定しています
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -104,7 +104,6 @@ jobs:
         with:
           node-version: 20
 
-      # AndroidビルドにはJavaが必要です (React Native 0.73以降はJava 17推奨)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -123,21 +122,18 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # Android用にPrebuildを実行
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # Gradleを使用してRelease用APKをビルド
       - name: Build Android APK
         run: |
           cd android
           chmod +x ./gradlew
           ./gradlew assembleRelease
 
-      # 生成されたAPKをアップロード
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Chordia-Android-APK
-          # Expo prebuildで生成されるデフォルトのAPK出力先パス
-          path: Mobile/android/app/build/outputs/apk/release/app-release.apk
+          # ★修正: mobile (小文字) に変更
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
