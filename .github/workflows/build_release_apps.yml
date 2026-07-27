@@ -121,7 +121,7 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ 解決策: Node.js を使用して MusicModule.kt 内の Arguments.fromBundle の全呼び出し箇所に ( ... )!! を自動付与
+      # ★ 解決策: Arguments.fromBundle を Null-Safe な代替関数 fromBundleSafe に一括置換＆ファイル末尾に関数を注入
       - name: Patch react-native-track-player for Kotlin 2.x
         run: |
           node -e '
@@ -129,14 +129,20 @@ jobs:
           const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
           if (fs.existsSync(file)) {
             let content = fs.readFileSync(file, "utf8");
-            const lines = content.split("\n").map(line => {
-              if (line.includes("Arguments.fromBundle(") && !line.includes("!!")) {
-                return line.replace(/Arguments\.fromBundle\((.+)\)/, "Arguments.fromBundle(($1)!!)");
-              }
-              return line;
-            });
-            fs.writeFileSync(file, lines.join("\n"));
-            console.log("Successfully patched MusicModule.kt");
+            
+            // 1. Arguments.fromBundle( を自前の fromBundleSafe( に一括置換
+            content = content.split("Arguments.fromBundle(").join("fromBundleSafe(");
+            
+            // 2. Kotlin のスマートキャストを利用した Null-Safe ヘルパー関数をファイル末尾に追加
+            const helper = `\n
+          private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {
+              return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()
+          }
+          `;
+            content += helper;
+            
+            fs.writeFileSync(file, content);
+            console.log("Successfully patched MusicModule.kt with fromBundleSafe helper");
           } else {
             console.log("MusicModule.kt not found at:", file);
           }
