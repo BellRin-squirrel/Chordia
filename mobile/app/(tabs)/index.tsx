@@ -1,11 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
+import { Camera } from 'expo-camera'; // ★ 追加: カメラ権限取得のため
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView, LogBox } from 'react-native';
+import { ActivityIndicator, Alert, Animated, LogBox, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { Camera } from 'expo-camera'; // ★ 追加: カメラ権限取得のため
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -212,7 +212,7 @@ const AppContent = () => {
               <View style={{ justifyContent: 'center', alignItems: 'center', padding: 25 }}>
                 <View style={[styles.licenseCard, { backgroundColor: actualDynamicStyles.card }]}>
                   <Text style={[styles.appNameLabel, { color: actualDynamicStyles.text }]}>Chordia iOS版</Text>
-                  <Text style={styles.appVersionLabel}>v4.0.0-beta2</Text>
+                  <Text style={styles.appVersionLabel}>v4.0.0</Text>
                   <View style={[styles.divider, { backgroundColor: actualDynamicStyles.bg, marginTop: 25 }]} />
                   <Text style={[styles.copyrightLabel, { color: actualDynamicStyles.text }]}>© 2026 BellRin</Text>
                 </View>
