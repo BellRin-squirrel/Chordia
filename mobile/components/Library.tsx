@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, Image, TouchableOpacity, Animated, 
-  StyleSheet, TouchableWithoutFeedback, PanResponder, useWindowDimensions, TextInput, Keyboard 
+  StyleSheet, TouchableWithoutFeedback, useWindowDimensions, TextInput, Keyboard 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { styles } from '../styles/styles';
 import { RecentSection } from './RecentSection';
+
+import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -159,18 +161,17 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
       isNavAnimating.current = false;
     });
   };
-  
-  const navPanResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-      if (navStack.length <= 1 || isNavAnimating.current) return false;
-      return gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
-    },
-    onPanResponderMove: (_, gestureState) => {
-      panX.setValue(Math.max(0, gestureState.dx));
-    },
-    onPanResponderRelease: (_, gestureState) => {
-      if (gestureState.dx > width / 4 || gestureState.vx > 0.3) {
+
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: panX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    const { state, translationX, velocityX } = event.nativeEvent;
+
+    if (state === State.END || state === State.CANCELLED) {
+      if (translationX > width / 4 || velocityX > 300) {
         if (isNavAnimating.current) return;
         isNavAnimating.current = true;
 
@@ -198,17 +199,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
           friction: 8
         }).start();
       }
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(panX, {
-        toValue: 0,
-        useNativeDriver: true,
-        bounciness: 0,
-      }).start();
-    },
-    onPanResponderTerminationRequest: () => false,
-    onShouldBlockNativeResponder: () => true,
-  })).current;
+    }
+  };
 
   const handlePressIn = () => { Animated.spring(backButtonScale, { toValue: 1.85, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
@@ -240,7 +232,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     if (currentSelectionType === 'PLAYLIST') {
       collectionItem = { type: 'PLAYLIST', data: currentPlaylist, id: currentPlaylist.id, art: getPlaylistFirstArt(currentPlaylist) };
     } else if (currentSelectionType === 'ALBUM') {
-      // ★ 修正: 末尾の不要なセミコロンを取り除きました
       collectionItem = { type: 'ALBUM', data: currentAlbum, id: `${currentAlbum.album}:::${currentAlbum.artist}`, art: currentAlbum.coverArt ? {uri: currentAlbum.coverArt} : DEFAULT_ICON };
     } else if (currentSelectionType === 'ARTIST') {
       const artistData = artistsList.find(a => a.artistName === currentArtist);
@@ -563,50 +554,60 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   };
 
   return (
-    <View style={{flex: 1, backgroundColor: 'transparent'}} {...navPanResponder.panHandlers}>
-      <Animated.View style={[StyleSheet.absoluteFill, { 
-        zIndex: 1,
-        transform:[{ 
-          translateX: Animated.add(
-            navAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -width] }),
-            panX
-          ) 
-        }] 
-      }]}>
-        {renderMenu()}
-      </Animated.View>
-      
-      {navStack.length > 1 && (
-        <Animated.View 
-            style={[StyleSheet.absoluteFill, { 
-              zIndex: 2,
-              transform:[{ 
-                translateX: Animated.add(
-                  navAnim.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width] }),
-                  panX
-                )
-             }] 
-            }]}
-        >
-          {renderCategory(navStack[1])}
-        </Animated.View>
-      )}
-
-      {navStack.length > 2 && (
-        <Animated.View 
-            style={[StyleSheet.absoluteFill, { 
-              zIndex: 3,
-              transform:[{
-                translateX: Animated.add(
-                  navAnim.interpolate({ inputRange: [1, 2], outputRange: [width, 0] }),
-                  panX
-                )
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <PanGestureHandler
+        // ★ 修正: activeOffsetX の1番目を負の数（-500）、2番目を正の数（10）に指定してルールを順守
+        activeOffsetX={[-500, 10]}
+        failOffsetY={[-15, 15]}
+        enabled={navStack.length > 1}
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+      >
+        <View style={{ flex: 1 }}>
+          {/* Level 0: ライブラリ メニュー (背景として待機) */}
+          <Animated.View style={[StyleSheet.absoluteFill, { 
+            zIndex: 1,
+            transform:[{ 
+              translateX: navAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -width * 0.3] })
             }] 
-        }]}
-        >
-          {renderSongList()}
-        </Animated.View>
-      )}
-    </View>
+          }]}>
+            {renderMenu()}
+          </Animated.View>
+          
+          {/* Level 1: プレイリスト・アルバム・アーティスト一覧 (最前面の時のみ panX を加算) */}
+          {navStack.length > 1 && (
+            <Animated.View 
+                style={[StyleSheet.absoluteFill, { 
+                  zIndex: 2,
+                  transform:[{ 
+                    translateX: navStack.length === 2 
+                      ? Animated.add(navAnim.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.3] }), panX)
+                      : navAnim.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.3] })
+                 }] 
+                }]}
+            >
+              {renderCategory(navStack[1])}
+            </Animated.View>
+          )}
+
+          {/* Level 2: 楽曲一覧 (最前面の時のみ panX を加算) */}
+          {navStack.length > 2 && (
+            <Animated.View 
+                style={[StyleSheet.absoluteFill, { 
+                  zIndex: 3,
+                  transform:[{
+                    translateX: Animated.add(
+                      navAnim.interpolate({ inputRange: [1, 2], outputRange: [width, 0] }),
+                      panX
+                    )
+                }] 
+            }]}
+            >
+              {renderSongList()}
+            </Animated.View>
+          )}
+        </View>
+      </PanGestureHandler>
+    </GestureHandlerRootView>
   );
 };

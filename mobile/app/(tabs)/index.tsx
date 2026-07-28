@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView, LogBox } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Camera } from 'expo-camera'; // ★ 追加: カメラ権限取得のため
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -77,6 +78,31 @@ const AppContent = () => {
     stopAndUnloadPlayer: async () => { await TrackPlayer.stop(); },
     localLibrary, setLocalLibrary, setLocalPlaylists
   });
+
+  // ★ 追加: アプリ起動時の一括アクセス権限リクエスト (カメラ ＆ ローカルネットワーク)
+  useEffect(() => {
+    const requestInitialPermissions = async () => {
+      try {
+        // 1. iOSローカルネットワーク(LAN)の許可ダイアログを強制発火させるダミー通信
+        if (Platform.OS === 'ios') {
+          try {
+            const controller = new AbortController();
+            const tid = setTimeout(() => controller.abort(), 200);
+            await fetch('http://192.168.255.255', { signal: controller.signal }).catch(() => {});
+            clearTimeout(tid);
+          } catch (e) {}
+        }
+
+        // 2. カメラアクセス権限のリクエスト（すでに許可されている場合はダイアログはスキップされます）
+        const { status } = await Camera.requestCameraPermissionsAsync();
+        console.log('[Initial Permissions] Camera Status:', status);
+      } catch (e) {
+        console.warn('[Initial Permissions] Error:', e);
+      }
+    };
+
+    requestInitialPermissions();
+  }, []);
 
   useEffect(() => {
     const originalAlert = Alert.alert;
@@ -186,7 +212,7 @@ const AppContent = () => {
               <View style={{ justifyContent: 'center', alignItems: 'center', padding: 25 }}>
                 <View style={[styles.licenseCard, { backgroundColor: actualDynamicStyles.card }]}>
                   <Text style={[styles.appNameLabel, { color: actualDynamicStyles.text }]}>Chordia iOS版</Text>
-                  <Text style={styles.appVersionLabel}>v4.0.0</Text>
+                  <Text style={styles.appVersionLabel}>v4.0.0-beta2</Text>
                   <View style={[styles.divider, { backgroundColor: actualDynamicStyles.bg, marginTop: 25 }]} />
                   <Text style={[styles.copyrightLabel, { color: actualDynamicStyles.text }]}>© 2026 BellRin</Text>
                 </View>
