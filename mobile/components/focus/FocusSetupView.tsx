@@ -7,14 +7,14 @@ const DEFAULT_ICON = require('../../assets/images/icon.png');
 const { width } = Dimensions.get('window');
 
 export const FocusSetupView = ({ 
-    dynamicStyles, themeColor, 
+    dynamicStyles, themeColor, buttonTextColor,
     dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode,
     showQuote, setShowQuote,
     pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime,
     mainPlaylist, workPlaylist, breakPlaylist,
     musicCollections, expanded, toggleSection, onSelectCollection,
     pickerVisible, setPickerVisible, setPickingTarget,
-    isReady, mainShuffle, setMainShuffle, workShuffle, setWorkShuffle, breakShuffle, setBreakShuffle,
+    isReady, handleFinishSetup, mainShuffle, setMainShuffle, workShuffle, setWorkShuffle, breakShuffle, setBreakShuffle,
     openCustomTimerModal
 }: any) => {
 
@@ -49,9 +49,9 @@ export const FocusSetupView = ({
                   isSelected && s.tileBtnSelected
                 ]}
               >
-                <Text style={[s.tileText, { color: isSelected ? '#fff' : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{valOnly}</Text>
-                {opt.includes('推奨') && <View style={[s.recommendBadge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}><Text style={{ color: isSelected ? '#fff' : themeColor, fontSize: 8, fontWeight: 'bold' }}>推奨</Text></View>}
-                {isSelected && <Ionicons name="checkmark-circle" size={14} color="#fff" style={s.checkIcon} />}
+                <Text style={[s.tileText, { color: isSelected ? (buttonTextColor || '#fff') : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{valOnly}</Text>
+                {opt.includes('推奨') && <View style={[s.recommendBadge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}><Text style={{ color: isSelected ? (buttonTextColor || '#fff') : themeColor, fontSize: 8, fontWeight: 'bold' }}>推奨</Text></View>}
+                {isSelected && <Ionicons name="checkmark-circle" size={14} color={buttonTextColor || "#fff"} style={s.checkIcon} />}
               </TouchableOpacity>
             );
           })}
@@ -65,10 +65,10 @@ export const FocusSetupView = ({
               isCustomValue && s.tileBtnSelected
             ]}
           >
-            <Text style={[s.tileText, { color: isCustomValue ? '#fff' : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={[s.tileText, { color: isCustomValue ? (buttonTextColor || '#fff') : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>
                 {isCustomValue ? `ｶｽﾀﾑ(${Math.floor(current)}分${Math.round((current % 1) * 60)}秒)` : 'カスタム'}
             </Text>
-            {isCustomValue && <Ionicons name="checkmark-circle" size={14} color="#fff" style={s.checkIcon} />}
+            {isCustomValue && <Ionicons name="checkmark-circle" size={14} color={buttonTextColor || "#fff"} style={s.checkIcon} />}
           </TouchableOpacity>
 
         </View>
@@ -93,8 +93,8 @@ export const FocusSetupView = ({
                 isSelected && s.tileBtnSelected
               ]}
             >
-              <Text style={[s.tileText, { color: isSelected ? '#fff' : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt}</Text>
-              {isSelected && <Ionicons name="checkmark-circle" size={14} color="#fff" style={s.checkIcon} />}
+              <Text style={[s.tileText, { color: isSelected ? (buttonTextColor || '#fff') : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt}</Text>
+              {isSelected && <Ionicons name="checkmark-circle" size={14} color={buttonTextColor || "#fff"} style={s.checkIcon} />}
             </TouchableOpacity>
           );
         })}
@@ -112,8 +112,8 @@ export const FocusSetupView = ({
         </TouchableOpacity>
       </View>
       <TouchableOpacity onPress={() => setShuffle(!shuffle)} style={[s.shuffleToggle, { backgroundColor: shuffle ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }]}>
-        <Ionicons name="shuffle" size={22} color={shuffle ? "#fff" : dynamicStyles.subText} />
-        <Text style={{ color: shuffle ? "#fff" : dynamicStyles.subText, fontSize: 9, fontWeight: 'bold' }}>{shuffle ? "ON" : "OFF"}</Text>
+        <Ionicons name="shuffle" size={22} color={shuffle ? (buttonTextColor || "#fff") : dynamicStyles.subText} />
+        <Text style={{ color: shuffle ? (buttonTextColor || "#fff") : dynamicStyles.subText, fontSize: 9, fontWeight: 'bold' }}>{shuffle ? "ON" : "OFF"}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -140,9 +140,7 @@ export const FocusSetupView = ({
             <View style={s.switchRow}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name="timer" size={22} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>ポモドーロモード</Text></View><Switch value={pomoEnabled} onValueChange={setPomoEnabled} trackColor={{ false: "#767577", true: themeColor }} /></View>
             {pomoEnabled && (
                 <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: dynamicStyles.border, paddingTop: 15 }}>
-                    {/* ★ 修正1: 「30秒(テスト用)」を削除しました */}
                     {renderTileOption('作業時間', ['15分', '20分', '25分(推奨)', '30分', '40分', '50分', '60分', '120分'], workTime, setWorkTime, 'briefcase', 'WORK', false)}
-                    {/* ★ 修正2: 「30秒(テスト用)」を削除しました */}
                     {renderTileOption('休憩時間', ['1分', '3分', '5分(推奨)', '10分', '15分', '20分', '25分', '30分'], breakTime, setBreakTime, 'cafe', 'BREAK', true)}
                 </View>
             )}
@@ -157,6 +155,27 @@ export const FocusSetupView = ({
                 </View>
             )}
         </View>
+
+        {/* ★ 修正: 下部「設定完了」ボタンもシャドウと強い配色でくっきり強調 */}
+        <TouchableOpacity 
+          style={[
+            s.primaryBtn, 
+            { 
+              backgroundColor: themeColor, 
+              marginTop: 30, 
+              opacity: isReady ? 1 : 0.8,
+              shadowColor: themeColor,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              elevation: 4,
+            }
+          ]} 
+          onPress={handleFinishSetup}
+        >
+          <Text style={[s.primaryBtnText, { color: buttonTextColor || '#ffffff' }]}>設定完了</Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
       <Modal visible={pickerVisible} animationType="slide" transparent={true}>
@@ -189,6 +208,8 @@ const s = StyleSheet.create({
   playlistLabel: { fontSize: 11, marginBottom: 5, fontWeight: '600' },
   pickerBox: { height: 48, borderRadius: 14, borderWidth: 1, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
   shuffleToggle: { width: 48, height: 48, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  primaryBtn: { height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
+  primaryBtnText: { fontSize: 18, fontWeight: '900' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: { height: '85%', borderTopLeftRadius: 35, borderTopRightRadius: 35, padding: 25, overflow: 'hidden' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },

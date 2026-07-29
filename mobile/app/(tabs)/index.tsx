@@ -1,11 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
-import { Camera } from 'expo-camera'; // ★ 追加: カメラ権限取得のため
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, LogBox, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, FlatList, ScrollView, LogBox } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { Camera } from 'expo-camera';
+import * as Network from 'expo-network';
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -79,21 +80,26 @@ const AppContent = () => {
     localLibrary, setLocalLibrary, setLocalPlaylists
   });
 
-  // ★ 追加: アプリ起動時の一括アクセス権限リクエスト (カメラ ＆ ローカルネットワーク)
   useEffect(() => {
     const requestInitialPermissions = async () => {
       try {
-        // 1. iOSローカルネットワーク(LAN)の許可ダイアログを強制発火させるダミー通信
         if (Platform.OS === 'ios') {
           try {
-            const controller = new AbortController();
-            const tid = setTimeout(() => controller.abort(), 200);
-            await fetch('http://192.168.255.255', { signal: controller.signal }).catch(() => {});
-            clearTimeout(tid);
+            const localIp = await Network.getIpAddressAsync();
+            if (localIp && (localIp.startsWith('192.168.') || localIp.startsWith('10.') || localIp.startsWith('172.'))) {
+              const parts = localIp.split('.');
+              const gatewayIp = `${parts[0]}.${parts[1]}.${parts[2]}.1`;
+              const controller = new AbortController();
+              const tid = setTimeout(() => controller.abort(), 1000);
+              
+              await fetch(`http://${gatewayIp}:80`, { signal: controller.signal }).catch(() => {});
+              clearTimeout(tid);
+            }
           } catch (e) {}
+
+          await new Promise(r => setTimeout(r, 600));
         }
 
-        // 2. カメラアクセス権限のリクエスト（すでに許可されている場合はダイアログはスキップされます）
         const { status } = await Camera.requestCameraPermissionsAsync();
         console.log('[Initial Permissions] Camera Status:', status);
       } catch (e) {
@@ -205,20 +211,12 @@ const AppContent = () => {
         {activeTab === 'SETTINGS' && (
           <SettingsScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} isCustomTheme={isCustomTheme} themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB} showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor} insets={insets} audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab} />
         )}
+        {/* ★ 修正: 統計タブ (旧LICENSE) - タイトルを「統計」にし、統計情報のみを表示 */}
         {activeTab === 'LICENSE' && (
           <View style={{ flex: 1, backgroundColor: actualDynamicStyles.bg, paddingTop: insets.top }}>
-            <View style={[styles.headerBar, { backgroundColor: actualDynamicStyles.bg, borderBottomColor: 'transparent' }]}><Text style={[styles.headerTitle, { color: actualDynamicStyles.text }]}>情報</Text></View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 150 }}>
-              <View style={{ justifyContent: 'center', alignItems: 'center', padding: 25 }}>
-                <View style={[styles.licenseCard, { backgroundColor: actualDynamicStyles.card }]}>
-                  <Text style={[styles.appNameLabel, { color: actualDynamicStyles.text }]}>Chordia iOS版</Text>
-                  <Text style={styles.appVersionLabel}>v4.0.1</Text>
-                  <View style={[styles.divider, { backgroundColor: actualDynamicStyles.bg, marginTop: 25 }]} />
-                  <Text style={[styles.copyrightLabel, { color: actualDynamicStyles.text }]}>© 2026 BellRin</Text>
-                </View>
-              </View>
-
-              <View style={{ paddingHorizontal: 25, marginTop: 10 }}>
+            <View style={[styles.headerBar, { backgroundColor: actualDynamicStyles.bg, borderBottomColor: 'transparent' }]}><Text style={[styles.headerTitle, { color: actualDynamicStyles.text }]}>統計</Text></View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 150, paddingTop: 10 }}>
+              <View style={{ paddingHorizontal: 25 }}>
                 <Text style={{ color: actualDynamicStyles.text, fontSize: 18, fontWeight: 'bold', marginBottom: 15 }}>集中セッション履歴 (テスト用)</Text>
                 {focusHistory.length === 0 ? (
                   <Text style={{ color: actualDynamicStyles.subText }}>履歴はありません。</Text>

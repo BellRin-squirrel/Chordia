@@ -8,7 +8,7 @@ import * as Network from 'expo-network';
 
 type QrData = {
   ip: string;
-  port: string; // ポート番号を追加
+  port: string;
   code: string;
 };
 
@@ -55,7 +55,7 @@ export const useSync = ({
 
   const [syncStage, setSyncStage] = useState<'INPUT_IP' | 'AWAITING_APPROVAL' | 'AWAITING_CODE' | 'READY'>('INPUT_IP');
   const [serverIp, setServerIp] = useState('');
-  const [serverPort, setServerPort] = useState('5000'); // ポート番号の状態を追加
+  const [serverPort, setServerPort] = useState('5000');
   const [authCodeInput, setAuthCodeInput] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const [pcPlaylists, setPcPlaylists] = useState<any[]>([]);
@@ -94,7 +94,7 @@ export const useSync = ({
   useEffect(() => {
     if (scannedQrData) {
       setServerIp(scannedQrData.ip);
-      setServerPort(scannedQrData.port || '5000'); // QRからポートを取得
+      setServerPort(scannedQrData.port || '5000');
       setIsAutoConnecting(true);
       requestAuthToPC(scannedQrData.ip, scannedQrData.port || '5000'); 
       setScannedQrData(null); 
@@ -271,7 +271,8 @@ export const useSync = ({
     setPcPlaylists([]);
   };
   
-  const startSyncDownload = async (isAll: boolean) => {
+  // 同期実行関数（画面消灯・スリープ時もバックグラウンドでダウンロードが継続されます）
+  const startSyncDownload = async (mode: 'KEEP_DUPLICATES' | 'DELETE_ALL') => {
     if (!serverIp || !apiKey) { Alert.alert('エラー', '接続が確立されていません。'); return; }
     didCancelRef.current = false;
     closeFullPlayer();
@@ -285,41 +286,127 @@ export const useSync = ({
         const dataLib = await resLib.json();
         const allSongs = dataLib.library ||[];
 
-        let targetPlaylists = isAll ? pcPlaylists : pcPlaylists.filter((_, i) => selectedPls.has(i));
-        let targets = isAll ? allSongs : allSongs.filter((s: any) => new Set(targetPlaylists.flatMap(pl => pl.music)).has(s.musicFilename.split(/[\\/]/).pop()));
+        let targetPlaylists = selectedPls.size > 0 ? pcPlaylists.filter((_, i) => selectedPls.has(i)) : pcPlaylists;
+        let targets = allSongs.filter((s: any) => new Set(targetPlaylists.flatMap(pl => pl.music)).has(s.musicFilename.split(/[\\/]/).pop()));
 
-        let downloadedData: any[] =[];
         const baseDir = FileSystem.documentDirectory + 'chordia/';
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+
+        let currentLocal = [...localLibrary];
+
+        if (mode === 'DELETE_ALL') {
+            setSyncProgress('ローカル楽曲をすべて削除中...');
+            for (const localSong of currentLocal) {
+                if (localSong.localMusicUri) {
+                    try { await FileSystem.deleteAsync(localSong.localMusicUri, { idempotent: true }); } catch (e) {}
+                }
+                if (localSong.localImageUri) {
+                    try { await FileSystem.deleteAsync(localSong.localImageUri, { idempotent: true }); } catch (e) {}
+                }
+            }
+            currentLocal = [];
+            await AsyncStorage.setItem('local_library', JSON.stringify([]));
+            setLocalLibrary([]);
+        } else if (mode === 'KEEP_DUPLICATES') {
+            setSyncProgress('同期対象外の楽曲を整理中...');
+            const updatedLocalList: any[] = [];
+            for (const localSong of currentLocal) {
+                const isTarget = targets.some((t: any) => 
+                    t.title === localSong.title && t.artist === localSong.artist
+                );
+
+                if (!isTarget) {
+                    if (localSong.localMusicUri) {
+                        try { await FileSystem.deleteAsync(localSong.localMusicUri, { idempotent: true }); } catch (e) {}
+                    }
+                    if (localSong.localImageUri) {
+                        try { await FileSystem.deleteAsync(localSong.localImageUri, { idempotent: true }); } catch (e) {}
+                    }
+                } else {
+                    updatedLocalList.push(localSong);
+                }
+            }
+            currentLocal = updatedLocalList;
+            await AsyncStorage.setItem('local_library', JSON.stringify(currentLocal));
+            setLocalLibrary([...currentLocal]);
+        }
+
+        let updatedLibrary = [...currentLocal];
 
         for (let i = 0; i < targets.length; i++) {
             if (didCancelRef.current) break;
             const song = targets[i];
-            setSyncProgress(`同期中... (${i + 1}/${targets.length})`);
             const musicFname = song.musicFilename.split(/[\\/]/).pop();
             const musicLocalUri = baseDir + musicFname;
-            await FileSystem.downloadAsync(`http://${serverIp}:${serverPort}${song.url_music}`, musicLocalUri, { headers });
-            
-            let imgLocalUri = "";
-            if (song.url_image) {
-                const imgFname = song.imageFilename ? song.imageFilename.split(/[\\/]/).pop() : `img_${i}.jpg`;
-                imgLocalUri = baseDir + imgFname;
-                await FileSystem.downloadAsync(`http://${serverIp}:${serverPort}${song.url_image}`, imgLocalUri, { headers });
+
+            setSyncProgress(`同期中... (${i + 1}/${targets.length})`);
+
+            const existingLocal = updatedLibrary.find((l: any) => 
+                l.title === song.title && l.artist === song.artist
+            );
+
+            let finalMusicUri = musicLocalUri;
+            let finalImgUri = "";
+
+            if (mode === 'KEEP_DUPLICATES' && existingLocal && existingLocal.localMusicUri) {
+                const fileCheck = await FileSystem.getInfoAsync(existingLocal.localMusicUri);
+                if (fileCheck.exists) {
+                    finalMusicUri = existingLocal.localMusicUri;
+                    finalImgUri = existingLocal.localImageUri || "";
+                } else {
+                    const musicDownload = FileSystem.createDownloadResumable(
+                        `http://${serverIp}:${serverPort}${song.url_music}`,
+                        musicLocalUri,
+                        { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
+                    );
+                    await musicDownload.downloadAsync();
+                }
+            } else {
+                const musicDownload = FileSystem.createDownloadResumable(
+                    `http://${serverIp}:${serverPort}${song.url_music}`,
+                    musicLocalUri,
+                    { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
+                );
+                await musicDownload.downloadAsync();
             }
-            downloadedData.push({ ...song, localMusicUri: musicLocalUri, localImageUri: imgLocalUri });
+
+            if (song.url_image && (!finalImgUri || mode === 'DELETE_ALL')) {
+                const imgFname = song.imageFilename ? song.imageFilename.split(/[\\/]/).pop() : `img_${i}.jpg`;
+                finalImgUri = baseDir + imgFname;
+                const imgInfo = await FileSystem.getInfoAsync(finalImgUri);
+                if (!imgInfo.exists) {
+                    const imgDownload = FileSystem.createDownloadResumable(
+                        `http://${serverIp}:${serverPort}${song.url_image}`,
+                        finalImgUri,
+                        { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
+                    );
+                    await imgDownload.downloadAsync();
+                }
+            }
+
+            const newSongItem = { ...song, localMusicUri: finalMusicUri, localImageUri: finalImgUri };
+            
+            const existingIdx = updatedLibrary.findIndex((s: any) => 
+                s.title === song.title && s.artist === song.artist
+            );
+            if (existingIdx !== -1) {
+                updatedLibrary[existingIdx] = newSongItem;
+            } else {
+                updatedLibrary.push(newSongItem);
+            }
+
+            await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
+            setLocalLibrary([...updatedLibrary]);
         }
 
-        if (didCancelRef.current) { await clearAllLocalData(); return; }
+        if (didCancelRef.current) { return; }
 
-        await AsyncStorage.setItem('local_library', JSON.stringify(downloadedData));
         await AsyncStorage.setItem('local_playlists', JSON.stringify(targetPlaylists));
-        setLocalLibrary(downloadedData);
         setLocalPlaylists(targetPlaylists);
 
-        Alert.alert("同期完了", `${targets.length}曲の同期が完了しました！`,[{ text: "OK", onPress: () => disconnect() }]);
+        Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`,[{ text: "OK", onPress: () => disconnect() }]);
     } catch (e: any) {
         if (didCancelRef.current) return;
-        await clearAllLocalData();
         Alert.alert("同期エラー", `同期が中断されました。(${e.message})`,[{ text: "OK", onPress: () => disconnect() }]);
     } finally {
         setIsFullScreenSyncing(false);

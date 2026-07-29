@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'; // ★ useRefを追加
+import React, { useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Alert, TouchableWithoutFeedback, Keyboard, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
@@ -10,7 +10,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
   const isLandscape = width > height;
   const bottomPadding = currentSong ? 280 : 160;
 
-  // ★ 連続読み込みを防止するためのロック変数
   const isProcessingQr = useRef(false);
 
   const selectAll = () => {
@@ -41,7 +40,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                         Keyboard.dismiss();
                         const granted = await requestCameraPermission(); 
                         if (granted) {
-                          isProcessingQr.current = false; // カメラを開くときにロックを解除
+                          isProcessingQr.current = false;
                           setShowCamera(true);
                         }
                       }}>
@@ -119,10 +118,24 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                 <Text style={[styles.rowTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{item.playlistName}</Text>
               </TouchableOpacity>
             )}
+            /* ★ 修正: FlatListのプロパティ内に直接記述されていた不要なコメント文を取り除きました */
             ListFooterComponent={pcPlaylists.length > 0 ? (
                     <View style={[styles.syncFooterContainer, isLandscape && { flexDirection: 'row', justifyContent: 'center', gap: 15 }]}>
-                        <TouchableOpacity style={[styles.syncActionBtn, {backgroundColor: themeColor, flex: isLandscape ? 1 : 0}]} onPress={() => startSyncDownload(false)}><Text style={styles.syncActionBtnText}>選択した項目を同期</Text></TouchableOpacity>
-                        <TouchableOpacity style={[styles.syncActionBtn, {backgroundColor: '#6b7280', flex: isLandscape ? 1 : 0}]} onPress={() => startSyncDownload(true)}><Text style={styles.syncActionBtnText}>すべて同期</Text></TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.syncActionBtn, {backgroundColor: themeColor, flex: isLandscape ? 1 : 0, paddingHorizontal: 15}]} 
+                          onPress={() => startSyncDownload('KEEP_DUPLICATES')}
+                        >
+                          <Text style={[styles.syncActionBtnText, { fontSize: 13, textAlign: 'center' }]} numberOfLines={2}>
+                            重複した所持している楽曲をそのままにして同期
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                          style={[styles.syncActionBtn, {backgroundColor: '#ef4444', flex: isLandscape ? 1 : 0, paddingHorizontal: 15}]} 
+                          onPress={() => startSyncDownload('DELETE_ALL')}
+                        >
+                          <Text style={styles.syncActionBtnText}>削除して同期</Text>
+                        </TouchableOpacity>
                     </View>
                 ) : null
             }
@@ -137,7 +150,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                       <CameraView 
                         style={StyleSheet.absoluteFill} 
                         onBarcodeScanned={async ({ data }) => {
-                              // ★ すでに処理中なら何もしない
                               if (isProcessingQr.current) return;
                               isProcessingQr.current = true;
 
@@ -147,14 +159,13 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                                   setShowCamera(false);
                                   setScannedQrData(qrData); 
                                 } else {
-                                  // JSONだが中身が不正な場合
                                   throw new Error();
                                 }
                               } catch(e) { 
                                 Alert.alert(
                                   "エラー", 
                                   "無効なQRコードです",
-                                  [{ text: "OK", onPress: () => { isProcessingQr.current = false; } }] // OKを押すまでロックを維持
+                                  [{ text: "OK", onPress: () => { isProcessingQr.current = false; } }]
                                 ); 
                               }
                           }} 

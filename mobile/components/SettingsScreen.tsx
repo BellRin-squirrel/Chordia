@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal, ScrollView, useWindowDimensions, Switch } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, ScrollView, useWindowDimensions, Switch, Linking } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
+import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../styles/styles';
 
 const PRESET_COLORS =[
@@ -20,7 +21,7 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
 
   return (
     <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
-      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>設定</Text></View>
+      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>設定・情報</Text></View>
       <ScrollView 
         style={{padding: 25}}
         contentContainerStyle={{ paddingBottom: bottomPadding }} 
@@ -43,12 +44,12 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
             style={{flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'expo-av' ? themeColor : 'transparent'}}
             onPress={() => changeAudioEngine('expo-av')}
           >
-            <Text style={{color: audioEngine === 'expo-av' ? '#fff' : dynamicStyles.text, fontWeight: 'bold'}}>Expo-AV (BGM用)</Text>
+            <Text style={{color: audioEngine === 'expo-av' ? '#fff' : dynamicStyles.text, fontWeight: 'bold'}}>Expo-Audio (BGM用)</Text>
           </TouchableOpacity>
         </View>
         <Text style={{color: dynamicStyles.subText, fontSize: 12, marginTop: 10, lineHeight: 18}}>
           【RNTP】ロック画面・AirPods操作対応。他アプリの音声と干渉します。{"\n"}
-          【Expo-AV】他アプリと同時に再生(ミックス)可能。ロック画面操作は不可。
+          【Expo-Audio】他アプリと同時に再生(ミックス)可能。ロック画面操作は不可。
         </Text>
 
         <Text style={[styles.recentHeader, {color: dynamicStyles.text, marginLeft: 0, marginTop: 40}]}>機能設定</Text>
@@ -60,10 +61,33 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
             </View>
             <Switch 
                 value={showFocusTab} 
-                onValueChange={(val) => toggleFocusTab(val)} // ★ 修正: 値を渡す
+                onValueChange={(val) => toggleFocusTab(val)} 
                 trackColor={{ false: "#767577", true: themeColor }}
                 thumbColor={"#f4f3f4"}
             />
+          </View>
+        </View>
+
+        {/* アプリ情報・ライセンスカード */}
+        <View style={{ marginTop: 40, alignItems: 'center' }}>
+          <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card }]}>
+            <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
+            <Text style={styles.appVersionLabel}>v4.1.0</Text>
+            <View style={[styles.divider, { backgroundColor: dynamicStyles.bg, marginTop: 25 }]} />
+            <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
+
+            {/* ★ 修正: リンクカラーをGitHubブランドパープル (#8957e5) に固定指定 */}
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 15 }}
+              onPress={() => Linking.openURL('https://github.com/BellRin-squirrel/Chordia')}
+            >
+              <Ionicons name="logo-github" size={18} color="#8957e5" />
+              <Text style={{ color: '#8957e5', fontSize: 13, fontWeight: 'bold', textDecorationLine: 'underline' }}>
+                GitHub Repository
+              </Text>
+              <Ionicons name="open-outline" size={12} color="#8957e5" />
+            </TouchableOpacity>
           </View>
         </View>
 

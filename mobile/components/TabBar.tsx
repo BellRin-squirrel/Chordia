@@ -12,12 +12,13 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBack
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
+  // ★ 修正: 情報タブを「統計」に変更し、アイコンを stats-chart にアップデート
   const tabs = [
     { key: 'SYNC', label: '同期', icon: 'cloud-download' },
     { key: 'PLAYER', label: '再生', icon: 'play-circle' },
     ...(showFocusTab ? [{ key: 'FOCUS', label: '作業', icon: 'timer' }] : []),
     { key: 'SETTINGS', label: '設定', icon: 'options' },
-    { key: 'LICENSE', label: '情報', icon: 'information-circle' }
+    { key: 'LICENSE', label: '統計', icon: 'stats-chart' }
   ];
 
   const tabCount = tabs.length;

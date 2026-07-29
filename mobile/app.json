@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chordia",
     "slug": "Chordia",
-    "version": "v4.0.1",
+    "version": "v4.1.0",
     "backgroundColor": "#ffffff",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -25,7 +25,8 @@
           "NSAllowsArbitraryLoads": true
         },
         "NSLocalNetworkUsageDescription": "Desktop版の音楽ライブラリと同期するためにローカルネットワークを使用します。",
-        "NSCameraUsageDescription": "Desktop版Chordiaとの自動接続用QRコードをスキャンするためにカメラを使用します。"
+        "NSCameraUsageDescription": "Desktop版Chordiaとの自動接続用QRコードをスキャンするためにカメラを使用します。",
+        "NSBonjourServices": ["_http._tcp."]
       }
     },
     "android": {

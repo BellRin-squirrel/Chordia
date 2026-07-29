@@ -2,8 +2,9 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, Alert, LayoutAnimation, Platform, UIManager, Animated, useWindowDimensions, PanResponder, Linking, Vibration } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TrackPlayer, { RepeatMode } from 'react-native-track-player';
-import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
@@ -53,6 +54,15 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [expanded, setExpanded] = useState({ PLAYLIST: true, ALBUM: false, ARTIST: false });
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickingTarget, setPickingTarget] = useState<'MAIN' | 'WORK' | 'BREAK'>('MAIN');
+
+  // 背景のテーマカラー輝度(R,G,B)から最も見やすい文字色(#ffffff または #000000)を自動決定
+  const buttonTextColor = useMemo(() => {
+    const r = themeR ?? 79;
+    const g = themeG ?? 70;
+    const b = themeB ?? 229;
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 140 ? '#000000' : '#ffffff';
+  }, [themeR, themeG, themeB]);
 
   const sessionStartTimeRef = useRef<number | null>(null);
   const phaseStartTimeRef = useRef<number | null>(null);
@@ -205,14 +215,16 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const playAlarmSound = async () => {
     try {
       Vibration.vibrate([0, 500, 200, 500]);
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
-      const { sound: alarm } = await Audio.Sound.createAsync(
-        { uri: 'https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav' },
-        { shouldPlay: true, volume: 1.0 }
-      );
+      await setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+      
+      const alarmPlayer = createAudioPlayer('https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav');
+      alarmPlayer.play();
+      
       await new Promise(r => setTimeout(r, 1200));
-      await alarm.unloadAsync();
-    } catch (e) { await new Promise(r => setTimeout(r, 1200)); }
+      alarmPlayer.pause();
+    } catch (e) { 
+      await new Promise(r => setTimeout(r, 1200)); 
+    }
   };
 
   const handlePhaseTransition = async () => {
@@ -427,22 +439,42 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
     );
   }
 
+  const handleFinishSetup = () => isReady ? setStage('GUIDE') : Alert.alert("リスト未選択", "再生リストを選択してください。");
+
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={[s.header, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), backgroundColor: dynamicStyles.bg }]}>
+        {/* ★ 修正: 左上「設定完了」ボタンを大型化し、くっきり力強く強調表示 (シャドウ付き) */}
         <TouchableOpacity 
-          style={{ position: 'absolute', left: 16, bottom: 0, height: 44, justifyContent: 'center', opacity: isReady ? 1 : 0.5, zIndex: 10 }}
-          onPress={() => isReady ? setStage('GUIDE') : Alert.alert("リスト未選択", "再生リストを選択してください。")}
+          style={{ 
+            position: 'absolute', 
+            left: 16, 
+            bottom: 4, 
+            height: 36, 
+            paddingHorizontal: 16, 
+            borderRadius: 18, 
+            backgroundColor: themeColor, 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            opacity: isReady ? 1 : 0.8, 
+            zIndex: 10,
+            shadowColor: themeColor,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+          onPress={handleFinishSetup}
         >
-          {/* ★ 変更: 「完了」から「設定完了」に変更 */}
-          <Text style={{ color: themeColor, fontSize: 16, fontWeight: 'bold' }}>設定完了</Text>
+          <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>設定完了</Text>
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: dynamicStyles.text }]}>作業設定</Text>
       </View>
       
       <FocusSetupView 
         {...{ 
-          dynamicStyles, themeColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, musicCollections, expanded, toggleSection, onSelectCollection, pickerVisible, setPickerVisible, setPickingTarget, isReady, 
+          dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, musicCollections, expanded, toggleSection, onSelectCollection, pickerVisible, setPickerVisible, setPickingTarget, isReady, 
+          handleFinishSetup,
           openCustomTimerModal: (type: 'WORK' | 'BREAK') => {
               setCustomTimerType(type);
               const currentSecs = Math.floor((type === 'WORK' ? workTime : breakTime) * 60);
@@ -509,7 +541,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                               setCustomTimerType(null);
                           }}
                       >
-                          <Text style={{ color: '#fff', fontWeight: 'bold' }}>決定</Text>
+                          <Text style={{ color: buttonTextColor, fontWeight: 'bold' }}>決定</Text>
                       </TouchableOpacity>
                   </View>
               </View>
@@ -524,7 +556,7 @@ const s = StyleSheet.create({
   header: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: 'bold' },
   primaryBtn: { height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontSize: 18, fontWeight: '900' },
+  primaryBtnText: { fontSize: 18, fontWeight: '900' },
   guideCard: { width: '100%', borderRadius: 24, padding: 25, marginTop: 20, borderWidth: 1 },
   guideStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   guideText: { fontSize: 14, flex: 1 },
