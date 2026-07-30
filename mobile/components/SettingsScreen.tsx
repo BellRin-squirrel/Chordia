@@ -72,7 +72,7 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
         <View style={{ marginTop: 40, alignItems: 'center' }}>
           <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card }]}>
             <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-            <Text style={styles.appVersionLabel}>v4.1.0</Text>
+            <Text style={styles.appVersionLabel}>v4.1.1</Text>
             <View style={[styles.divider, { backgroundColor: dynamicStyles.bg, marginTop: 25 }]} />
             <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
 
