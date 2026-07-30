@@ -5,8 +5,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
-
-// ★ 導入: react-native-device-info による端末名の自動解決
 import DeviceInfo from 'react-native-device-info';
 
 type QrData = {
@@ -56,17 +54,23 @@ export const useSync = ({
     osVersion: Platform.OS === 'ios' ? `iOS ${Platform.Version}` : `${Platform.OS} ${Platform.Version}`
   });
 
-  // ★ 修正: DEVICE_MODEL_MAP を廃止し、DeviceInfo.getModel() で自動取得
   useEffect(() => {
     const fetchDeviceInfo = async () => {
       let ip = clientInfo.ip;
       let deviceName = clientInfo.deviceName;
       try { ip = await Network.getIpAddressAsync(); } catch (e) {}
-      try { 
-        // DeviceInfo.getModel() が "iPhone 12 mini" や "Galaxy S23" などの機種名を自動解決
-        const model = DeviceInfo.getModel();
-        if (model) deviceName = model;
+      
+      try {
+        const expoModel = Device.modelName;
+        const rnModel = DeviceInfo.getModel();
+        
+        if (expoModel && !expoModel.includes(',')) {
+            deviceName = expoModel;
+        } else if (rnModel) {
+            deviceName = rnModel;
+        }
       } catch (e) {}
+
       setClientInfo(prev => ({ ...prev, ip, deviceName }));
     };
     fetchDeviceInfo();
