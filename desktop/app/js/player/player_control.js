@@ -11,6 +11,11 @@
             this.seekBar = document.getElementById('hpSeekBar');
             this.volumeBar = document.getElementById('volumeBar');
 
+            if (this.audio) {
+                // ★ 修正：確実にCORSを許可し、Web Audio API での出力を通す
+                this.audio.crossOrigin = "anonymous";
+            }
+
             if (this.volumeBar) {
                 const savedVolume = localStorage.getItem('player_volume');
                 const initialVolume = (savedVolume !== null) ? parseFloat(savedVolume) : 100;
@@ -18,7 +23,6 @@
                 this.userVolume = initialVolume / 100;
                 this.applyVolume();
 
-                // ★ 修正：初期起動時にもスライダーの左側にテーマカラーのグラデーションを即座に適用する
                 this.volumeBar.style.background = `linear-gradient(to right, var(--primary-color) ${initialVolume}%, rgba(128,128,128,0.2) ${initialVolume}%)`;
 
                 this.volumeBar.oninput = (e) => {
@@ -83,11 +87,15 @@
             }
 
             if ('mediaSession' in navigator) {
-                navigator.mediaSession.setActionHandler('play', () => this.togglePlayPause());
-                navigator.mediaSession.setActionHandler('pause', () => this.togglePlayPause());
-                navigator.mediaSession.setActionHandler('previoustrack', () => this.prevSong());
-                navigator.mediaSession.setActionHandler('nexttrack', () => this.nextSong());
-                navigator.mediaSession.setActionHandler('stop', () => this.stopPlayback());
+                try {
+                    navigator.mediaSession.setActionHandler('play', () => this.togglePlayPause());
+                    navigator.mediaSession.setActionHandler('pause', () => this.togglePlayPause());
+                    navigator.mediaSession.setActionHandler('previoustrack', () => this.prevSong());
+                    navigator.mediaSession.setActionHandler('nexttrack', () => this.nextSong());
+                    navigator.mediaSession.setActionHandler('stop', () => this.stopPlayback());
+                } catch (e) {
+                    console.error("MediaSession handler error:", e);
+                }
             }
 
             document.addEventListener('keydown', (e) => {
@@ -186,7 +194,8 @@
                 }
             }
 
-            this.gainNode.gain.setTargetAtTime(targetGain, this.audioCtx.currentTime, 0.05);
+            // ★ 修正：WebKit等での動作不安定を防ぐため直接値をセットする
+            this.gainNode.gain.value = targetGain;
         },
 
         generateSection: function(isShuffle) {
@@ -275,7 +284,7 @@
             if (playPromise !== undefined) {
                 playPromise.then(() => {
                     this.initAudioContext();
-                    if (this.audioCtx.state === 'suspended') {
+                    if (this.audioCtx && this.audioCtx.state === 'suspended') {
                         this.audioCtx.resume();
                     }
                     this.applyVolume();
@@ -444,4 +453,4 @@
             }
         }
     };
-})();play
+})();

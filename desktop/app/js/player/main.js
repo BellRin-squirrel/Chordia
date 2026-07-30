@@ -21,11 +21,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             await window.SidebarController.loadPlaylists();
         }
 
-        // ★ 追加: 音楽再生画面を開いたタイミングで全楽曲の最大音量を解析・ターミナルへ出力
-        invoke("calculate_max_volume_all").catch(err => {
-            console.error("Max volume calculation error:", err);
-        });
-
     } catch (e) {
         console.error("Initialization Error:", e);
     }
