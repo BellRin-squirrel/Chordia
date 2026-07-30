@@ -57,21 +57,28 @@ export const useSync = ({
   useEffect(() => {
     const fetchDeviceInfo = async () => {
       let ip = clientInfo.ip;
-      let deviceName = clientInfo.deviceName;
+      let finalDeviceName = clientInfo.deviceName;
       try { ip = await Network.getIpAddressAsync(); } catch (e) {}
       
       try {
-        const expoModel = Device.modelName;
-        const rnModel = DeviceInfo.getModel();
+        const expoModel = Device.modelName; // 例: "iPad", "iPhone"
+        const rnModel = DeviceInfo.getModel(); // 例: "iPad Air (5th generation)", または未対応だと "iPad14,3"
         
-        if (expoModel && !expoModel.includes(',')) {
-            deviceName = expoModel;
-        } else if (rnModel) {
-            deviceName = rnModel;
+        // ★修正: 常に DeviceInfo を最優先にする（カンマが含まれていない綺麗な名前の場合）
+        if (rnModel && !rnModel.includes(',')) {
+            finalDeviceName = rnModel;
+        } 
+        // もし DeviceInfo が未対応機種で "iPad14,3" のようなIDを返した場合、expo-device の名前を使う
+        else if (expoModel && !expoModel.includes(',')) {
+            finalDeviceName = expoModel;
+        }
+        // どちらもカンマを含んでいる（生のIDしか取れない超最新機種）場合、数字とカンマを削る（例: "iPad14,3" -> "iPad"）
+        else if (rnModel) {
+            finalDeviceName = rnModel.replace(/[0-9,]/g, '').trim() || rnModel;
         }
       } catch (e) {}
 
-      setClientInfo(prev => ({ ...prev, ip, deviceName }));
+      setClientInfo(prev => ({ ...prev, ip, deviceName: finalDeviceName }));
     };
     fetchDeviceInfo();
   },[]);
