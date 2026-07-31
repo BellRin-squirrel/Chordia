@@ -12,7 +12,7 @@
             this.volumeBar = document.getElementById('volumeBar');
 
             if (this.audio) {
-                // ★ 修正：確実にCORSを許可し、Web Audio API での出力を通す
+                // セキュリティ制約回避
                 this.audio.crossOrigin = "anonymous";
             }
 
@@ -158,44 +158,42 @@
             });
         },
 
-        initAudioContext: function() {
-            if (!this.audioCtx && this.audio) {
-                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                this.track = this.audioCtx.createMediaElementSource(this.audio);
-                this.gainNode = this.audioCtx.createGain();
-                this.track.connect(this.gainNode).connect(this.audioCtx.destination);
-            }
-        },
-
+        // ★ 修正：Web Audio API (GainNode) を廃止し、標準の audio.volume で安全に調整
         applyVolume: async function() {
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-            
-            if (!this.gainNode) {
-                if (this.audio) this.audio.volume = this.userVolume;
-                return;
-            }
-
             let targetGain = this.userVolume;
-            const settings = await invoke("get_app_settings");
+            
+            try {
+                const settings = await invoke("get_app_settings");
 
-            if (settings.normalize_volume && s.queue[s.currentIndex]) {
-                const song = s.queue[s.currentIndex];
-                const lufs = await invoke("get_song_lufs", { filename: song.musicFilename });
-                
-                if (lufs !== null && lufs !== undefined) {
-                    const TARGET_LUFS = -14.0;
-                    let diff = TARGET_LUFS - lufs;
-                    diff = Math.max(-15, Math.min(15, diff));
+                if (settings.normalize_volume && s.queue[s.currentIndex]) {
+                    const song = s.queue[s.currentIndex];
+                    const lufs = await invoke("get_song_lufs", { filename: song.musicFilename });
                     
-                    const factor = Math.pow(10, diff / 20);
-                    targetGain = this.userVolume * factor;
-                    
-                    console.log(`[Volume Normalized] LUFS: ${lufs}, Diff: ${diff}dB, GainFactor: ${factor}`);
+                    if (lufs !== null && lufs !== undefined) {
+                        const TARGET_LUFS = -14.0;
+                        let diff = TARGET_LUFS - lufs;
+                        
+                        // ±15dBの範囲でクリップ。ただし標準volume機能は1.0以上にならないため、
+                        // 主に「うるさい曲を下げる」ためのアッテネーターとして機能します。
+                        diff = Math.max(-15, Math.min(3, diff)); 
+                        
+                        const factor = Math.pow(10, diff / 20);
+                        targetGain = this.userVolume * factor;
+                        
+                        // 0.0 〜 1.0 の範囲に収める（音割れとピッチバグを完全に防止）
+                        targetGain = Math.max(0.0, Math.min(1.0, targetGain));
+                        
+                        console.log(`[Volume Normalized] LUFS: ${lufs.toFixed(2)}, Diff: ${diff.toFixed(2)}dB, Final Volume: ${targetGain.toFixed(2)}`);
+                    }
                 }
+            } catch (e) {
+                console.error("Failed to apply normalize volume:", e);
             }
 
-            // ★ 修正：WebKit等での動作不安定を防ぐため直接値をセットする
-            this.gainNode.gain.value = targetGain;
+            if (this.audio) {
+                this.audio.volume = targetGain;
+            }
         },
 
         generateSection: function(isShuffle) {
@@ -283,10 +281,6 @@
             const playPromise = this.audio.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    this.initAudioContext();
-                    if (this.audioCtx && this.audioCtx.state === 'suspended') {
-                        this.audioCtx.resume();
-                    }
                     this.applyVolume();
 
                     s.isPlaying = true;
@@ -337,11 +331,6 @@
         togglePlayPause: function() {
             if (s.queue.length === 0 || !this.audio || !this.audio.src) return;
             if (this.audio.paused) {
-                this.initAudioContext();
-                if (this.audioCtx && this.audioCtx.state === 'suspended') {
-                    this.audioCtx.resume();
-                }
-
                 this.audio.play().then(() => {
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);

@@ -25,7 +25,8 @@ pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32
 #[tauri::command]
 pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     let mut targets_to_calc = Vec::new();
-
+    
+    // 計算対象（未計測の楽曲）を抽出
     {
         let db = state.db.lock().unwrap();
         let cache = state.lufs_cache.lock().unwrap();
@@ -47,6 +48,11 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         return Ok(());
     }
 
+    // ★ 修正1：初期状態（全体の件数）をフロントエンドへ即座に通知する
+    let _ = app.emit("lufs_calc_progress", serde_json::json!({
+        "current": 0, "total": total, "message": "解析の準備中..."
+    }));
+
     let base_dir = get_base_dir();
     let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
     let ffmpeg_path = base_dir.join(format!("userfiles/bin/ffmpeg{}", ext));
@@ -55,6 +61,7 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         return Err("FFmpegが見つかりません。".to_string());
     }
 
+    // 4並列で高速処理
     let semaphore = Arc::new(Semaphore::new(4));
     let mut handles = Vec::new();
     let current_counter = Arc::new(AtomicUsize::new(0));
@@ -68,8 +75,17 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         let counter_clone = current_counter.clone();
 
         handles.push(tokio::spawn(async move {
+            // タスク内部でセマフォを取得
             let _permit = semaphore_clone.acquire_owned().await.unwrap();
             
+            // ★ 修正2：FFmpegで解析を開始するタイミングで楽曲情報を通知する
+            let current_now = counter_clone.load(Ordering::SeqCst);
+            let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
+                "current": current_now,
+                "total": total,
+                "message": format!("「{}」を解析中...", title)
+            }));
+
             let mut lufs_val: Option<f32> = None;
             if abs_path.exists() {
                 let mut std_cmd = std::process::Command::new(&ffmpeg);
@@ -94,11 +110,12 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
                 }
             }
             
-            let current = counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
+            // ★ 修正3：処理が終わったらカウントアップして通知する
+            let current_after = counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
             let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
-                "current": current,
+                "current": current_after,
                 "total": total,
-                "message": format!("{} を解析中...", title)
+                "message": format!("「{}」の解析完了", title)
             }));
 
             (path_key, lufs_val)
@@ -107,6 +124,7 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
 
     let mut newly_calculated = false;
 
+    // 全ての非同期タスクの終了を待ち合わせる
     for handle in handles {
         if let Ok((path_key, lufs_opt)) = handle.await {
             if let Some(lufs) = lufs_opt {
@@ -192,7 +210,6 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
             i.insert(field, value.into()); 
         }
 
-        // ★ 追加：変更後の情報をMP3ファイル本体へ保存
         update_mp3_tags_from_song_map(i);
 
         save_db(&db).is_ok()
@@ -224,7 +241,6 @@ pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<
             } else { return false; }
         }
 
-        // ★ 追加：変更後のカバーアートをMP3ファイル本体へ埋め込み
         update_mp3_tags_from_song_map(target);
 
         save_db(&db).is_ok()
@@ -328,7 +344,6 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
                 }
             }
 
-            // ★ 追加：一括変更された各MP3ファイル本体へタグを反映・保存
             update_mp3_tags_from_song_map(i);
 
             count += 1;
@@ -439,7 +454,6 @@ pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, V
         }
         item.remove("artworkBase64");
         
-        // ★ 追加：リストインポート時にも対象ファイル本体へタグを書き込み
         update_mp3_tags_from_song_map(&item);
 
         db.push(item);
@@ -659,7 +673,6 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
                 item.remove("relPath");
                 item.remove("status");
 
-                // ★ 追加：ZIP解凍インポート後のファイルへID3タグを埋め込み
                 update_mp3_tags_from_song_map(&item);
 
                 db.push(item);

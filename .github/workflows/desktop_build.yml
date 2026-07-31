@@ -1,0 +1,47 @@
+name: Build and Release Chordia
+
+on:
+  push:
+    tags:
+      - 'v*' # v3.2.0 のように "v" から始まるタグをPushした時に自動で実行されます
+  workflow_dispatch: # GitHubのブラウザ画面上から「手動で実行」するための設定
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: ''
+          - os: macos-latest
+            # Mチップ(Apple Silicon)とIntelの両方でネイティブ動作するユニバーサルバイナリを指定
+            args: '--target universal-apple-darwin'
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Rustのセットアップとターゲットの追加
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Macの場合は、Intel用とApple Silicon用の両方のコンパイルターゲットを追加する
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # Tauri公式アクションによる自動ビルド＆リリースアップロード
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Chordia ${{ github.ref_name }}'
+          releaseBody: 'Chordia の自動ビルドリリースです。'
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

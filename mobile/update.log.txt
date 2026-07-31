@@ -1,13 +1,16 @@
 アプリバージョン変更で変更する箇所
-beta版内アップデート
+全て(include beta version)のアップデート
 README.md
 app/(tabs)/index.tsx
 build_ipa.yml
 
-それ以外のアップデート
+それ以外のアップデートは以下も追加
 app.json
 package-lock.json ２か所
 package.json
+
+v4.1.3
+・アプリアイコンを変更しました。
 
 v4.1.2
 ・Android版でアプリを起動するとクラッシュするというバグを修正しました。

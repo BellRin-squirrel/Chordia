@@ -1,16 +1,32 @@
-push
-git add .
-git commit -m "CommitName"
-git push -u ChordiaWindowsPortable main -f
-
 バージョン情報の変更
 main.rs
 Cargo.toml
 tauri.conf.json
 Cargo.lock
+readme
 
-issue
-https://github.com/BellRin-squirrel/Chordia/issues
+mac local build
+cargo tauri build --target universal-apple-darwin
+.dmg ファイル:
+Chordia/src-tauri/target/universal-apple-darwin/release/bundle/dmg/
+.app ファイル:
+Chordia/src-tauri/target/universal-apple-darwin/release/bundle/macos/
+
+windows local build
+cargo tauri build
+Chordia.exeファイル:
+?
+setup.exeファイル:
+?
+
+※ 続きをやる私へ
+アプリアイコンが正しく変更されているかを確認
+cmd_library.rsを分解するプロンプトを送信したため、それを適用すること。
+
+v3.2.3
+・楽曲再生中に音程が変化するというバグを修正しました。
+・設定のライブラリの音量解析の画面で、解析を開始したタイミングで0/0と表示されており、完了すると数字が表示されるというバグを修正しました。
+・アプリアイコンを変更しました。
 
 v3.2.2
 ・楽曲を再生できないというバグを修正しました。
