@@ -151,6 +151,22 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
+      # ★ 追加: エミュレータ (x86 / x86_64) と実機 (ARM) の両方で動作するように全アーキテクチャを強制的にな同梱するパッチ
+      - name: Enable All Architectures for Emulator Support
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "android/app/build.gradle";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            if (!content.includes("abiFilters")) {
+              content = content.replace(/defaultConfig\s*\{/, "defaultConfig {\n        ndk {\n            abiFilters \"armeabi-v7a\", \"arm64-v8a\", \"x86\", \"x86_64\"\n        }");
+              fs.writeFileSync(file, content);
+              console.log("Successfully added abiFilters for x86/x86_64/ARM");
+            }
+          }
+          '
+
       - name: Build Android APK
         run: |
           cd android
