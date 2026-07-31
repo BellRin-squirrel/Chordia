@@ -71,3 +71,4 @@ expo-env.d.ts
 node_modules/
 ios/
 build/
+android/
