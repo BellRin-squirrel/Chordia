@@ -15,14 +15,17 @@ Chordia/src-tauri/target/universal-apple-darwin/release/bundle/macos/
 windows local build
 cargo tauri build
 Chordia.exeファイル:
-?
+Chordia/src-tauri/target/release/Chordia.exe
 setup.exeファイル:
-?
+Chorida/src-tauri/target/release/bundle/nsis/Chordia_3.2.3_x64-setup.exe など
+msiファイル:
+Chorida/src-tauri/target/release/bundle/msi/Chordia_3.2.3_x64_ja-JP.msi など
 
-※ 続きをやる私へ
-ymlファイルによるビルドがうまくいくかの確認
+ymlのビルドはうまくいきません
 
-v3.2.3 Now Developing
+v3.2.4 Now Developing
+
+v3.2.3
 ・楽曲再生中に音程が変化するというバグを修正しました。
 ・設定のライブラリの音量解析の画面で、解析を開始したタイミングで0/0と表示されており、完了すると数字が表示されるというバグを修正しました。
 ・アプリアイコンを変更しました。
