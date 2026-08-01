@@ -1,34 +1,19 @@
-name: Build Chordia for Desktop Releases
+name: Build Chordia Artifacts
 
 on:
   push:
     tags:
-      - 'v*' # v3.2.0 のように "v" から始まるタグをPushした時に自動実行
-  workflow_dispatch:
-    # 手動実行時にバージョン名を指定できるようにする
-    inputs:
-      version:
-        description: 'リリースバージョン (例: v3.2.0-manual)'
-        required: true
-        default: 'v3.2.0-manual'
+      - 'v*' # "v" から始まるタグをPushした時に自動実行
+  workflow_dispatch: # 手動実行用
 
 jobs:
-  build-and-release:
-    permissions:
-      contents: write
+  build-and-artifact:
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            targets: 'x86_64-pc-windows-msvc'
-            args: ''
-            ext: 'exe'
           - os: macos-latest
-            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-            # Mチップ(Apple Silicon)とIntelの両方でネイティブ動作するユニバーサルバイナリを指定
-            args: '--target universal-apple-darwin'
-            ext: 'dmg'
 
     runs-on: ${{ matrix.os }}
 
@@ -36,54 +21,45 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # バージョン名（タグまたは手動入力）を環境変数にセット
-      - name: Set Version
-        id: set_version
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
-          else
-            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-          fi
-
-      # Rustのセットアップとターゲット追加
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.targets }}
+          # Macの場合は、IntelとApple Silicon両方のターゲットを追加する
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # Cargo Tauri CLIのインストール
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0"
 
-      # アプリのビルド実行
-      - name: Build Tauri App
-        run: cargo tauri build ${{ matrix.args }}
-
-      # --- 成果物（アーティファクト）のアップロード ---
-      # Windows の場合の成果物を GitHub Releases にアップロード
-      - name: Upload Release Assets (Windows)
+      - name: Build Tauri app (Windows)
         if: matrix.os == 'windows-latest'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: 'Chordia ${{ env.VERSION }}'
-          files: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/Chordia.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo tauri build
 
-      # macOS の場合の成果物を GitHub Releases にアップロード
-      - name: Upload Release Assets (macOS)
+      - name: Build Tauri app (Mac - Universal)
         if: matrix.os == 'macos-latest'
-        uses: softprops/action-gh-release@v2
+        # IntelとM1/M2/M3で最高のパフォーマンスを発揮するユニバーサルバイナリでビルド
+        run: cargo tauri build --target universal-apple-darwin
+
+      - name: Compress Mac .app to tar.gz
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd src-tauri/target/universal-apple-darwin/release/bundle/macos
+          tar -czf Chordia_app.tar.gz Chordia.app
+
+      - name: Upload Windows Artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ env.VERSION }}
-          name: 'Chordia ${{ env.VERSION }}'
-          files: |
+          name: Chordia-Windows
+          path: |
+            src-tauri/target/release/Chordia.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+
+      - name: Upload Mac Artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chordia-Mac
+          path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/Chordia_app.tar.gz
