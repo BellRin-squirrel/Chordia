@@ -6,7 +6,11 @@ mod cmd_window;
 mod cmd_settings;
 mod cmd_add_music;
 mod cmd_playlist;
-mod cmd_library;
+// ★ 分割された各モジュールをフラットに読み込む
+mod cmd_lib_lufs;
+mod cmd_lib_query;
+mod cmd_lib_mutate;
+mod cmd_lib_import;
 mod cmd_history;
 mod cmd_export;
 mod cmd_extensions;
@@ -232,9 +236,23 @@ fn main() {
             cmd_settings::get_app_settings, cmd_settings::save_app_settings, cmd_settings::get_custom_themes, cmd_settings::save_custom_theme, cmd_settings::delete_custom_theme,
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs,
-            cmd_playlist::get_playlist_cover, cmd_playlist::save_playlist_cover_image, cmd_playlist::set_playlist_cover_from_song, // ★ 追加
-            cmd_library::get_library_count, cmd_library::get_library_chunk, cmd_library::update_song_by_id, cmd_library::update_song_artwork_by_id, cmd_library::delete_song_by_id, cmd_library::get_common_values_for_selected, cmd_library::update_multiple_songs, cmd_library::delete_multiple_songs, cmd_library::parse_list_import, cmd_library::execute_final_list_import, cmd_library::check_import_duplicates, cmd_library::scan_zip_import, cmd_library::execute_zip_import, 
-            cmd_library::start_lufs_calculation_all, cmd_library::get_song_lufs,
+            cmd_playlist::get_playlist_cover, cmd_playlist::save_playlist_cover_image, cmd_playlist::set_playlist_cover_from_song,
+            // ★ 修正：それぞれ別々のモジュールから呼び出す
+            cmd_lib_query::get_library_count, 
+            cmd_lib_query::get_library_chunk, 
+            cmd_lib_query::get_common_values_for_selected, 
+            cmd_lib_mutate::update_song_by_id, 
+            cmd_lib_mutate::update_song_artwork_by_id, 
+            cmd_lib_mutate::delete_song_by_id, 
+            cmd_lib_mutate::update_multiple_songs, 
+            cmd_lib_mutate::delete_multiple_songs, 
+            cmd_lib_import::parse_list_import, 
+            cmd_lib_import::execute_final_list_import, 
+            cmd_lib_import::check_import_duplicates, 
+            cmd_lib_import::scan_zip_import, 
+            cmd_lib_import::execute_zip_import, 
+            cmd_lib_lufs::start_lufs_calculation_all, 
+            cmd_lib_lufs::get_song_lufs,
             cmd_history::record_playback, cmd_history::get_playback_history,
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
