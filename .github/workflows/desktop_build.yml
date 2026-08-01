@@ -3,8 +3,14 @@ name: Build Chordia for Desktop Releases
 on:
   push:
     tags:
-      - 'v*' # v3.2.0 のように "v" から始まるタグをPushした時に自動で実行されます
-  workflow_dispatch: # GitHubのブラウザ画面上から「手動で実行」するための設定
+      - 'v*' # v3.2.0 のように "v" から始まるタグをPushした時に自動実行
+  workflow_dispatch:
+    # 手動実行時にバージョン名を指定できるようにする
+    inputs:
+      version:
+        description: 'リリースバージョン (例: v3.2.0-manual)'
+        required: true
+        default: 'v3.2.0-manual'
 
 jobs:
   build-and-release:
@@ -15,10 +21,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            targets: 'x86_64-pc-windows-msvc'
             args: ''
+            ext: 'exe'
           - os: macos-latest
+            targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
             # Mチップ(Apple Silicon)とIntelの両方でネイティブ動作するユニバーサルバイナリを指定
             args: '--target universal-apple-darwin'
+            ext: 'dmg'
 
     runs-on: ${{ matrix.os }}
 
@@ -26,22 +36,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Rustのセットアップとターゲットの追加
+      # バージョン名（タグまたは手動入力）を環境変数にセット
+      - name: Set Version
+        id: set_version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      # Rustのセットアップとターゲット追加
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Macの場合は、Intel用とApple Silicon用の両方のコンパイルターゲットを追加する
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.targets }}
 
-      # Tauri公式アクションによる自動ビルド＆リリースアップロード
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+      # Cargo Tauri CLIのインストール
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0"
+
+      # アプリのビルド実行
+      - name: Build Tauri App
+        run: cargo tauri build ${{ matrix.args }}
+
+      # --- 成果物（アーティファクト）のアップロード ---
+      # Windows の場合の成果物を GitHub Releases にアップロード
+      - name: Upload Release Assets (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: 'Chordia ${{ env.VERSION }}'
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/Chordia.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # macOS の場合の成果物を GitHub Releases にアップロード
+      - name: Upload Release Assets (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Chordia ${{ github.ref_name }}'
-          releaseBody: 'Chordia の自動ビルドリリースです。'
-          releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
+          tag_name: ${{ env.VERSION }}
+          name: 'Chordia ${{ env.VERSION }}'
+          files: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
