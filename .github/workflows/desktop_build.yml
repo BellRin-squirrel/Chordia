@@ -1,4 +1,4 @@
-name: Build and Release Chordia
+name: Build Chordia for Desktop Releases
 
 on:
   push:
