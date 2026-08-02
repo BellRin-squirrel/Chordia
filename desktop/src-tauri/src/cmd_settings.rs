@@ -18,6 +18,9 @@ pub fn get_app_settings() -> AppSettings {
         items_per_page: get_int("Database", "items_per_page", 50),
         open_player_new_window: get_bool("Database", "open_player_new_window", false),
         open_manage_new_window: get_bool("Database", "open_manage_new_window", false),
+        open_extensions_new_window: get_bool("Database", "open_extensions_new_window", false),
+        open_add_music_new_window: get_bool("Database", "open_add_music_new_window", false),
+        open_settings_new_window: get_bool("Database", "open_settings_new_window", false),
         lazy_load_playlists: false,
         primary_color: get_str("Theme", "primary_color", "#4f46e5"),
         background_color: get_str("Theme", "background_color", "#f3f4f6"),
@@ -37,11 +40,16 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
     let _ = fs::create_dir_all(&dir);
 
     let path = dir.join("settings.ini");
-    let mut conf = Ini::load_from_file(&path).unwrap_or_else(|_| Ini::new());
+    // ★ 修正：既存のIni構造に依存せず、最新のAppSettingsからクリーンにファイルを新規作成・上書き保存
+    let mut conf = Ini::new();
+
     conf.with_section(Some("Database"))
         .set("items_per_page", settings.items_per_page.to_string())
         .set("open_player_new_window", settings.open_player_new_window.to_string())
         .set("open_manage_new_window", settings.open_manage_new_window.to_string())
+        .set("open_extensions_new_window", settings.open_extensions_new_window.to_string())
+        .set("open_add_music_new_window", settings.open_add_music_new_window.to_string())
+        .set("open_settings_new_window", settings.open_settings_new_window.to_string())
         .set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
     
     conf.with_section(Some("Theme"))
@@ -58,7 +66,7 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
     conf.with_section(Some("Player"))
         .set("normalize_volume", settings.normalize_volume.to_string());
         
-    conf.write_to_file(path).is_ok()
+    conf.write_to_file(&path).is_ok()
 }
 
 #[tauri::command]

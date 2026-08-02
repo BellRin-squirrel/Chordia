@@ -5,6 +5,9 @@ pub struct AppSettings {
     pub items_per_page: i32,
     pub open_player_new_window: bool,
     pub open_manage_new_window: bool,
+    pub open_extensions_new_window: bool,
+    pub open_add_music_new_window: bool,  // ★ 追加
+    pub open_settings_new_window: bool,   // ★ 追加
     pub lazy_load_playlists: bool,
     pub primary_color: String,
     pub background_color: String,
