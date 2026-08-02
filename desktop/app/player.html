@@ -40,8 +40,9 @@
             </div>
 
             <div class="header-center">
+                <!-- ★ 修正：src を icon/Chordia_nobg.png に変更 -->
                 <div id="headerLogo" class="header-logo">
-                    <img src="icon/Chordia.png" alt="Logo">
+                    <img src="icon/Chordia_nobg.png" alt="Logo">
                 </div>
                 <div id="headerPlayerInfo" class="header-player-info" style="display: none;">
                     <div class="hp-inner-wrapper">
@@ -207,6 +208,7 @@
                 <button class="art-mini-tab-btn" data-target="pl-cover-tab-song">楽曲から選択</button>
             </div>
 
+            <!-- タブ1: ローカル画像 -->
             <div id="pl-cover-tab-local" class="art-mini-tab-content active">
                 <div class="pl-cover-drop-zone" id="plCoverDropZone">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 32px; height: 32px; color: var(--text-sub);">
@@ -218,6 +220,7 @@
                 </div>
             </div>
 
+            <!-- タブ2: 楽曲から選択 -->
             <div id="pl-cover-tab-song" class="art-mini-tab-content">
                 <div style="margin-bottom: 12px;">
                     <input type="text" id="plCoverSongSearch" class="pl-cover-search-input" placeholder="タイトル・アーティストで検索...">
@@ -227,6 +230,7 @@
                 </div>
             </div>
 
+            <!-- プレビュー表示 -->
             <div class="pl-cover-preview-area">
                 <img id="plCoverPreviewImg" class="pl-cover-preview-img" src="icon/Chordia.png" alt="Preview">
                 <div class="pl-cover-preview-info">

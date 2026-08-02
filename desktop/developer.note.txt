@@ -1,0 +1,24 @@
+バージョン情報の変更
+main.rs
+Cargo.toml
+tauri.conf.json
+Cargo.lock
+readme
+
+mac local build
+cargo tauri build --target universal-apple-darwin
+.dmg ファイル:
+Chordia/src-tauri/target/universal-apple-darwin/release/bundle/dmg/
+.app ファイル:
+Chordia/src-tauri/target/universal-apple-darwin/release/bundle/macos/
+
+windows local build
+cargo tauri build
+Chordia.exeファイル:
+Chordia/src-tauri/target/release/Chordia.exe
+setup.exeファイル:
+Chorida/src-tauri/target/release/bundle/nsis/Chordia_3.2.3_x64-setup.exe など
+msiファイル:
+Chorida/src-tauri/target/release/bundle/msi/Chordia_3.2.3_x64_ja-JP.msi など
+
+ymlのビルドはうまくいきません

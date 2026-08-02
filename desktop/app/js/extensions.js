@@ -2,6 +2,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
     const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : null;
 
+    // ★ 追加：新しいウィンドウで開かれた場合（または設定で新ウィンドウ指定時）、左上の「トップへ戻る」ボタンを非表示にする
+    try {
+        const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'extensions_window';
+        const settings = await invoke("get_app_settings");
+        if (isWindowMode || (settings && settings.open_extensions_new_window)) {
+            const backArea = document.querySelector('.header-left');
+            if (backArea) backArea.style.display = 'none';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
     const toolsList = document.getElementById('toolsList');
     const actionTitle = document.getElementById('actionTitle');
     const actionDesc = document.getElementById('actionDesc');
@@ -25,7 +37,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let pendingUpdates = [];
 
-    // ★ 修正：アラート表示ロジックに display の切り替えと閉じる処理を統合
     function showAlert(title, message, isError = false) {
         if (!alertModal) return;
         alertTitle.textContent = title;
@@ -38,7 +49,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnAlertOk) {
             btnAlertOk.onclick = () => {
                 alertModal.classList.remove('show');
-                // フェードアウトアニメーション完了後に完全に非表示にする
                 setTimeout(() => alertModal.style.display = 'none', 300);
             };
         }

@@ -3,14 +3,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnAddMusic = document.getElementById('btnAddMusic');
     const btnManage = document.getElementById('btnManage');
-    const btnMigration = document.getElementById('btnMigration'); // ★ 引継ぎ
+    const btnMigration = document.getElementById('btnMigration'); 
     const btnPlayer = document.getElementById('btnPlayer');
     const btnMobileSync = document.getElementById('btnMobileSync');
     const btnSettings = document.getElementById('btnSettings');
     const btnInfo = document.getElementById('btnInfo');
     const btnExtensions = document.getElementById('btnExtensions'); 
 
-    if (btnAddMusic) btnAddMusic.addEventListener('click', () => window.location.href = 'add_music.html');
+    // ★ 追加：「曲を追加」ボタンの分岐
+    if (btnAddMusic) {
+        btnAddMusic.addEventListener('click', async () => {
+            const settings = await invoke("get_app_settings");
+            if (settings.open_add_music_new_window) {
+                await invoke("open_new_window", {
+                    label: "add_music_window", 
+                    url: new URL("add_music.html", window.location.href).href,
+                    title: "曲を追加 - Chordia",
+                    width: 1200.0,
+                    height: 850.0
+                });
+            } else {
+                window.location.href = 'add_music.html';
+            }
+        });
+    }
 
     if (btnManage) {
         btnManage.addEventListener('click', async () => {
@@ -29,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ★ 修正：引継ぎ用へのリダイレクト
     if (btnMigration) btnMigration.addEventListener('click', () => window.location.href = 'migration.html');
 
     if (btnPlayer) {
@@ -75,7 +90,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    if (btnSettings) btnSettings.addEventListener('click', () => window.location.href = 'settings.html');
+    if (btnExtensions) {
+        btnExtensions.removeAttribute('onclick');
+        btnExtensions.addEventListener('click', async () => {
+            const settings = await invoke("get_app_settings");
+            if (settings.open_extensions_new_window) {
+                await invoke("open_new_window", {
+                    label: "extensions_window", 
+                    url: new URL("extensions.html", window.location.href).href,
+                    title: "拡張機能 - Chordia",
+                    width: 850.0,
+                    height: 700.0
+                });
+            } else {
+                window.location.href = 'extensions.html';
+            }
+        });
+    }
+
+    // ★ 追加：「設定」ボタンの分岐
+    if (btnSettings) {
+        btnSettings.addEventListener('click', async () => {
+            const settings = await invoke("get_app_settings");
+            if (settings.open_settings_new_window) {
+                await invoke("open_new_window", {
+                    label: "settings_window", 
+                    url: new URL("settings.html", window.location.href).href,
+                    title: "設定 - Chordia",
+                    width: 1000.0,
+                    height: 750.0
+                });
+            } else {
+                window.location.href = 'settings.html';
+            }
+        });
+    }
+
     if (btnInfo) btnInfo.addEventListener('click', () => window.location.href = 'info.html');
 
     document.addEventListener('keydown', (e) => {
@@ -85,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         switch(e.key.toUpperCase()) {
             case '1': case 'A': targetBtn = btnAddMusic; break;
             case '2': case 'D': targetBtn = btnManage; break;
-            case '3': case 'M': targetBtn = btnMigration; break; // ★ 引継ぎ
+            case '3': case 'M': targetBtn = btnMigration; break; 
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;

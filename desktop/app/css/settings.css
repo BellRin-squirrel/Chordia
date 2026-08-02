@@ -6,13 +6,22 @@ body {
     transition: background-color 0.3s ease;
 }
 
+/* ★ 設定画面専用：親要素 .container および .settings-container の max-width 制限を削除 */
+.container {
+    width: 100%;
+    max-width: none !important;
+    margin: 0;
+    padding: 0 24px;
+    box-sizing: border-box;
+}
+
 .header.form-header {
     position: relative;
-    height: 80px;
+    height: 70px;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 16px;
 }
 
 .header-left {
@@ -37,30 +46,205 @@ body {
 .settings-container {
     background: var(--card-bg);
     border-radius: 24px;
-    padding: 32px;
+    padding: 24px 32px;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    max-width: 700px;
-    margin: 0 auto;
+    width: 100%;
+    max-width: none !important;
+    margin: 0;
     border: 1px solid rgba(128, 128, 128, 0.1);
+    box-sizing: border-box;
 }
 
-.settings-section {
-    margin-bottom: 32px;
+/* レスポンシブナビゲーションボタン */
+.settings-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-sub);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    outline: none;
 }
 
+.settings-nav-btn:hover {
+    color: var(--text-main);
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.settings-nav-btn.active {
+    color: var(--primary-color);
+    background: rgba(var(--primary-color-rgb, 79, 70, 229), 0.1);
+    font-weight: 800;
+}
+
+.settings-nav-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+/* --- レスポンシブブレークポイント制御 --- */
+
+/* 1. 小画面 (<= 650px, B以下) : 従来通り全セクションを縦積み全表示 */
+.settings-tab-bar { display: none; }
+.settings-sidebar { display: none; }
+.settings-section { display: block !important; margin-bottom: 32px; }
+.settings-content-area { height: auto; max-height: none; overflow-y: visible; }
+
+/* 2. 中画面 (651px 〜 960px, B〜A) : 上部タブバー + 固定高の単一セクション表示 */
+@media (min-width: 651px) and (max-width: 960px) {
+    .settings-tab-bar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+        background: var(--bg-color);
+        padding: 6px;
+        border-radius: 14px;
+        border: 1px solid rgba(128, 128, 128, 0.15);
+        overflow-x: auto;
+    }
+    .settings-tab-bar .settings-nav-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 10px 8px;
+        font-size: 0.85rem;
+    }
+    .settings-sidebar { display: none; }
+    
+    .settings-section { display: none !important; margin-bottom: 0; }
+    .settings-section.active { display: block !important; animation: settingsFadeIn 0.2s ease; }
+
+    /* ★ 修正：中画面における高さを縮小調整し、body全体の縦スクロールを発生させない */
+    .settings-content-area {
+        flex: 1;
+        min-width: 0;
+        height: calc(100vh - 340px);
+        overflow-y: auto;
+        padding-right: 8px;
+        box-sizing: border-box;
+    }
+}
+
+/* 3. 大画面 (>= 961px, A超) : 左サイドバー(縦幅最大) + 固定高の単一セクション表示 */
+@media (min-width: 961px) {
+    .settings-tab-bar { display: none; }
+    
+    .settings-main-wrapper {
+        display: flex;
+        gap: 32px;
+        align-items: stretch;
+    }
+    
+    .settings-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 230px;
+        flex-shrink: 0;
+        background: var(--bg-color);
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(128, 128, 128, 0.15);
+        box-sizing: border-box;
+        align-self: stretch;
+    }
+    
+    .settings-sidebar .settings-nav-btn {
+        justify-content: flex-start;
+        width: 100%;
+        padding: 12px 16px;
+    }
+    
+    .settings-content-area {
+        flex: 1;
+        min-width: 0;
+        height: calc(100vh - 250px);
+        overflow-y: auto;
+        padding-right: 8px;
+        box-sizing: border-box;
+    }
+    
+    .settings-section { display: none !important; margin-bottom: 0; }
+    .settings-section.active { display: block !important; animation: settingsFadeIn 0.2s ease; }
+}
+
+/* カスタムスクロールバー */
+.settings-content-area::-webkit-scrollbar {
+    width: 6px;
+}
+.settings-content-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+.settings-content-area::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.2);
+    border-radius: 3px;
+}
+.settings-content-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.4);
+}
+
+@keyframes settingsFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- セクション・フォーム共通 --- */
 .config-box {
     background-color: var(--bg-color) !important;
     border: 1px solid rgba(128, 128, 128, 0.1);
 }
 
 .section-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 16px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-top: 0;
+    margin-bottom: 20px;
+    border-bottom: 2px solid rgba(128, 128, 128, 0.2);
     padding-bottom: 8px;
     color: var(--text-main);
 }
+
+.setting-item-group {
+    margin-bottom: 24px;
+}
+
+.item-group-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.settings-list {
+    background: var(--bg-color);
+    border-radius: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    overflow: hidden;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-top: 1px solid rgba(128, 128, 128, 0.08);
+}
+
+.settings-row:first-child {
+    border-top: none;
+}
+
+.row-text { display: flex; flex-direction: column; gap: 2px; }
+.row-title { font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
+.row-desc { font-size: 0.8rem; color: var(--text-sub); }
 
 .form-group { margin-bottom: 20px; }
 .form-group label {
@@ -83,7 +267,6 @@ input[type="color"]:disabled {
     opacity: 0.6;
 }
 
-/* --- 美しいカスタムセレクター用スタイル --- */
 .custom-select-wrapper {
     position: relative;
     width: 100%;
@@ -233,18 +416,6 @@ input[type="color"]:disabled {
 .toggle-switch input:checked + .slider:before {
     transform: translateX(22px);
 }
-
-.settings-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 0;
-    border-top: 1px solid rgba(128, 128, 128, 0.1);
-}
-
-.row-text { display: flex; flex-direction: column; gap: 4px; }
-.row-title { font-weight: 700; color: var(--text-main); }
-.row-desc { font-size: 0.8rem; color: var(--text-sub); }
 
 .tag-control-area {
     margin-bottom: 12px;

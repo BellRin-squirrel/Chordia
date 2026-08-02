@@ -27,120 +27,216 @@
         </header>
 
         <div class="settings-container">
-            <section class="settings-section">
-                <h2 class="section-title">一般設定</h2>
-                <div class="form-group">
-                    <label>1ページの表示曲数</label>
-                    <input type="number" id="itemsPerPage" min="10" max="500">
-                    <p class="form-desc">変更は即座に保存されます。</p>
-                </div>
+            <!-- 上部タブバー (中画面用) -->
+            <div class="settings-tab-bar" id="settingsTabBar">
+                <button class="settings-nav-btn active" data-target="sec-general">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
+                    <span>一般設定</span>
+                </button>
+                <button class="settings-nav-btn" data-target="sec-design">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
+                    <span>デザイン</span>
+                </button>
+                <button class="settings-nav-btn" data-target="sec-artwork">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                    <span>アートワーク</span>
+                </button>
+                <button class="settings-nav-btn" data-target="sec-tags">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                    <span>表示タグ</span>
+                </button>
+            </div>
 
-                <div class="settings-list" style="border: none; background: transparent;">
-                    <div class="settings-row" style="padding: 16px 0; border-top: 1px solid rgba(128, 128, 128, 0.1);">
-                        <div class="row-text">
-                            <span class="row-title">プレイヤーを新しいウィンドウで開く</span>
-                            <span class="row-desc">オンにするとプレイヤーが別画面で起動します。</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="openPlayerNewWindow">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-row" style="padding: 16px 0; border-top: 1px solid rgba(128, 128, 128, 0.1);">
-                        <div class="row-text">
-                            <span class="row-title">データベース管理を新しいウィンドウで開く</span>
-                            <span class="row-desc">オンにすると管理画面が別画面で起動します。</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="openManageNewWindow">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
+            <div class="settings-main-wrapper">
+                <!-- 左サイドバー (大画面用) -->
+                <aside class="settings-sidebar" id="settingsSidebar">
+                    <button class="settings-nav-btn active" data-target="sec-general">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
+                        <span>一般設定</span>
+                    </button>
+                    <button class="settings-nav-btn" data-target="sec-design">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
+                        <span>デザイン</span>
+                    </button>
+                    <button class="settings-nav-btn" data-target="sec-artwork">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                        <span>アルバムアート</span>
+                    </button>
+                    <button class="settings-nav-btn" data-target="sec-tags">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                        <span>表示タグ設定</span>
+                    </button>
+                </aside>
+
+                <!-- メインコンテンツ領域 -->
+                <main class="settings-content-area">
                     
-                    <div class="settings-row" style="padding: 16px 0; border-top: 1px solid rgba(128, 128, 128, 0.1);">
-                        <div class="row-text">
-                            <span class="row-title">音楽再生時に楽曲ごとに音量を調整する（一定音量）</span>
-                            <span class="row-desc">全曲のラウドネス(LUFS)を計測し、再生時の音圧を自動で均一化します。</span>
-                            <p id="ffmpegWarningText" class="form-desc" style="color: #ef4444; font-weight: bold; margin-top: 6px; display: none;">FFmpegがインストールされていません。拡張機能画面からインストールしてください。</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="normalizeVolume">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="form-group" style="margin-top: 20px;">
-                    <label>テーマカラー</label>
-                    <input type="color" id="primaryColor" style="width: 100px; height: 40px; cursor: pointer;">
-                </div>
-
-                <div class="form-group" style="margin-top: 20px;">
-                    <label>テーマ選択</label>
-                    <div style="display: flex; gap: 10px; align-items: center; position: relative;">
+                    <!-- 1. 一般設定 -->
+                    <section id="sec-general" class="settings-section active">
+                        <h2 class="section-title">一般設定</h2>
                         
-                        <div class="custom-select-wrapper" id="themeSelectorWrapper" style="flex: 1;">
-                            <button class="custom-select-trigger" id="themeSelectTrigger">
-                                <span id="themeSelectValue">読み込み中...</span>
-                                <svg class="custom-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
-                            </button>
-                            <div class="custom-select-dropdown" id="themeSelectDropdown"></div>
+                        <div class="form-group" style="margin-bottom: 24px;">
+                            <label>1ページの表示曲数</label>
+                            <input type="number" id="itemsPerPage" min="10" max="500">
+                            <p class="form-desc">変更は即座に保存されます。</p>
                         </div>
 
-                        <button id="btnSaveOriginalTheme" class="btn-small" style="display: none; white-space: nowrap;">オリジナルテーマとして保存</button>
-                        <button id="btnDeleteOriginalTheme" class="btn-small" style="display: none; white-space: nowrap; background-color: #ef4444;">テーマを削除</button>
-                    </div>
-                </div>
-
-                <div id="themeColorPickers" class="config-box" style="display: flex; gap: 32px; margin-top: 20px; flex-wrap: wrap; padding: 20px; border-radius: 12px;">
-                    <div class="form-group">
-                        <label>背景色</label>
-                        <input type="color" id="backgroundColor" style="width: 100px; height: 40px;">
-                    </div>
-                    <div class="form-group">
-                        <label>サブ背景色</label>
-                        <input type="color" id="subBackgroundColor" style="width: 100px; height: 40px;">
-                    </div>
-                    <div class="form-group">
-                        <label>文字色</label>
-                        <input type="color" id="textColor" style="width: 100px; height: 40px;">
-                    </div>
-                </div>
-            </section>
-
-            <section class="settings-section">
-                <h2 class="section-title">初期アルバムアート</h2>
-                <div class="config-box" style="display: flex; align-items: center; gap: 24px; padding: 16px; border-radius: 12px;">
-                    <img id="defaultArtPreview" src="" alt="Preview" style="width: 100px; height: 100px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(128, 128, 128, 0.3);">
-                    <div>
-                        <p class="form-desc" style="margin-bottom: 12px; color: var(--text-sub);">アートワーク未設定の楽曲に使用される画像です。</p>
-                        <div style="display: flex; gap: 10px;">
-                            <button class="btn-small" onclick="document.getElementById('artInput').click()">画像を変更</button>
-                            <button id="btnRestoreArt" class="btn-small secondary-btn">初期値に戻す</button>
+                        <div class="setting-item-group">
+                            <h3 class="item-group-title">ページの開き方</h3>
+                            <p class="form-desc" style="margin-bottom: 10px;">オンにすると対象の画面が新しいウィンドウで起動します。</p>
+                            <div class="settings-list">
+                                <!-- ★ 追加：曲を追加 -->
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">曲を追加</span>
+                                        <span class="row-desc">曲を追加画面を別ウィンドウで開く</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="openAddMusicNewWindow">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">データベース管理</span>
+                                        <span class="row-desc">管理画面を別ウィンドウで開く</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="openManageNewWindow">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">音楽を再生（従来のプレイヤー）</span>
+                                        <span class="row-desc">プレイヤー画面を別ウィンドウで開く</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="openPlayerNewWindow">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">拡張機能</span>
+                                        <span class="row-desc">拡張機能画面を別ウィンドウで開く</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="openExtensionsNewWindow">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <!-- ★ 追加：設定 -->
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">設定</span>
+                                        <span class="row-desc">設定画面を別ウィンドウで開く</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="openSettingsNewWindow">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
-                        <input type="file" id="artInput" style="display:none;" accept="image/*">
-                    </div>
-                </div>
-            </section>
 
-            <section class="settings-section">
-                <h2 class="section-title">表示タグ設定</h2>
-                <div class="tag-control-area">
-                    <div class="tag-list-header">
-                        <span>タグ名</span>
-                        <span style="text-align: center;">データベース</span>
-                        <span style="text-align: center;">プレイヤー</span>
-                    </div>
-                    <ul id="combinedTagsList" class="tag-list"></ul>
-                </div>
-            </section>
+                        <div class="setting-item-group">
+                            <h3 class="item-group-title">一定音量</h3>
+                            <div class="settings-list">
+                                <div class="settings-row">
+                                    <div class="row-text">
+                                        <span class="row-title">音楽再生時に楽曲ごとに音量を調整する（一定音量）</span>
+                                        <span class="row-desc">全曲のラウドネス(LUFS)を計測し、再生時の音圧を自動で均一化します。</span>
+                                        <p id="ffmpegWarningText" class="form-desc" style="color: #ef4444; font-weight: bold; margin-top: 6px; display: none;">FFmpegがインストールされていません。拡張機能画面からインストールしてください。</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="normalizeVolume">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
-            <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-top: 20px;">
+                    <!-- 2. デザイン -->
+                    <section id="sec-design" class="settings-section">
+                        <h2 class="section-title">デザイン設定</h2>
+                        <div class="form-group">
+                            <label>テーマカラー</label>
+                            <input type="color" id="primaryColor" style="width: 100px; height: 40px; cursor: pointer;">
+                        </div>
+
+                        <div class="form-group" style="margin-top: 20px;">
+                            <label>テーマ選択</label>
+                            <div style="display: flex; gap: 10px; align-items: center; position: relative;">
+                                <div class="custom-select-wrapper" id="themeSelectorWrapper" style="flex: 1;">
+                                    <button class="custom-select-trigger" id="themeSelectTrigger">
+                                        <span id="themeSelectValue">読み込み中...</span>
+                                        <svg class="custom-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                    </button>
+                                    <div class="custom-select-dropdown" id="themeSelectDropdown"></div>
+                                </div>
+
+                                <button id="btnSaveOriginalTheme" class="btn-small" style="display: none; white-space: nowrap;">オリジナルテーマとして保存</button>
+                                <button id="btnDeleteOriginalTheme" class="btn-small" style="display: none; white-space: nowrap; background-color: #ef4444;">テーマを削除</button>
+                            </div>
+                        </div>
+
+                        <div id="themeColorPickers" class="config-box" style="display: flex; gap: 32px; margin-top: 20px; flex-wrap: wrap; padding: 20px; border-radius: 12px;">
+                            <div class="form-group">
+                                <label>背景色</label>
+                                <input type="color" id="backgroundColor" style="width: 100px; height: 40px;">
+                            </div>
+                            <div class="form-group">
+                                <label>サブ背景色</label>
+                                <input type="color" id="subBackgroundColor" style="width: 100px; height: 40px;">
+                            </div>
+                            <div class="form-group">
+                                <label>文字色</label>
+                                <input type="color" id="textColor" style="width: 100px; height: 40px;">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 3. 初期アルバムアート -->
+                    <section id="sec-artwork" class="settings-section">
+                        <h2 class="section-title">初期アルバムアート</h2>
+                        <div class="config-box" style="display: flex; align-items: center; gap: 24px; padding: 16px; border-radius: 12px;">
+                            <img id="defaultArtPreview" src="" alt="Preview" style="width: 100px; height: 100px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(128, 128, 128, 0.3);">
+                            <div>
+                                <p class="form-desc" style="margin-bottom: 12px; color: var(--text-sub);">アートワーク未設定の楽曲に使用される画像です。</p>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn-small" onclick="document.getElementById('artInput').click()">画像を変更</button>
+                                    <button id="btnRestoreArt" class="btn-small secondary-btn">初期値に戻す</button>
+                                </div>
+                                <input type="file" id="artInput" style="display:none;" accept="image/*">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 4. 表示タグ設定 -->
+                    <section id="sec-tags" class="settings-section">
+                        <h2 class="section-title">表示タグ設定</h2>
+                        <div class="tag-control-area">
+                            <div class="tag-list-header">
+                                <span>タグ名</span>
+                                <span style="text-align: center;">データベース</span>
+                                <span style="text-align: center;">プレイヤー</span>
+                            </div>
+                            <ul id="combinedTagsList" class="tag-list"></ul>
+                        </div>
+                    </section>
+
+                </main>
+            </div>
+
+            <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-top: 24px;">
                 設定は変更時に自動で保存されます。
             </div>
         </div>
     </div>
 
+    <!-- モーダル各種 -->
     <div id="ffmpegWarningModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
         <div style="background: var(--card-bg); padding: 40px; border-radius: 24px; width: 450px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4); border: 2px solid #f59e0b; box-sizing: border-box;">
             <h3 style="color: #f59e0b; font-size: 1.5rem; margin-top: 0;">拡張機能が必要です</h3>

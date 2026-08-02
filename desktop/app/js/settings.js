@@ -1,11 +1,56 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
+    let isInitialized = false; // ★ 初期設定ロード中の誤保存を防止するフラグ
+
+    // ★ 新ウィンドウモード判定（左上の「トップへ戻る」非表示化）
+    try {
+        const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'settings_window';
+        const settings = await invoke("get_app_settings");
+        if (isWindowMode || (settings && settings.open_settings_new_window)) {
+            const backArea = document.querySelector('.header-left');
+            if (backArea) backArea.style.display = 'none';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
+    // ナビゲーションの同期切り替え制御
+    const navButtons = document.querySelectorAll('.settings-nav-btn');
+    const sections = document.querySelectorAll('.settings-section');
+
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.target;
+            
+            navButtons.forEach(b => {
+                if (b.dataset.target === targetId) {
+                    b.classList.add('active');
+                } else {
+                    b.classList.remove('active');
+                }
+            });
+
+            sections.forEach(sec => {
+                if (sec.id === targetId) {
+                    sec.classList.add('active');
+                } else {
+                    sec.classList.remove('active');
+                }
+            });
+        });
+    });
+
     const artPreview = document.getElementById('defaultArtPreview');
     const artInput = document.getElementById('artInput');
     const btnRestoreArt = document.getElementById('btnRestoreArt');
+    
+    // 入力要素
     const chkNewWindow = document.getElementById('openPlayerNewWindow');
     const chkManageNewWindow = document.getElementById('openManageNewWindow');
+    const chkExtensionsNewWindow = document.getElementById('openExtensionsNewWindow');
+    const chkAddMusicNewWindow = document.getElementById('openAddMusicNewWindow');
+    const chkSettingsNewWindow = document.getElementById('openSettingsNewWindow');
     
     const chkNormalizeVolume = document.getElementById('normalizeVolume');
     const ffmpegWarningText = document.getElementById('ffmpegWarningText');
@@ -50,6 +95,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
+    // ★ メイン自動保存ロジック
+    let saveTimeout = null;
+
+    async function saveAllSettings(showNotify = true) {
+        if (!isInitialized) return; // 初期化が完了するまでは誤発火を防止
+
+        const active_tags = Array.from(document.querySelectorAll('.chk-db:checked')).map(cb => cb.value);
+        const player_visible_tags = Array.from(document.querySelectorAll('.chk-player:checked')).map(cb => cb.value);
+
+        const newSettings = {
+            items_per_page: parseInt(itemsPerPage.value) || 50,
+            open_player_new_window: chkNewWindow ? chkNewWindow.checked : false,
+            open_manage_new_window: chkManageNewWindow ? chkManageNewWindow.checked : false,
+            open_extensions_new_window: chkExtensionsNewWindow ? chkExtensionsNewWindow.checked : false,
+            open_add_music_new_window: chkAddMusicNewWindow ? chkAddMusicNewWindow.checked : false,
+            open_settings_new_window: chkSettingsNewWindow ? chkSettingsNewWindow.checked : false,
+            normalize_volume: chkNormalizeVolume ? chkNormalizeVolume.checked : false,
+            lazy_load_playlists: false, 
+            primary_color: primaryColor.value,
+            theme_mode: selectedThemeMode,
+            background_color: backgroundColor.value,
+            sub_background_color: subBackgroundColor.value,
+            text_color: textColor.value,
+            active_tags: active_tags,
+            player_visible_tags: player_visible_tags
+        };
+
+        currentSettings = newSettings;
+        const success = await invoke("save_app_settings", { settings: newSettings });
+        if (success) {
+            const root = document.documentElement;
+            root.style.setProperty('--primary-color', newSettings.primary_color);
+            root.style.setProperty('--bg-color', newSettings.background_color);
+            root.style.setProperty('--card-bg', newSettings.sub_background_color);
+            root.style.setProperty('--text-main', newSettings.text_color);
+            root.style.setProperty('--text-sub', hexToRgba(newSettings.text_color, 0.6));
+            
+            localStorage.setItem('theme_primary_color', newSettings.primary_color);
+            localStorage.setItem('theme_bg_color', newSettings.background_color);
+            localStorage.setItem('theme_sub_bg_color', newSettings.sub_background_color);
+            localStorage.setItem('theme_text_color', newSettings.text_color);
+
+            if (showNotify) showToast("設定を保存しました");
+            checkFfmpegStatus();
+        } else {
+            if (showNotify) showToast("保存に失敗しました", true);
+        }
+    }
+
+    function handleInput() {
+        if (!isInitialized) return;
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => saveAllSettings(false), 150);
+    }
+
+    function handleChange() {
+        if (!isInitialized) return;
+        saveAllSettings(true);
+    }
+
+    // 設定値の読み込みとフォーム適用
     const settings = await invoke("get_app_settings");
     currentSettings = settings;
     selectedThemeMode = settings.theme_mode || 'light';
@@ -57,17 +163,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     customThemes = await invoke("get_custom_themes");
 
     itemsPerPage.value = settings.items_per_page;
-    chkNewWindow.checked = settings.open_player_new_window;
-    chkManageNewWindow.checked = settings.open_manage_new_window;
-    chkNormalizeVolume.checked = settings.normalize_volume;
+    if (chkNewWindow) chkNewWindow.checked = settings.open_player_new_window;
+    if (chkManageNewWindow) chkManageNewWindow.checked = settings.open_manage_new_window;
+    if (chkExtensionsNewWindow) chkExtensionsNewWindow.checked = settings.open_extensions_new_window;
+    if (chkAddMusicNewWindow) chkAddMusicNewWindow.checked = settings.open_add_music_new_window;
+    if (chkSettingsNewWindow) chkSettingsNewWindow.checked = settings.open_settings_new_window;
+    if (chkNormalizeVolume) chkNormalizeVolume.checked = settings.normalize_volume;
     primaryColor.value = settings.primary_color;
 
     const checkFfmpegStatus = async () => {
         const status = await invoke("check_tools_status");
         const hasFfmpeg = status['ffmpeg'];
-        if (chkNormalizeVolume.checked && !hasFfmpeg) {
+        if (chkNormalizeVolume && chkNormalizeVolume.checked && !hasFfmpeg) {
             ffmpegWarningText.style.display = 'block';
-        } else {
+        } else if (ffmpegWarningText) {
             ffmpegWarningText.style.display = 'none';
         }
         return hasFfmpeg;
@@ -165,86 +274,82 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateThemeUI();
 
-    let saveTimeout = null;
-
-    async function saveAllSettings(showNotify = false) {
-        const active_tags = Array.from(document.querySelectorAll('.chk-db:checked')).map(cb => cb.value);
-        const player_visible_tags = Array.from(document.querySelectorAll('.chk-player:checked')).map(cb => cb.value);
-
-        const newSettings = {
-            items_per_page: parseInt(itemsPerPage.value) || 50,
-            open_player_new_window: chkNewWindow.checked,
-            open_manage_new_window: chkManageNewWindow.checked,
-            normalize_volume: chkNormalizeVolume.checked,
-            lazy_load_playlists: false, 
-            primary_color: primaryColor.value,
-            theme_mode: selectedThemeMode,
-            background_color: backgroundColor.value,
-            sub_background_color: subBackgroundColor.value,
-            text_color: textColor.value,
-            active_tags: active_tags,
-            player_visible_tags: player_visible_tags
-        };
-
-        currentSettings = newSettings;
-        const success = await invoke("save_app_settings", { settings: newSettings });
-        if (success) {
-            const root = document.documentElement;
-            root.style.setProperty('--primary-color', newSettings.primary_color);
-            root.style.setProperty('--bg-color', newSettings.background_color);
-            root.style.setProperty('--card-bg', newSettings.sub_background_color);
-            root.style.setProperty('--text-main', newSettings.text_color);
-            root.style.setProperty('--text-sub', hexToRgba(newSettings.text_color, 0.6));
-            
-            localStorage.setItem('theme_primary_color', newSettings.primary_color);
-            localStorage.setItem('theme_bg_color', newSettings.background_color);
-            localStorage.setItem('theme_sub_bg_color', newSettings.sub_background_color);
-            localStorage.setItem('theme_text_color', newSettings.text_color);
-
-            if (showNotify) showToast("設定を保存しました");
-            checkFfmpegStatus();
-        } else {
-            if (showNotify) showToast("保存に失敗しました", true);
-        }
+    function renderCombinedTagList() {
+        const container = document.getElementById('combinedTagsList');
+        if (!container) return;
+        container.innerHTML = '';
+        availableTags.forEach(tag => {
+            const li = document.createElement('li');
+            li.className = 'tag-item';
+            const isDbChecked = currentSettings.active_tags.includes(tag.key) ? 'checked' : '';
+            const isPlayerChecked = currentSettings.player_visible_tags.includes(tag.key) ? 'checked' : '';
+            li.innerHTML = `
+                <div class="handle disabled">${tag.label}</div>
+                <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-db" value="${tag.key}" ${isDbChecked}><span class="slider"></span></label></div>
+                <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-player" value="${tag.key}" ${isPlayerChecked}><span class="slider"></span></label></div>
+            `;
+            container.appendChild(li);
+        });
+        
+        container.querySelectorAll('input').forEach(chk => {
+            chk.addEventListener('change', handleChange);
+        });
     }
+    renderCombinedTagList();
 
-    function handleInput() {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => saveAllSettings(false), 100);
-    }
+    // 初期化が完了したためフラグをON
+    isInitialized = true;
 
-    function handleChange() {
-        saveAllSettings(true);
-    }
+    // ★ 全てのフォーム要素への自動保存イベントバインド
+    const allInputs = [
+        itemsPerPage, chkNewWindow, chkManageNewWindow, chkExtensionsNewWindow, 
+        chkAddMusicNewWindow, chkSettingsNewWindow, chkNormalizeVolume,
+        primaryColor, backgroundColor, subBackgroundColor, textColor
+    ];
 
-    chkNormalizeVolume.addEventListener('click', async (e) => {
-        if (chkNormalizeVolume.checked) {
-            e.preventDefault();
-            const hasFfmpeg = await checkFfmpegStatus();
-            if (!hasFfmpeg) {
-                ffmpegWarningModal.style.display = 'flex';
-            } else {
-                chkNormalizeVolume.checked = true;
-                handleChange();
-                launchLufsCalcWindow();
+    allInputs.forEach(el => {
+        if (el) {
+            el.addEventListener('change', handleChange);
+            if (el.type === 'color' || el.type === 'number') {
+                el.addEventListener('input', handleInput);
             }
-        } else {
-            handleChange();
         }
     });
 
-    btnConfirmFfmpeg.addEventListener('click', () => {
-        chkNormalizeVolume.checked = true;
-        ffmpegWarningModal.style.display = 'none';
-        handleChange();
-        showToast("一定音量機能を有効にしました（FFmpeg導入後に機能します）");
-        launchLufsCalcWindow();
-    });
+    if (chkNormalizeVolume) {
+        chkNormalizeVolume.addEventListener('click', async (e) => {
+            if (chkNormalizeVolume.checked) {
+                e.preventDefault();
+                const hasFfmpeg = await checkFfmpegStatus();
+                if (!hasFfmpeg) {
+                    ffmpegWarningModal.style.display = 'flex';
+                } else {
+                    chkNormalizeVolume.checked = true;
+                    handleChange();
+                    launchLufsCalcWindow();
+                }
+            } else {
+                handleChange();
+            }
+        });
+    }
 
-    btnCancelFfmpeg.addEventListener('click', () => {
-        chkNormalizeVolume.checked = false;
-        ffmpegWarningModal.style.display = 'none';
-    });
+    if (btnConfirmFfmpeg) {
+        btnConfirmFfmpeg.addEventListener('click', () => {
+            chkNormalizeVolume.checked = true;
+            ffmpegWarningModal.style.display = 'none';
+            handleChange();
+            showToast("一定音量機能を有効にしました（FFmpeg導入後に機能します）");
+            launchLufsCalcWindow();
+        });
+    }
+
+    if (btnCancelFfmpeg) {
+        btnCancelFfmpeg.addEventListener('click', () => {
+            chkNormalizeVolume.checked = false;
+            ffmpegWarningModal.style.display = 'none';
+        });
+    }
 
     async function launchLufsCalcWindow() {
         try {
@@ -259,15 +364,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error(err);
         }
     }
-
-    [itemsPerPage, chkNewWindow, chkManageNewWindow, primaryColor, backgroundColor, subBackgroundColor, textColor].forEach(el => {
-        if (el) {
-            el.addEventListener('change', handleChange);
-            if (el.type === 'color' || el.type === 'number') {
-                el.addEventListener('input', handleInput);
-            }
-        }
-    });
 
     btnSaveOriginalTheme.addEventListener('click', () => {
         newThemeName.value = "";
@@ -310,28 +406,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
-
-    function renderCombinedTagList() {
-        const container = document.getElementById('combinedTagsList');
-        container.innerHTML = '';
-        availableTags.forEach(tag => {
-            const li = document.createElement('li');
-            li.className = 'tag-item';
-            const isDbChecked = currentSettings.active_tags.includes(tag.key) ? 'checked' : '';
-            const isPlayerChecked = currentSettings.player_visible_tags.includes(tag.key) ? 'checked' : '';
-            li.innerHTML = `
-                <div class="handle disabled">${tag.label}</div>
-                <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-db" value="${tag.key}" ${isDbChecked}><span class="slider"></span></label></div>
-                <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-player" value="${tag.key}" ${isPlayerChecked}><span class="slider"></span></label></div>
-            `;
-            container.appendChild(li);
-        });
-        
-        container.querySelectorAll('input').forEach(chk => {
-            chk.addEventListener('change', handleChange);
-        });
-    }
-    renderCombinedTagList();
 
     const b64Data = await invoke("get_default_art_url");
     if (b64Data) {
