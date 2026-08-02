@@ -72,11 +72,10 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
         <View style={{ marginTop: 40, alignItems: 'center' }}>
           <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card }]}>
             <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-            <Text style={styles.appVersionLabel}>v4.1.2</Text>
+            <Text style={styles.appVersionLabel}>v4.2.0</Text>
             <View style={[styles.divider, { backgroundColor: dynamicStyles.bg, marginTop: 25 }]} />
             <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
 
-            {/* ★ 修正: リンクカラーをGitHubブランドパープル (#8957e5) に固定指定 */}
             <TouchableOpacity 
               activeOpacity={0.7}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 15 }}

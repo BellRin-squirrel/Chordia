@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>iPhone 同期認証</title>
+    <title>同期設定 - Chordia</title>
     <link rel="icon" href="icon/Chordia.ico">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/api/api.css">
@@ -15,13 +15,46 @@
             <h1>同期設定</h1>
         </header>
 
+        <!-- WAN (HTTPS トンネル) 安全切り替えパネル -->
+        <div class="card-large" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid var(--accent-color, #4f46e5);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">外出先 (WAN) 接続モード</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-sub);">
+                        安全なHTTPSトンネルを構築し、インターネット越しでの同期を許可します。
+                    </p>
+                </div>
+                <label class="switch-toggle" style="position: relative; display: inline-block; width: 50px; height: 26px;">
+                    <input type="checkbox" id="wanToggle" style="opacity: 0; width: 0; height: 0;">
+                    <span class="slider" id="wanSlider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 26px;"></span>
+                </label>
+            </div>
+            
+            <div id="wanStatusBadge" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold; color: #ef4444;">
+                ● WAN接続モード: OFF (無効)
+            </div>
+
+            <div id="wanInfoBox" style="display: none; margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                <span style="font-size: 0.8rem; color: var(--text-sub);">WAN パブリック URL:</span><br>
+                <strong id="displayWanUrl" style="font-size: 1.1rem; color: var(--accent-color, #4f46e5); font-family: monospace;">トンネル構築中...</strong>
+                
+                <div id="wanQrWrapper" style="display: none; margin-top: 15px; text-align: center;">
+                    <div class="qr-bg-white" style="display: inline-block; padding: 10px; border-radius: 8px;">
+                        <div id="wan-qrcode-container"></div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 5px; font-weight: bold;">
+                        スマホの「QRコードで自動接続」で読み取ってください<br>
+                        (※WAN接続のため、6桁の認証コードはセキュリティ上「手入力」になります)
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <div class="card-large">
             <div id="viewMain">
-                
-                <!-- IPアドレスとポート番号の分離表示（最上部） -->
                 <div class="connection-info-grid">
                     <div class="info-box">
-                        <span class="info-label">IPアドレス</span>
+                        <span class="info-label">IPアドレス (LAN用)</span>
                         <span class="info-value" id="displayIp">取得中...</span>
                     </div>
                     <div class="info-box">
@@ -32,12 +65,9 @@
 
                 <hr class="separator">
                 
-                <!-- 認証コード（左）とQRコード表示エリア（右）の横並びレイアウト -->
                 <div class="sync-interactive-grid">
-                    
-                    <!-- 左：認証コード＆プログレスバーパネル -->
                     <div class="interactive-panel code-panel">
-                        <p class="panel-desc">以下の認証コードをiPhoneアプリに入力してください</p>
+                        <p class="panel-desc">以下の認証コードをスマホアプリに入力してください</p>
                         <div class="auth-code-large" id="authCodeDisplay">------</div>
                         <div class="countdown-container">
                             <div class="countdown-text">更新まであと <span id="codeTimer">30</span> 秒</div>
@@ -47,12 +77,11 @@
                         </div>
                     </div>
 
-                    <!-- 右：QRコード表示エリア（右側、トグルボタン付き） -->
                     <div class="interactive-panel qr-panel">
                         <p class="panel-desc">または、カメラでQRコードを読み取ります</p>
                         <div class="qr-interactive-area">
                             <div id="qr-placeholder" class="qr-placeholder-btn-wrapper">
-                                <button class="btn-primary" id="btnShowQr">QRコードを表示</button>
+                                <button class="btn-primary" id="btnShowQr">LAN用 QRコードを表示</button>
                             </div>
                             <div id="qr-wrapper" style="display:none;" class="qr-display-wrapper">
                                 <div class="qr-bg-white">
@@ -62,13 +91,10 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
-                
             </div>
         </div>
 
-        <!-- 接続要求一覧 -->
         <div class="requests-container">
             <h2>接続リクエスト（許可待ち）</h2>
             <ul id="requestsList">
@@ -76,7 +102,6 @@
             </ul>
         </div>
 
-        <!-- 認証コード入力待ち一覧 -->
         <div class="requests-container">
             <h2>認証コード入力待ち</h2>
             <ul id="waitingCodeList">
@@ -92,7 +117,6 @@
         </div>
     </div>
 
-    <!-- スタック型トースト用コンテナ -->
     <div id="toastContainer" class="toast-container"></div>
     
     <script src="js/api/api.js"></script>

@@ -126,11 +126,18 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     } catch (e) {}
   };
 
+  // ★ 修正: 安全なパスのパース（クエリ等の不要な文字列を除去してローカルURIを確実に指定）
   const getPlaylistFirstArt = (playlist: any) => {
     if (!playlist) return DEFAULT_ICON;
+    
+    if (playlist.localCoverImageUri) {
+      const cleanUri = playlist.localCoverImageUri.split('?')[0];
+      return { uri: cleanUri };
+    }
+
     const songs = playlist.isAll 
       ? localLibrary 
-      : localLibrary.filter((s:any) => playlist.music?.includes(s.musicFilename.split(/[\\/]/).pop()));
+      : localLibrary.filter((s:any) => playlist.music?.includes(s.musicFilename?.split(/[\\/]/).pop()));
     
     if (songs.length > 0 && songs[0].localImageUri) {
       return { uri: songs[0].localImageUri };
@@ -556,7 +563,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'transparent' }}>
       <PanGestureHandler
-        // ★ 修正: activeOffsetX の1番目を負の数（-500）、2番目を正の数（10）に指定してルールを順守
         activeOffsetX={[-500, 10]}
         failOffsetY={[-15, 15]}
         enabled={navStack.length > 1}
@@ -564,7 +570,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
         onHandlerStateChange={onHandlerStateChange}
       >
         <View style={{ flex: 1 }}>
-          {/* Level 0: ライブラリ メニュー (背景として待機) */}
           <Animated.View style={[StyleSheet.absoluteFill, { 
             zIndex: 1,
             transform:[{ 
@@ -574,7 +579,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
             {renderMenu()}
           </Animated.View>
           
-          {/* Level 1: プレイリスト・アルバム・アーティスト一覧 (最前面の時のみ panX を加算) */}
           {navStack.length > 1 && (
             <Animated.View 
                 style={[StyleSheet.absoluteFill, { 
@@ -590,7 +594,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
             </Animated.View>
           )}
 
-          {/* Level 2: 楽曲一覧 (最前面の時のみ panX を加算) */}
           {navStack.length > 2 && (
             <Animated.View 
                 style={[StyleSheet.absoluteFill, { 

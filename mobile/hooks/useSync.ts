@@ -8,9 +8,10 @@ import * as Network from 'expo-network';
 import DeviceInfo from 'react-native-device-info';
 
 type QrData = {
-  ip: string;
-  port: string;
-  code: string;
+  ip?: string;
+  port?: string;
+  code?: string;
+  wanUrl?: string; // ★ WANパブリックURLの受け取り用
 };
 
 type UseSyncProps = {
@@ -25,6 +26,30 @@ type ClientInfo = {
   ip: string;
   deviceName: string;
   osVersion: string;
+};
+
+const buildUrl = (ip: string, port: string) => {
+  if (ip.startsWith('http://') || ip.startsWith('https://')) {
+    return ip.replace(/\/$/, ''); 
+  }
+  return `http://${ip}:${port}`;
+};
+
+const downloadWithTimeout = async (url: string, fileUri: string, headers: any, timeoutMs: number) => {
+  return new Promise(async (resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Download timeout (${timeoutMs}ms)`));
+    }, timeoutMs);
+
+    try {
+      const result = await FileSystem.createDownloadResumable(url, fileUri, { headers }).downloadAsync();
+      clearTimeout(timer);
+      resolve(result);
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
+  });
 };
 
 export const useSync = ({ 
@@ -48,6 +73,7 @@ export const useSync = ({
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
 
   const didCancelRef = useRef(false);
+
   const [clientInfo, setClientInfo] = useState<ClientInfo>({
     ip: 'Unknown IP',
     deviceName: 'iPhone',
@@ -61,19 +87,14 @@ export const useSync = ({
       try { ip = await Network.getIpAddressAsync(); } catch (e) {}
       
       try {
-        const expoModel = Device.modelName; // 例: "iPad", "iPhone"
-        const rnModel = DeviceInfo.getModel(); // 例: "iPad Air (5th generation)", または未対応だと "iPad14,3"
+        const expoModel = Device.modelName;
+        const rnModel = DeviceInfo.getModel();
         
-        // ★修正: 常に DeviceInfo を最優先にする（カンマが含まれていない綺麗な名前の場合）
         if (rnModel && !rnModel.includes(',')) {
             finalDeviceName = rnModel;
-        } 
-        // もし DeviceInfo が未対応機種で "iPad14,3" のようなIDを返した場合、expo-device の名前を使う
-        else if (expoModel && !expoModel.includes(',')) {
+        } else if (expoModel && !expoModel.includes(',')) {
             finalDeviceName = expoModel;
-        }
-        // どちらもカンマを含んでいる（生のIDしか取れない超最新機種）場合、数字とカンマを削る（例: "iPad14,3" -> "iPad"）
-        else if (rnModel) {
+        } else if (rnModel) {
             finalDeviceName = rnModel.replace(/[0-9,]/g, '').trim() || rnModel;
         }
       } catch (e) {}
@@ -88,10 +109,19 @@ export const useSync = ({
 
   useEffect(() => {
     if (scannedQrData) {
-      setServerIp(scannedQrData.ip);
-      setServerPort(scannedQrData.port || '5000');
-      setIsAutoConnecting(true);
-      requestAuthToPC(scannedQrData.ip, scannedQrData.port || '5000'); 
+      if (scannedQrData.wanUrl) {
+        // ★ 修正: WAN用のQRコードの場合は自動で要求だけ飛ばし、コード認証は手動にする(isAutoConnecting = false)
+        setServerIp(scannedQrData.wanUrl);
+        setServerPort('');
+        setIsAutoConnecting(false);
+        requestAuthToPC(scannedQrData.wanUrl, '');
+      } else if (scannedQrData.ip && scannedQrData.code) {
+        // LAN用のQRコードの場合はコードも自動で認証する
+        setServerIp(scannedQrData.ip);
+        setServerPort(scannedQrData.port || '5000');
+        setIsAutoConnecting(true);
+        requestAuthToPC(scannedQrData.ip, scannedQrData.port || '5000'); 
+      }
       setScannedQrData(null); 
     }
   }, [scannedQrData]);
@@ -103,7 +133,8 @@ export const useSync = ({
     if (syncStage === 'AWAITING_APPROVAL' && serverIp) {
       pollInterval = setInterval(async () => {
         try {
-          const res = await fetch(`http://${serverIp}:${serverPort}/api/auth/check`, {
+          const baseUrl = buildUrl(serverIp, serverPort);
+          const res = await fetch(`${baseUrl}/api/auth/check`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ip: clientInfo.ip }) 
@@ -149,7 +180,8 @@ export const useSync = ({
       interval = setInterval(async () => {
         if (didCancelRef.current) { if(interval) clearInterval(interval); return; }
         try {
-          const res = await fetch(`http://${serverIp}:${serverPort}/api/auth/verify_session`, {
+          const baseUrl = buildUrl(serverIp, serverPort);
+          const res = await fetch(`${baseUrl}/api/auth/verify_session`, {
             headers: { 'X-API-KEY': apiKey, 'X-DEVICE-IP': clientInfo.ip, 'X-DEVICE-NAME': clientInfo.deviceName, 'X-DEVICE-OS': clientInfo.osVersion }
           });
           if (res.status === 403 || res.status === 401) { if (interval) clearInterval(interval); handleForceDisconnect(); }
@@ -171,8 +203,11 @@ export const useSync = ({
   const requestAuthToPC = async (ip: string, port: string) => {
     setIsSyncing(true);
     setAuthCodeInput('');
+    const baseUrl = buildUrl(ip, port);
+    
     try {
-      const res = await fetch(`http://${ip}:${port}/api/auth/request`, {
+      console.log(`[Sync] Requesting auth to PC: ${baseUrl}`);
+      const res = await fetch(`${baseUrl}/api/auth/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: clientInfo.ip, device: clientInfo.deviceName, os: clientInfo.osVersion })
@@ -185,15 +220,17 @@ export const useSync = ({
       } else { throw new Error(data.message || 'PCが要求を拒否しました'); }
     } catch (e: any) { 
       setIsAutoConnecting(false);
-      Alert.alert('接続エラー', 'PCに接続できません。IPとポート番号、およびPC版が同期画面を開いているか確認してください。'); 
+      Alert.alert('接続エラー', 'PCに接続できません。URLやIP、PC版が同期画面を開いているか確認してください。'); 
     }
     finally { setIsSyncing(false); }
   };
 
   const verifyAuthCode = async (ip: string, port: string, code: string) => {
     setIsSyncing(true);
+    const baseUrl = buildUrl(ip, port);
     try {
-      const res = await fetch(`http://${ip}:${port}/api/auth/verify`, {
+      console.log(`[Sync] Verifying auth code with PC: ${baseUrl}`);
+      const res = await fetch(`${baseUrl}/api/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, ip: clientInfo.ip, device: clientInfo.deviceName, os: clientInfo.osVersion })
@@ -214,8 +251,9 @@ export const useSync = ({
   };
 
   const fetchPlaylists = async (ip: string, port: string, key: string) => {
+    const baseUrl = buildUrl(ip, port);
     try {
-      const res = await fetch(`http://${ip}:${port}/api/playlists`, {
+      const res = await fetch(`${baseUrl}/api/playlists`, {
         headers: { 'X-API-KEY': key, 'X-DEVICE-IP': clientInfo.ip, 'X-DEVICE-NAME': clientInfo.deviceName, 'X-DEVICE-OS': clientInfo.osVersion }
       });
       const data = await res.json();
@@ -254,8 +292,9 @@ export const useSync = ({
     didCancelRef.current = true;
     setIsAutoConnecting(false);
     if (serverIp && apiKey) {
+        const baseUrl = buildUrl(serverIp, serverPort);
         try {
-            await fetch(`http://${serverIp}:${serverPort}/api/auth/logout`, {
+            await fetch(`${baseUrl}/api/auth/logout`, {
                 method: 'POST',
                 headers: { 'X-API-KEY': apiKey, 'X-DEVICE-IP': clientInfo.ip, 'X-DEVICE-NAME': clientInfo.deviceName, 'X-DEVICE-OS': clientInfo.osVersion }
             });
@@ -268,20 +307,52 @@ export const useSync = ({
   
   const startSyncDownload = async (mode: 'KEEP_DUPLICATES' | 'DELETE_ALL') => {
     if (!serverIp || !apiKey) { Alert.alert('エラー', '接続が確立されていません。'); return; }
-    didCancelRef.current = false;
-    closeFullPlayer();
-    await stopAndUnloadPlayer();
-    setIsFullScreenSyncing(true);
     
+    didCancelRef.current = false;
+    setIsFullScreenSyncing(true);
+    setSyncProgress('プレイヤーを停止中...');
+
+    const baseUrl = buildUrl(serverIp, serverPort);
+
     try {
-        const headers = { 'X-API-KEY': apiKey, 'X-DEVICE-IP': clientInfo.ip, 'X-DEVICE-NAME': clientInfo.deviceName, 'X-DEVICE-OS': clientInfo.osVersion };
-        setSyncProgress('ライブラリ情報を取得中...');
-        const resLib = await fetch(`http://${serverIp}:${serverPort}/api/library`, { headers });
+        if (closeFullPlayer) closeFullPlayer();
+        if (stopAndUnloadPlayer) await stopAndUnloadPlayer();
+
+        const headers = { 
+          'X-API-KEY': apiKey, 
+          'X-DEVICE-IP': clientInfo.ip, 
+          'X-DEVICE-NAME': clientInfo.deviceName, 
+          'X-DEVICE-OS': clientInfo.osVersion 
+        };
+
+        setSyncProgress('PCからライブラリ情報を取得中...');
+        const resLib = await fetch(`${baseUrl}/api/library`, { headers });
+        if (!resLib.ok) {
+           throw new Error(`PCライブラリの取得に失敗しました (HTTP ${resLib.status})`);
+        }
+        
         const dataLib = await resLib.json();
-        const allSongs = dataLib.library ||[];
+        const allSongs = dataLib.library || [];
 
         let targetPlaylists = selectedPls.size > 0 ? pcPlaylists.filter((_, i) => selectedPls.has(i)) : pcPlaylists;
-        let targets = allSongs.filter((s: any) => new Set(targetPlaylists.flatMap(pl => pl.music)).has(s.musicFilename.split(/[\\/]/).pop()));
+        const musicSet = new Set(
+          targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => typeof m === 'string' ? m.split(/[\\/]/).pop() : ""))
+        );
+
+        let targets = allSongs.filter((s: any) => {
+          if (!s || !s.musicFilename) return false;
+          const fname = s.musicFilename.split(/[\\/]/).pop();
+          return musicSet.has(fname);
+        });
+
+        if (targets.length === 0) {
+            setIsFullScreenSyncing(false);
+            setSyncProgress('');
+            setTimeout(() => {
+              Alert.alert("通知", "同期対象となる楽曲が見つかりませんでした。");
+            }, 100);
+            return;
+        }
 
         const baseDir = FileSystem.documentDirectory + 'chordia/';
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
@@ -330,10 +401,10 @@ export const useSync = ({
         for (let i = 0; i < targets.length; i++) {
             if (didCancelRef.current) break;
             const song = targets[i];
-            const musicFname = song.musicFilename.split(/[\\/]/).pop();
+            const musicFname = song.musicFilename ? song.musicFilename.split(/[\\/]/).pop() : `song_${i}.mp3`;
             const musicLocalUri = baseDir + musicFname;
 
-            setSyncProgress(`同期中... (${i + 1}/${targets.length})`);
+            setSyncProgress(`楽曲を同期中... (${i + 1}/${targets.length})\n${song.title || 'Untitled'}`);
 
             const existingLocal = updatedLibrary.find((l: any) => 
                 l.title === song.title && l.artist === song.artist
@@ -348,20 +419,14 @@ export const useSync = ({
                     finalMusicUri = existingLocal.localMusicUri;
                     finalImgUri = existingLocal.localImageUri || "";
                 } else {
-                    const musicDownload = FileSystem.createDownloadResumable(
-                        `http://${serverIp}:${serverPort}${song.url_music}`,
-                        musicLocalUri,
-                        { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
-                    );
-                    await musicDownload.downloadAsync();
+                    try {
+                        await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
+                    } catch(e) { console.warn(`Music download timeout: ${song.title}`); }
                 }
             } else {
-                const musicDownload = FileSystem.createDownloadResumable(
-                    `http://${serverIp}:${serverPort}${song.url_music}`,
-                    musicLocalUri,
-                    { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
-                );
-                await musicDownload.downloadAsync();
+                try {
+                    await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
+                } catch(e) { console.warn(`Music download timeout: ${song.title}`); }
             }
 
             if (song.url_image && (!finalImgUri || mode === 'DELETE_ALL')) {
@@ -369,12 +434,9 @@ export const useSync = ({
                 finalImgUri = baseDir + imgFname;
                 const imgInfo = await FileSystem.getInfoAsync(finalImgUri);
                 if (!imgInfo.exists) {
-                    const imgDownload = FileSystem.createDownloadResumable(
-                        `http://${serverIp}:${serverPort}${song.url_image}`,
-                        finalImgUri,
-                        { headers, sessionType: FileSystem.FileSystemSessionType.BACKGROUND }
-                    );
-                    await imgDownload.downloadAsync();
+                    try {
+                        await downloadWithTimeout(`${baseUrl}${song.url_image}`, finalImgUri, headers, 15000);
+                    } catch(e) { console.warn(`Image download timeout: ${song.title}`); }
                 }
             }
 
@@ -395,16 +457,53 @@ export const useSync = ({
 
         if (didCancelRef.current) { return; }
 
-        await AsyncStorage.setItem('local_playlists', JSON.stringify(targetPlaylists));
-        setLocalPlaylists(targetPlaylists);
+        const processedPlaylists: any[] = [];
+        for (let j = 0; j < targetPlaylists.length; j++) {
+            const pl = { ...targetPlaylists[j] };
+            
+            let coverUrl = pl.url_cover || pl.cover_url || pl.coverUrl;
+            if (!coverUrl && (pl.coverPath || pl.cover_path || pl.coverFilename)) {
+                const pathStr = pl.coverPath || pl.cover_path || pl.coverFilename;
+                const fname = pathStr.split(/[\\/]/).pop();
+                coverUrl = `/mobile_cover_image/${fname}`;
+            }
 
-        Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`,[{ text: "OK", onPress: () => disconnect() }]);
-    } catch (e: any) {
-        if (didCancelRef.current) return;
-        Alert.alert("同期エラー", `同期が中断されました。(${e.message})`,[{ text: "OK", onPress: () => disconnect() }]);
-    } finally {
+            if (coverUrl) {
+                const imgFname = coverUrl.split(/[\\/]/).pop();
+                const localCoverUri = baseDir + "cover_pl_" + imgFname;
+                try {
+                    const imgInfo = await FileSystem.getInfoAsync(localCoverUri);
+                    if (!imgInfo.exists || mode === 'DELETE_ALL') {
+                        setSyncProgress(`プレイリストカバーを同期中... (${j + 1}/${targetPlaylists.length})`);
+                        await downloadWithTimeout(`${baseUrl}${coverUrl}`, localCoverUri, headers, 15000);
+                    }
+                    pl.localCoverImageUri = localCoverUri;
+                } catch (e) {
+                    console.warn("[Sync Download] Playlist cover download error:", e);
+                }
+            }
+            processedPlaylists.push(pl);
+        }
+
+        await AsyncStorage.setItem('local_playlists', JSON.stringify(processedPlaylists));
+        setLocalPlaylists(processedPlaylists);
+
         setIsFullScreenSyncing(false);
         setSyncProgress('');
+
+        setTimeout(() => {
+            Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`, [{ text: "OK", onPress: () => disconnect() }]);
+        }, 100);
+
+    } catch (e: any) {
+        console.error("[Sync Download Error]:", e);
+        setIsFullScreenSyncing(false);
+        setSyncProgress('');
+
+        if (didCancelRef.current) return;
+        setTimeout(() => {
+            Alert.alert("同期エラー", `同期が中断されました。(${e.message})`, [{ text: "OK", onPress: () => disconnect() }]);
+        }, 100);
     }
   };
 

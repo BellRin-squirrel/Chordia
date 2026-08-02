@@ -8,6 +8,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::fs;
 use std::sync::Arc;
 use tokio::sync::{Mutex, oneshot};
 use tauri::{AppHandle, Emitter};
@@ -45,6 +46,8 @@ pub struct AuthState {
     pub sessions: HashMap<String, Session>,
     pub port: u16,
     pub shutdown_tx: Option<oneshot::Sender<()>>,
+    pub tunnel_process: Option<tokio::process::Child>,
+    pub wan_url: Option<String>,
 }
 
 impl AuthState {
@@ -57,6 +60,8 @@ impl AuthState {
             sessions: HashMap::new(),
             port: 0,
             shutdown_tx: None,
+            tunnel_process: None,
+            wan_url: None,
         }
     }
 }
@@ -82,7 +87,6 @@ async fn verify_request(headers: &HeaderMap, auth: &SharedAuthState) -> bool {
         let mut state = auth.lock().await;
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
         
-        // 修正：最終アクセス判定を 300.0秒（5分）に変更
         state.sessions.retain(|_, s| now - s.last_access <= 300.0);
         
         if let Some(session) = state.sessions.get_mut(api_key) {
@@ -109,7 +113,6 @@ async fn auth_request(AxumState(state): AxumState<ServerState>, Json(payload): J
     let device = payload.get("device").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let os = payload.get("os").and_then(|v| v.as_str()).unwrap_or("").to_string();
     
-    // スパム対策: 同一IPからの古いリクエストは削除する
     auth.pending_requests.retain(|_, r| r.ip != ip);
 
     use rand::distr::Alphanumeric;
@@ -154,7 +157,7 @@ async fn auth_verify(AxumState(state): AxumState<ServerState>, Json(payload): Js
 
     let mut auth = state.auth.lock().await;
     if auth.current_code.as_deref() == Some(code) {
-        auth.pending_requests.clear(); // 認証成功時に保留全体をクリア
+        auth.pending_requests.clear();
         auth.sessions.retain(|_, s| !(s.ip == ip && s.device == device));
         
         use rand::distr::Alphanumeric;
@@ -197,8 +200,31 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
     if !verify_request(&headers, &state.auth).await { return (StatusCode::FORBIDDEN, Json(json!({"error": "Unauthorized"}))); }
     let master = load_playlists_master();
     let db = load_db();
+    
+    let base = get_base_dir();
+    let cover_json_path1 = base.join("userfiles/playlist_cover.json");
+    let cover_json_path2 = base.join("userfiles/playlist_covers.json");
+    
+    let cover_path_to_read = if cover_json_path1.exists() {
+        Some(cover_json_path1)
+    } else if cover_json_path2.exists() {
+        Some(cover_json_path2)
+    } else {
+        None
+    };
+
+    let covers: HashMap<String, String> = if let Some(path) = cover_path_to_read {
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+
     let mut playlists_list = Vec::new();
     for mut pl in master {
+        let pl_id = pl.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let is_smart = pl.get("type").and_then(|v| v.as_str()) == Some("smart");
         let mut music = Vec::new();
         if is_smart {
@@ -212,15 +238,30 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                 }
             }
         } else {
-            let id = pl.get("id").and_then(|v| v.as_str()).unwrap_or("");
-            let path = get_base_dir().join(format!("userfiles/playlist/{}.json", id));
+            let path = base.join(format!("userfiles/playlist/{}.json", pl_id));
             if path.exists() {
-                if let Ok(data) = std::fs::read_to_string(&path) {
+                if let Ok(data) = fs::read_to_string(&path) {
                     if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { music = list; }
                 }
             }
         }
-        if let Some(obj) = pl.as_object_mut() { obj.insert("music".into(), Value::Array(music)); }
+
+        let mut url_cover = Value::Null;
+        if let Some(cover_path) = covers.get(&pl_id) {
+            let c_fname = std::path::Path::new(cover_path)
+                .file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or("");
+            if !c_fname.is_empty() {
+                url_cover = Value::String(format!("/mobile_cover_image/{}", c_fname));
+            }
+        }
+
+        if let Some(obj) = pl.as_object_mut() { 
+            obj.insert("music".into(), Value::Array(music)); 
+            obj.insert("url_cover".into(), url_cover);
+        }
         playlists_list.push(pl);
     }
     (StatusCode::OK, Json(json!({"playlists": playlists_list})))
@@ -231,7 +272,6 @@ async fn auth_check(AxumState(state): AxumState<ServerState>, Json(payload): Jso
     let req_ip = payload.get("ip").and_then(|v| v.as_str()).unwrap_or("");
     
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
-    // タイムアウトのクリーンアップ（10分以上経過したリクエストは破棄）
     auth.pending_requests.retain(|_, r| now - r.timestamp < 600.0);
 
     if let Some((_, req)) = auth.pending_requests.iter().find(|(_, r)| r.ip == req_ip) {
@@ -253,6 +293,7 @@ pub async fn start_server(
     let base = get_base_dir();
     let music_dir = base.join("library/music");
     let image_dir = base.join("library/images");
+    let cover_image_dir = base.join("library/cover_image");
 
     let state = ServerState { auth: auth.clone(), app_handle };
     let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
@@ -267,6 +308,7 @@ pub async fn start_server(
         .route("/api/playlists", get(api_playlists))
         .nest_service("/mobile_music", ServeDir::new(music_dir))
         .nest_service("/mobile_image", ServeDir::new(image_dir))
+        .nest_service("/mobile_cover_image", ServeDir::new(cover_image_dir))
         .layer(cors)
         .with_state(state);
 

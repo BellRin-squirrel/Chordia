@@ -1,15 +1,8 @@
-アプリバージョン変更で変更する箇所
-全て(include beta version)のアップデート
-README.md
-components/SettingsScreen.tsx
-build_ipa.yml
+v4.2.0
+・Desktop版から同期したときにプレイリストのカバーアートも同期されるようになりました。
+・WebRTCによるWAN内の同期が可能になりました。
 
-それ以外のアップデートは以下も追加
-app.json
-package-lock.json ２か所
-package.json
-
-v4.1.2
+v4.1.2 Now Developing
 ・Android版でアプリを起動するとクラッシュするというバグを修正しました。 ← これまだできてない!!!!
 ・アプリアイコンを変更しました。
 

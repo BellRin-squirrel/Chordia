@@ -7,43 +7,91 @@ document.addEventListener('DOMContentLoaded', async () => {
     let globalPort = "";
 
     let countdownInterval = null;
-    let pendingRequests = {};  // 許可待ち
-    let approvedRequests = {}; // コード入力待ち
+    let pendingRequests = {};  
+    let approvedRequests = {}; 
 
-    // 接続要求（リクエスト）の受信
+    let isWanEnabled = false;
+    let currentWanUrl = null;
+
+    const wanToggle = document.getElementById('wanToggle');
+    const wanStatusBadge = document.getElementById('wanStatusBadge');
+    const wanInfoBox = document.getElementById('wanInfoBox');
+    const displayWanUrl = document.getElementById('displayWanUrl');
+
+    function generateWanQrCode(url) {
+        const container = document.getElementById('wan-qrcode-container');
+        container.innerHTML = "";
+        if (!url) return;
+        
+        const qrData = JSON.stringify({ wanUrl: url });
+        new QRCode(container, { text: qrData, width: 140, height: 140, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+        document.getElementById('wanQrWrapper').style.display = 'block';
+    }
+
+    if (wanToggle) {
+        wanToggle.addEventListener('change', async (e) => {
+            isWanEnabled = e.target.checked;
+            
+            if (isWanEnabled) {
+                wanStatusBadge.textContent = "● WAN接続モード: ON (トンネル構築中...)";
+                wanStatusBadge.style.color = "#f59e0b";
+                if (wanInfoBox) wanInfoBox.style.display = "block";
+                if (displayWanUrl) displayWanUrl.textContent = "トンネル構築中...";
+                document.getElementById('wanQrWrapper').style.display = 'none';
+
+                try {
+                    const url = await invoke("toggle_wan_mode", { enable: true, port: parseInt(globalPort) });
+                    currentWanUrl = url;
+                    wanStatusBadge.textContent = "● WAN接続モード: ON (有効・待機中)";
+                    wanStatusBadge.style.color = "#10b981";
+                    if (displayWanUrl) displayWanUrl.textContent = url;
+                    showToast("WAN モードを有効化しました");
+                    
+                    generateWanQrCode(url);
+                } catch(err) {
+                    showToast(err);
+                    wanToggle.checked = false;
+                    isWanEnabled = false;
+                    wanStatusBadge.textContent = "● WAN接続モード: OFF (無効)";
+                    wanStatusBadge.style.color = "#ef4444";
+                    if (wanInfoBox) wanInfoBox.style.display = "none";
+                }
+            } else {
+                wanStatusBadge.textContent = "● WAN接続モード: OFF (無効)";
+                wanStatusBadge.style.color = "#ef4444";
+                if (wanInfoBox) wanInfoBox.style.display = "none";
+                currentWanUrl = null;
+                
+                await invoke("toggle_wan_mode", { enable: false, port: 0 });
+                showToast("WAN モードを無効化しました");
+            }
+        });
+    }
+
     await listen('notify_auth_request', (event) => {
-        const data = event.payload; // {id, ip, device, os, status}
+        const data = event.payload; 
         showToast(`接続要求: ${data.device} からのリクエスト`);
         addRequestItem(data);
     });
 
-    // ペアリング完了（接続成功）の受信
     await listen('notify_auth_success', (event) => {
         showToast(`ペアリング完了: ${event.payload.device} と接続されました`);
         loadSessions();
         
-        // 成功したタイミングで保留中およびコード入力待ちのUIを全消去
-        for (const [id, reqData] of Object.entries(pendingRequests)) {
-            reqData.element.remove();
-        }
+        for (const [id, reqData] of Object.entries(pendingRequests)) { reqData.element.remove(); }
         pendingRequests = {};
-        
-        for (const [id, reqData] of Object.entries(approvedRequests)) {
-            reqData.element.remove();
-        }
+        for (const [id, reqData] of Object.entries(approvedRequests)) { reqData.element.remove(); }
         approvedRequests = {};
 
         checkEmptyRequests();
         checkEmptyApprovedRequests();
     });
 
-    // 認証コード更新タイマー
     await listen('update_auth_code', (event) => {
         currentAuthCode = event.payload;
         const display = document.getElementById('authCodeDisplay');
         if (display) display.textContent = currentAuthCode;
         
-        // QRコード表示中の場合は、中身を自動的に再生成して新コードへ同期する
         const qrWrapper = document.getElementById('qr-wrapper');
         if (qrWrapper && qrWrapper.style.display === 'flex') {
             generateQrCode();
@@ -52,10 +100,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         startSmoothCountdown();
     });
 
-    // スムーズなプログレスバー制御
     function startSmoothCountdown() {
-        const timerDuration = 30000; // 30秒
-        const intervalStep = 50;     // 50ms周期で計算を更新
+        const timerDuration = 30000; 
+        const intervalStep = 50;     
         let timeLeftMs = timerDuration;
         const startTime = Date.now();
 
@@ -70,12 +117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clearInterval(countdownInterval);
             }
 
-            // 秒数の表示更新（切り上げ）
             const seconds = Math.ceil(timeLeftMs / 1000);
             const timer = document.getElementById('codeTimer');
             if (timer) timer.textContent = seconds;
 
-            // プログレスバーの更新
             const progress = (timeLeftMs / timerDuration) * 100;
             const barFill = document.getElementById('codeProgressBar');
             if (barFill) {
@@ -84,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, intervalStep);
     }
 
-    // サーバー起動
     try {
         const info = await invoke("start_sync_server");
         globalIp = info.ip;
@@ -96,7 +140,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(e);
     }
 
-    // リクエストを「許可待ちリスト」に表示
     function addRequestItem(req) {
         document.getElementById('noRequestsMsg').style.display = 'none';
         const list = document.getElementById('requestsList');
@@ -121,7 +164,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         pendingRequests[req.id] = { req, element: li };
     }
 
-    // リクエストの判定処理
     window.handleRequest = async (id, approve) => {
         await invoke("respond_to_request", { requestId: id, approve: approve });
         
@@ -132,25 +174,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             checkEmptyRequests();
 
             if (approve) {
-                // 許可された場合、「認証コード入力待ち」セクションに要素を移動
                 addApprovedRequestItem(reqData);
             }
         } else if (approvedRequests[id] && !approve) {
-            // 入力待ち画面からの拒否（取り消し）
             approvedRequests[id].element.remove();
             delete approvedRequests[id];
             checkEmptyApprovedRequests();
         }
     };
 
-    // リクエストを「認証コード入力待ちリスト」へ移動・生成
     function addApprovedRequestItem(req) {
         document.getElementById('noWaitingCodeMsg').style.display = 'none';
         const list = document.getElementById('waitingCodeList');
 
         const li = document.createElement('li');
         li.className = 'request-item';
-        li.style.borderColor = 'var(--text-sub)'; // 入力待ちは落ち着いた枠線に変更
+        li.style.borderColor = 'var(--text-sub)'; 
         li.innerHTML = `
             <div class="request-info">
                 <strong style="font-size:1.1rem; color:var(--text-main);">${u.escapeHtml(req.device)}</strong><br>
@@ -176,17 +215,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // QRコードの生成
     function generateQrCode() {
         const container = document.getElementById('qrcode-container');
         container.innerHTML = "";
         if (!globalPort || globalPort === 0) return;
         
-        const qrData = JSON.stringify({ ip: globalIp, port: globalPort.toString(), code: currentAuthCode });
+        const qrData = JSON.stringify({ 
+            ip: globalIp, 
+            port: globalPort.toString(), 
+            code: currentAuthCode
+        });
         new QRCode(container, { text: qrData, width: 140, height: 140, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
     }
 
-    // QRコードの表示トグル
     document.getElementById('btnShowQr').onclick = () => {
         if (!globalPort || globalPort === 0) {
             showToast("ポートの取得を待っています...");
@@ -203,7 +244,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('qr-placeholder').style.display = 'flex';
     };
 
-    // セッション（同期中セッション）一覧表示
     async function loadSessions() {
         const sessions = await invoke("get_active_sessions");
         const list = document.getElementById('sessionsList');
@@ -226,41 +266,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 切断（プロンプトを挟まず即時切断）
     window.terminateSession = async (ip, device) => {
         await invoke("force_disconnect_session", { ip: ip, device: device });
         loadSessions();
     };
 
-    // 右上での多重スタックトースト表示
     function showToast(msg) {
         const container = document.getElementById('toastContainer');
         if (!container) return;
-
         const toast = document.createElement('div');
         toast.className = 'toast-item';
         toast.textContent = msg;
-
-        // コンテナの最上部に挿入し、既存の通知を下方に押し下げる
         container.prepend(toast);
-
-        setTimeout(() => {
-            toast.classList.add('show');
-        }, 10);
-
-        // 4秒後に非表示にし、トランジション完了後にDOMから消去
+        setTimeout(() => { toast.classList.add('show'); }, 10);
         setTimeout(() => {
             toast.classList.remove('show');
             toast.classList.add('hide');
-            setTimeout(() => {
-                toast.remove();
-            }, 500);
+            setTimeout(() => { toast.remove(); }, 500);
         }, 4000);
     }
 
     const u = { escapeHtml: (str) => str.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) };
 
     window.onbeforeunload = () => { 
+        invoke("toggle_wan_mode", { enable: false, port: 0 });
         invoke("stop_sync_server"); 
     };
     

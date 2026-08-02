@@ -1,0 +1,10 @@
+アプリバージョン変更で変更する箇所
+全て(include beta version)のアップデート
+README.md
+components/SettingsScreen.tsx
+build_ipa.yml
+
+それ以外のアップデートは以下も追加
+app.json
+package-lock.json ２か所
+package.json

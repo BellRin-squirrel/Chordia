@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Modal, KeyboardAvoidingView, Platform, SafeAreaView, StyleSheet, Alert, TouchableWithoutFeedback, Keyboard, ScrollView, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
@@ -11,6 +11,8 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
   const bottomPadding = currentSong ? 280 : 160;
 
   const isProcessingQr = useRef(false);
+  const [syncMode, setSyncMode] = useState<'LAN' | 'WAN'>('LAN');
+  const [wanUrlInput, setWanUrlInput] = useState('');
 
   const selectAll = () => {
     const allIndices = new Set(pcPlaylists.map((_, i: number) => i));
@@ -29,6 +31,22 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View>
+                {/* LAN / WAN モード切り替えタブ */}
+                <View style={{ flexDirection: 'row', backgroundColor: dynamicStyles.card, borderRadius: 15, padding: 4, marginBottom: 20, borderWidth: 1, borderColor: dynamicStyles.border }}>
+                  <TouchableOpacity 
+                    style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: syncMode === 'LAN' ? themeColor : 'transparent' }}
+                    onPress={() => setSyncMode('LAN')}
+                  >
+                    <Text style={{ color: syncMode === 'LAN' ? '#fff' : dynamicStyles.text, fontWeight: 'bold' }}>LAN (同じWi-Fi)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: syncMode === 'WAN' ? themeColor : 'transparent' }}
+                    onPress={() => setSyncMode('WAN')}
+                  >
+                    <Text style={{ color: syncMode === 'WAN' ? '#fff' : dynamicStyles.text, fontWeight: 'bold' }}>WAN (外出先/HTTPS)</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <View style={[styles.syncCard, {backgroundColor: dynamicStyles.card, margin: 0}]}>
                     <View style={{alignItems: 'center', marginBottom: 15}}>
                       <Text style={{color: dynamicStyles.subText, fontSize: 12}}>
@@ -49,22 +67,46 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                         <Text style={styles.btnText}>QRコードで自動接続</Text>
                       </View>
                     </TouchableOpacity>
+                    
                     <View style={{height: 1, backgroundColor: dynamicStyles.border, marginBottom: 20}} />
                     
-                    <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>手動で接続する</Text>
-                    
-                    <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
-                        <View style={{flex: 3}}>
-                            <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>IPアドレス</Text>
-                            <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="192.168.0.x" placeholderTextColor="#888" value={serverIp} onChangeText={setServerIp} keyboardType="decimal-pad" />
+                    {syncMode === 'LAN' ? (
+                      <>
+                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>手動で接続する (LAN)</Text>
+                        <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
+                            <View style={{flex: 3}}>
+                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>IPアドレス</Text>
+                                <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="192.168.0.x" placeholderTextColor="#888" value={serverIp} onChangeText={setServerIp} keyboardType="decimal-pad" />
+                            </View>
+                            <View style={{flex: 1.2}}>
+                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>ポート</Text>
+                                <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="5000" placeholderTextColor="#888" value={serverPort} onChangeText={setServerPort} keyboardType="number-pad" maxLength={5} />
+                            </View>
                         </View>
-                        <View style={{flex: 1.2}}>
-                            <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>ポート</Text>
-                            <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="5000" placeholderTextColor="#888" value={serverPort} onChangeText={setServerPort} keyboardType="number-pad" maxLength={5} />
+                        <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor}]} onPress={() => { Keyboard.dismiss(); requestAuthToPC(serverIp, serverPort); }}><Text style={styles.btnText}>PCに接続要求</Text></TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>手動で接続する (WAN / HTTPSトンネル)</Text>
+                        <View style={{marginBottom: 10}}>
+                            <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>PC画面の WAN パブリック URL</Text>
+                            <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="https://xxxx.lhr.life" placeholderTextColor="#888" value={wanUrlInput} onChangeText={setWanUrlInput} autoCapitalize="none" keyboardType="url" />
                         </View>
-                    </View>
+                        <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor}]} onPress={() => { 
+                          Keyboard.dismiss(); 
+                          if (!wanUrlInput.trim() || (!wanUrlInput.startsWith('http://') && !wanUrlInput.startsWith('https://'))) {
+                            Alert.alert("エラー", "正しい WAN パブリック URL (https://...) を入力してください");
+                            return;
+                          }
+                          setServerIp(wanUrlInput.trim());
+                          setServerPort('');
+                          requestAuthToPC(wanUrlInput.trim(), ''); 
+                        }}>
+                          <Text style={styles.btnText}>WAN 接続要求</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
 
-                    <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor}]} onPress={() => { Keyboard.dismiss(); requestAuthToPC(serverIp, serverPort); }}><Text style={styles.btnText}>PCに接続要求</Text></TouchableOpacity>
                     {isSyncing && <ActivityIndicator color={themeColor} style={{marginTop:15}} />}
                 </View>
             </View>
@@ -118,7 +160,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
                 <Text style={[styles.rowTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{item.playlistName}</Text>
               </TouchableOpacity>
             )}
-            /* ★ 修正: FlatListのプロパティ内に直接記述されていた不要なコメント文を取り除きました */
             ListFooterComponent={pcPlaylists.length > 0 ? (
                     <View style={[styles.syncFooterContainer, isLandscape && { flexDirection: 'row', justifyContent: 'center', gap: 15 }]}>
                         <TouchableOpacity 
@@ -155,7 +196,8 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
 
                               try {
                                 const qrData = JSON.parse(data);
-                                if(qrData.ip && qrData.code) { 
+                                // ★ 修正: LAN用（ip + code）または WAN用（wanUrl）のどちらかがあればOK
+                                if((qrData.ip && qrData.code) || qrData.wanUrl) { 
                                   setShowCamera(false);
                                   setScannedQrData(qrData); 
                                 } else {
