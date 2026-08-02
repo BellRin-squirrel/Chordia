@@ -1,22 +1,39 @@
-name: Build Chordia Artifacts
+name: Build Chordia Artifacts by BellRin
 
 on:
-  push:
-    tags:
-      - 'v*' # "v" から始まるタグをPushした時に自動実行
   workflow_dispatch: # 手動実行用
 
+defaults:
+  run:
+    working-directory: ./desktop
+
 jobs:
-  build-and-artifact:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-          - os: macos-latest
+  build_windows_latest:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    runs-on: ${{ matrix.os }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0"
+
+      - name: Build Tauri app (Windows)
+        run: cargo tauri build
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chordia-Windows
+          path: |
+            src-tauri/target/release/Chordia.exe
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+  
+  build_macos_latest:
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,38 +42,19 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           # Macの場合は、IntelとApple Silicon両方のターゲットを追加する
-          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0"
 
-      - name: Build Tauri app (Windows)
-        if: matrix.os == 'windows-latest'
-        run: cargo tauri build
-
       - name: Build Tauri app (Mac - Universal)
-        if: matrix.os == 'macos-latest'
-        # IntelとM1/M2/M3で最高のパフォーマンスを発揮するユニバーサルバイナリでビルド
         run: cargo tauri build --target universal-apple-darwin
 
       - name: Compress Mac .app to tar.gz
-        if: matrix.os == 'macos-latest'
         run: |
-          cd src-tauri/target/universal-apple-darwin/release/bundle/macos
-          tar -czf Chordia_app.tar.gz Chordia.app
-
-      - name: Upload Windows Artifacts
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Chordia-Windows
-          path: |
-            src-tauri/target/release/Chordia.exe
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
+          # tar -czf src-tauri/target/universal-apple-darwin/release/bundle/macos/Chordia_app.tar.gz src-tauri/target/universal-apple-darwin/release/bundle/macosChordia.app
 
       - name: Upload Mac Artifacts
-        if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: Chordia-Mac
