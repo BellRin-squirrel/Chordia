@@ -7,14 +7,34 @@ use tauri::Emitter;
 use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::path::PathBuf;
+use crate::utils::get_base_dir; // ★ 追加: ベースディレクトリ取得ユーティリティ
 
-// ★ cloudflared のバイナリ探索関数 (アプリと同階層またはシステムPATHから自動検出)
+// ★ 優先パス探索関数 (userfiles/bin/ 内を最優先で探索)
 fn get_cloudflared_path() -> String {
     let exe_name = if cfg!(target_os = "windows") { "cloudflared.exe" } else { "cloudflared" };
     
+    // 1. userfiles/bin/ 内を最優先でチェック
+    let userfiles_bin = get_base_dir().join("userfiles/bin").join(exe_name);
+    if userfiles_bin.exists() {
+        if let Some(path_str) = userfiles_bin.to_str() {
+            return path_str.to_string();
+        }
+    }
+
+    // 2. ベースディレクトリ直下をチェック
+    let base_bin = get_base_dir().join(exe_name);
+    if base_bin.exists() {
+        if let Some(path_str) = base_bin.to_str() {
+            return path_str.to_string();
+        }
+    }
+
+    // 3. カレントディレクトリの相対パスをチェック
     if PathBuf::from(exe_name).exists() {
         return format!("./{}", exe_name);
     }
+
+    // 4. システム PATH から探索
     exe_name.to_string()
 }
 
@@ -103,7 +123,7 @@ pub async fn force_disconnect_session(ip: String, device: String, auth: State<'_
     Ok(())
 }
 
-// ★ 完全自動・トークン不要の Cloudflare Quick Tunnel (cloudflared) 内部起動コマンド
+// ★ Cloudflare Quick Tunnel (cloudflared) 内部起動コマンド
 #[tauri::command]
 pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuthState>) -> Result<String, String> {
     let mut state = auth.lock().await;
@@ -123,7 +143,7 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
             ])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped()) // cloudflared のログは stderr に出力される
+            .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| format!("cloudflared の起動に失敗しました（{} を確認してください）: {}", binary_path, e))?;
 

@@ -19,6 +19,7 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
         format!("yt-dlp{}", ext),
         format!("ffmpeg{}", ext),
         format!("deno{}", ext),
+        format!("cloudflared{}", ext),
     ];
 
     if let Ok(entries) = std::fs::read_dir(&b) {
@@ -49,6 +50,7 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
                 "yt-dlp" => ("--help", "yt-dlp"),
                 "ffmpeg" => ("-version", "ffmpeg"),
                 "deno" => ("--version", "deno"),
+                "cloudflared" => ("--version", "cloudflared"),
                 _ => ("--version", tool),
             };
 
@@ -327,7 +329,6 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let duration_str = get_duration_str(Some(&Value::String(m_rel)));
     data.insert("duration".to_string(), Value::String(duration_str));
     
-    // ★ 追加：ダウンロード完了したMP3ファイルへID3タグを埋め込み
     update_mp3_tags_from_song_map(&data);
 
     db.push(data.clone()); 
@@ -401,7 +402,6 @@ pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: St
         data.insert("lyric".to_string(), Value::String(clean));
     }
 
-    // ★ 追加：保存した音声ファイル本体へID3タグを埋め込み
     update_mp3_tags_from_song_map(&data);
 
     db_guard.push(data);
@@ -546,6 +546,7 @@ pub async fn search_lyrics_online(title: String, artist: String) -> Result<Value
     Ok(json)
 }
 
+// ★ 修正：cloudflared を含めたツールのチェック対応
 #[tauri::command]
 pub async fn check_tools_status() -> Result<Value, String> {
     tokio::task::spawn_blocking(|| {
@@ -554,7 +555,8 @@ pub async fn check_tools_status() -> Result<Value, String> {
         Ok(serde_json::json!({
             "yt-dlp": b.join(format!("yt-dlp{}", ext)).exists(), 
             "ffmpeg": b.join(format!("ffmpeg{}", ext)).exists(), 
-            "deno": b.join(format!("deno{}", ext)).exists()
+            "deno": b.join(format!("deno{}", ext)).exists(),
+            "cloudflared": b.join(format!("cloudflared{}", ext)).exists()
         }))
     }).await.map_err(|e| format!("ステータス確認スレッドエラー: {}", e))?
 }

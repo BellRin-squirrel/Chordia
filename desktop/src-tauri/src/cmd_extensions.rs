@@ -10,12 +10,12 @@ pub async fn check_tool_updates() -> Result<Value, String> {
         let base = get_base_dir().join("userfiles/bin");
         let mut results = serde_json::Map::new();
 
-        // 1. クリーンアップ処理 (実行環境に応じた拡張子の動的解決)
         let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
         let allowed_files = [
             format!("yt-dlp{}", ext),
             format!("ffmpeg{}", ext),
             format!("deno{}", ext),
+            format!("cloudflared{}", ext), // ★ 追加
         ];
 
         if let Ok(entries) = fs::read_dir(&base) {
@@ -33,8 +33,7 @@ pub async fn check_tool_updates() -> Result<Value, String> {
             }
         }
 
-        // 2. 整合性チェックとバージョン情報の生成
-        for tool in ["yt-dlp", "ffmpeg", "deno"] {
+        for tool in ["yt-dlp", "ffmpeg", "deno", "cloudflared"] {
             let exe_path = base.join(format!("{}{}", tool, ext));
             let exists = exe_path.exists();
             
@@ -46,13 +45,13 @@ pub async fn check_tool_updates() -> Result<Value, String> {
                             "yt-dlp" => ("--help", "yt-dlp"), 
                             "ffmpeg" => ("-version", "ffmpeg"),
                             "deno" => ("--version", "deno"),
+                            "cloudflared" => ("--version", "cloudflared"),
                             _ => ("--version", ""),
                         };
                         
                         let mut cmd = std::process::Command::new(&exe_path);
                         cmd.arg(arg);
 
-                        // ★ 修正：Windows環境でのみローカルでCommandExtを読み込み非表示フラグを適用
                         #[cfg(target_os = "windows")]
                         {
                             use std::os::windows::process::CommandExt;
@@ -98,30 +97,43 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
         let url = match tool_name.as_str() {
             "yt-dlp" => {
                 if cfg!(target_os = "windows") {
-                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe".to_string()
                 } else if cfg!(target_os = "macos") {
-                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+                    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos".to_string()
                 } else {
                     return Err("未対応のOSです".to_string());
                 }
             },
             "ffmpeg" => {
                 if cfg!(target_os = "windows") {
-                    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+                    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip".to_string()
                 } else if cfg!(target_os = "macos") {
-                    "https://evermeet.cx/ffmpeg/getrelease/zip"
+                    "https://evermeet.cx/ffmpeg/getrelease/zip".to_string()
                 } else {
                     return Err("未対応のOSです".to_string());
                 }
             },
             "deno" => {
                 if cfg!(target_os = "windows") {
-                    "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip"
+                    "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip".to_string()
                 } else if cfg!(target_os = "macos") {
                     if cfg!(target_arch = "aarch64") {
-                        "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip"
+                        "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip".to_string()
                     } else {
-                        "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip"
+                        "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-apple-darwin.zip".to_string()
+                    }
+                } else {
+                    return Err("未対応のOSです".to_string());
+                }
+            },
+            "cloudflared" => {
+                if cfg!(target_os = "windows") {
+                    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe".to_string()
+                } else if cfg!(target_os = "macos") {
+                    if cfg!(target_arch = "aarch64") {
+                        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz".to_string()
+                    } else {
+                        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz".to_string()
                     }
                 } else {
                     return Err("未対応のOSです".to_string());
@@ -135,7 +147,7 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
             .build()
             .map_err(|e| e.to_string())?;
             
-        let mut response = client.get(url).send().map_err(|e| e.to_string())?;
+        let mut response = client.get(&url).send().map_err(|e| e.to_string())?;
         if !response.status().is_success() {
             return Err(format!("ダウンロードに失敗しました: {}", response.status()));
         }
@@ -167,7 +179,20 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
         let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
         let exe_path = base_dir.join(format!("{}{}", tool_name, ext));
 
-        if url.ends_with(".zip") || tool_name == "ffmpeg" {
+        if url.ends_with(".tgz") {
+            let temp_tgz_path = base_dir.join("temp_cloudflared.tgz");
+            fs::write(&temp_tgz_path, &data).map_err(|e| e.to_string())?;
+
+            let mut cmd = std::process::Command::new("tar");
+            cmd.args(&["-xzf", temp_tgz_path.to_str().unwrap(), "-C", base_dir.to_str().unwrap()]);
+            let _ = cmd.output();
+
+            let extracted_binary = base_dir.join("cloudflared");
+            if extracted_binary.exists() {
+                let _ = fs::rename(&extracted_binary, &exe_path);
+            }
+            let _ = fs::remove_file(temp_tgz_path);
+        } else if url.ends_with(".zip") || tool_name == "ffmpeg" {
             let cursor = std::io::Cursor::new(data);
             let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
             let mut extracted = false;
@@ -195,7 +220,6 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
             fs::write(&exe_path, data).map_err(|e| e.to_string())?;
         }
 
-        // macOS / Linux 等のUnixシステムにおいて、ダウンロードしたバイナリに実行権限（chmod +x）を付与
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

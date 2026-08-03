@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
     const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : null;
 
-    // ★ 追加：新しいウィンドウで開かれた場合（または設定で新ウィンドウ指定時）、左上の「トップへ戻る」ボタンを非表示にする
     try {
         const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'extensions_window';
         const settings = await invoke("get_app_settings");
@@ -32,7 +31,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const TOOL_DETAILS = {
         'yt-dlp': 'YouTubeなどの動画プラットフォームから動画・音声をダウンロードします。',
         'ffmpeg': 'ダウンロードした動画から音声を抽出・変換するために使用します。',
-        'deno': '一部のサイトのダウンロード処理を補助するJavaScriptランタイムです。'
+        'deno': '一部のサイトのダウンロード処理を補助するJavaScriptランタイムです。',
+        'cloudflared': 'WANでMobile版に楽曲を同期するために使用します。'
     };
 
     let pendingUpdates = [];
@@ -80,18 +80,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // ★ 修正：TOOL_DETAILSのキーに基づいて定義済みの全ツールを確実にリスト化・描画
     function renderTools(status) {
         toolsList.innerHTML = '';
-        for (const [tool, isInstalled] of Object.entries(status)) {
+        const allTools = Object.keys(TOOL_DETAILS);
+
+        for (const tool of allTools) {
+            const isInstalled = !!status[tool];
             const item = document.createElement('div');
             item.className = `tool-item ${isInstalled ? 'installed' : 'not-installed'}`;
-            item.innerHTML = `<div class="tool-info"><span class="tool-name">${tool}</span><span class="tool-desc">${TOOL_DETAILS[tool]}</span></div><span class="tool-status">${isInstalled ? '正常にインストール済み' : '未インストール (または不正なファイル)'}</span>`;
+            item.innerHTML = `<div class="tool-info"><span class="tool-name">${tool}</span><span class="tool-desc">${TOOL_DETAILS[tool] || ''}</span></div><span class="tool-status">${isInstalled ? '正常にインストール済み' : '未インストール (または不正なファイル)'}</span>`;
             toolsList.appendChild(item);
         }
     }
 
+    // ★ 修正：全ツールを対象に未インストールチェックを行う
     function updateActionCard(status) {
-        const missingTools = Object.keys(status).filter(tool => !status[tool]);
+        const allTools = Object.keys(TOOL_DETAILS);
+        const missingTools = allTools.filter(tool => !status[tool]);
+
         if (missingTools.length === 0) {
             actionTitle.textContent = "全てのツールが揃っています";
             btnMainAction.textContent = "アップデートを確認";
