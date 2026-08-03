@@ -11,7 +11,7 @@ type QrData = {
   ip?: string;
   port?: string;
   code?: string;
-  wanUrl?: string; // ★ WANパブリックURLの受け取り用
+  wanUrl?: string;
 };
 
 type UseSyncProps = {
@@ -110,13 +110,11 @@ export const useSync = ({
   useEffect(() => {
     if (scannedQrData) {
       if (scannedQrData.wanUrl) {
-        // ★ 修正: WAN用のQRコードの場合は自動で要求だけ飛ばし、コード認証は手動にする(isAutoConnecting = false)
         setServerIp(scannedQrData.wanUrl);
         setServerPort('');
         setIsAutoConnecting(false);
         requestAuthToPC(scannedQrData.wanUrl, '');
       } else if (scannedQrData.ip && scannedQrData.code) {
-        // LAN用のQRコードの場合はコードも自動で認証する
         setServerIp(scannedQrData.ip);
         setServerPort(scannedQrData.port || '5000');
         setIsAutoConnecting(true);
@@ -305,6 +303,7 @@ export const useSync = ({
     setPcPlaylists([]);
   };
   
+  // ★ 最適化された同期ダウンロード処理（大量State更新によるフリーズを完全回避）
   const startSyncDownload = async (mode: 'KEEP_DUPLICATES' | 'DELETE_ALL') => {
     if (!serverIp || !apiKey) { Alert.alert('エラー', '接続が確立されていません。'); return; }
     
@@ -313,6 +312,10 @@ export const useSync = ({
     setSyncProgress('プレイヤーを停止中...');
 
     const baseUrl = buildUrl(serverIp, serverPort);
+    
+    // ★ 修正: React State を直接書き換えずに、確定した最終データだけを後から反映するための変数
+    let finalLibraryToSet: any[] | null = null;
+    let finalPlaylistsToSet: any[] | null = null;
 
     try {
         if (closeFullPlayer) closeFullPlayer();
@@ -358,6 +361,12 @@ export const useSync = ({
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
         let currentLocal = [...localLibrary];
+        const targetFilenames = new Set();
+        const targetTitleArtists = new Set();
+        for (const t of targets) {
+            if (t.musicFilename) targetFilenames.add(t.musicFilename.split(/[\\/]/).pop());
+            if (t.title && t.artist) targetTitleArtists.add(`${t.title}:::${t.artist}`);
+        }
 
         if (mode === 'DELETE_ALL') {
             setSyncProgress('ローカル楽曲をすべて削除中...');
@@ -370,15 +379,20 @@ export const useSync = ({
                 }
             }
             currentLocal = [];
+            // Stateの更新は行わず、Storageのみ更新
             await AsyncStorage.setItem('local_library', JSON.stringify([]));
-            setLocalLibrary([]);
+            finalLibraryToSet = [];
+            
         } else if (mode === 'KEEP_DUPLICATES') {
             setSyncProgress('同期対象外の楽曲を整理中...');
             const updatedLocalList: any[] = [];
-            for (const localSong of currentLocal) {
-                const isTarget = targets.some((t: any) => 
-                    t.title === localSong.title && t.artist === localSong.artist
-                );
+            
+            for (let i = 0; i < currentLocal.length; i++) {
+                if (i % 100 === 0) await new Promise(r => setTimeout(r, 0));
+                
+                const localSong = currentLocal[i];
+                const localFname = localSong.musicFilename ? localSong.musicFilename.split(/[\\/]/).pop() : "";
+                const isTarget = targetFilenames.has(localFname) || targetTitleArtists.has(`${localSong.title}:::${localSong.artist}`);
 
                 if (!isTarget) {
                     if (localSong.localMusicUri) {
@@ -393,22 +407,27 @@ export const useSync = ({
             }
             currentLocal = updatedLocalList;
             await AsyncStorage.setItem('local_library', JSON.stringify(currentLocal));
-            setLocalLibrary([...currentLocal]);
+            finalLibraryToSet = currentLocal;
         }
 
-        let updatedLibrary = [...currentLocal];
+        const libraryMap = new Map();
+        for (const s of currentLocal) {
+            const fname = s.musicFilename ? s.musicFilename.split(/[\\/]/).pop() : "";
+            if (fname) libraryMap.set(fname, s);
+            else if (s.title && s.artist) libraryMap.set(`${s.title}:::${s.artist}`, s);
+        }
 
         for (let i = 0; i < targets.length; i++) {
             if (didCancelRef.current) break;
+            if (i % 10 === 0) await new Promise(resolve => setTimeout(resolve, 1));
+
             const song = targets[i];
             const musicFname = song.musicFilename ? song.musicFilename.split(/[\\/]/).pop() : `song_${i}.mp3`;
             const musicLocalUri = baseDir + musicFname;
 
             setSyncProgress(`楽曲を同期中... (${i + 1}/${targets.length})\n${song.title || 'Untitled'}`);
 
-            const existingLocal = updatedLibrary.find((l: any) => 
-                l.title === song.title && l.artist === song.artist
-            );
+            const existingLocal = libraryMap.get(musicFname) || libraryMap.get(`${song.title}:::${song.artist}`);
 
             let finalMusicUri = musicLocalUri;
             let finalImgUri = "";
@@ -442,20 +461,17 @@ export const useSync = ({
 
             const newSongItem = { ...song, localMusicUri: finalMusicUri, localImageUri: finalImgUri };
             
-            const existingIdx = updatedLibrary.findIndex((s: any) => 
-                s.title === song.title && s.artist === song.artist
-            );
-            if (existingIdx !== -1) {
-                updatedLibrary[existingIdx] = newSongItem;
-            } else {
-                updatedLibrary.push(newSongItem);
-            }
-
-            await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
-            setLocalLibrary([...updatedLibrary]);
+            if (musicFname) libraryMap.set(musicFname, newSongItem);
+            else if (song.title && song.artist) libraryMap.set(`${song.title}:::${song.artist}`, newSongItem);
         }
 
-        if (didCancelRef.current) { return; }
+        if (didCancelRef.current) return;
+
+        const finalLibrarySet = new Set(libraryMap.values());
+        const updatedLibrary = Array.from(finalLibrarySet);
+
+        await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
+        finalLibraryToSet = updatedLibrary;
 
         const processedPlaylists: any[] = [];
         for (let j = 0; j < targetPlaylists.length; j++) {
@@ -486,23 +502,54 @@ export const useSync = ({
         }
 
         await AsyncStorage.setItem('local_playlists', JSON.stringify(processedPlaylists));
-        setLocalPlaylists(processedPlaylists);
+        finalPlaylistsToSet = processedPlaylists;
 
+        // ★ 修正: アラートを出す前に必ず全画面ブロックを解除し、重いState更新はアラートを閉じた後に実行する
         setIsFullScreenSyncing(false);
         setSyncProgress('');
 
         setTimeout(() => {
-            Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`, [{ text: "OK", onPress: () => disconnect() }]);
+            Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`, [{ 
+                text: "OK", 
+                onPress: () => {
+                    disconnect();
+                    // 画面の遷移やアニメーションが完全に落ち着いてから大量のState更新を実行
+                    setTimeout(() => {
+                        if (finalLibraryToSet) setLocalLibrary([...finalLibraryToSet]);
+                        if (finalPlaylistsToSet) setLocalPlaylists(finalPlaylistsToSet);
+                    }, 400);
+                } 
+            }]);
         }, 100);
 
     } catch (e: any) {
         console.error("[Sync Download Error]:", e);
         setIsFullScreenSyncing(false);
         setSyncProgress('');
+        
+        // ★ 修正: 403 (セッション切れ) だった場合の専用プロンプト表示
+        const errMsg = e.message || '';
+        const is403 = errMsg.includes('403');
+        
+        if (didCancelRef.current && !is403) {
+            if (finalLibraryToSet) setLocalLibrary([...finalLibraryToSet]);
+            return;
+        }
 
-        if (didCancelRef.current) return;
         setTimeout(() => {
-            Alert.alert("同期エラー", `同期が中断されました。(${e.message})`, [{ text: "OK", onPress: () => disconnect() }]);
+            Alert.alert(
+              "同期エラー", 
+              is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`, 
+              [{ 
+                  text: "OK", 
+                  onPress: () => {
+                      disconnect();
+                      setTimeout(() => {
+                          if (finalLibraryToSet) setLocalLibrary([...finalLibraryToSet]);
+                      }, 400);
+                  } 
+              }]
+            );
         }, 100);
     }
   };
