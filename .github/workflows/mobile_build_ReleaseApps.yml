@@ -151,7 +151,7 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # ★ 追加: エミュレータ (x86 / x86_64) と実機 (ARM) の両方で動作するように全アーキテクチャを強制的にな同梱するパッチ
+      # ★ 修正1: 全アーキテクチャ同梱用パッチ (abiFilters)
       - name: Enable All Architectures for Emulator Support
         run: |
           node -e '
@@ -164,6 +164,21 @@ jobs:
               fs.writeFileSync(file, content);
               console.log("Successfully added abiFilters for x86/x86_64/ARM");
             }
+          }
+          '
+
+      # ★ 修正2: OutOfMemoryError 回避のために Gradle の Java メモリ上限を 4GB に設定
+      - name: Increase Gradle Memory Limit
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "android/gradle.properties";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
+            content += "org.gradle.parallel=true\n";
+            fs.writeFileSync(file, content);
+            console.log("Successfully increased Gradle JVM memory limit to 4GB");
           }
           '
 
