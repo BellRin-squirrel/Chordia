@@ -211,7 +211,6 @@ const AppContent = () => {
         {activeTab === 'SETTINGS' && (
           <SettingsScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} isCustomTheme={isCustomTheme} themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB} showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor} insets={insets} audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab} />
         )}
-        {/* ★ 修正: 統計タブ (旧LICENSE) - タイトルを「統計」にし、統計情報のみを表示 */}
         {activeTab === 'LICENSE' && (
           <View style={{ flex: 1, backgroundColor: actualDynamicStyles.bg, paddingTop: insets.top }}>
             <View style={[styles.headerBar, { backgroundColor: actualDynamicStyles.bg, borderBottomColor: 'transparent' }]}><Text style={[styles.headerTitle, { color: actualDynamicStyles.text }]}>統計</Text></View>
@@ -247,11 +246,12 @@ const AppContent = () => {
         </View>
       )}
 
-      <Modal visible={isFullScreenSyncing} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
+      {/* フルスクリーン同期中のシンプルなローディングモーダル */}
+      <Modal visible={isFullScreenSyncing} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.fullScreenModalOverlay}>
           <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card }]}>
             <ActivityIndicator size="large" color={themeColor} />
-            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text }]}>{syncProgress}</Text>
+            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center' }]}>{syncProgress}</Text>
           </View>
         </View>
       </Modal>

@@ -254,7 +254,13 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                 .to_str()
                 .unwrap_or("");
             if !c_fname.is_empty() {
-                url_cover = Value::String(format!("/mobile_cover_image/{}", c_fname));
+                // ★ 修正: library/images/ の画像をカバーに設定している場合は、/mobile_image/ エンドポイントを使う
+                let path_normalized = cover_path.replace("\\", "/");
+                if path_normalized.contains("library/images") {
+                    url_cover = Value::String(format!("/mobile_image/{}", c_fname));
+                } else {
+                    url_cover = Value::String(format!("/mobile_cover_image/{}", c_fname));
+                }
             }
         }
 
