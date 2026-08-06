@@ -11,7 +11,7 @@ npm install
 
 # 2. Expo Prebuild (ネイティブコードの生成)
 echo "🏗️ 2/3 Expo Prebuild を実行中..."
-npx expo prebuild --platform ios --clean --non-interactive
+CI=1 npx expo prebuild --platform ios --clean --non-interactive
 
 # 5. xcode によるビルド実行
 echo "🔨 3/3 app をビルド中 (xcode)..."
