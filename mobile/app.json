@@ -8,7 +8,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "chordia",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.bellrin.chordia",
       "supportsTablet": true,

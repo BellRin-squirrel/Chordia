@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chordia Mobile版 - 音楽管理・再生アプリ</title>
+    <link rel="icon" href="assets/images/Chordia.ico" type="image/x-icon">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ヘッダー -->
+    <header class="navbar">
+        <div class="container navbar-container">
+            <a href="index.html" class="brand-logo">
+                <img src="assets/images/Chordia.png" alt="Chordia Icon" class="logo-img">
+                <span class="logo-text">Chordia</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="index.html#about" class="nav-link">Chordiaとは</a>
+                <a href="index.html#features" class="nav-link">主な機能</a>
+                <a href="desktop.html" class="nav-link">Desktop版</a>
+                <a href="mobile.html" class="nav-link active">Mobile版</a>
+                <a href="compatibility.html" class="nav-link">互換性情報</a>
+                <a href="https://github.com/BellRin-squirrel/Chordia" target="_blank" rel="noopener noreferrer" class="nav-link github-nav-link">
+                    <svg class="github-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ページヘッダー -->
+    <div class="page-header">
+        <div class="container">
+            <span class="badge">FOR IOS / IPADOS / ANDROID</span>
+            <h1 class="page-title">Chordia Mobile版</h1>
+            <p class="page-subtitle">ここに記載されている説明は v4.1.2 についてです。このバージョンが最新でない場合はREADMEの更新をお待ちください。</p>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main class="page-content">
+        <div class="container">
+
+            <!-- 注意事項 -->
+            <div class="alert-box alert-warning">
+                <h3>⚠️ 注意事項</h3>
+                <p>アップデートについてはそれぞれのリリースノートをご確認ください。<br>
+                Desktop版からMobile版に同期する際は相互のバージョンが同期に対応しているかは <a href="compatibility.html" class="text-link">互換性情報</a> でご確認ください。<br>
+                <small>※ 現時点ではiOS版のデータ引継ぎは対応しておりません。予めご了承ください。</small></p>
+            </div>
+
+            <!-- このアプリについて -->
+            <section class="doc-section">
+                <h2>このアプリについて</h2>
+                <p>アプリ内容についてですが、Desktop版から楽曲とプレイリストを同期して利用するものとなっております。</p>
+                <p>おおよそオフラインでご利用いただけます。（楽曲を同期する際にはインターネット環境が必要となります）<br>
+                アプリ開発にはAIを利用しております。</p>
+            </section>
+
+            <!-- 起動方法・使い方 -->
+            <section class="doc-section">
+                <h2>すぐ使いたいならここ読んで！（アプリの起動方法、使い方）</h2>
+
+                <div class="content-box mb-4">
+                    <p><strong>アプリのインストール方法を動画でご覧いただきたい場合はこちらが参考になります：</strong></p>
+                    <ul>
+                        <li><a href="#" class="text-link">iPhone, iPadを接続してインストールする場合</a></li>
+                        <li><a href="#" class="text-link">iPadを接続してインストールする場合</a></li>
+                    </ul>
+                </div>
+
+                <div class="step-card">
+                    <h3>アプリのインストール方法（iOS, iPadOS）</h3>
+                    <p>※ iPhone, iPad (iDevice)をご利用の方はこちらをお読みください。</p>
+                    <ol class="step-list">
+                        <li>アプリをインストールするにはパソコンが必ず必要です。（ipaのインストールには Sideloadly を推奨しています）</li>
+                        <li>パソコンに Sideloadly がインストールされていることを確認し、iDeviceをパソコンとUSB有線で接続します。</li>
+                        <li>パソコンの Sideloadly を立ち上げ、左上のIPAをクリックしてインストールしたいipaファイルを選択します。</li>
+                        <li>インストール先のiDeviceにサインインしているApple Accountにログインします。</li>
+                        <li>ログインが完了したら「Start」をクリックします。</li>
+                        <li>「Done」と表示されたらiDeviceの方でChordiaがインストールされていることを確認します。</li>
+                        <li>iDeviceの <strong>設定アプリ ＞ プライバシーとセキュリティ ＞ デベロッパーモード</strong> が有効になっていない場合は有効にして再起動してください。</li>
+                        <li>iDeviceの <strong>設定アプリ ＞ 一般 ＞ VPNとデバイス管理 ＞ 自分のAppleID</strong> をタップして検証等のボタンをタップします。これでアプリが起動できるようになりました。</li>
+                        <li>iDeviceとDesktop版Chordiaを起動します。</li>
+                        <li>Desktop版Chordiaで「iPhoneに同期」をクリックし、「QRコードを表示」をクリックします。</li>
+                        <li>iDeviceのChordiaで同期タブを開き、「QRコードで自動接続」をタップ。カメラでDesktop版のQRコードをスキャンします。</li>
+                        <li>Desktop版で接続要求ポップアップが表示されたら「許可」をクリックします。
+                            <br><small>※ カメラ故障等でスキャンできない場合は、IPアドレスとポート番号を手動入力して「PCに接続要求」をタップ。Desktop版で許可後、表示された認証コードをiDeviceに入力します。</small>
+                            <br><small>※ 接続できない場合はDesktop版の同期ウィンドウを一度閉じて再開するか、アプリの再起動をお試しください。</small>
+                        </li>
+                        <li>接続できたら同期したいプレイリストを選択して同期を開始します。完了後、「再生」タブから楽曲を楽しめます。</li>
+                    </ol>
+                </div>
+
+                <div class="step-card mt-3">
+                    <h3>アプリのインストール方法 (AndroidOS)</h3>
+                    <p class="text-muted">※ 現在準備中です。</p>
+                </div>
+            </section>
+
+            <!-- 全機能説明 -->
+            <section class="doc-section">
+                <h2>全機能説明</h2>
+
+                <!-- 同期タブ -->
+                <div class="feature-detail-block">
+                    <h3>1. 同期タブ</h3>
+                    <p>Mobile版では現状、楽曲を追加するにはDesktop版から楽曲とプレイリストを同期する必要があります。その同期を行うタブです。（詳しい操作は <a href="desktop.html#synchronization" class="text-link">Desktop版のMobile版へ同期</a> をご確認ください）</p>
+                </div>
+
+                <!-- 再生タブ -->
+                <div class="feature-detail-block">
+                    <h3>2. 再生タブ</h3>
+                    <p>楽曲を再生するためのメインタブです。プレイリスト、アルバム、アーティストごとに整理された項目や、最近再生した楽曲が表示されます。</p>
+
+                    <h4>再生リスト画面</h4>
+                    <p>上部にアートが表示され、再生ボタン、シャッフルボタン、楽曲一覧が配置されています。再生ボタンは順番再生、シャッフルボタンはランダム再生です。再生中の曲はミニプレイヤーとして下部に表示され、タップでフルスクリーン表示になります。</p>
+
+                    <h4>フルスクリーンプレイヤー（縦画面3モード）</h4>
+                    <p>下部アイコンから3つのモードを切り替え可能です。閉じる場合は上から下へスワイプします。</p>
+                    <ul>
+                        <li><strong>カバーアートモード:</strong> アート・タイトル・再生バー・再生コントロール（前へ/一時停止/次へ/シャッフル/ループ）を表示。</li>
+                        <li><strong>歌詞モード:</strong> アート・曲情報の下に歌詞を表示。</li>
+                        <li><strong>キューモード:</strong> アート・曲情報・コントロールの下に、次に再生される楽曲一覧を表示。</li>
+                    </ul>
+
+                    <h4>キュー, ループ, シャッフル</h4>
+                    <p>1曲ループ、全体ループ、シャッフル再生（プレイリスト自体の並び順を書き換えずに一時的にランダム化）に対応しています。</p>
+                </div>
+
+                <!-- 作業タブ -->
+                <div class="feature-detail-block">
+                    <h3>3. 作業タブ</h3>
+                    <p><small>※ 使わない方は設定からタブを非表示にできます。</small></p>
+                    
+                    <h4>作業の設定</h4>
+                    <p>学習、仕事、家事、読書などの「作業」に集中できるよう、余計なUIを排除した再生モードです。</p>
+                    <ul>
+                        <li><strong>ポモドーロモード:</strong> 作業時間と休憩時間を設定。終了タイミングで楽曲がフェードアウトしアラームが鳴ります。作業・休憩ごとに別の再生リストを設定することも可能です。</li>
+                        <li><strong>アクセスガイド・ノイズキャンセリングの活用:</strong> 設定完了画面からAppleのアクセスガイド機能（通知カット）へアクセス可能。イヤホンのノイズキャンセリングと併用することで没頭感を向上させます。</li>
+                    </ul>
+
+                    <h4>作業画面</h4>
+                    <p>タップで一時停止（PAUSED表示）、長押しで操作ヘルプを開いて作業モードを終了できます。</p>
+                </div>
+
+                <!-- 設定タブ・統計タブ -->
+                <div class="feature-detail-block">
+                    <h3>4. 設定タブ & 統計タブ</h3>
+                    <ul>
+                        <li><strong>設定タブ:</strong> テーマカラーのカスタマイズ（カラーピッカー＆履歴保存）、再生エンジンの切り替え（ロック画面表示重視のRNTP / バックグラウンド動画同時再生重視のExpo-Audio）、作業タブの表示/非表示切り替え、バージョン・ライセンス表記。</li>
+                        <li><strong>統計タブ:</strong> 集中セッション履歴のテスト表示。</li>
+                    </ul>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="footer">
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <a href="index.html" class="brand-logo">
+                    <img src="assets/images/Chordia.png" alt="Chordia Icon" class="logo-img">
+                    <span class="logo-text">Chordia</span>
+                </a>
+                <p class="footer-desc">音楽管理・再生をシンプルかつ自由にするクロスプラットフォームアプリ。</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>ページ案内</h4>
+                    <a href="index.html#about">Chordiaとは</a>
+                    <a href="index.html#features">主な機能</a>
+                    <a href="compatibility.html">互換性情報</a>
+                </div>
+                <div class="footer-column">
+                    <h4>ダウンロード・詳細</h4>
+                    <a href="desktop.html">Desktop版 (Win/Mac)</a>
+                    <a href="mobile.html">Mobile版 (iOS/Android)</a>
+                </div>
+                <div class="footer-column">
+                    <h4>コミュニティ</h4>
+                    <a href="https://github.com/BellRin-squirrel/Chordia" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+                    <a href="https://github.com/BellRin-squirrel/Chordia/issues" target="_blank" rel="noopener noreferrer">GitHub Issues (不具合・要望)</a>
+                    <a href="https://github.com/BellRin-squirrel/Chordia/releases" target="_blank" rel="noopener noreferrer">Releases (ダウンロード)</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="container">
+                <p>&copy; Chordia Project. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>

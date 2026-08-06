@@ -2,7 +2,6 @@ name: Build Release Apps (iOS & Android) v5.0.0-beta1
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
-# フォルダ名を小文字の mobile に統一
 defaults:
   run:
     working-directory: ./mobile
@@ -115,43 +114,69 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ★ キャッシュされた破損ファイルを確実に削除してからインストール
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -rf node_modules/react-native-track-player
+          npm install
 
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ 解決策: Arguments.fromBundle を Null-Safe な代替関数 fromBundleSafe に一括置換＆ファイル末尾に関数を注入
-      - name: Patch react-native-track-player for Kotlin 2.x
+      # ★ カッコを解析する安全な AST風パッチ
+      - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
         run: |
           node -e '
           const fs = require("fs");
           const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
+          
           if (fs.existsSync(file)) {
             let content = fs.readFileSync(file, "utf8");
             
-            // 1. Arguments.fromBundle( を自前の fromBundleSafe( に一括置換
             content = content.split("Arguments.fromBundle(").join("fromBundleSafe(");
             
-            // 2. Kotlin のスマートキャストを利用した Null-Safe ヘルパー関数をファイル末尾に追加
-            const helper = `\n
-          private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {
-              return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()
-          }
-          `;
-            content += helper;
-            
+            if (!content.includes("fun fromBundleSafe")) {
+              const lastBraceIndex = content.lastIndexOf("}");
+              if (lastBraceIndex !== -1) {
+                const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n`;
+                content = content.slice(0, lastBraceIndex) + helper + content.slice(lastBraceIndex);
+              }
+            }
+
+            let regex = /@ReactMethod\s+fun\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*=\s*[a-zA-Z0-9_\.]*launch\s*\{/g;
+            let match;
+            while ((match = regex.exec(content)) !== null) {
+                let startIndex = match.index + match[0].length - 1; 
+                let openBraces = 0;
+                let endIndex = -1;
+                
+                for (let i = startIndex; i < content.length; i++) {
+                    if (content[i] === "{") openBraces++;
+                    if (content[i] === "}") openBraces--;
+                    if (openBraces === 0) {
+                        endIndex = i;
+                        break;
+                    }
+                }
+                
+                if (endIndex !== -1) {
+                    let beforeEq = content.slice(0, match.index + match[0].indexOf("="));
+                    let afterEq = content.slice(match.index + match[0].indexOf("=") + 1, endIndex + 1);
+                    let afterBlock = content.slice(endIndex + 1);
+                    
+                    content = beforeEq + "{" + afterEq + "\n    }" + afterBlock;
+                    regex.lastIndex = 0;
+                }
+            }
+
             fs.writeFileSync(file, content);
-            console.log("Successfully patched MusicModule.kt with fromBundleSafe helper");
-          } else {
-            console.log("MusicModule.kt not found at:", file);
+            console.log("Successfully patched MusicModule.kt for Kotlin 2.x & New Architecture");
           }
           '
 
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # ★ 修正1: 全アーキテクチャ同梱用パッチ (abiFilters)
       - name: Enable All Architectures for Emulator Support
         run: |
           node -e '
@@ -167,7 +192,6 @@ jobs:
           }
           '
 
-      # ★ 修正2: OutOfMemoryError 回避のために Gradle の Java メモリ上限を 4GB に設定
       - name: Increase Gradle Memory Limit
         run: |
           node -e '

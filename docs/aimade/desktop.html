@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chordia Desktop版 - 音楽管理・再生アプリ</title>
+    <link rel="icon" href="assets/images/Chordia.ico" type="image/x-icon">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- ヘッダー -->
+    <header class="navbar">
+        <div class="container navbar-container">
+            <a href="index.html" class="brand-logo">
+                <img src="assets/images/Chordia.png" alt="Chordia Icon" class="logo-img">
+                <span class="logo-text">Chordia</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="index.html#about" class="nav-link">Chordiaとは</a>
+                <a href="index.html#features" class="nav-link">主な機能</a>
+                <a href="desktop.html" class="nav-link active">Desktop版</a>
+                <a href="mobile.html" class="nav-link">Mobile版</a>
+                <a href="compatibility.html" class="nav-link">互換性情報</a>
+                <a href="https://github.com/BellRin-squirrel/Chordia" target="_blank" rel="noopener noreferrer" class="nav-link github-nav-link">
+                    <svg class="github-icon" viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ページヘッダー -->
+    <div class="page-header">
+        <div class="container">
+            <span class="badge">FOR WINDOWS / MACOS</span>
+            <h1 class="page-title">Chordia Desktop版</h1>
+            <p class="page-subtitle">ここに記載されている説明は v3.2.3 についてです。このバージョンが最新でない場合はREADMEの更新をお待ちください。</p>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main class="page-content">
+        <div class="container">
+
+            <!-- 注意事項 -->
+            <div class="alert-box alert-warning">
+                <h3>⚠️ 注意事項</h3>
+                <p>アップデートについてはそれぞれのリリースノートをご確認ください。<br>
+                原則として2つ以上のバージョンアップの場合、データの引継ぎはできません。ご注意ください。<br>
+                <small>※ 2つ以上のバージョンアップが可能かを確認する場合はリリースノートでデータの互換性があるかをご確認ください。</small></p>
+            </div>
+
+            <!-- このアプリについて -->
+            <section class="doc-section">
+                <h2>このアプリについて</h2>
+                <p>これはChordiaというMacOS, WindowsOS用のアプリです。</p>
+                <p>アプリ内容についてですが、ご自身がお持ちのmp3ファイルを利用してお持ちの音楽を管理したり、YouTubeなどのプラットフォームから楽曲をダウンロードしつつ、プレイリストとしても機能するアプリとなっております。</p>
+                <p>おおよそオフラインでご利用いただけます。（Mobile版へ楽曲を同期する際にはインターネット環境が必要となります）<br>
+                アプリ開発にはAIを利用しております。（アプリ本体にはAIを組み込んでおりません）</p>
+            </section>
+
+            <!-- 起動方法・使い方 -->
+            <section id="setup" class="doc-section">
+                <h2>すぐ使いたいならここ読んで！（アプリの起動方法、使い方）</h2>
+                <p>まずはあなたの環境に適したファイルを <a href="https://github.com/BellRin-squirrel/Chordia/releases" target="_blank" class="text-link">Releases</a> よりダウンロードします。</p>
+
+                <div class="file-types-grid">
+                    <div class="file-type-card">
+                        <h4>Chordia_%version%_Windows.zip</h4>
+                        <p>Windows用のパッケージファイル。展開すると中に <code>Chordia.exe</code> が配置されており、楽曲データやプレイリストなどは同じディレクトリに保存されます。他のディレクトリを汚すことなく、展開したフォルダ内で完結します。</p>
+                    </div>
+                    <div class="file-type-card">
+                        <h4>Chordia_%version%_Windows_x64_setup.exe</h4>
+                        <p>インストーラーです。対応言語：日本語、英語、中国語(簡体字/繁体字)、韓国語。<br>
+                        <span class="text-danger">※ 現在、このインストール方法でインストールするとアプリを開けないというバグが発生しています。</span></p>
+                    </div>
+                    <div class="file-type-card">
+                        <h4>Chordia_%version%_macos_portable.app</h4>
+                        <p>このファイル一つで完結するMacOS用のアプリケーションファイル。楽曲データやプレイリストなどはappファイルの中に保存され、他のディレクトリを汚しません。</p>
+                    </div>
+                    <div class="file-type-card">
+                        <h4>Chordia_%version%_macos_aarch64.dmg</h4>
+                        <p>MacOS用のインストーラーファイル。実行するとApplicationsフォルダにドラッグ＆ドロップしてインストールする画面が表示されます。</p>
+                    </div>
+                </div>
+
+                <h3 class="mt-4">ダウンロードファイル別の初期起動方法</h3>
+
+                <div class="step-card">
+                    <h4>Chordia_%version%_windows_portable.zip</h4>
+                    <p>zipファイルを展開し、中にある <code>Chordia.exe</code> を起動します。そのままご利用いただけます。</p>
+                </div>
+
+                <div class="step-card">
+                    <h4>Chordia_%version%_windows_x64_setup.exe</h4>
+                    <p>ダウンロードしたファイルをダブルクリックしてインストーラーを起動します。<br>
+                    もし「WindowsによってPCが保護されました。」と表示されたら、アンダーラインの引かれている「詳細情報」をクリックして実行ボタンをクリックします。画面の指示に従ってアプリをインストールします。初期設定のままインストールすると、デスクトップにChordiaのショートカットが作成されます。次回以降はこれを使用してアプリを起動します。</p>
+                </div>
+
+                <div class="step-card">
+                    <h4>Chordia_%version%_macos.zip</h4>
+                    <p>ダウンロードしたファイルをダブルクリックしてファイルを展開します。展開して作成されたappファイルを開きます。<br>
+                    ※ この時、アプリを起動できない場合は、<strong>設定アプリ ＞ プライバシーとセキュリティ</strong>の一番下のセキュリティの項目にある「このまま開く」というボタンをクリックすることで起動できます。（次回以降はダブルクリックで起動可能）<br>
+                    ※ 「このまま開く」ボタンが存在しない場合、Command + Spaceで「ターミナル」と検索し、ターミナル.appを開きます。そこで以下を入力し、展開して作成されたappファイルをターミナルにドラッグ＆ドロップしてEnterキーを押します。</p>
+                    <pre><code>sudo xattr -rd com.apple.quarantine </code></pre>
+                    <p><small>（このコマンドは未署名、未公認アプリの隔離属性を削除するものです）</small><br>次回以降も同様にappファイルをダブルクリックして起動します。</p>
+                </div>
+
+                <div class="step-card">
+                    <h4>Chordia_%version%_universal.dmg</h4>
+                    <p>ダウンロードしたファイルをダブルクリックしてインストーラーを起動します。<br>
+                    ※ アプリを起動できない場合は、設定アプリ＞プライバシーとセキュリティの一番下のセキュリティの項目にある「このまま開く」をクリックします。<br>
+                    左にあるChordia.appという大きなアイコンを右のApplicationsフォルダにドラッグ＆ドロップすることでインストールできます。Command + SpaceでChordiaと入力して起動するか、Finderでアプリケーションを開きダブルクリックで起動します。<br>
+                    ※ 起動できない場合で「このまま開く」が存在しない場合、ターミナルで以下コマンドを入力後、アプリケーションフォルダ内の <code>Chordia.app</code> をターミナルにドラッグ＆ドロップしてEnterキーを押してください。</p>
+                    <pre><code>sudo xattr -rd com.apple.quarantine </code></pre>
+                </div>
+
+                <h3 class="mt-4">アプリの使用方法（クイックガイド）</h3>
+                <div class="content-box">
+                    <p>「曲を追加」ではChordiaに曲を登録します。曲名、アーティスト、アルバムなどが設定できます。情報を入力して楽曲ファイルをアップロードしたら、「ライブラリに追加」をクリックします。</p>
+                    <p>ここで追加した楽曲は「データベースを管理」の画面に表示されます。セルをダブルクリックして編集できます。試聴もできます。削除もここで可能です。</p>
+                    <p>音楽をプレイリストに登録して楽しむには「音楽を再生」をクリックします。画面を開くと既存のプレイリストが読み込まれますが、初期状態では何も登録されていません。</p>
+                    <p>「プレイリスト」という文字の下の何もない個所を右クリックすると、「プレイリストを新規作成」という項目が表示されます。これをクリックしてプレイリストを作成します。</p>
+                    <p>プレイリストに曲を追加するには左の追加したいプレイリスト名を右クリックし、「曲を編集」をクリックします。ここで登録されている楽曲一覧が表示されるのでプレイリストに追加したい楽曲にチェックを入れて右下の「設定」をクリックします。</p>
+                    <p>タイトル、アーティスト、アルバムなどカラムをクリックすることでソートできたり様々な機能がこの画面にはあります。詳細は下部の全機能説明をご確認ください。そしたらプレイリストをどれかクリックして右に表示された再生ボタンやシャッフルボタンを押してみましょう。プレイリストを再生できます。</p>
+                </div>
+            </section>
+
+            <!-- ファイル構成と起動まで -->
+            <section class="doc-section">
+                <h2>ファイル構成と起動まで</h2>
+                <p>「すぐ使いたいならここ読んで！」の通りにアプリを起動・設定を変更したり曲を追加すると、<code>library</code> フォルダと <code>userfiles</code> フォルダが生成されます。</p>
+                <ul>
+                    <li><strong>MacOSの場合:</strong> .appファイルを右クリックし、「パッケージの内容を表示」をクリックし、<code>Contents/MacOS/</code> 内に作成されます。</li>
+                    <li><strong>WindowsOS ポータブル版(.zip):</strong> 展開したフォルダの中の <code>Chordia.exe</code> と同じディレクトリに作成されます。</li>
+                    <li><strong>WindowsOS setup.exe:</strong> <code>%userfiles%/AppData/Local/Chordia/</code> に作成されます。</li>
+                </ul>
+                <div class="content-box mt-3">
+                    <p><strong>生成されるディレクトリ詳細:</strong></p>
+                    <ul>
+                        <li><code>library/</code> : <code>images</code> フォルダ, <code>music</code> フォルダが生成されます。</li>
+                        <li><code>userfiles/</code> : <code>settings.ini</code>（アプリ内設定）, <code>history.json</code>（再生履歴）, <code>lyric.json</code>（歌詞）, <code>music.json</code>（楽曲情報）, <code>played_times.json</code>（再生回数）, <code>playlist.json</code>（プレイリスト＆スマートプレイリスト設定）, <code>tool_versions.json</code>（拡張機能バージョン）, <code>bin/</code>（拡張機能アプリ保存先）, <code>playlist/</code>（通常プレイリスト楽曲一覧）が生成されます。</li>
+                    </ul>
+                    <p class="mt-2 text-danger"><small>※ 基本的に library フォルダや userfiles フォルダには手を加えないことを推奨します。（拡張機能にバグが発生したら library/bin を削除すると修正されることがあります）<br>
+                    また、ディレクトリ構造は変更しないでください（まとめて移動する場合は問題ありません）。</small></p>
+                </div>
+            </section>
+
+            <!-- 全機能説明 -->
+            <section class="doc-section">
+                <h2>全機能説明</h2>
+
+                <!-- 曲を追加 -->
+                <div class="feature-detail-block">
+                    <h3>1. 曲を追加</h3>
+                    <h4>1曲追加</h4>
+                    <p>曲名、アーティスト、アルバム、ジャンル、トラックナンバー、アルバムアートが設定できます。曲名やアーティスト等は過去の入力候補から選択可能です。楽曲はローカルアップロードのほか、動画プラットフォームからのダウンロードにも対応（※拡張機能の導入が必要）。カバーアートは動画サムネイル・ローカル画像・画像URLから指定できます。LRCLIB APIを利用した歌詞の自動取得にも対応。「ライブラリに追加」をクリック時、既存の曲と重複している場合は確認プロンプトが表示されます。</p>
+                    
+                    <h4>YouTube再生リストから一括追加</h4>
+                    <p>「曲を追加」画面の上部タブを切り替えます。再生リストのURLを入力して右のボタンをクリックすると解析処理が始まり動画一覧が表示されます。テーブルで曲情報を調整後、ライブラリに追加できます。</p>
+
+                    <h4>json, csvによるインポート</h4>
+                    <p>楽曲情報を持ったJSON/CSVファイルを選択（ドラッグ＆ドロップ可）します。読み込まれた楽曲一覧を確認・編集の上、インポートを完了させます。（フォーマット詳細はREADME末尾参照）</p>
+
+                    <h4>ZIPによるインポート</h4>
+                    <p>インポート画面のタブを切り替え、mp3ファイルをまとめたZIPファイルを選択（ドラッグ＆ドロップ可）。サブディレクトリ内のmp3もすべて自動読み込みされます。</p>
+                </div>
+
+                <!-- データベースを管理 -->
+                <div class="feature-detail-block">
+                    <h3>2. データベースを管理</h3>
+                    <p>登録された全楽曲が一覧表示されます（初期設定1ページ50曲表示、設定で変更可能）。</p>
+                    <ul>
+                        <li><strong>シンプルな検索:</strong> 上部検索ボックスでキーワード検索ができます。ページ移動しても結果は維持されます。</li>
+                        <li><strong>高度な検索:</strong> 右上の「高度な検索」ボタンから、複数条件を指定した高度な絞り込みが可能です。</li>
+                    </ul>
+                </div>
+
+                <!-- データの引継ぎ -->
+                <div class="feature-detail-block">
+                    <h3>3. データの引継ぎ</h3>
+                    <p>引き継ぎたいデータを選択してエクスポートし、引継ぎ画面下の「データのインポート」で取り込みます。バージョン間の互換性はリリースノートをご確認ください。</p>
+                </div>
+
+                <!-- 音楽を再生 -->
+                <div class="feature-detail-block">
+                    <h3>4. 音楽を再生</h3>
+                    <p>プレイリストの作成や登録楽曲の再生を行うメイン画面です。</p>
+                    <ul>
+                        <li><strong>画面左側:</strong> プレイリスト、アルバム、アーティスト表示を切り替え可能。アルバム・アーティストは自動で再生リストが生成されます。</li>
+                        <li><strong>プレイリストの作成・編集:</strong> 左側の空きスペースを右クリックで新規作成。右クリックメニューから名前の編集、削除、曲の編集（チェックボックスで選択・設定）が行えます。Shiftキーを押しながらクリックすると範囲一括選択が可能です。カラム名クリックでソート、検索ボックスでタグ絞り込みが可能です。</li>
+                        <li><strong>スマートプレイリスト:</strong> 条件に合致する楽曲が自動で追加される動的プレイリスト。「スマートプレイリストを作成」から設定できます。「ルールを編集」から後から条件を変更することも可能です。</li>
+                        <li><strong>ミニプレイヤー:</strong> 再生中に上部カバーアートをクリックすると起動します。</li>
+                        <li><strong>キュー・歌詞:</strong> 上部の三点マークをクリックすると、次に再生される曲の一覧（キュー）や事前登録した歌詞を表示できます。</li>
+                        <li><strong>音量変更 / 履歴記録:</strong> 左上の音量バーで調整可能。本画面からの再生は履歴と再生回数に記録されます。</li>
+                    </ul>
+                </div>
+
+                <!-- Mobile版に同期 -->
+                <div class="feature-detail-block" id="synchronization">
+                    <h3>5. Mobile版に同期</h3>
+                    <p>新しいウィンドウが開き、PCのローカルIPアドレスが表示されます。（※相互のバージョン互換性は <a href="compatibility.html" class="text-link">互換性情報</a> をご確認ください）</p>
+
+                    <h4>IPアドレスと認証コードによる接続</h4>
+                    <p>Mobile版の「同期」タブで手動接続を選択し、Desktop版に表示されたIPアドレスとポート番号を入力。「PCに接続要求」をタップ後、Desktop版側で許可をクリックし、表示された認証コードをMobile版に入力します。</p>
+
+                    <h4>QRコードによる接続</h4>
+                    <p>Mobile版で「QRコードで自動接続」をタップし、Desktop版の「QRコードを表示」をスキャンします。Desktop版で接続リクエストを許可すれば接続完了です。</p>
+
+                    <h4>WAN内の同期（外出先同期）</h4>
+                    <p><code>Cloudflare Quick Tunnels</code> を使用し、PCとスマホが異なるネットワークにいる状態でも安全に同期できます。Desktop版で「外出先(WAN)接続モード」をONにし、「緑色：有効・待機中」になるのを待ちます。表示された「WAN パブリック URL」またはQRコードをMobile版の「WAN(外出先/HTTPS)」タブで読み取り、表示される認証コードを入力して接続します。</p>
+
+                    <h4>接続後の同期操作</h4>
+                    <p>接続後、Mobile版で同期したいプレイリストを選択します。「効率同期（既存曲を流用）」または「削除して同期（一度全削除して再同期）」を選択可能です。</p>
+                </div>
+
+                <!-- 拡張機能 / 設定 / 情報 -->
+                <div class="feature-detail-block">
+                    <h3>6. 拡張機能・設定・情報</h3>
+                    <ul>
+                        <li><strong>拡張機能:</strong> 動画プラットフォームからの楽曲取り込みや、WAN同期（Cloudflared）に必要なツールをダウンロード・管理します。</li>
+                        <li><strong>設定（一定音量機能）:</strong> LUFS（人間が感じる騒がしさの指標）を元に楽曲間の音量差を最小限に抑える機能（要 ffmpeg 拡張機能）。</li>
+                        <li><strong>情報:</strong> ライセンス表記とバージョン情報を確認できます。</li>
+                    </ul>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- フッター -->
+    <footer class="footer">
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <a href="index.html" class="brand-logo">
+                    <img src="assets/images/Chordia.png" alt="Chordia Icon" class="logo-img">
+                    <span class="logo-text">Chordia</span>
+                </a>
+                <p class="footer-desc">音楽管理・再生をシンプルかつ自由にするクロスプラットフォームアプリ。</p>
+            </div>
+            <div class="footer-links">
+                <div class="footer-column">
+                    <h4>ページ案内</h4>
+                    <a href="index.html#about">Chordiaとは</a>
+                    <a href="index.html#features">主な機能</a>
+                    <a href="compatibility.html">互換性情報</a>
+                </div>
+                <div class="footer-column">
+                    <h4>ダウンロード・詳細</h4>
+                    <a href="desktop.html">Desktop版 (Win/Mac)</a>
+                    <a href="mobile.html">Mobile版 (iOS/Android)</a>
+                </div>
+                <div class="footer-column">
+                    <h4>コミュニティ</h4>
+                    <a href="https://github.com/BellRin-squirrel/Chordia" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+                    <a href="https://github.com/BellRin-squirrel/Chordia/issues" target="_blank" rel="noopener noreferrer">GitHub Issues (不具合・要望)</a>
+                    <a href="https://github.com/BellRin-squirrel/Chordia/releases" target="_blank" rel="noopener noreferrer">Releases (ダウンロード)</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="container">
+                <p>&copy; Chordia Project. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>
