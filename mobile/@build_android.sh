@@ -3,6 +3,9 @@
 # エラーが発生したら即座に処理を中断する
 set -e
 
+# ★ 修正1: どこから実行されても確実に mobile ディレクトリに移動する
+cd "$(dirname "$0")"
+
 echo "🚀 --- Android Release APK ローカルビルドを開始します ---"
 
 # 1. 依存関係のインストール
@@ -32,19 +35,33 @@ private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridg
 
 # 3. Expo Prebuild (ネイティブコードの生成)
 echo "🏗️ 3/5 Expo Prebuild を実行中..."
-npx expo prebuild --platform android --clean --non-interactive
+# ★ 修正2: 最新 Expo CLI の CI=1 に変更
+CI=1 npx expo prebuild --platform android --clean
 
-# 4. 全CPUアーキテクチャ(x86/x86_64/ARM)対応パッチの適用
-echo "⚙️ 4/5 エミュレータ＆実機対応 ABI パッチを適用中..."
+# 4. 全CPUアーキテクチャ(x86/x86_64/ARM)対応 ＆ メモリ拡張パッチの適用
+echo "⚙️ 4/5 ABI パッチ ＆ メモリ上限(4GB)拡張パッチを適用中..."
 node -e '
 const fs = require("fs");
-const file = "android/app/build.gradle";
-if (fs.existsSync(file)) {
-  let content = fs.readFileSync(file, "utf8");
+
+// ABIフィルター追加
+const gradleFile = "android/app/build.gradle";
+if (fs.existsSync(gradleFile)) {
+  let content = fs.readFileSync(gradleFile, "utf8");
   if (!content.includes("abiFilters")) {
     content = content.replace(/defaultConfig\s*\{/, "defaultConfig {\n        ndk {\n            abiFilters \"armeabi-v7a\", \"arm64-v8a\", \"x86\", \"x86_64\"\n        }");
-    fs.writeFileSync(file, content);
+    fs.writeFileSync(gradleFile, content);
     console.log("   --> 全CPUアーキテクチャ(x86/x86_64/ARM)の組み込みに成功しました。");
+  }
+}
+
+// Gradle メモリ領域の拡張
+const propFile = "android/gradle.properties";
+if (fs.existsSync(propFile)) {
+  let content = fs.readFileSync(propFile, "utf8");
+  if (!content.includes("Xmx4096m")) {
+    content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m\n";
+    fs.writeFileSync(propFile, content);
+    console.log("   --> Gradle JVM メモリ上限を 4GB に拡張しました。");
   }
 }
 '
