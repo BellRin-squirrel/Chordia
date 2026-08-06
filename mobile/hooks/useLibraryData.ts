@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy'; // ★ 追加
 
 export const useLibraryData = () => {
   const colorScheme = useColorScheme();
@@ -14,7 +15,6 @@ export const useLibraryData = () => {
   const [localLibrary, setLocalLibrary] = useState<any[]>([]);
   const [localPlaylists, setLocalPlaylists] = useState<any[]>([]);
   
-  // 作業(Focus)タブの表示状態。初期値は必ず true に。
   const [showFocusTab, setShowFocusTab] = useState(true);
 
   const themeColor = `rgb(${themeR}, ${themeG}, ${themeB})`;
@@ -39,15 +39,37 @@ export const useLibraryData = () => {
         const recent = await AsyncStorage.getItem('recent_colors');
         const focusState = await AsyncStorage.getItem('show_focus_tab');
         
-        if (lib) setLocalLibrary(JSON.parse(lib));
-        if (pls) setLocalPlaylists(JSON.parse(pls));
+        // ★ 修正: 保存されている古いパスからファイル名を抽出し、現在の最新の絶対パスに再構築する関数
+        const baseDir = FileSystem.documentDirectory + 'chordia/';
+        const fixUri = (uri: string | null | undefined) => {
+            if (!uri) return uri;
+            const fname = uri.split(/[\\/]/).pop();
+            return fname ? baseDir + fname : uri;
+        };
+
+        if (lib) {
+            const parsedLib = JSON.parse(lib).map((song: any) => ({
+                ...song,
+                localMusicUri: fixUri(song.localMusicUri),
+                localImageUri: fixUri(song.localImageUri),
+            }));
+            setLocalLibrary(parsedLib);
+        }
+        
+        if (pls) {
+            const parsedPls = JSON.parse(pls).map((pl: any) => ({
+                ...pl,
+                localCoverImageUri: fixUri(pl.localCoverImageUri),
+            }));
+            setLocalPlaylists(parsedPls);
+        }
+        
         if (r) setThemeR(parseInt(r, 10));
         if (g) setThemeG(parseInt(g, 10));
         if (b) setThemeB(parseInt(b, 10));
         if (custom === 'true') setIsCustomTheme(true);
         if (recent) setRecentColors(JSON.parse(recent));
         
-        // 保存された値があれば反映。なければデフォルトの true のまま。
         if (focusState !== null) {
           setShowFocusTab(focusState === 'true');
         }
@@ -73,7 +95,6 @@ export const useLibraryData = () => {
     setShowRGBModal(false);
   };
 
-  // 引数を受け取るように修正し、Switchコンポーネントとの整合性を強化
   const toggleFocusTab = async (newValue: boolean) => {
     setShowFocusTab(newValue);
     await AsyncStorage.setItem('show_focus_tab', newValue ? 'true' : 'false');

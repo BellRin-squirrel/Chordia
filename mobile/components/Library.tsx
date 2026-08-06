@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy'; // ★ 追加
 import { styles } from '../styles/styles';
 import { RecentSection } from './RecentSection';
 
@@ -112,8 +113,36 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   const loadHistory = async () => {
     const rs = await AsyncStorage.getItem('recently_played_songs');
     const rc = await AsyncStorage.getItem('recently_played_collections');
-    if (rs) setRecentlyPlayedSongs(JSON.parse(rs));
-    if (rc) setRecentlyPlayedCollections(JSON.parse(rc));
+    
+    // ★ 修正: 履歴データのパスも現在のUUIDに合わせて動的修復する
+    const baseDir = FileSystem.documentDirectory + 'chordia/';
+    const fixUri = (uri: string | null | undefined) => {
+        if (!uri) return uri;
+        const fname = uri.split(/[\\/]/).pop();
+        return fname ? baseDir + fname : uri;
+    };
+
+    if (rs) {
+      const parsedRs = JSON.parse(rs).map((s: any) => ({
+        ...s,
+        localMusicUri: fixUri(s.localMusicUri),
+        localImageUri: fixUri(s.localImageUri)
+      }));
+      setRecentlyPlayedSongs(parsedRs);
+    }
+
+    if (rc) {
+      const parsedRc = JSON.parse(rc).map((c: any) => {
+        if (c.art && c.art.uri) {
+          c.art.uri = fixUri(c.art.uri);
+        }
+        if (c.type === 'PLAYLIST' && c.data && c.data.localCoverImageUri) {
+          c.data.localCoverImageUri = fixUri(c.data.localCoverImageUri);
+        }
+        return c;
+      });
+      setRecentlyPlayedCollections(parsedRc);
+    }
   };
 
   const saveCollectionToHistory = async (item: any) => {
@@ -126,7 +155,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     } catch (e) {}
   };
 
-  // ★ 修正: 安全なパスのパース（クエリ等の不要な文字列を除去してローカルURIを確実に指定）
   const getPlaylistFirstArt = (playlist: any) => {
     if (!playlist) return DEFAULT_ICON;
     
