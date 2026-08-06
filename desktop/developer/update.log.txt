@@ -1,4 +1,4 @@
-v4.0.0-beta2 Now Developing
+v4.0.0 Now Developing
 
 v4.0.0-beta1
 ・曲を追加, 拡張機能, 設定の画面を新しいウィンドウで開けるようになりました。（設定で変更可能です）
