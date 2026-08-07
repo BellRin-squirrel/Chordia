@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Animated, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { styles, TAB_BAR_HEIGHT } from '../styles/styles';
+import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 
 const INDICATOR_MARGIN = 6;
 
@@ -12,7 +12,6 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBack
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
-  // ★ 修正: 情報タブを「統計」に変更し、アイコンを stats-chart にアップデート
   const tabs = [
     { key: 'SYNC', label: '同期', icon: 'cloud-download' },
     { key: 'PLAYER', label: '再生', icon: 'play-circle' },
@@ -43,7 +42,7 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBack
 
   const tabHeight = containerLayout.height / tabCount;
   const indicatorHeightLandscape = tabHeight > 0 ? tabHeight - (INDICATOR_MARGIN * 2) : 0;
-  const indicatorWidthLandscape = 70 - (INDICATOR_MARGIN * 2);
+  const indicatorWidthLandscape = LANDSCAPE_TAB_BAR_WIDTH - (INDICATOR_MARGIN * 2);
 
   return (
     <BlurView 

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
@@ -10,14 +10,15 @@ import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-g
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
+// 押し込み弾性スプリング効果付きのボタンラッパー
 const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
     Animated.spring(scale, {
-      toValue: 0.64, 
+      toValue: 0.64,
       useNativeDriver: true,
-      speed: 20,     
+      speed: 20,
       bounciness: 2,
     }).start();
   };
@@ -26,7 +27,7 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
     Animated.spring(scale, {
       toValue: 1.0, 
       useNativeDriver: true,
-      speed: 20,     
+      speed: 20,
       bounciness: 2,
     }).start();
   };
@@ -64,7 +65,7 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
   );
 };
 
-const MarqueeText = ({ text, style, containerWidth }: { text: string, style: any, containerWidth: number }) => {
+const MarqueeText = ({ text, style, containerWidth, align = 'center' }: { text: string, style: any, containerWidth: number, align?: 'center' | 'left' }) => {
   const scrollAnim = useRef(new Animated.Value(0)).current;
   const [textWidth, setTextWidth] = useState(0);
   const [shouldScroll, setShouldScroll] = useState(false);
@@ -97,10 +98,21 @@ const MarqueeText = ({ text, style, containerWidth }: { text: string, style: any
 
   if (!text) return null;
 
+  const isLeft = align === 'left';
+
   return (
-    <View style={{ width: containerWidth, overflow: 'hidden' }}>
-      <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: scrollAnim }] }}>
-        <Text style={style} onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)} numberOfLines={1}>{text}</Text>
+    <View style={{ width: containerWidth, overflow: 'hidden', alignItems: isLeft ? 'flex-start' : 'center' }}>
+      <Animated.View 
+        style={{ 
+          flexDirection: 'row', 
+          justifyContent: shouldScroll ? 'flex-start' : (isLeft ? 'flex-start' : 'center'),
+          width: shouldScroll ? undefined : '100%',
+          transform: [{ translateX: scrollAnim }] 
+        }}
+      >
+        <Text style={[style, !shouldScroll && { textAlign: isLeft ? 'left' : 'center' }]} onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)} numberOfLines={1}>
+          {text}
+        </Text>
         {shouldScroll && <Text style={[style, { marginLeft: 40 }]}>{text}</Text>}
       </Animated.View>
     </View>
@@ -123,12 +135,15 @@ export const FullScreenPlayer = ({
   const transitionAnim = useRef(new Animated.Value(0)).current;
   const scrollYRef = useRef(0);
 
+  const mainViewAnim = useRef(new Animated.Value(1)).current;
+  const lyricsViewAnim = useRef(new Animated.Value(0)).current;
+  const queueViewAnim = useRef(new Animated.Value(0)).current;
+
   const [isScrollAtTop, setIsScrollAtTop] = useState(true);
   
   const isIphone = Platform.OS === 'ios' && !Platform.isPad;
   const isIpad = Platform.OS === 'ios' && Platform.isPad;
   const isIphoneLandscape = isLandscape && isIphone;
-  const isIpadPortrait = isIpad && !isLandscape; 
 
   let btnScale = 1.0;
   if (isIphoneLandscape) {
@@ -136,6 +151,27 @@ export const FullScreenPlayer = ({
   } else if (isIpad) {
     btnScale = 1.2;
   }
+
+  useEffect(() => {
+    const isMain = !showQueue && !showLyrics;
+    Animated.parallel([
+      Animated.timing(mainViewAnim, {
+        toValue: isMain ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(lyricsViewAnim, {
+        toValue: showLyrics ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(queueViewAnim, {
+        toValue: showQueue ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [showLyrics, showQueue]);
 
   useEffect(() => {
     const toValue = (showLyrics || showQueue) ? 1 : 0;
@@ -152,21 +188,16 @@ export const FullScreenPlayer = ({
     setIsScrollAtTop(true);
   }, [showLyrics, showQueue]);
 
-  const mainOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] });
-  const subViewOpacity = transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] });
-  const mainTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -30] });
-  const subViewTranslateX = transitionAnim.interpolate({ inputRange: [0, 1], outputRange:[30, 0] });
-
   const onGestureEvent = Animated.event(
     [{ nativeEvent: { translationY: slideAnim } }],
     { useNativeDriver: true }
   );
 
   const onHandlerStateChange = (event: any) => {
-    const { state, translationY, velocityY } = event.nativeEvent;
+    const { state, translationY, velocityX } = event.nativeEvent;
 
     if (state === State.END || state === State.CANCELLED) {
-      if (translationY > 120 || velocityY > 500) {
+      if (translationY > 120 || velocityX > 500) {
         closeFullPlayer();
       } else {
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
@@ -185,53 +216,6 @@ export const FullScreenPlayer = ({
     if (showLyrics) setShowLyrics(false);
     setShowQueue(!showQueue);
   };
-
-  // ★ 修正: 下部ボタンをアクティブ時にテーマカラーの背景にし、アイコン自体の色は変えない(#fffのまま)ように変更
-  const renderBottomButtons = () => (
-    <View style={styles.bottomButtonsRow}>
-      <View style={styles.bottomButtonContainer}>
-        <BounceButton
-          onPress={toggleShuffleMode}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: isShuffle ? themeColor : 'transparent' }}
-        >
-          <Ionicons name="shuffle" size={26} color="#fff" />
-        </BounceButton>
-      </View>
-      <View style={styles.bottomButtonContainer}>
-        <BounceButton
-          onPress={toggleLoopMode}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent' }}
-        >
-          <View style={{ justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={26} color="#fff" />
-            {loopMode === 'ONE' && (
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold', position: 'absolute', top: -4, right: -6 }}>1</Text>
-            )}
-          </View>
-        </BounceButton>
-      </View>
-      <View style={styles.bottomButtonContainer}>
-        <BounceButton
-          onPress={toggleLyrics}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: showLyrics ? themeColor : 'transparent' }}
-        >
-          <Ionicons name="musical-notes-outline" size={26} color="#fff" />
-        </BounceButton>
-      </View>
-      <View style={styles.bottomButtonContainer}>
-        <BounceButton
-          onPress={toggleQueue}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: showQueue ? themeColor : 'transparent' }}
-        >
-          <Ionicons name="list" size={26} color="#fff" />
-        </BounceButton>
-      </View>
-    </View>
-  );
 
   const renderControls = (iconSize: number, customStyle?: any) => {
     const mainIconSize = iconSize * 0.72 * btnScale; 
@@ -264,41 +248,6 @@ export const FullScreenPlayer = ({
           style={{ width: sideBtnSize, height: sideBtnSize, borderRadius: sideBtnSize / 2, justifyContent: 'center', alignItems: 'center' }}
         >
           <Ionicons name="play-skip-forward" size={sideIconSize} color="#fff" />
-        </BounceButton>
-      </View>
-    );
-  };
-
-  const renderIpadPortraitControls = (customScale: number = 1.2) => {
-    const baseSize = 80 * customScale; 
-    const iconScale = customScale;
-    const mainSize = baseSize;       
-    const sideSize = baseSize * 0.75; 
-
-    return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 40, width: '100%', paddingHorizontal: 40, marginTop: 25 }}>
-        <BounceButton
-          onPress={handlePrev}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: sideSize, height: sideSize, borderRadius: sideSize / 2, justifyContent: 'center', alignItems: 'center' }}
-        >
-          <Ionicons name="play-skip-back" size={28 * iconScale} color="#fff" />
-        </BounceButton>
-
-        <BounceButton
-          onPress={togglePlayPause}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: mainSize, height: mainSize, borderRadius: mainSize / 2, justifyContent: 'center', alignItems: 'center' }}
-        >
-          <Ionicons name={isPlaying ? "pause" : "play"} size={45 * iconScale} color="#fff" />
-        </BounceButton>
-
-        <BounceButton
-          onPress={handleNext}
-          underlayColor="rgba(255,255,255,0.15)"
-          style={{ width: sideSize, height: sideSize, borderRadius: sideSize / 2, justifyContent: 'center', alignItems: 'center' }}
-        >
-          <Ionicons name="play-skip-forward" size={28 * iconScale} color="#fff" />
         </BounceButton>
       </View>
     );
@@ -367,177 +316,342 @@ export const FullScreenPlayer = ({
 
   let contentLayout;
   if (isLandscape) {
-    const leftColumnWidth = width / 2.2;
+    const leftColumnWidth = (width / 2.2) - 50;
     const landscapeArtSize = Math.min(leftColumnWidth * 0.75, height * 0.45);
 
     contentLayout = (
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', flex: 1 }}>
-          <PanGestureHandler
-            activeOffsetY={[-500, 15]}
-            failOffsetX={[-15, 15]}
-            onGestureEvent={onGestureEvent}
-            onHandlerStateChange={onHandlerStateChange}
+      <View style={{ flexDirection: 'row', flex: 1 }}>
+        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
+          {/* 横画面時左側の歌詞ボタン */}
+          <BounceButton
+            onPress={toggleLyrics}
+            underlayColor="rgba(255,255,255,0.15)"
+            style={{
+              width: 44, height: 44, borderRadius: 22,
+              backgroundColor: showLyrics ? themeColor : 'transparent',
+              justifyContent: 'center', alignItems: 'center'
+            }}
           >
-            <Animated.View style={{ width: leftColumnWidth, padding: 15, justifyContent: 'center', alignItems: 'center' }}>
-              {renderLeftColumnContent(leftColumnWidth, landscapeArtSize)}
-            </Animated.View>
-          </PanGestureHandler>
+            <Ionicons name="musical-notes-outline" size={28} color="#fff" />
+          </BounceButton>
+        </View>
 
-          <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
+        <PanGestureHandler
+          activeOffsetY={[-500, 15]}
+          failOffsetX={[-15, 15]}
+          onGestureEvent={onGestureEvent}
+          onHandlerStateChange={onHandlerStateChange}
+        >
+          <Animated.View style={{ width: leftColumnWidth, padding: 15, justifyContent: 'center', alignItems: 'center' }}>
+            {renderLeftColumnContent(leftColumnWidth, landscapeArtSize)}
+          </Animated.View>
+        </PanGestureHandler>
 
-          <View style={{ flex: 1, overflow: 'hidden' }}>
-            <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: mainOpacity, transform: [{ translateX: mainTranslateX }] }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
-              <FlatList
-                data={playQueue}
-                keyExtractor={(item, index) => 'queue-h-' + index}
+        <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
+
+        <View style={{ flex: 1, overflow: 'hidden' }}>
+          <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
+            <FlatList
+              data={playQueue}
+              keyExtractor={(item, index) => 'queue-h-' + index}
+              onScroll={(e) => {
+                const y = e.nativeEvent.contentOffset.y;
+                scrollYRef.current = y;
+                setIsScrollAtTop(y <= 0);
+              }}
+              scrollEventThrottle={16}
+              renderItem={({ item }) => (
+                <View style={styles.songRowQueue}>
+                  <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
+                  <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                </View>
+              )} />
+          </Animated.View>
+          <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] }) }]} pointerEvents={showLyrics ? 'auto' : 'none'}>
+            {currentSong?.lyric?.trim() ? (
+              <ScrollView
+                style={styles.lyricsScrollView}
+                contentContainerStyle={{ paddingBottom: 30 }}
                 onScroll={(e) => {
                   const y = e.nativeEvent.contentOffset.y;
                   scrollYRef.current = y;
                   setIsScrollAtTop(y <= 0);
                 }}
                 scrollEventThrottle={16}
-                renderItem={({ item }) => (
-                  <View style={styles.songRowQueue}>
-                    <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                    <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
-                  </View>
-                )} />
-            </Animated.View>
-            <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: subViewOpacity, transform: [{ translateX: subViewTranslateX }] }]} pointerEvents={showLyrics ? 'auto' : 'none'}>
-              {currentSong?.lyric?.trim() ? (
-                <ScrollView
-                  style={styles.lyricsScrollView}
-                  contentContainerStyle={{ paddingBottom: 30 }}
-                  onScroll={(e) => {
-                    const y = e.nativeEvent.contentOffset.y;
-                    scrollYRef.current = y;
-                    setIsScrollAtTop(y <= 0);
-                  }}
-                  scrollEventThrottle={16}
-                >
-                  <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
-                </ScrollView>
-              ) : (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
-                </View>
-              )}
-            </Animated.View>
-          </View>
+              >
+                <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
+              </View>
+            )}
+          </Animated.View>
         </View>
-        {renderBottomButtons()}
       </View>
     );
   } else {
-    const artSizeBig = Math.min(width * 0.8, height * 0.4);
-    const artSizeSmall = 60;
-    const artSizeAnim = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [artSizeBig, artSizeSmall] });
-    const artRadiusAnim = transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 8] });
+    // 縦画面（Portrait）時の画面構成
+    const artSizeBig = Math.min(width * 0.83, height * 0.40);
+
+    const mainViewStyle = {
+      opacity: mainViewAnim,
+      transform: [{
+        translateY: mainViewAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [12, 0]
+        })
+      }]
+    };
+
+    const lyricsViewStyle = {
+      opacity: lyricsViewAnim,
+      transform: [{
+        translateY: lyricsViewAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [12, 0]
+        })
+      }]
+    };
+
+    const queueViewStyle = {
+      opacity: queueViewAnim,
+      transform: [{
+        translateY: queueViewAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [12, 0]
+        })
+      }]
+    };
 
     contentLayout = (
-      <View style={{ flex: 1 }}>
-        <View
-          style={[styles.fullHeaderContainer, { justifyContent: (showQueue || showLyrics) ? 'flex-start' : 'center' }]}
-        >
-          <Animated.Image
-            source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
-            style={[styles.fullArtBase, {
-              width: artSizeAnim,
-              height: artSizeAnim,
-              borderRadius: artRadiusAnim,
-            }]}
-          />
-          {(showQueue || showLyrics) && (
-            <Animated.View style={[styles.sideTitleArea, { opacity: transitionAnim }]}>
-              <Text style={styles.queueTitle} numberOfLines={1}>{currentSong?.title}</Text>
-              <Text style={[styles.queueArtist, { color: '#aaa', fontSize: 14, marginTop: 2 }]} numberOfLines={1}>{currentSong?.artist}</Text>
-            </Animated.View>
-          )}
-        </View>
-
-        <View style={{ flex: 1 }}>
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: mainOpacity, transform: [{ translateX: mainTranslateX }] }]} pointerEvents={(showLyrics || showQueue) ? 'none' : 'auto'}>
-            <View style={styles.mainPlaybackLayout}>
-              <View style={{ width: '100%', alignItems: 'center' }}>
-                <View style={styles.mainTitlesCenter}>
-                  <Text style={styles.fullTitle} numberOfLines={1}>{currentSong?.title}</Text>
-                  <Text style={[styles.fullArtist, { marginBottom: 16 }]} numberOfLines={1}>{currentSong?.artist}</Text>
-                </View>
-
-                <View style={styles.sliderWithTime}>
-                  <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-                  <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
-                </View>
-              </View>
-
-              <View style={{ width: '100%' }}>
-                {isIpadPortrait ? renderIpadPortraitControls() : (
-                  renderControls(80, { width: '100%', justifyContent: 'space-around' })
-                )}
+      <View style={{ flex: 1, justifyContent: 'space-between' }}>
+        
+        {/* 1. 上部可変エリア (アニメーション付き切替) */}
+        <View style={{ flex: 1, width: '100%' }}>
+          
+          {/* (A) メイン画面 (カバーアート + タイトル/アーティスト) */}
+          <Animated.View 
+            style={[StyleSheet.absoluteFill, mainViewStyle, { justifyContent: 'center', alignItems: 'center' }]}
+            pointerEvents={(!showQueue && !showLyrics) ? 'auto' : 'none'}
+          >
+            <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15 }}>
+              <Image
+                source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+                style={[styles.fullArtBase, {
+                  width: artSizeBig,
+                  height: artSizeBig,
+                  borderRadius: 24,
+                  marginBottom: 16,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowOpacity: 0.35,
+                  shadowRadius: 18,
+                }]}
+              />
+              <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                <MarqueeText 
+                  text={currentSong?.title} 
+                  style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center' }} 
+                  containerWidth={width - 50} 
+                  align="center"
+                />
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginTop: 6, textAlign: 'center' }} numberOfLines={1}>
+                  {currentSong?.artist}
+                </Text>
               </View>
             </View>
           </Animated.View>
 
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: subViewOpacity, transform: [{ translateX: subViewTranslateX }] }]} pointerEvents={(showLyrics || showQueue) ? 'auto' : 'none'}>
+          {/* (B) 歌詞画面 */}
+          <Animated.View 
+            style={[StyleSheet.absoluteFill, lyricsViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
+            pointerEvents={showLyrics ? 'auto' : 'none'}
+          >
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              width: '100%', 
+              marginBottom: 12, 
+              paddingBottom: 12, 
+              paddingHorizontal: 5,
+              borderBottomWidth: 1.5,
+              borderBottomColor: 'rgba(255, 255, 255, 0.2)'
+            }}>
+              <Image
+                source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+                style={{ width: 46, height: 46, borderRadius: 8, marginRight: 12 }}
+              />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start' }}>
+                <MarqueeText 
+                  text={currentSong?.title} 
+                  style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', textAlign: 'left' }} 
+                  containerWidth={width - 30 - 46 - 12 - 10} 
+                  align="left"
+                />
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 2, textAlign: 'left' }} numberOfLines={1}>
+                  {currentSong?.artist}
+                </Text>
+              </View>
+            </View>
+
+            {currentSong?.lyric?.trim() ? (
+              <ScrollView
+                style={styles.lyricsScrollView}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                onScroll={(e) => {
+                  const y = e.nativeEvent.contentOffset.y;
+                  scrollYRef.current = y;
+                  setIsScrollAtTop(y <= 0);
+                }}
+                scrollEventThrottle={16}
+              >
+                <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
+              </View>
+            )}
+          </Animated.View>
+
+          {/* (C) キュー画面 */}
+          <Animated.View 
+            style={[StyleSheet.absoluteFill, queueViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
+            pointerEvents={showQueue ? 'auto' : 'none'}
+          >
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              width: '100%', 
+              marginBottom: 12, 
+              paddingBottom: 12, 
+              paddingHorizontal: 5,
+              borderBottomWidth: 1.5,
+              borderBottomColor: 'rgba(255, 255, 255, 0.2)'
+            }}>
+              <Image
+                source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+                style={{ width: 46, height: 46, borderRadius: 8, marginRight: 12 }}
+              />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start' }}>
+                <MarqueeText 
+                  text={currentSong?.title} 
+                  style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', textAlign: 'left' }} 
+                  containerWidth={width - 30 - 46 - 12 - 10} 
+                  align="left"
+                />
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 2, textAlign: 'left' }} numberOfLines={1}>
+                  {currentSong?.artist}
+                </Text>
+              </View>
+            </View>
+
+            <FlatList
+              data={playQueue}
+              keyExtractor={(item, index) => 'queue-v-' + index}
+              onScroll={(e) => {
+                const y = e.nativeEvent.contentOffset.y;
+                scrollYRef.current = y;
+                setIsScrollAtTop(y <= 0);
+              }}
+              scrollEventThrottle={16}
+              renderItem={({ item }) => (
+                <View style={styles.songRowQueue}>
+                  <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
+                  <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                </View>
+              )} 
+            />
+          </Animated.View>
+
+        </View>
+
+        {/* 2. 下部固定エリア (再生バー + メインボタン + 機能アイコン) */}
+        <View style={{ width: '100%', paddingTop: 10 }}>
+          
+          {/* (A) 再生バー (スライダー + 時間) */}
+          <View style={[styles.sliderWithTime, { paddingHorizontal: 10 }]}>
+            <Slider style={{ width: '100%', height: 35 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
+            <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+          </View>
+
+          {/* (B) 前へ・再生/一時停止・次へ */}
+          <View style={{ width: '100%', marginVertical: 10 }}>
+            {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
+          </View>
+
+          {/* (C) 4つのアイコンを画面幅全体に対して均等配置 */}
+          <View style={{ flexDirection: 'row', width: '100%', marginTop: 8, paddingHorizontal: 16, justifyContent: 'space-between', alignItems: 'center' }}>
             
-            <View style={[styles.queueViewArea, { paddingHorizontal: 20, flex: 1, paddingBottom: 10 }]}>
-              {showLyrics ? (
-                currentSong?.lyric?.trim() ? (
-                  <ScrollView
-                    style={styles.lyricsScrollView}
-                    contentContainerStyle={{ paddingBottom: 30 }}
-                    onScroll={(e) => {
-                      const y = e.nativeEvent.contentOffset.y;
-                      scrollYRef.current = y;
-                      setIsScrollAtTop(y <= 0);
-                    }}
-                    scrollEventThrottle={16}
-                  >
-                    <Text style={styles.lyricsText}>{currentSong?.lyric}</Text>
-                  </ScrollView>
-                ) : (
-                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text style={[styles.lyricsText, { opacity: 0.5, textAlign: 'center' }]}>歌詞が登録されていません</Text>
-                  </View>
-                )
-              ) : (
-                <FlatList
-                  data={playQueue}
-                  keyExtractor={(item, index) => 'queue-v-' + index}
-                  onScroll={(e) => {
-                    const y = e.nativeEvent.contentOffset.y;
-                    scrollYRef.current = y;
-                    setIsScrollAtTop(y <= 0);
-                  }}
-                  scrollEventThrottle={16}
-                  renderItem={({ item }) => (
-                    <View style={styles.songRowQueue}>
-                      <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                      <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
-                    </View>
-                  )} />
-              )}
+            {/* 1. シャッフル */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <BounceButton
+                onPress={toggleShuffleMode}
+                underlayColor="rgba(255,255,255,0.15)"
+                style={{
+                  width: 44, height: 44, borderRadius: 22,
+                  backgroundColor: isShuffle ? themeColor : 'transparent',
+                  justifyContent: 'center', alignItems: 'center'
+                }}
+              >
+                <Ionicons name="shuffle" size={22} color="#fff" />
+              </BounceButton>
             </View>
 
-            <View style={{ width: '100%', paddingHorizontal: 20, paddingBottom: 15 }}>
-              <View style={styles.sliderWithTime}>
-                <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-                <View style={styles.timeRow}>
-                  <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text>
-                  <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text>
+            {/* 2. ループ */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <BounceButton
+                onPress={toggleLoopMode}
+                underlayColor="rgba(255,255,255,0.15)"
+                style={{
+                  width: 44, height: 44, borderRadius: 22,
+                  backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent',
+                  justifyContent: 'center', alignItems: 'center'
+                }}
+              >
+                <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
+                  {loopMode === 'ONE' && (
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
+                  )}
                 </View>
-              </View>
-              
-              {isIpadPortrait ? renderIpadPortraitControls(0.9) : (
-                renderControls(65, { width: '100%', justifyContent: 'space-around', marginTop: 10 })
-              )}
+              </BounceButton>
             </View>
 
-          </Animated.View>
+            {/* 3. ★ 修正: 歌詞 (ON時はテーマカラー背景 & アイコン色白) */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <BounceButton
+                onPress={toggleLyrics}
+                underlayColor="rgba(255,255,255,0.15)"
+                style={{
+                  width: 44, height: 44, borderRadius: 22,
+                  backgroundColor: showLyrics ? themeColor : 'transparent',
+                  justifyContent: 'center', alignItems: 'center'
+                }}
+              >
+                <Ionicons name="musical-notes-outline" size={24} color="#fff" />
+              </BounceButton>
+            </View>
+
+            {/* 4. ★ 修正: キュー (ON時はテーマカラー背景 & アイコン色白) */}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <BounceButton
+                onPress={toggleQueue}
+                underlayColor="rgba(255,255,255,0.15)"
+                style={{
+                  width: 44, height: 44, borderRadius: 22,
+                  backgroundColor: showQueue ? themeColor : 'transparent',
+                  justifyContent: 'center', alignItems: 'center'
+                }}
+              >
+                <Ionicons name="list" size={24} color="#fff" />
+              </BounceButton>
+            </View>
+
+          </View>
         </View>
 
-        {renderBottomButtons()}
       </View>
     );
   }
