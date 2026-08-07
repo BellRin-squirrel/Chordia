@@ -30,8 +30,10 @@ export const useAudioPlayer = () => {
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
 
   const originalQueueRef = useRef<any[]>([]);
+  const activeQueueRef = useRef<any[]>([]); 
+  const queueRef = useRef<any[]>([]);       
+  
   const currentSongRef = useRef<any>(null);
-  const queueRef = useRef<any[]>([]);
   const indexRef = useRef<number>(0);
   const loopRef = useRef<any>('OFF');
   const shuffleRef = useRef<boolean>(false);
@@ -54,7 +56,6 @@ export const useAudioPlayer = () => {
     AsyncStorage.getItem('audioEngine').then(val => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
-    
     return () => clearExpoPolling();
   },[]);
 
@@ -94,8 +95,6 @@ export const useAudioPlayer = () => {
     
     const wasPlaying = isPlaying;
     const currentSongToRestore = currentSongRef.current;
-    const originalQueueToRestore = [...originalQueueRef.current];
-    const currentQueueToRestore = [...queueRef.current];
     let currentPosition = 0;
     
     if (audioEngine === 'rntp') {
@@ -115,63 +114,8 @@ export const useAudioPlayer = () => {
     setAudioEngine(engine);
     await AsyncStorage.setItem('audioEngine', engine);
     
-    if (currentSongToRestore && originalQueueToRestore.length > 0) {
-      if (engine === 'rntp') {
-        try {
-          await TrackPlayer.reset();
-          let rntpQueue = [];
-          let startIndex = 0;
-          
-          if (shuffleRef.current) {
-            rntpQueue = [currentSongToRestore, ...currentQueueToRestore];
-            startIndex = 0;
-          } else {
-            rntpQueue = [...originalQueueToRestore];
-            startIndex = rntpQueue.findIndex(s => s.localMusicUri === currentSongToRestore.localMusicUri);
-            if (startIndex === -1) {
-              rntpQueue = [currentSongToRestore, ...currentQueueToRestore];
-              startIndex = 0;
-            }
-          }
-          
-          const tracks = rntpQueue.map(s => ({
-            id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
-            artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
-          }));
-          
-          await TrackPlayer.add(tracks);
-          await TrackPlayer.skip(startIndex);
-          
-          if (loopRef.current === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
-          else if (loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
-          else await TrackPlayer.setRepeatMode(RepeatMode.Off);
-          
-          // ★ 修正箇所: 必ず SeekTo を先に完了させてから Play を呼ぶ
-          if (currentPosition > 0) {
-             await TrackPlayer.seekTo(currentPosition / 1000);
-          }
-
-          if (wasPlaying) {
-             // バッファリングが安定するまで少し（300ms）待ってから再生開始
-             setTimeout(async () => {
-                try {
-                   await TrackPlayer.play();
-                } catch(e) {}
-             }, 300);
-          } else {
-             setIsPlaying(false);
-          }
-
-        } catch(e) {}
-      } else {
-        const isLoopOne = loopRef.current === 'ONE';
-        initExpoAudioPlayer(currentSongToRestore.localMusicUri, isLoopOne, wasPlaying);
-        
-        if (currentPosition > 0) {
-          expoAudioPlayerRef.current?.seekTo(currentPosition / 1000);
-          setPlaybackStatusExpo(prev => ({ ...prev, positionMillis: currentPosition }));
-        }
-      }
+    if (currentSongToRestore && activeQueueRef.current.length > 0) {
+      loadAndPlayInternal(currentSongToRestore, activeQueueRef.current, indexRef.current, currentPosition, wasPlaying);
     } else {
       setPlayQueue([]);
       setCurrentSong(null);
@@ -238,18 +182,6 @@ export const useAudioPlayer = () => {
     });
   };
 
-  const rebuildQueue = (current: any, shuffle: boolean, loop: any, original: any[]) => {
-    if (loop === 'ONE' || !current) return[]; 
-    if (shuffle) {
-      const others = original.filter(s => s.localMusicUri !== current.localMusicUri);
-      return others.sort(() => Math.random() - 0.5);
-    } else {
-      const idx = original.findIndex(s => s.localMusicUri === current.localMusicUri);
-      if (idx !== -1) return original.slice(idx + 1);
-      return[];
-    }
-  };
-
   const saveHistory = async (song: any) => {
     try {
       const rs = await AsyncStorage.getItem('recently_played_songs');
@@ -261,7 +193,6 @@ export const useAudioPlayer = () => {
 
   const initExpoAudioPlayer = (uri: string, isLoopOne: boolean, autoPlay: boolean = true) => {
     clearExpoPolling();
-    
     let player = expoAudioPlayerRef.current;
     if (player) {
       player.replace({ uri });
@@ -274,37 +205,74 @@ export const useAudioPlayer = () => {
       expoAudioPlayerRef.current = player;
       if (autoPlay) player.play();
     }
-    
     startExpoPolling(player);
   };
 
-  const loadAndPlayInternal = async (song: any, queue: any[] =[], startIndex: number = 0) => {
+  const loadAndPlayInternal = async (
+    song: any, 
+    activeQueue: any[] = [], 
+    startIndex: number = 0, 
+    startPositionMs: number = 0,
+    shouldPlay: boolean = true
+  ) => {
     try {
       if (audioEngine === 'rntp') {
         await TrackPlayer.reset();
-        const tracks = queue.map(s => ({
+        const tracks = activeQueue.map(s => ({
           id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
           artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
         }));
         await TrackPlayer.add(tracks);
         await TrackPlayer.skip(startIndex);
-        await TrackPlayer.play();
-        
-        setCurrentSong(queue[startIndex]);
-        const appQueue = queue.slice(startIndex + 1);
-        setPlayQueue(appQueue);
-        queueRef.current = appQueue;
-        setCurrentIndex(startIndex);
-        saveHistory(queue[startIndex]);
 
+        if (loopRef.current === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
+        else if (loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
+        else await TrackPlayer.setRepeatMode(RepeatMode.Off);
+
+        if (startPositionMs > 0) {
+           await TrackPlayer.seekTo(startPositionMs / 1000);
+        }
+
+        if (shouldPlay) {
+           setTimeout(async () => {
+              try { await TrackPlayer.play(); } catch(e) {}
+           }, 300);
+        } else {
+           setIsPlaying(false);
+        }
       } else {
         const isLoopOne = loopRef.current === 'ONE';
-        initExpoAudioPlayer(song.localMusicUri, isLoopOne, true);
-        setCurrentSong(song);
-        saveHistory(song);
+        initExpoAudioPlayer(song.localMusicUri, isLoopOne, shouldPlay);
+        
+        if (startPositionMs > 0) {
+          expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
+          setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
+        }
       }
+
+      setCurrentSong(song);
+      currentSongRef.current = song;
+      
+      const appQueue = activeQueue.slice(startIndex + 1);
+      setPlayQueue(appQueue);
+      queueRef.current = appQueue;
+      
+      setCurrentIndex(startIndex);
+      indexRef.current = startIndex;
+      
+      saveHistory(song);
     } catch (e) {
-      Alert.alert("エラー", "再生に失敗しました");
+      console.warn("loadAndPlayInternal Error:", e);
+    }
+  };
+
+  const rebuildActiveQueue = (forceShuffle: boolean, currentSong: any) => {
+    if (!currentSong || originalQueueRef.current.length === 0) return [];
+    if (forceShuffle) {
+      const remaining = originalQueueRef.current.filter(s => s.localMusicUri !== currentSong.localMusicUri);
+      return [currentSong, ...remaining.sort(() => Math.random() - 0.5)];
+    } else {
+      return [...originalQueueRef.current];
     }
   };
 
@@ -325,50 +293,69 @@ export const useAudioPlayer = () => {
         }
     }
 
-    let finalQueue = [...songs];
-    let targetIndex = 0;
-    if (newShuffle) {
-      const newQ = rebuildQueue(firstSong, newShuffle, loopRef.current, songs);
-      finalQueue = [firstSong, ...newQ];
-      targetIndex = 0;
-    } else {
-      targetIndex = finalQueue.findIndex(s => s.localMusicUri === firstSong.localMusicUri);
-      if (targetIndex === -1) targetIndex = 0;
-    }
-
-    if (audioEngine === 'expo-av') {
-      const newQueue = rebuildQueue(firstSong, newShuffle, loopRef.current, songs);
-      setPlayQueue(newQueue);
-      queueRef.current = newQueue;
-      loadAndPlayInternal(firstSong);
-    } else {
-      loadAndPlayInternal(finalQueue, finalQueue, targetIndex);
-    }
+    const newActiveQueue = rebuildActiveQueue(newShuffle, firstSong);
+    activeQueueRef.current = newActiveQueue;
+    
+    const targetIndex = newActiveQueue.findIndex(s => s.localMusicUri === firstSong.localMusicUri);
+    loadAndPlayInternal(firstSong, newActiveQueue, targetIndex, 0, true);
   };
 
-  const toggleShuffleMode = () => {
+  const toggleShuffleMode = async () => {
     const nextShuffle = !isShuffle;
     setIsShuffle(nextShuffle);
     shuffleRef.current = nextShuffle;
     
-    if (!currentSongRef.current) return;
-    const remaining = originalQueueRef.current.filter(s => s.localMusicUri !== currentSongRef.current.localMusicUri);
-    let newQueue =[];
+    if (!currentSongRef.current || originalQueueRef.current.length === 0) return;
+    
+    const currentSong = currentSongRef.current;
+    
+    // 現在の曲を基準に新しいキュー順序を生成
+    const newActiveQueue = rebuildActiveQueue(nextShuffle, currentSong);
+    activeQueueRef.current = newActiveQueue;
 
-    if (nextShuffle) {
-        const shuffled = remaining.sort(() => Math.random() - 0.5);
-        newQueue = [currentSongRef.current, ...shuffled];
-    } else {
-        newQueue = [...originalQueueRef.current];
-    }
+    const targetIndex = newActiveQueue.findIndex(s => s.localMusicUri === currentSong.localMusicUri);
+    
+    // JS(React)側のUIを即座に更新
+    const appQueue = newActiveQueue.slice(targetIndex + 1);
+    setPlayQueue(appQueue);
+    queueRef.current = appQueue;
+    setCurrentIndex(targetIndex);
+    indexRef.current = targetIndex;
 
+    // ★ 修正: RNTPで「音楽を止めずに裏でキューだけを再構築」する処理
     if (audioEngine === 'rntp') {
-      const idx = nextShuffle ? 0 : newQueue.findIndex(s => s.localMusicUri === currentSongRef.current.localMusicUri);
-      loadAndPlayInternal(newQueue, newQueue, idx !== -1 ? idx : 0);
-    } else {
-      const expoQueue = rebuildQueue(currentSongRef.current, nextShuffle, loopRef.current, originalQueueRef.current);
-      setPlayQueue(expoQueue);
-      queueRef.current = expoQueue;
+      try {
+        const queue = await TrackPlayer.getQueue();
+        const activeIndex = await TrackPlayer.getActiveTrackIndex();
+        
+        if (activeIndex !== undefined && activeIndex !== null) {
+          // 現在再生中の曲「以外」をすべてネイティブから削除する
+          const indicesToRemove = queue.map((_, i) => i).filter(i => i !== activeIndex);
+          if (indicesToRemove.length > 0) {
+            await TrackPlayer.remove(indicesToRemove);
+          }
+          
+          // 残った現在の曲は自動的にインデックス 0 になる。その前後に新しいリストを挿入する
+          const tracksBefore = newActiveQueue.slice(0, targetIndex).map(s => ({
+            id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
+            artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
+          }));
+          
+          const tracksAfter = newActiveQueue.slice(targetIndex + 1).map(s => ({
+            id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
+            artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
+          }));
+          
+          if (tracksBefore.length > 0) {
+            await TrackPlayer.add(tracksBefore, 0);
+          }
+          if (tracksAfter.length > 0) {
+            await TrackPlayer.add(tracksAfter);
+          }
+        }
+      } catch (e) {
+        console.warn('Shuffle mode toggle error:', e);
+      }
     }
   };
 
@@ -387,47 +374,36 @@ export const useAudioPlayer = () => {
         expoAudioPlayerRef.current.isLooping = (nextLoop === 'ONE');
       }
     }
-    
-    if (currentSongRef.current) {
-        const newQueue = rebuildQueue(currentSongRef.current, shuffleRef.current, nextLoop, originalQueueRef.current);
-        setPlayQueue(newQueue);
-        queueRef.current = newQueue;
-    }
   };
 
   const handleNextInternal = async () => {
     if (audioEngine === 'rntp') {
       await TrackPlayer.skipToNext();
     } else {
-      const queue = queueRef.current;
+      const activeQueue = activeQueueRef.current;
+      const currentSong = currentSongRef.current;
       const mode = loopRef.current;
-      const original = originalQueueRef.current;
-
-      if (mode === 'ONE' && currentSongRef.current) {
-        loadAndPlayInternal(currentSongRef.current);
+      const idx = indexRef.current;
+      
+      if (mode === 'ONE' && currentSong) {
+        loadAndPlayInternal(currentSong, activeQueue, idx, 0, true);
         return;
       }
-      if (queue.length > 0) {
-        const nextSong = queue[0];
-        const remainingQueue = queue.slice(1);
-        setPlayQueue(remainingQueue);
-        queueRef.current = remainingQueue;
-        loadAndPlayInternal(nextSong);
+      
+      const nextIdx = idx + 1;
+      if (nextIdx < activeQueue.length) {
+        const nextSong = activeQueue[nextIdx];
+        loadAndPlayInternal(nextSong, activeQueue, nextIdx, 0, true);
       } else {
-        if (mode === 'ALL' && original.length > 0) {
-          let firstSong;
-          let newQueue;
+        if (mode === 'ALL' && activeQueue.length > 0) {
+          let nextActiveQueue = activeQueue;
           if (shuffleRef.current) {
-              const shuffled = [...original].sort(() => Math.random() - 0.5);
-              firstSong = shuffled[0];
-              newQueue = shuffled.slice(1);
-          } else {
-              firstSong = original[0];
-              newQueue = original.slice(1);
+            const shuffled = [...originalQueueRef.current].sort(() => Math.random() - 0.5);
+            nextActiveQueue = shuffled;
+            activeQueueRef.current = nextActiveQueue;
           }
-          setPlayQueue(newQueue);
-          queueRef.current = newQueue;
-          loadAndPlayInternal(firstSong);
+          const firstSong = nextActiveQueue[0];
+          loadAndPlayInternal(firstSong, nextActiveQueue, 0, 0, true);
         } else {
           setIsPlaying(false);
         }
@@ -443,10 +419,9 @@ export const useAudioPlayer = () => {
       if (currentPos > 3) await TrackPlayer.seekTo(0);
       else await TrackPlayer.skipToPrevious();
     } else {
-      const current = currentSongRef.current;
-      const original = originalQueueRef.current;
-      if (!current || original.length === 0) return;
-
+      const activeQueue = activeQueueRef.current;
+      const idx = indexRef.current;
+      
       const currentPos = playbackStatusExpo?.positionMillis || 0;
       if (currentPos > 3000) {
         expoAudioPlayerRef.current?.seekTo(0);
@@ -454,15 +429,14 @@ export const useAudioPlayer = () => {
         return;
       }
 
-      const idx = original.findIndex(s => s.localMusicUri === current.localMusicUri);
-      let prevSong = original[0];
-      if (idx > 0) prevSong = original[idx - 1];
-      else if (loopRef.current === 'ALL') prevSong = original[original.length - 1];
+      let prevIdx = idx - 1;
+      if (prevIdx < 0) {
+        if (loopRef.current === 'ALL') prevIdx = activeQueue.length - 1;
+        else prevIdx = 0;
+      }
       
-      const newQueue = rebuildQueue(prevSong, shuffleRef.current, loopRef.current, original);
-      setPlayQueue(newQueue);
-      queueRef.current = newQueue;
-      loadAndPlayInternal(prevSong);
+      const prevSong = activeQueue[prevIdx];
+      loadAndPlayInternal(prevSong, activeQueue, prevIdx, 0, true);
     }
   };
 
@@ -498,15 +472,19 @@ export const useAudioPlayer = () => {
   useEffect(() => {
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
         if (audioEngine === 'rntp' && event.track && event.track.originalData) {
-            setCurrentSong(event.track.originalData);
-            currentSongRef.current = event.track.originalData;
+            const newSong = event.track.originalData;
+            setCurrentSong(newSong);
+            currentSongRef.current = newSong;
             
-            const mode = loopRef.current;
-            const original = originalQueueRef.current;
-            if (mode !== 'ONE') {
-               const newQueue = rebuildQueue(event.track.originalData, shuffleRef.current, mode, original);
-               setPlayQueue(newQueue);
-               queueRef.current = newQueue;
+            const activeQueue = activeQueueRef.current;
+            const idx = activeQueue.findIndex(s => s.localMusicUri === newSong.localMusicUri);
+            
+            if (idx !== -1) {
+                const newPlayQueue = activeQueue.slice(idx + 1);
+                setPlayQueue(newPlayQueue);
+                queueRef.current = newPlayQueue;
+                setCurrentIndex(idx);
+                indexRef.current = idx;
             }
         }
     });
