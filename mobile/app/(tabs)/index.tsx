@@ -174,7 +174,7 @@ const AppContent = () => {
     if (t.includes('完了') || t.includes('成功') || t.includes('設定変更') || t.includes('承認')) {
       return <Ionicons name="checkmark-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
     }
-    if (t.includes('エラー') || t.includes('失敗') || t.includes('拒否') || t.includes('切断')) {
+    if (t.includes('エラー') || t.includes('失敗') || t.includes('拒否') || t.includes('切断') || t.includes('停止')) {
       return <Ionicons name="alert-circle-outline" size={38} color="#ef4444" style={{ marginBottom: 12 }} />;
     }
     return <Ionicons name="information-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
@@ -246,12 +246,29 @@ const AppContent = () => {
         </View>
       )}
 
-      {/* フルスクリーン同期中のシンプルなローディングモーダル */}
+      {/* ★ 修正: 下部にキャンセルボタンを配置したフルスクリーン同期モーダル */}
       <Modal visible={isFullScreenSyncing} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.fullScreenModalOverlay}>
-          <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card }]}>
+          <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card, paddingBottom: 25 }]}>
             <ActivityIndicator size="large" color={themeColor} />
-            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center' }]}>{syncProgress}</Text>
+            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center', marginBottom: 25 }]}>{syncProgress}</Text>
+            
+            <TouchableOpacity 
+              style={{
+                backgroundColor: '#ef4444',
+                paddingVertical: 12,
+                paddingHorizontal: 35,
+                borderRadius: 25,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              onPress={cancelSync}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>キャンセル</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

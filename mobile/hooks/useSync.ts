@@ -35,10 +35,11 @@ const buildUrl = (ip: string, port: string) => {
   return `http://${ip}:${port}`;
 };
 
+// タイムアウト発生時は例外を投げて即時中断させる
 const downloadWithTimeout = async (url: string, fileUri: string, headers: any, timeoutMs: number) => {
   return new Promise(async (resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`Download timeout (${timeoutMs}ms)`));
+      reject(new Error(`通信がタイムアウトしました (${Math.floor(timeoutMs / 1000)}秒)`));
     }, timeoutMs);
 
     try {
@@ -222,6 +223,7 @@ export const useSync = ({
     const baseUrl = buildUrl(ip, port);
     
     try {
+      console.log(`[Sync] Requesting auth to PC: ${baseUrl}`);
       const res = await fetch(`${baseUrl}/api/auth/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +246,7 @@ export const useSync = ({
     setIsSyncing(true);
     const baseUrl = buildUrl(ip, port);
     try {
+      console.log(`[Sync] Verifying auth code with PC: ${baseUrl}`);
       const res = await fetch(`${baseUrl}/api/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -319,6 +322,7 @@ export const useSync = ({
     setPcPlaylists([]);
   };
   
+  // ★ タイムアウト時の自動停止機能を組み込んだ同期処理
   const startSyncDownload = async (mode: 'KEEP_DUPLICATES' | 'DELETE_ALL') => {
     if (!serverIp || !apiKey) { Alert.alert('エラー', '接続が確立されていません。'); return; }
     
@@ -472,14 +476,11 @@ export const useSync = ({
                     finalMusicUri = existingLocal.localMusicUri;
                     finalImgUri = existingLocal.localImageUri || "";
                 } else {
-                    try {
-                        await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
-                    } catch(e) { console.warn(`Music download timeout: ${song.title}`); }
+                    // タイムアウト発生時は例外がスローされ、catch ブロックで同期が安全停止する
+                    await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
                 }
             } else {
-                try {
-                    await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
-                } catch(e) { console.warn(`Music download timeout: ${song.title}`); }
+                await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
             }
 
             if (song.url_image && (!finalImgUri || mode === 'DELETE_ALL')) {
@@ -487,9 +488,7 @@ export const useSync = ({
                 finalImgUri = baseDir + imgFname;
                 const imgInfo = await FileSystem.getInfoAsync(finalImgUri);
                 if (!imgInfo.exists) {
-                    try {
-                        await downloadWithTimeout(`${baseUrl}${song.url_image}`, finalImgUri, headers, 15000);
-                    } catch(e) { console.warn(`Image download timeout: ${song.title}`); }
+                    await downloadWithTimeout(`${baseUrl}${song.url_image}`, finalImgUri, headers, 15000);
                 }
             }
 
@@ -516,11 +515,10 @@ export const useSync = ({
 
         await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
 
-        // ==========================
         // プレイリスト カバー画像の同期
-        // ==========================
         const processedPlaylists: any[] = [];
         for (let j = 0; j < targetPlaylists.length; j++) {
+            if (didCancelRef.current) break;
             const pl = { ...targetPlaylists[j] };
             
             let coverUrl = pl.url_cover || pl.cover_url || pl.coverUrl;
@@ -552,7 +550,7 @@ export const useSync = ({
                         pl.localCoverImageUri = localCoverUri;
                     }
                 } catch (e) {
-                    console.warn(`[Sync Download] Playlist cover download error for ${pl.playlistName}:`, e);
+                    console.warn("[Sync Download] Playlist cover download error:", e);
                 }
             }
             processedPlaylists.push(pl);
@@ -586,15 +584,19 @@ export const useSync = ({
         
         const errMsg = e.message || '';
         const is403 = errMsg.includes('403');
+        const isTimeout = errMsg.includes('タイムアウト') || errMsg.includes('timeout');
         
-        if (didCancelRef.current && !is403) {
+        if (didCancelRef.current && !is403 && !isTimeout) {
             return;
         }
 
+        // タイムアウトまたは通信エラーによる停止ダイアログ
         setTimeout(() => {
             Alert.alert(
-              "同期エラー", 
-              is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`, 
+              "同期停止", 
+              isTimeout 
+                ? "通信がタイムアウトしたため、安全のため同期を停止しました。ネットワーク接続を確認して再度お試しください。" 
+                : (is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`), 
               [{ text: "OK", onPress: () => disconnect() }]
             );
         }, 100);
@@ -604,6 +606,8 @@ export const useSync = ({
   const cancelSync = () => {
     didCancelRef.current = true;
     setIsAutoConnecting(false);
+    setIsFullScreenSyncing(false);
+    setSyncProgress('');
     setSyncStage('INPUT_IP');
     setAuthCodeInput('');
   };
