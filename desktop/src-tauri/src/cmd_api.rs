@@ -7,13 +7,12 @@ use tauri::Emitter;
 use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::path::PathBuf;
-use crate::utils::get_base_dir; // ★ 追加: ベースディレクトリ取得ユーティリティ
+use crate::utils::get_base_dir;
 
-// ★ 優先パス探索関数 (userfiles/bin/ 内を最優先で探索)
+// ★ userfiles/bin/ 内の cloudflared を最優先で自動検索する関数
 fn get_cloudflared_path() -> String {
     let exe_name = if cfg!(target_os = "windows") { "cloudflared.exe" } else { "cloudflared" };
     
-    // 1. userfiles/bin/ 内を最優先でチェック
     let userfiles_bin = get_base_dir().join("userfiles/bin").join(exe_name);
     if userfiles_bin.exists() {
         if let Some(path_str) = userfiles_bin.to_str() {
@@ -21,7 +20,6 @@ fn get_cloudflared_path() -> String {
         }
     }
 
-    // 2. ベースディレクトリ直下をチェック
     let base_bin = get_base_dir().join(exe_name);
     if base_bin.exists() {
         if let Some(path_str) = base_bin.to_str() {
@@ -29,12 +27,10 @@ fn get_cloudflared_path() -> String {
         }
     }
 
-    // 3. カレントディレクトリの相対パスをチェック
     if PathBuf::from(exe_name).exists() {
         return format!("./{}", exe_name);
     }
 
-    // 4. システム PATH から探索
     exe_name.to_string()
 }
 
@@ -123,7 +119,7 @@ pub async fn force_disconnect_session(ip: String, device: String, auth: State<'_
     Ok(())
 }
 
-// ★ Cloudflare Quick Tunnel (cloudflared) 内部起動コマンド
+// ★ 修正: Broken Pipe（パイプ破壊によるクラッシュ）を完全に防ぐ永続トンネル起動処理
 #[tauri::command]
 pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuthState>) -> Result<String, String> {
     let mut state = auth.lock().await;
@@ -138,47 +134,58 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
         let mut child = Command::new(&binary_path)
             .args(&[
                 "tunnel",
+                "--no-autoupdate",
+                "--http-host-header",
+                "localhost",
                 "--url",
                 &format!("http://127.0.0.1:{}", port),
             ])
             .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| format!("cloudflared の起動に失敗しました（{} を確認してください）: {}", binary_path, e))?;
 
         let stderr = child.stderr.take().ok_or("標準エラー出力の取得に失敗しました")?;
-        let mut reader = BufReader::new(stderr);
-        let mut line = String::new();
-        let mut wan_url = String::new();
 
-        let timeout_duration = std::time::Duration::from_secs(20);
-        let read_loop = async {
-            for _ in 0..60 {
-                line.clear();
-                if reader.read_line(&mut line).await.is_ok() {
+        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+
+        // ★ 修正: バックグラウンドの独立タスクでログを常時受け流すことで Broken Pipe によるプロセスの即死を防止
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr);
+            let mut line = String::new();
+            let mut tx_option = Some(tx);
+
+            while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                if let Some(_) = tx_option.as_ref() {
                     if line.contains("trycloudflare.com") {
                         if let Some(url_part) = line.split("https://").nth(1) {
                             let url = url_part.split_whitespace().next().unwrap_or("").trim_matches(&['\r', '\n', '\t', ' ', '|', '\''][..]);
                             if !url.is_empty() {
-                                wan_url = format!("https://{}", url);
-                                break;
+                                let wan_url = format!("https://{}", url);
+                                if let Some(sender) = tx_option.take() {
+                                    let _ = sender.send(wan_url);
+                                }
                             }
                         }
                     }
                 }
+                line.clear();
             }
-        };
+        });
 
-        if tokio::time::timeout(timeout_duration, read_loop).await.is_err() || wan_url.is_empty() {
-            let _ = child.kill().await;
-            return Err("Cloudflare Tunnel の起動またはURL取得に失敗しました。".to_string());
+        // 20秒以内に URL が生成されるのを待機
+        match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
+            Ok(Ok(wan_url)) => {
+                state.tunnel_process = Some(child);
+                state.wan_url = Some(wan_url.clone());
+                Ok(wan_url)
+            }
+            _ => {
+                let _ = child.kill().await;
+                Err("Cloudflare Tunnel の URL 取得にタイムアウトしました。".to_string())
+            }
         }
-
-        state.tunnel_process = Some(child);
-        state.wan_url = Some(wan_url.clone());
-        
-        Ok(wan_url)
     } else {
         if let Some(mut child) = state.tunnel_process.take() {
             let _ = child.kill().await;

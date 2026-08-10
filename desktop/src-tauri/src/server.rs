@@ -1,7 +1,8 @@
 use axum::{
-    extract::State as AxumState,
+    extract::{Request, State as AxumState},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -75,7 +76,37 @@ pub struct ServerState {
 }
 
 // ==========================================
-// 認証ミドルウェア
+// 全通信共通: セッション自動リフレッシュ・ミドルウェア
+// ==========================================
+async fn session_refresher_middleware(
+    AxumState(state): AxumState<ServerState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let headers = req.headers();
+    let api_key = headers.get("X-API-KEY").and_then(|v| v.to_str().ok());
+    let ip = headers.get("X-DEVICE-IP").and_then(|v| v.to_str().ok());
+    let device = headers.get("X-DEVICE-NAME").and_then(|v| v.to_str().ok());
+    let os_ver = headers.get("X-DEVICE-OS").and_then(|v| v.to_str().ok());
+
+    if let (Some(api_key), Some(ip), Some(device), Some(os_ver)) = (api_key, ip, device, os_ver) {
+        let mut auth = state.auth.lock().await;
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
+        
+        auth.sessions.retain(|_, s| now - s.last_access <= 300.0);
+        
+        if let Some(session) = auth.sessions.get_mut(api_key) {
+            if session.ip == ip && session.device == device && session.os == os_ver {
+                session.last_access = now;
+            }
+        }
+    }
+
+    next.run(req).await
+}
+
+// ==========================================
+// 認証検証関数
 // ==========================================
 async fn verify_request(headers: &HeaderMap, auth: &SharedAuthState) -> bool {
     let api_key = headers.get("X-API-KEY").and_then(|v| v.to_str().ok());
@@ -97,6 +128,11 @@ async fn verify_request(headers: &HeaderMap, auth: &SharedAuthState) -> bool {
         }
     }
     false
+}
+
+// ★ 追加: ブラウザアクセス確認用 ＆ ヘルスチェック用ルート応答
+async fn api_root() -> impl IntoResponse {
+    (StatusCode::OK, Json(json!({"service": "Chordia Sync Server", "status": "active"})))
 }
 
 // ==========================================
@@ -232,16 +268,29 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                 for song in db.iter() {
                     if evaluate_smart_rules(song, conds) {
                         if let Some(fname) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                            music.push(Value::String(std::path::Path::new(fname).file_name().unwrap_or_default().to_str().unwrap_or("").to_string()));
+                            let clean_fname = std::path::Path::new(fname).file_name().unwrap_or_default().to_str().unwrap_or("").to_string();
+                            music.push(Value::String(clean_fname));
                         }
                     }
                 }
             }
         } else {
-            let path = base.join(format!("userfiles/playlist/{}.json", pl_id));
-            if path.exists() {
-                if let Ok(data) = fs::read_to_string(&path) {
-                    if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { music = list; }
+            let path1 = base.join(format!("userfiles/playlist/{}.json", pl_id));
+            let path2 = base.join(format!("userfiles/playlists/{}.json", pl_id));
+            let path_to_use = if path1.exists() { Some(path1) } else if path2.exists() { Some(path2) } else { None };
+
+            if let Some(p) = path_to_use {
+                if let Ok(data) = fs::read_to_string(&p) {
+                    if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { 
+                        music = list.into_iter().map(|v| {
+                            if let Some(s) = v.as_str() {
+                                let fname = std::path::Path::new(s).file_name().unwrap_or_default().to_str().unwrap_or("");
+                                Value::String(fname.to_string())
+                            } else {
+                                v
+                            }
+                        }).collect();
+                    }
                 }
             }
         }
@@ -254,7 +303,6 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                 .to_str()
                 .unwrap_or("");
             if !c_fname.is_empty() {
-                // ★ 修正: library/images/ の画像をカバーに設定している場合は、/mobile_image/ エンドポイントを使う
                 let path_normalized = cover_path.replace("\\", "/");
                 if path_normalized.contains("library/images") {
                     url_cover = Value::String(format!("/mobile_image/{}", c_fname));
@@ -304,6 +352,7 @@ pub async fn start_server(
     let state = ServerState { auth: auth.clone(), app_handle };
     let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
     let app = Router::new()
+        .route("/", get(api_root).options(api_root)) // ★ 追加: ルート確認用レスポンス
         .route("/api/auth/request", post(auth_request))
         .route("/api/auth/cancel", post(auth_cancel))
         .route("/api/auth/verify_session", get(auth_verify_session))
@@ -315,6 +364,7 @@ pub async fn start_server(
         .nest_service("/mobile_music", ServeDir::new(music_dir))
         .nest_service("/mobile_image", ServeDir::new(image_dir))
         .nest_service("/mobile_cover_image", ServeDir::new(cover_image_dir))
+        .layer(middleware::from_fn_with_state(state.clone(), session_refresher_middleware))
         .layer(cors)
         .with_state(state);
 

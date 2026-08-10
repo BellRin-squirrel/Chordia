@@ -1,12 +1,24 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
+import TrackPlayer from 'react-native-track-player';
 import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// ★ AirPlay ライブラリ (react-native-airplay-btn / react-native-airplay-button) の安全ダイナミックインポート
+let AirPlayNativeButton: any = null;
+if (Platform.OS === 'ios') {
+  try {
+    const airplayModule = require('react-native-airplay-btn') || require('react-native-airplay-button');
+    AirPlayNativeButton = airplayModule.AirPlayButton || airplayModule.default || airplayModule;
+  } catch (e) {
+    console.warn("AirPlay Button library not found, falling back to MaterialIcons.");
+  }
+}
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -125,7 +137,7 @@ export const FullScreenPlayer = ({
   toggleLoopMode, toggleShuffleMode, setShowQueue, setShowLyrics,
   handlePrev, togglePlayPause, handleNext,
   slideAnim, queueTransitionAnim, closeFullPlayer,
-  toastVisible, toastMessage, toastAnim
+  toastVisible, toastMessage, toastAnim, showToast
 }: any) => {
 
   const { width, height } = useWindowDimensions();
@@ -151,6 +163,21 @@ export const FullScreenPlayer = ({
   } else if (isIpad) {
     btnScale = 1.2;
   }
+
+  // ★ 安全な AirPlay フォールバック処理
+  const handleAirPlayFallback = async () => {
+    if (Platform.OS === 'ios') {
+      try {
+        if (typeof (TrackPlayer as any).showAirPlayPicker === 'function') {
+          await (TrackPlayer as any).showAirPlayPicker();
+        } else if (typeof showToast === 'function') {
+          showToast("オーディオ出力先はコントロールセンターから変更できます");
+        }
+      } catch (e) {
+        console.warn("AirPlay launch warning:", e);
+      }
+    }
+  };
 
   useEffect(() => {
     const isMain = !showQueue && !showLyrics;
@@ -322,7 +349,6 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
         <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
-          {/* 横画面時左側の歌詞ボタン */}
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
@@ -581,7 +607,7 @@ export const FullScreenPlayer = ({
             {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
           </View>
 
-          {/* (C) 4つのアイコンを画面幅全体に対して均等配置 */}
+          {/* (C) アイコン配置 (iOSはAirPlay含む5つ均等配置、Androidは4つ均等配置) */}
           <View style={{ flexDirection: 'row', width: '100%', marginTop: 8, paddingHorizontal: 16, justifyContent: 'space-between', alignItems: 'center' }}>
             
             {/* 1. シャッフル */}
@@ -619,7 +645,24 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. ★ 修正: 歌詞 (ON時はテーマカラー背景 & アイコン色白) */}
+            {/* 3. ★ ど真ん中の AirPlay ボタン (iOSでのみ安全に表示 & ガード付き) */}
+            {Platform.OS === 'ios' && (
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <BounceButton
+                  onPress={handleAirPlayFallback}
+                  underlayColor="rgba(255,255,255,0.15)"
+                  style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+                >
+                  {AirPlayNativeButton ? (
+                    <AirPlayNativeButton style={{ width: 24, height: 24 }} tintColor="#ffffff" activeTintColor={themeColor} />
+                  ) : (
+                    <MaterialIcons name="airplay" size={22} color="#fff" />
+                  )}
+                </BounceButton>
+              </View>
+            )}
+
+            {/* 4. 歌詞 */}
             <View style={{ flex: 1, alignItems: 'center' }}>
               <BounceButton
                 onPress={toggleLyrics}
@@ -634,7 +677,7 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 4. ★ 修正: キュー (ON時はテーマカラー背景 & アイコン色白) */}
+            {/* 5. キュー */}
             <View style={{ flex: 1, alignItems: 'center' }}>
               <BounceButton
                 onPress={toggleQueue}

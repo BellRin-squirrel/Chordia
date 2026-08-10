@@ -8,6 +8,47 @@
     <link rel="stylesheet" href="css/api/api.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/theme_head.js"></script>
+    <style>
+        /* ★ WAN トグルスイッチ用のスタイル定義 */
+        .switch-toggle {
+            position: relative;
+            display: inline-block;
+            width: 52px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        .switch-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #4b5563;
+            transition: .3s;
+            border-radius: 28px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #ffffff;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        input:checked + .toggle-slider {
+            background-color: var(--accent-color, #4f46e5);
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+    </style>
 </head>
 <body class="sync-body">
     <div class="container">
@@ -18,15 +59,16 @@
         <!-- WAN (HTTPS トンネル) 安全切り替えパネル -->
         <div class="card-large" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid var(--accent-color, #4f46e5);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
+                <div style="padding-right: 15px;">
                     <h2 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">外出先 (WAN) 接続モード</h2>
                     <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-sub);">
                         安全なHTTPSトンネルを構築し、インターネット越しでの同期を許可します。
                     </p>
                 </div>
-                <label class="switch-toggle" style="position: relative; display: inline-block; width: 50px; height: 26px;">
-                    <input type="checkbox" id="wanToggle" style="opacity: 0; width: 0; height: 0;">
-                    <span class="slider" id="wanSlider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 26px;"></span>
+                <!-- ★ 正しく描画されるトグルスイッチ -->
+                <label class="switch-toggle">
+                    <input type="checkbox" id="wanToggle">
+                    <span class="toggle-slider" id="wanSlider"></span>
                 </label>
             </div>
             
