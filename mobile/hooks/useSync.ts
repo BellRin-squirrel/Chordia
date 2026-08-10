@@ -28,16 +28,25 @@ type ClientInfo = {
   osVersion: string;
 };
 
-// ★ 修正: https:// なしのドメイン名が手動入力された場合でも自動で https:// を安全補完
+// ★ 修正: IPアドレス(192.168.x.x) と WANドメイン名(https://...) を厳密判別するURL構築処理
 const buildUrl = (ip: string, port: string) => {
   let cleanIp = ip ? ip.trim().replace(/[\r\n]/g, '') : '';
   let cleanPort = port ? port.trim().replace(/[\r\n]/g, '') : '';
   
+  if (!cleanIp) return '';
+
+  // すでに http:// や https:// が付いている場合はそのまま使用
   if (cleanIp.startsWith('http://') || cleanIp.startsWith('https://')) {
     return cleanIp.replace(/\/$/, ''); 
   }
   
-  // ドメイン名（. を含む文字列）の場合は自動的に https:// を付与
+  // 数字とドットで構成される IPv4 アドレス (例: 192.168.0.3) の判定
+  const isIpv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(cleanIp);
+  if (isIpv4) {
+    return `http://${cleanIp}:${cleanPort}`;
+  }
+
+  // ドメイン名 (例: xxxx.trycloudflare.com) の場合は https:// を自動補完
   if (cleanIp.includes('.')) {
     return `https://${cleanIp}`;
   }
@@ -56,13 +65,18 @@ const getFileName = (pathStr: string | null | undefined): string => {
   return fname ? cleanStr(fname) : '';
 };
 
+// ★ 修正: GETリクエスト時の不要な Content-Type を除外し通信失敗を防ぐ safeFetchJson
 const safeFetchJson = async (url: string, options: any = {}) => {
-  const headers = {
+  const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     'Accept': 'application/json',
-    'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
+
+  // POST や PUT などデータ送信時のみ Content-Type を設定
+  if (options.body && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const res = await fetch(url, { ...options, headers });
   const text = await res.text();

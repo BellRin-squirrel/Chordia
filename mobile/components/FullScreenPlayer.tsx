@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform, Alert } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
@@ -9,14 +9,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
-// ★ AirPlay ライブラリ (react-native-airplay-btn / react-native-airplay-button) の安全ダイナミックインポート
+// ★ AirPlay ライブラリの安全ダイナミックインポート
 let AirPlayNativeButton: any = null;
 if (Platform.OS === 'ios') {
   try {
     const airplayModule = require('react-native-airplay-btn') || require('react-native-airplay-button');
     AirPlayNativeButton = airplayModule.AirPlayButton || airplayModule.default || airplayModule;
   } catch (e) {
-    console.warn("AirPlay Button library not found, falling back to MaterialIcons.");
+    console.warn("AirPlay Button library load error:", e);
   }
 }
 
@@ -164,18 +164,29 @@ export const FullScreenPlayer = ({
     btnScale = 1.2;
   }
 
-  // ★ 安全な AirPlay フォールバック処理
-  const handleAirPlayFallback = async () => {
+  // ★ 原因特定のためのデバッグ用 AirPlay ハンドラー
+  const handleAirPlayDebug = async () => {
     if (Platform.OS === 'ios') {
+      let debugLogs: string[] = [];
+      debugLogs.push(`AirPlayNativeButton Loaded: ${!!AirPlayNativeButton}`);
+
+      const tp = TrackPlayer as any;
+      const hasShowAirPlay = typeof tp?.showAirPlayPicker === 'function';
+      debugLogs.push(`TrackPlayer.showAirPlayPicker: ${hasShowAirPlay}`);
+
       try {
-        if (typeof (TrackPlayer as any).showAirPlayPicker === 'function') {
-          await (TrackPlayer as any).showAirPlayPicker();
-        } else if (typeof showToast === 'function') {
-          showToast("オーディオ出力先はコントロールセンターから変更できます");
+        if (hasShowAirPlay) {
+          await tp.showAirPlayPicker();
+          debugLogs.push("Result: Executed showAirPlayPicker()");
+        } else {
+          debugLogs.push("Result: showAirPlayPicker is undefined");
         }
-      } catch (e) {
-        console.warn("AirPlay launch warning:", e);
+      } catch (e: any) {
+        debugLogs.push(`Exception: ${e.message || e}`);
       }
+
+      // 画面上に原因特定用ダイアログを表示
+      Alert.alert("AirPlay Debug Info", debugLogs.join("\n\n"));
     }
   };
 
@@ -607,7 +618,7 @@ export const FullScreenPlayer = ({
             {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
           </View>
 
-          {/* (C) アイコン配置 (iOSはAirPlay含む5つ均等配置、Androidは4つ均等配置) */}
+          {/* (C) 5つのアイコンを画面幅全体に対して均等配置 */}
           <View style={{ flexDirection: 'row', width: '100%', marginTop: 8, paddingHorizontal: 16, justifyContent: 'space-between', alignItems: 'center' }}>
             
             {/* 1. シャッフル */}
@@ -645,19 +656,20 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. ★ ど真ん中の AirPlay ボタン (iOSでのみ安全に表示 & ガード付き) */}
+            {/* 3. ★ ど真ん中の AirPlay ボタン (重ね合わせで白アイコンを確実に可視化 & タップ時に原因特定アラートを出力) */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center' }}>
                 <BounceButton
-                  onPress={handleAirPlayFallback}
+                  onPress={handleAirPlayDebug}
                   underlayColor="rgba(255,255,255,0.15)"
                   style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
                 >
-                  {AirPlayNativeButton ? (
-                    <AirPlayNativeButton style={{ width: 24, height: 24 }} tintColor="#ffffff" activeTintColor={themeColor} />
-                  ) : (
+                  <View style={{ width: 24, height: 24, justifyContent: 'center', alignItems: 'center' }}>
+                    {AirPlayNativeButton && (
+                      <AirPlayNativeButton style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.01 }} />
+                    )}
                     <MaterialIcons name="airplay" size={22} color="#fff" />
-                  )}
+                  </View>
                 </BounceButton>
               </View>
             )}
