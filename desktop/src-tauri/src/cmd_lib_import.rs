@@ -172,6 +172,12 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
 
         if file.is_file() {
             let name = file.name().to_string();
+            
+            // ★ 修正: Mac 特有の不要ファイル (__MACOSX や ._ から始まるリソースフォーク) を完全にスキップ
+            if name.contains("__MACOSX") || name.split('/').last().unwrap_or("").starts_with("._") {
+                continue;
+            }
+
             if name.to_lowercase().ends_with(".mp3") || name.to_lowercase().ends_with(".m4a") || name.to_lowercase().ends_with(".mp4") {
                 let mut buffer = Vec::new();
                 let _ = file.read_to_end(&mut buffer);
@@ -244,6 +250,12 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
             };
             if let Ok(file) = file_res {
                 let archive_name = normalize_rel_path(file.name());
+
+                // ★ 修正: 展開時も __MACOSX 関連ファイルを除外する二重保護
+                if archive_name.contains("__MACOSX") || archive_name.split('/').last().unwrap_or("").starts_with("._") {
+                    continue;
+                }
+
                 if archive_name == rel_path {
                     found_file = Some(i);
                     break;

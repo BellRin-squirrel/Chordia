@@ -71,12 +71,16 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     db
 }
 
+// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
 pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     let mut db_to_save = db.clone();
     for item in db_to_save.iter_mut() {
         item.remove("duration"); item.remove("imageData"); item.remove("streamUrl");
     }
-    let path = get_base_dir().join("userfiles/music.json");
+    let dir = get_base_dir().join("userfiles");
+    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    
+    let path = dir.join("music.json");
     let data = serde_json::to_string_pretty(&db_to_save).map_err(|e| e.to_string())?;
     fs::write(path, data).map_err(|e| e.to_string())
 }
@@ -95,54 +99,42 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
         return;
     }
 
-    // MP3ファイルのみID3タグ書き込み対象とする
     if abs_music_path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("mp3".to_string()) {
         return;
     }
 
     let mut tag = Tag::read_from_path(&abs_music_path).unwrap_or_else(|_| Tag::new());
 
-    // タイトル
     if let Some(v) = song.get("title").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_title(v); } else { tag.remove_title(); }
     }
-    // アーティスト
     if let Some(v) = song.get("artist").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_artist(v); } else { tag.remove_artist(); }
     }
-    // アルバム
     if let Some(v) = song.get("album").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_album(v); } else { tag.remove_album(); }
     }
-    // ジャンル
     if let Some(v) = song.get("genre").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_genre(v); } else { tag.remove_genre(); }
     }
-    // トラック番号
     if let Some(v) = song.get("track").and_then(|v| v.as_str()) {
         if let Ok(num) = v.parse::<u32>() { tag.set_track(num); } else { tag.remove_track(); }
     }
-    // 年/日付
     if let Some(v) = song.get("year").and_then(|v| v.as_str()) {
         if let Ok(num) = v.parse::<i32>() { tag.set_year(num); } else { tag.remove_year(); }
     }
-    // アルバムアーティスト
     if let Some(v) = song.get("album_artist").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_album_artist(v); } else { tag.remove_album_artist(); }
     }
-    // ディスク番号
     if let Some(v) = song.get("disc").and_then(|v| v.as_str()) {
         if let Ok(num) = v.parse::<u32>() { tag.set_disc(num); } else { tag.remove_disc(); }
     }
-    // BPM (ID3v2 "TBPM")
     if let Some(v) = song.get("bpm").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_text("TBPM", v); } else { tag.remove("TBPM"); }
     }
-    // 作曲者 (ID3v2 "TCOM")
     if let Some(v) = song.get("composer").and_then(|v| v.as_str()) {
         if !v.is_empty() { tag.set_text("TCOM", v); } else { tag.remove("TCOM"); }
     }
-    // コメント (ID3v2 "COMM")
     if let Some(v) = song.get("comment").and_then(|v| v.as_str()) {
         tag.remove("COMM");
         if !v.is_empty() {
@@ -153,7 +145,6 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
             });
         }
     }
-    // 歌詞 (ID3v2 "USLT")
     if let Some(v) = song.get("lyric").and_then(|v| v.as_str()) {
         tag.remove("USLT");
         if !v.is_empty() {
@@ -165,7 +156,6 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
         }
     }
 
-    // カバーアート（画像 ID3v2 "APIC"）の埋め込み
     if let Some(rel_img_path) = song.get("imageFilename").and_then(|v| v.as_str()) {
         if !rel_img_path.is_empty() && !rel_img_path.contains("default.png") {
             let norm_img = normalize_rel_path(rel_img_path);
@@ -185,7 +175,6 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
         }
     }
 
-    // MP3ファイルへID3v2.4規格で書き込みを保存
     let _ = tag.write_to_path(&abs_music_path, id3::Version::Id3v24);
 }
 
@@ -195,8 +184,12 @@ pub fn load_playlists_master() -> Vec<Value> {
     fs::read_to_string(&path).ok().and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default()
 }
 
+// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
 pub fn save_playlists_master(playlists: &[Value]) {
-    let path = get_base_dir().join("userfiles/playlist.json");
+    let dir = get_base_dir().join("userfiles");
+    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    
+    let path = dir.join("playlist.json");
     if let Ok(data) = serde_json::to_string_pretty(playlists) { let _ = fs::write(path, data); }
 }
 
@@ -209,9 +202,11 @@ pub fn load_lufs_cache() -> HashMap<String, f32> {
         .unwrap_or_default()
 }
 
+// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
 pub fn save_lufs_cache(cache: &HashMap<String, f32>) {
     let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir);
+    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    
     let path = dir.join("lufs_cache.json");
     if let Ok(data) = serde_json::to_string_pretty(cache) {
         let _ = fs::write(path, data);

@@ -28,25 +28,21 @@ type ClientInfo = {
   osVersion: string;
 };
 
-// ★ 修正: IPアドレス(192.168.x.x) と WANドメイン名(https://...) を厳密判別するURL構築処理
 const buildUrl = (ip: string, port: string) => {
   let cleanIp = ip ? ip.trim().replace(/[\r\n]/g, '') : '';
   let cleanPort = port ? port.trim().replace(/[\r\n]/g, '') : '';
   
   if (!cleanIp) return '';
 
-  // すでに http:// や https:// が付いている場合はそのまま使用
   if (cleanIp.startsWith('http://') || cleanIp.startsWith('https://')) {
     return cleanIp.replace(/\/$/, ''); 
   }
   
-  // 数字とドットで構成される IPv4 アドレス (例: 192.168.0.3) の判定
   const isIpv4 = /^(\d{1,3}\.){3}\d{1,3}$/.test(cleanIp);
   if (isIpv4) {
     return `http://${cleanIp}:${cleanPort}`;
   }
 
-  // ドメイン名 (例: xxxx.trycloudflare.com) の場合は https:// を自動補完
   if (cleanIp.includes('.')) {
     return `https://${cleanIp}`;
   }
@@ -65,7 +61,6 @@ const getFileName = (pathStr: string | null | undefined): string => {
   return fname ? cleanStr(fname) : '';
 };
 
-// ★ 修正: GETリクエスト時の不要な Content-Type を除外し通信失敗を防ぐ safeFetchJson
 const safeFetchJson = async (url: string, options: any = {}) => {
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
@@ -73,7 +68,6 @@ const safeFetchJson = async (url: string, options: any = {}) => {
     ...(options.headers || {}),
   };
 
-  // POST や PUT などデータ送信時のみ Content-Type を設定
   if (options.body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
@@ -291,8 +285,6 @@ export const useSync = ({
         body: JSON.stringify({ ip: clientInfo.ip, device: clientInfo.deviceName, os: clientInfo.osVersion })
       });
       
-      console.log(`[Sync] Response data:`, JSON.stringify(data));
-
       if (data && data.status === 'pending') {
         setServerIp(ip);
         setServerPort(port);
@@ -430,24 +422,29 @@ export const useSync = ({
         setSyncProgress('同期対象を計算中...');
         await yieldToUI();
 
-        let targetPlaylists = selectedPls.size > 0 ? currentPcPlaylists.filter((_, i) => selectedPls.has(i)) : currentPcPlaylists;
-        
-        const musicSet = new Set(
-          targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => getFileName(typeof m === 'string' ? m : "")))
-        );
+        // ★ 修正: 未選択時は強制的にPCの全楽曲を同期対象にする（Macでも確実に拾うため）
+        let targets: any[] = [];
+        if (selectedPls.size > 0) {
+            let targetPlaylists = currentPcPlaylists.filter((_, i) => selectedPls.has(i));
+            const musicSet = new Set(
+              targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => getFileName(typeof m === 'string' ? m : "")))
+            );
 
-        let targets = allSongs.filter((s: any) => {
-          if (!s || !s.musicFilename) return false;
-          const fname = getFileName(s.musicFilename);
-          return fname ? musicSet.has(fname) : false;
-        });
+            targets = allSongs.filter((s: any) => {
+              if (!s || !s.musicFilename) return false;
+              const fname = getFileName(s.musicFilename);
+              return fname ? musicSet.has(fname) : false;
+            });
+        } else {
+            targets = allSongs; // 何も選ばれていなければ全曲同期
+        }
 
         if (targets.length === 0) {
             if (didCancelRef.current) return;
             setIsFullScreenSyncing(false);
             setSyncProgress('');
             setTimeout(() => {
-              Alert.alert("通知", "同期対象となる楽曲が見つかりませんでした。");
+              Alert.alert("通知", "同期対象となる楽曲が見つかりませんでした。\nPC側のライブラリに楽曲が存在するか確認してください。");
             }, 100);
             return;
         }
@@ -658,15 +655,18 @@ export const useSync = ({
         
         const errMsg = e.message || '';
         const is403 = errMsg.includes('403');
+        const isTimeout = errMsg.includes('タイムアウト') || errMsg.includes('timeout');
         
-        if (didCancelRef.current && !is403) {
+        if (didCancelRef.current && !is403 && !isTimeout) {
             return;
         }
 
         setTimeout(() => {
             Alert.alert(
-              "同期エラー", 
-              is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`, 
+              "同期停止", 
+              isTimeout 
+                ? "通信がタイムアウトしたため、安全のため同期を停止しました。ネットワーク接続を確認して再度お試しください。" 
+                : (is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`), 
               [{ text: "OK", onPress: () => disconnect() }]
             );
         }, 100);

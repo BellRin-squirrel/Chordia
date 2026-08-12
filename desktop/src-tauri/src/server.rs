@@ -18,9 +18,6 @@ use tower_http::services::ServeDir;
 
 use crate::utils::{get_base_dir, load_db, load_playlists_master, evaluate_smart_rules};
 
-// ==========================================
-// 認証状態の管理
-// ==========================================
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PendingRequest {
     pub id: String,
@@ -75,9 +72,6 @@ pub struct ServerState {
     pub app_handle: AppHandle,
 }
 
-// ==========================================
-// 全通信共通: セッション自動リフレッシュ・ミドルウェア
-// ==========================================
 async fn session_refresher_middleware(
     AxumState(state): AxumState<ServerState>,
     req: Request,
@@ -105,9 +99,6 @@ async fn session_refresher_middleware(
     next.run(req).await
 }
 
-// ==========================================
-// 認証検証関数
-// ==========================================
 async fn verify_request(headers: &HeaderMap, auth: &SharedAuthState) -> bool {
     let api_key = headers.get("X-API-KEY").and_then(|v| v.to_str().ok());
     let ip = headers.get("X-DEVICE-IP").and_then(|v| v.to_str().ok());
@@ -130,14 +121,9 @@ async fn verify_request(headers: &HeaderMap, auth: &SharedAuthState) -> bool {
     false
 }
 
-// ★ 追加: ブラウザアクセス確認用 ＆ ヘルスチェック用ルート応答
 async fn api_root() -> impl IntoResponse {
     (StatusCode::OK, Json(json!({"service": "Chordia Sync Server", "status": "active"})))
 }
-
-// ==========================================
-// API エンドポイント
-// ==========================================
 
 async fn auth_request(AxumState(state): AxumState<ServerState>, Json(payload): Json<Value>) -> impl IntoResponse {
     let mut auth = state.auth.lock().await;
@@ -221,6 +207,7 @@ async fn api_library(AxumState(state): AxumState<ServerState>, headers: HeaderMa
     let db = load_db();
     let mut response_data = Vec::new();
     for mut item in db {
+        // ★ 修正: Mac/Windows問わず、スラッシュとバックスラッシュの両方で完全にファイル名を切り出す
         let m_name = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").to_string();
         let i_name = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").to_string();
         item.insert("url_music".into(), Value::String(if m_name.is_empty() { "".into() } else { format!("/mobile_music/{}", m_name) }));
@@ -268,7 +255,8 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                 for song in db.iter() {
                     if evaluate_smart_rules(song, conds) {
                         if let Some(fname) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                            let clean_fname = std::path::Path::new(fname).file_name().unwrap_or_default().to_str().unwrap_or("").to_string();
+                            // ★ 修正: 確実なファイル名抽出
+                            let clean_fname = fname.split(&['/', '\\'][..]).last().unwrap_or("").to_string();
                             music.push(Value::String(clean_fname));
                         }
                     }
@@ -284,7 +272,8 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
                     if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { 
                         music = list.into_iter().map(|v| {
                             if let Some(s) = v.as_str() {
-                                let fname = std::path::Path::new(s).file_name().unwrap_or_default().to_str().unwrap_or("");
+                                // ★ 修正: Mac上の不具合を防止するため、絶対パスからファイル名のみを強制抽出
+                                let fname = s.split(&['/', '\\'][..]).last().unwrap_or("");
                                 Value::String(fname.to_string())
                             } else {
                                 v
@@ -352,7 +341,7 @@ pub async fn start_server(
     let state = ServerState { auth: auth.clone(), app_handle };
     let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
     let app = Router::new()
-        .route("/", get(api_root).options(api_root)) // ★ 追加: ルート確認用レスポンス
+        .route("/", get(api_root).options(api_root)) 
         .route("/api/auth/request", post(auth_request))
         .route("/api/auth/cancel", post(auth_cancel))
         .route("/api/auth/verify_session", get(auth_verify_session))
