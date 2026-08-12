@@ -8,17 +8,8 @@ import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-
-// ★ AirPlay ライブラリの安全ダイナミックインポート
-let AirPlayNativeButton: any = null;
-if (Platform.OS === 'ios') {
-  try {
-    const airplayModule = require('react-native-airplay-btn') || require('react-native-airplay-button');
-    AirPlayNativeButton = airplayModule.AirPlayButton || airplayModule.default || airplayModule;
-  } catch (e) {
-    console.warn("AirPlay Button library load error:", e);
-  }
-}
+// ★ 最新の AirPlay ライブラリから showRoutePicker をインポート
+import { showRoutePicker } from 'react-airplay';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -354,7 +345,7 @@ export const FullScreenPlayer = ({
           </Animated.View>
         </PanGestureHandler>
 
-        <View style={{ width: 1, 'backgroundColor': 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
+        <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
 
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
@@ -434,11 +425,7 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         
-<<<<<<< HEAD
         {/* 1. 上部可変エリア (PanGestureHandlerを適用してスワイプダウン閉じるを可能にする) */}
-=======
-        {/* 1. ★ 上部可変エリア (PanGestureHandlerを適用してスワイプダウン閉じるを可能にする) */}
->>>>>>> 814f844ecde221b68a11af5a80ea549dc92edd39
         <PanGestureHandler
           activeOffsetY={[-500, 15]}
           failOffsetX={[-15, 15]}
@@ -586,11 +573,7 @@ export const FullScreenPlayer = ({
           </Animated.View>
         </PanGestureHandler>
 
-<<<<<<< HEAD
         {/* 2. 下部固定エリア (ここからはPanGestureHandlerの「外側」なのでネイティブタッチが100%通る) */}
-=======
-        {/* 2. ★ 下部固定エリア (ここからはPanGestureHandlerの「外側」なのでネイティブタッチが100%通る) */}
->>>>>>> 814f844ecde221b68a11af5a80ea549dc92edd39
         <View style={{ width: '100%', paddingTop: 10 }}>
           
           <View style={[styles.sliderWithTime, { paddingHorizontal: 10 }]}>
@@ -639,33 +622,30 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-<<<<<<< HEAD
-            {/* 3. ★ 修正: JS側のイベント横取りを完全に削除し、ネイティブボタンを直接配置する */}
+            {/* 3. AirPlay ボタン */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }}>
-                  {/* 本物のネイティブボタン（背面） */}
-                  {AirPlayNativeButton && (
-                    <AirPlayNativeButton style={{ position: 'absolute', width: 44, height: 44, opacity: 0.01, }} />
-                  )}
-                  {/* 見た目のアイコン（前面） */}
-                  <MaterialIcons name="airplay" size={22} color="#fff" style={{ position: 'absolute' }} />
-=======
-            {/* 3. ★ AirPlay (ジェスチャーの妨害がないため、OS純正の機能として確実に動作する) */}
-            {Platform.OS === 'ios' && (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }}>
-                  {/* バックグラウンドの見せかけアイコン */}
-                  <MaterialIcons name="airplay" size={22} color="#fff" style={{ position: 'absolute' }} />
-                  
-                  {/* 本物のネイティブボタン */}
-                  {AirPlayNativeButton && (
-                    <View style={{ position: 'absolute', width: 44, height: 44, zIndex: 10, justifyContent: 'center', alignItems: 'center' }}>
-                      <AirPlayNativeButton style={{ width: 44, height: 44, opacity: 0.1 }} />
-                    </View>
-                  )}
->>>>>>> 814f844ecde221b68a11af5a80ea549dc92edd39
-                </View>
+                <BounceButton
+                  onPress={() => {
+                    try {
+                      // ボタンが押された時に動的に読み込む（未ビルド時のクラッシュ防止）
+                      const { showRoutePicker } = require('react-airplay');
+                      showRoutePicker();
+                    } catch (e) {
+                      console.warn('AirPlay binary not updated or not supported:', e);
+                    }
+                  }}
+                  underlayColor="rgba(255,255,255,0.15)"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <MaterialIcons name="airplay" size={22} color="#fff" />
+                </BounceButton>
               </View>
             )}
 
