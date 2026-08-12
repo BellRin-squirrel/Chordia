@@ -220,6 +220,9 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let bin = base.join("userfiles/bin");
     let url = data.get("video_url").and_then(|v| v.as_str()).ok_or("No URL")?.to_string();
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
+    
+    // ★ 修正: 処理前に必ず userfiles フォルダを明示的に作成
+    let _ = fs::create_dir_all(base.join("userfiles"));
     let _ = fs::create_dir_all(base.join("library/music")); 
     let _ = fs::create_dir_all(base.join("library/images"));
     
@@ -339,9 +342,10 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
 #[tauri::command]
 pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     let base = get_base_dir();
+    // ★ 修正: 保存処理前に確実に userfiles を作成
+    let _ = fs::create_dir_all(base.join("userfiles"));
     let _ = fs::create_dir_all(base.join("library/music"));
     let _ = fs::create_dir_all(base.join("library/images"));
-    let _ = fs::create_dir_all(base.join("userfiles"));
 
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     let base_clone = base.clone();
@@ -546,7 +550,6 @@ pub async fn search_lyrics_online(title: String, artist: String) -> Result<Value
     Ok(json)
 }
 
-// ★ 修正：cloudflared を含めたツールのチェック対応
 #[tauri::command]
 pub async fn check_tools_status() -> Result<Value, String> {
     tokio::task::spawn_blocking(|| {
