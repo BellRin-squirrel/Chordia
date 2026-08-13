@@ -8,7 +8,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
-  const bottomPadding = currentSong ? 280 : 160;
+  const bottomPadding = (currentSong ? 280 : 160) + (insets?.bottom || 0);
 
   const isProcessingQr = useRef(false);
   const [syncMode, setSyncMode] = useState<'LAN' | 'WAN'>('LAN');
@@ -24,11 +24,18 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
   };
 
   return (
-    <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
-      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>同期</Text></View>
+    <View style={{flex:1, backgroundColor: dynamicStyles.bg, paddingTop: insets?.top || 0}}>
+      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>同期</Text></View>
       
       {syncStage === 'INPUT_IP' && (
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}>
+        <ScrollView 
+          style={{
+            flex: 1,
+            paddingLeft: Math.max(insets?.left || 0, 10),
+            paddingRight: Math.max(insets?.right || 0, 10),
+          }}
+          contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}
+        >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View>
                 {/* LAN / WAN モード切り替えタブ */}
@@ -123,7 +130,14 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
       )}
 
       {syncStage === 'AWAITING_CODE' && (
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}>
+        <ScrollView 
+          style={{
+            flex: 1,
+            paddingLeft: Math.max(insets?.left || 0, 10),
+            paddingRight: Math.max(insets?.right || 0, 10),
+          }}
+          contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}
+        >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
                 <View style={[styles.syncCard, {backgroundColor: dynamicStyles.card, margin: 0}]}>
@@ -144,7 +158,12 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
             keyExtractor={(item, index) => item.playlistName + index} 
             numColumns={isLandscape ? 2 : 1}
             key={isLandscape ? 'grid' : 'list'}
-            contentContainerStyle={{paddingBottom: bottomPadding, paddingTop: 10, paddingHorizontal: isLandscape ? 10 : 0}} 
+            contentContainerStyle={{
+              paddingLeft: Math.max(insets?.left || 0, 10),
+              paddingRight: Math.max(insets?.right || 0, 10),
+              paddingBottom: bottomPadding, 
+              paddingTop: 10,
+            }} 
             ListHeaderComponent={
                 <View style={{paddingHorizontal: 20, paddingBottom: 10, gap: 10}}>
                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#6b7280' }]} onPress={disconnect}><Text style={styles.btnText}>接続を解除</Text></TouchableOpacity>
@@ -196,7 +215,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
 
                               try {
                                 const qrData = JSON.parse(data);
-                                // ★ 修正: LAN用（ip + code）または WAN用（wanUrl）のどちらかがあればOK
                                 if((qrData.ip && qrData.code) || qrData.wanUrl) { 
                                   setShowCamera(false);
                                   setScannedQrData(qrData); 

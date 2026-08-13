@@ -6,7 +6,7 @@ import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/style
 
 const INDICATOR_MARGIN = 6;
 
-export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBackground, showFocusTab }: any) => {
+export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBackground, showFocusTab, insets }: any) => {
   const tabIndicatorAnim = useRef(new Animated.Value(1)).current;
   const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
   const { width, height } = useWindowDimensions();

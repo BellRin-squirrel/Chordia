@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, Image, TouchableOpacity, Animated, 
-  StyleSheet, TouchableWithoutFeedback, useWindowDimensions, TextInput, Keyboard 
+  StyleSheet, TouchableWithoutFeedback, useWindowDimensions, TextInput, Keyboard, Easing 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy'; // ★ 追加
+import * as FileSystem from 'expo-file-system/legacy';
 import { styles } from '../styles/styles';
 import { RecentSection } from './RecentSection';
 
@@ -114,8 +114,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     const rs = await AsyncStorage.getItem('recently_played_songs');
     const rc = await AsyncStorage.getItem('recently_played_collections');
     
-    // ★ 修正: 履歴データのパスも現在のUUIDに合わせて動的修復する
-    const baseDir = FileSystem.documentDirectory + 'chordia/';
+    const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
     const fixUri = (uri: string | null | undefined) => {
         if (!uri) return uri;
         const fname = uri.split(/[\\/]/).pop();
@@ -173,12 +172,68 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     return DEFAULT_ICON;
   };
 
+  // -----------------------------------------------------------
+  // 🌟 アニメーションとジェスチャーハンドラの設定
+  // -----------------------------------------------------------
+
+  const currentProgress = Animated.subtract(
+    navAnim,
+    Animated.divide(panX, width)
+  );
+
+  const layerShadowStyle = {
+    shadowColor: '#000',
+    shadowOffset: { width: -10, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 10,
+  };
+
+  const layer1Translate = currentProgress.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, -width * 0.25, -width * 0.25],
+    extrapolate: 'clamp'
+  });
+  
+  // ★ 修正: 不透明度を下げるのではなく「上に黒い半透明フィルム」を被せて暗くする
+  const layer1Darken = currentProgress.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, 0.4, 0.4], 
+    extrapolate: 'clamp'
+  });
+
+  const layer2Translate = currentProgress.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [width, 0, -width * 0.25],
+    extrapolate: 'clamp'
+  });
+
+  // ★ 修正
+  const layer2Darken = currentProgress.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, 0, 0.4],
+    extrapolate: 'clamp'
+  });
+
+  const layer3Translate = currentProgress.interpolate({
+    inputRange: [1, 2],
+    outputRange: [width, 0],
+    extrapolate: 'clamp'
+  });
+
   const pushView = (view: string) => {
     if (isNavAnimating.current) return;
     isNavAnimating.current = true;
     const next = navStack.length;
     setNavStack([...navStack, view]);
-    Animated.spring(navAnim, { toValue: next, useNativeDriver: true, overshootClamping: true, stiffness: 400, damping: 35 }).start(() => { isNavAnimating.current = false; });
+    Animated.spring(navAnim, { 
+      toValue: next, 
+      useNativeDriver: true, 
+      stiffness: 300, 
+      damping: 30,
+      mass: 0.8,
+      overshootClamping: true
+    }).start(() => { isNavAnimating.current = false; });
   };
 
   const popView = () => {
@@ -191,7 +246,14 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     Keyboard.dismiss();
 
     const prev = navStack.length - 2;
-    Animated.spring(navAnim, { toValue: prev, useNativeDriver: true, overshootClamping: true, stiffness: 400, damping: 35 }).start(() => {
+    Animated.spring(navAnim, { 
+      toValue: prev, 
+      useNativeDriver: true, 
+      stiffness: 300, 
+      damping: 30,
+      mass: 0.8,
+      overshootClamping: true 
+    }).start(() => {
       setNavStack(navStack.slice(0, -1));
       isNavAnimating.current = false;
     });
@@ -216,7 +278,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
         Animated.timing(panX, {
           toValue: width,
-          duration: 200,
+          duration: 250,
+          easing: Easing.out(Easing.poly(4)),
           useNativeDriver: true
         }).start(() => {
           const nextStack = navStack.slice(0, -1);
@@ -229,9 +292,10 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
         Animated.spring(panX, {
           toValue: 0,
           useNativeDriver: true,
-          bounciness: 0,
-          tension: 40,
-          friction: 8
+          stiffness: 300,
+          damping: 30,
+          mass: 0.8,
+          overshootClamping: true
         }).start();
       }
     }
@@ -239,6 +303,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
   const handlePressIn = () => { Animated.spring(backButtonScale, { toValue: 1.85, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
+
+  // -----------------------------------------------------------
 
   const renderHeader = (title: string) => (
     <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0) }]}>
@@ -280,53 +346,55 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
   const renderMenu = () => (
     <View style={{flex: 1, backgroundColor: dynamicStyles.bg}}>
+        <View style={[styles.headerBar, {borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}>
+            <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>ライブラリ</Text>
+        </View>
         <FlatList
-        data={LIBRARY_MENU_ITEMS}
-        keyExtractor={item => item.title}
-        ListHeaderComponent={<View style={[styles.headerBar, {borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>ライブラリ</Text></View>}
-        renderItem={({item, index}) => (
-            <TouchableOpacity style={[styles.menuRow, index !== 2 && {borderBottomWidth:0.5, borderBottomColor: dynamicStyles.border}]} onPress={() => pushView(item.view)}>
-            <Ionicons name={item.icon} size={26} color={themeColor} style={styles.menuIcon} />
-            <Text style={[styles.menuRowTitle, {color: dynamicStyles.text}]}>{item.title}</Text>
-            <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
-            </TouchableOpacity>
-        )}
-        ListFooterComponent={
-            <RecentSection 
-            recentlyPlayedSongs={recentlyPlayedSongs} 
-            recentlyPlayedCollections={recentlyPlayedCollections} 
-            dynamicStyles={dynamicStyles} 
-            themeColor={themeColor}
-            onPlaySong={(s:any)=>startQueue([s], s, undefined)} 
-            onPlayCollection={(item: any) => {
-                let songs: any[] =[];
-                if (item.type === 'PLAYLIST') {
-                songs = item.data.isAll ? localLibrary : localLibrary.filter((s:any) => item.data.music?.includes(s.musicFilename.split(/[\\/]/).pop()));
-                const sortBy = item.data.sortBy || 'title';
-                const sortDesc = item.data.sortDesc || false;
-                songs.sort((a, b) => {
-                  let valA = a[sortBy] || '';
-                  let valB = b[sortBy] || '';
-                  if (['track', 'disc', 'year', 'bpm'].includes(sortBy)) {
-                    valA = parseInt(valA) || 0; valB = parseInt(valB) || 0;
-                  } else {
-                    valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
+          data={LIBRARY_MENU_ITEMS}
+          keyExtractor={item => item.title}
+          renderItem={({item, index}) => (
+              <TouchableOpacity style={[styles.menuRow, index !== 2 && {borderBottomWidth:0.5, borderBottomColor: dynamicStyles.border}]} onPress={() => pushView(item.view)}>
+              <Ionicons name={item.icon} size={26} color={themeColor} style={styles.menuIcon} />
+              <Text style={[styles.menuRowTitle, {color: dynamicStyles.text}]}>{item.title}</Text>
+              <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
+              </TouchableOpacity>
+          )}
+          ListFooterComponent={
+              <RecentSection 
+              recentlyPlayedSongs={recentlyPlayedSongs} 
+              recentlyPlayedCollections={recentlyPlayedCollections} 
+              dynamicStyles={dynamicStyles} 
+              themeColor={themeColor}
+              onPlaySong={(s:any)=>startQueue([s], s, undefined)} 
+              onPlayCollection={(item: any) => {
+                  let songs: any[] =[];
+                  if (item.type === 'PLAYLIST') {
+                  songs = item.data.isAll ? localLibrary : localLibrary.filter((s:any) => item.data.music?.includes(s.musicFilename.split(/[\\/]/).pop()));
+                  const sortBy = item.data.sortBy || 'title';
+                  const sortDesc = item.data.sortDesc || false;
+                  songs.sort((a, b) => {
+                    let valA = a[sortBy] || '';
+                    let valB = b[sortBy] || '';
+                    if (['track', 'disc', 'year', 'bpm'].includes(sortBy)) {
+                      valA = parseInt(valA) || 0; valB = parseInt(valB) || 0;
+                    } else {
+                      valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
+                    }
+                    if (valA < valB) return sortDesc ? 1 : -1;
+                    if (valA > valB) return sortDesc ? -1 : 1;
+                    return 0;
+                  });
+                  } else if (item.type === 'ALBUM') {
+                  songs = localLibrary.filter((s:any) => s.album === item.data.album && s.artist === item.data.artist);
+                  } else if (item.type === 'ARTIST') {
+                  songs = localLibrary.filter((s:any) => s.artist === item.data.artistName);
                   }
-                  if (valA < valB) return sortDesc ? 1 : -1;
-                  if (valA > valB) return sortDesc ? -1 : 1;
-                  return 0;
-                });
-                } else if (item.type === 'ALBUM') {
-                songs = localLibrary.filter((s:any) => s.album === item.data.album && s.artist === item.data.artist);
-                } else if (item.type === 'ARTIST') {
-                songs = localLibrary.filter((s:any) => s.artist === item.data.artistName);
-                }
-                startQueue(songs, undefined, false);
-                saveCollectionToHistory(item);
-            }}
-            />
-        }
-        contentContainerStyle={{paddingBottom: 180}}
+                  startQueue(songs, undefined, false);
+                  saveCollectionToHistory(item);
+              }}
+              />
+          }
+          contentContainerStyle={{paddingBottom: 180}}
         />
     </View>
   );
@@ -589,7 +657,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: 'transparent' }}>
+    // ★ 修正: 背景色を dynamicStyles.bg に設定し、全体の黒ずみや色の分断を完全に解消
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <PanGestureHandler
         activeOffsetX={[-500, 10]}
         failOffsetY={[-15, 15]}
@@ -598,45 +667,41 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
         onHandlerStateChange={onHandlerStateChange}
       >
         <View style={{ flex: 1 }}>
-          <Animated.View style={[StyleSheet.absoluteFill, { 
+          {/* Layer 1: メニュー層 */}
+          <Animated.View style={[StyleSheet.absoluteFill, layerShadowStyle, { 
             zIndex: 1,
-            transform:[{ 
-              translateX: navAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -width * 0.3] })
-            }] 
+            transform:[{ translateX: layer1Translate }] 
           }]}>
             {renderMenu()}
+            {/* ★ 修正: 透明度を下げるのではなく、上に黒いフィルムを被せて自然に暗くする */}
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
           
+          {/* Layer 2: カテゴリ一覧層 */}
           {navStack.length > 1 && (
             <Animated.View 
-                style={[StyleSheet.absoluteFill, { 
+                style={[StyleSheet.absoluteFill, layerShadowStyle, { 
                   zIndex: 2,
-                  transform:[{ 
-                    translateX: navStack.length === 2 
-                      ? Animated.add(navAnim.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.3] }), panX)
-                      : navAnim.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.3] })
-                 }] 
+                  transform:[{ translateX: layer2Translate }] 
                 }]}
             >
               {renderCategory(navStack[1])}
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>
           )}
 
+          {/* Layer 3: 楽曲リスト層 */}
           {navStack.length > 2 && (
             <Animated.View 
-                style={[StyleSheet.absoluteFill, { 
+                style={[StyleSheet.absoluteFill, layerShadowStyle, { 
                   zIndex: 3,
-                  transform:[{
-                    translateX: Animated.add(
-                      navAnim.interpolate({ inputRange: [1, 2], outputRange: [width, 0] }),
-                      panX
-                    )
-                }] 
-            }]}
+                  transform:[{ translateX: layer3Translate }] 
+                }]}
             >
               {renderSongList()}
             </Animated.View>
           )}
+
         </View>
       </PanGestureHandler>
     </GestureHandlerRootView>

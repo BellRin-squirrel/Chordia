@@ -29,8 +29,8 @@ type ClientInfo = {
 };
 
 const buildUrl = (ip: string, port: string) => {
-  let cleanIp = ip ? ip.trim().replace(/[\r\n]/g, '') : '';
-  let cleanPort = port ? port.trim().replace(/[\r\n]/g, '') : '';
+  let cleanIp = ip ? String(ip).trim().replace(/[\r\n]/g, '') : '';
+  let cleanPort = port ? String(port).trim().replace(/[\r\n]/g, '') : '';
   
   if (!cleanIp) return '';
 
@@ -50,14 +50,18 @@ const buildUrl = (ip: string, port: string) => {
   return `http://${cleanIp}:${cleanPort}`;
 };
 
-const cleanStr = (str: string | null | undefined): string => {
-  if (!str) return '';
-  return str.normalize('NFC').toLowerCase().trim();
+// ★ 修正: どんな型が渡されても文字列化して安全に処理
+const cleanStr = (str: any): string => {
+  if (str === null || str === undefined) return '';
+  const s = String(str);
+  return s.normalize('NFC').toLowerCase().trim();
 };
 
-const getFileName = (pathStr: string | null | undefined): string => {
-  if (!pathStr) return '';
-  const fname = pathStr.split(/[\\/]/).pop();
+// ★ 修正: どんな型が渡されても safe にファイル名抽出
+const getFileName = (pathStr: any): string => {
+  if (pathStr === null || pathStr === undefined) return '';
+  const s = String(pathStr);
+  const fname = s.split(/[\\/]/).pop();
   return fname ? cleanStr(fname) : '';
 };
 
@@ -86,25 +90,31 @@ const safeFetchJson = async (url: string, options: any = {}) => {
   }
 };
 
+// ★ 修正: Promise.race による安全なタイムアウトダウンロード処理
 const downloadWithTimeout = async (url: string, fileUri: string, headers: any, timeoutMs: number) => {
-  return new Promise(async (resolve, reject) => {
-    const timer = setTimeout(() => {
+  let timer: NodeJS.Timeout | null = null;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
       reject(new Error(`通信がタイムアウトしました (${Math.floor(timeoutMs / 1000)}秒)`));
     }, timeoutMs);
-
-    try {
-      const fullHeaders = {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        ...headers
-      };
-      const result = await FileSystem.createDownloadResumable(url, fileUri, { headers: fullHeaders }).downloadAsync();
-      clearTimeout(timer);
-      resolve(result);
-    } catch (e) {
-      clearTimeout(timer);
-      reject(e);
-    }
   });
+
+  try {
+    const fullHeaders = {
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      ...headers
+    };
+
+    const downloadTask = FileSystem.createDownloadResumable(url, fileUri, { headers: fullHeaders });
+    const result = await Promise.race([downloadTask.downloadAsync(), timeoutPromise]);
+
+    if (timer) clearTimeout(timer);
+    return result;
+  } catch (e) {
+    if (timer) clearTimeout(timer);
+    throw e;
+  }
 };
 
 const yieldToUI = () =>
@@ -336,7 +346,7 @@ export const useSync = ({
 
   const clearAllLocalData = async () => {
     try {
-      const baseDir = FileSystem.documentDirectory + 'chordia/';
+      const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (dirInfo.exists) await FileSystem.deleteAsync(baseDir, { idempotent: true });
       await AsyncStorage.removeItem('local_library');
@@ -405,7 +415,7 @@ export const useSync = ({
         };
 
         const dataLib = await safeFetchJson(`${baseUrl}/api/library`, { headers });
-        const allSongs = dataLib.library || [];
+        const allSongs = dataLib?.library || [];
 
         setSyncProgress('PCからプレイリスト情報を取得中...');
         await yieldToUI();
@@ -413,7 +423,7 @@ export const useSync = ({
         let currentPcPlaylists = pcPlaylists;
         try {
             const dataPls = await safeFetchJson(`${baseUrl}/api/playlists`, { headers });
-            if (dataPls.playlists) {
+            if (dataPls && dataPls.playlists) {
                 currentPcPlaylists = dataPls.playlists;
                 setPcPlaylists(currentPcPlaylists);
             }
@@ -422,12 +432,11 @@ export const useSync = ({
         setSyncProgress('同期対象を計算中...');
         await yieldToUI();
 
-        // ★ 修正: 未選択時は強制的にPCの全楽曲を同期対象にする（Macでも確実に拾うため）
         let targets: any[] = [];
         if (selectedPls.size > 0) {
             let targetPlaylists = currentPcPlaylists.filter((_, i) => selectedPls.has(i));
             const musicSet = new Set(
-              targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => getFileName(typeof m === 'string' ? m : "")))
+              targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => getFileName(typeof m === 'string' ? m : (m?.musicFilename || m?.path || ''))))
             );
 
             targets = allSongs.filter((s: any) => {
@@ -436,7 +445,7 @@ export const useSync = ({
               return fname ? musicSet.has(fname) : false;
             });
         } else {
-            targets = allSongs; // 何も選ばれていなければ全曲同期
+            targets = allSongs;
         }
 
         if (targets.length === 0) {
@@ -449,13 +458,13 @@ export const useSync = ({
             return;
         }
 
-        const baseDir = FileSystem.documentDirectory + 'chordia/';
+        const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
-        let currentLocal = [...localLibrary];
+        let currentLocal = Array.isArray(localLibrary) ? [...localLibrary] : [];
         const targetTitleArtists = new Set();
         for (const t of targets) {
-            if (t.title && t.artist) {
+            if (t && t.title && t.artist) {
                 targetTitleArtists.add(`${cleanStr(t.title)}:::${cleanStr(t.artist)}`);
             }
         }
@@ -496,7 +505,7 @@ export const useSync = ({
                 }
                 
                 const localSong = currentLocal[i];
-                const titleArtistKey = localSong.title && localSong.artist ? `${cleanStr(localSong.title)}:::${cleanStr(localSong.artist)}` : "";
+                const titleArtistKey = localSong && localSong.title && localSong.artist ? `${cleanStr(localSong.title)}:::${cleanStr(localSong.artist)}` : "";
                 const isTarget = titleArtistKey ? targetTitleArtists.has(titleArtistKey) : false;
 
                 if (!isTarget) {
@@ -515,7 +524,7 @@ export const useSync = ({
 
         const libraryMap = new Map();
         for (const s of currentLocal) {
-            if (s.title && s.artist) {
+            if (s && s.title && s.artist) {
                 libraryMap.set(`${cleanStr(s.title)}:::${cleanStr(s.artist)}`, s);
             }
         }
@@ -526,7 +535,7 @@ export const useSync = ({
             await yieldToUI();
 
             const song = targets[i];
-            const musicFname = song.musicFilename ? song.musicFilename.split(/[\\/]/).pop() : `song_${i}.mp3`;
+            const musicFname = song.musicFilename ? String(song.musicFilename).split(/[\\/]/).pop() : `song_${i}.mp3`;
             const musicLocalUri = baseDir + musicFname;
 
             setSyncProgress(`楽曲を同期中... (${i + 1}/${targets.length})\n${song.title || 'Untitled'}`);
@@ -554,7 +563,7 @@ export const useSync = ({
             }
 
             if (song.url_image && (!finalImgUri || mode === 'DELETE_ALL')) {
-                const imgFname = song.imageFilename ? song.imageFilename.split(/[\\/]/).pop() : `img_${i}.jpg`;
+                const imgFname = song.imageFilename ? String(song.imageFilename).split(/[\\/]/).pop() : `img_${i}.jpg`;
                 finalImgUri = baseDir + imgFname;
                 const imgInfo = await FileSystem.getInfoAsync(finalImgUri);
                 if (!imgInfo.exists) {
@@ -587,14 +596,16 @@ export const useSync = ({
 
         await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
 
+        const targetPlaylistsForPl = selectedPls.size > 0 ? currentPcPlaylists.filter((_, i) => selectedPls.has(i)) : currentPcPlaylists;
         const processedPlaylists: any[] = [];
-        for (let j = 0; j < targetPlaylists.length; j++) {
+
+        for (let j = 0; j < targetPlaylistsForPl.length; j++) {
             if (didCancelRef.current) break;
-            const pl = { ...targetPlaylists[j] };
+            const pl = { ...targetPlaylistsForPl[j] };
             
             let coverUrl = pl.url_cover || pl.cover_url || pl.coverUrl;
             if (!coverUrl && (pl.coverPath || pl.cover_path || pl.coverFilename)) {
-                const pathStr = pl.coverPath || pl.cover_path || pl.coverFilename;
+                const pathStr = String(pl.coverPath || pl.cover_path || pl.coverFilename);
                 const fname = pathStr.split(/[\\/]/).pop();
                 
                 const normalizedPath = pathStr.replace(/\\/g, '/');
@@ -606,12 +617,12 @@ export const useSync = ({
             }
 
             if (coverUrl) {
-                const imgFname = coverUrl.split(/[\\/]/).pop();
+                const imgFname = String(coverUrl).split(/[\\/]/).pop();
                 const uniqueFname = `cover_pl_${Date.now()}_${imgFname}`;
                 const localCoverUri = baseDir + uniqueFname;
                 
                 try {
-                    const msg = `プレイリストカバーを同期中... (${j + 1}/${targetPlaylists.length})\n${pl.playlistName || 'Untitled'}`;
+                    const msg = `プレイリストカバーを同期中... (${j + 1}/${targetPlaylistsForPl.length})\n${pl.playlistName || 'Untitled'}`;
                     setSyncProgress(msg);
                     await yieldToUI();
                     
@@ -653,7 +664,7 @@ export const useSync = ({
         setIsFullScreenSyncing(false);
         setSyncProgress('');
         
-        const errMsg = e.message || '';
+        const errMsg = e?.message || String(e) || '不明なエラー';
         const is403 = errMsg.includes('403');
         const isTimeout = errMsg.includes('タイムアウト') || errMsg.includes('timeout');
         
@@ -666,7 +677,7 @@ export const useSync = ({
               "同期停止", 
               isTimeout 
                 ? "通信がタイムアウトしたため、安全のため同期を停止しました。ネットワーク接続を確認して再度お試しください。" 
-                : (is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。(${errMsg})`), 
+                : (is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。\n(${errMsg})`), 
               [{ text: "OK", onPress: () => disconnect() }]
             );
         }, 100);
