@@ -24,16 +24,14 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
   };
 
   return (
-    <View style={{flex:1, backgroundColor: dynamicStyles.bg, paddingTop: insets?.top || 0}}>
-      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>同期</Text></View>
+    <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
+      {/* ★ 修正: ノッチを無視するため paddingTop: insets.top 等を削除 */}
+      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}>
+        <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>同期</Text>
+      </View>
       
       {syncStage === 'INPUT_IP' && (
         <ScrollView 
-          style={{
-            flex: 1,
-            paddingLeft: Math.max(insets?.left || 0, 10),
-            paddingRight: Math.max(insets?.right || 0, 10),
-          }}
           contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -131,11 +129,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
 
       {syncStage === 'AWAITING_CODE' && (
         <ScrollView 
-          style={{
-            flex: 1,
-            paddingLeft: Math.max(insets?.left || 0, 10),
-            paddingRight: Math.max(insets?.right || 0, 10),
-          }}
           contentContainerStyle={{ padding: 20, paddingBottom: bottomPadding }}
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -159,8 +152,6 @@ export const SyncScreen = ({ dynamicStyles, themeColor, syncStage, setSyncStage,
             numColumns={isLandscape ? 2 : 1}
             key={isLandscape ? 'grid' : 'list'}
             contentContainerStyle={{
-              paddingLeft: Math.max(insets?.left || 0, 10),
-              paddingRight: Math.max(insets?.right || 0, 10),
               paddingBottom: bottomPadding, 
               paddingTop: 10,
             }} 

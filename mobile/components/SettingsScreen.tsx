@@ -20,15 +20,14 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
   const modalContentWidth = isLandscape ? Math.min(width * 0.9, 600) : width * 0.85;
 
   return (
-    <View style={{flex:1, backgroundColor: dynamicStyles.bg, paddingTop: insets?.top || 0}}>
-      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}><Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>設定・情報</Text></View>
+    <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
+      {/* ★ 修正: ノッチを無視するため paddingTop: insets.top 等を削除 */}
+      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}>
+        <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>設定・情報</Text>
+      </View>
       <ScrollView 
-        style={{
-          flex: 1,
-          paddingLeft: Math.max(insets?.left || 0, 20),
-          paddingRight: Math.max(insets?.right || 0, 20),
-        }}
-        contentContainerStyle={{ paddingTop: 20, paddingBottom: bottomPadding }} 
+        style={{ padding: 25 }}
+        contentContainerStyle={{ paddingBottom: bottomPadding }} 
       >
         <Text style={[styles.recentHeader, {color: dynamicStyles.text, marginLeft: 0}]}>テーマカラーを選択</Text>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 15}}>

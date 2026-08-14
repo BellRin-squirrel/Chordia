@@ -50,6 +50,10 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   const flatListRefPortrait = useRef<FlatList>(null);
   const flatListRefLandscape = useRef<FlatList>(null);
 
+  const safePadding = {
+    paddingBottom: 180 + (insets?.bottom || 0)
+  };
+
   useEffect(() => {
     if (setNavStackLength) {
       setNavStackLength(navStack.length);
@@ -181,12 +185,10 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     Animated.divide(panX, width)
   );
 
-  const layerShadowStyle = {
-    shadowColor: '#000',
-    shadowOffset: { width: -10, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 10,
+  // ★ 修正: シャドウを完全に廃止し、左側にネイティブライクな極細ボーダーを設定
+  const layerBorderStyle = {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
   };
 
   const layer1Translate = currentProgress.interpolate({
@@ -195,7 +197,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     extrapolate: 'clamp'
   });
   
-  // ★ 修正: 不透明度を下げるのではなく「上に黒い半透明フィルム」を被せて暗くする
   const layer1Darken = currentProgress.interpolate({
     inputRange: [0, 1, 2],
     outputRange: [0, 0.4, 0.4], 
@@ -208,7 +209,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     extrapolate: 'clamp'
   });
 
-  // ★ 修正
   const layer2Darken = currentProgress.interpolate({
     inputRange: [0, 1, 2],
     outputRange: [0, 0, 0.4],
@@ -394,7 +394,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
               }}
               />
           }
-          contentContainerStyle={{paddingBottom: 180}}
+          contentContainerStyle={safePadding}
         />
     </View>
   );
@@ -433,7 +433,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                 </TouchableOpacity>
             );
           }}
-          contentContainerStyle={{paddingBottom: 180}}
+          contentContainerStyle={safePadding}
         />
       </View>
     );
@@ -586,7 +586,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     );
 
     return (
-        <View style={{flex: 1}}>
+        <View style={{flex: 1, backgroundColor: dynamicStyles.bg}}>
             {hasBlurBackground ? (
               <View style={StyleSheet.absoluteFill}>
                   <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: '#000', zIndex: -2 }} />
@@ -623,7 +623,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                                     </View>
                                 </TouchableOpacity>
                             )}
-                            contentContainerStyle={{paddingBottom: 100}}
+                            contentContainerStyle={safePadding}
                         />
                     </View>
                 </View>
@@ -649,7 +649,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                             </View>
                         </TouchableOpacity>
                     )}
-                    contentContainerStyle={{paddingBottom: 180}}
+                    contentContainerStyle={safePadding}
                 />
             )}
         </View>
@@ -657,7 +657,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   };
 
   return (
-    // ★ 修正: 背景色を dynamicStyles.bg に設定し、全体の黒ずみや色の分断を完全に解消
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <PanGestureHandler
         activeOffsetX={[-500, 10]}
@@ -667,21 +666,23 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
         onHandlerStateChange={onHandlerStateChange}
       >
         <View style={{ flex: 1 }}>
+          
           {/* Layer 1: メニュー層 */}
-          <Animated.View style={[StyleSheet.absoluteFill, layerShadowStyle, { 
+          <Animated.View style={[StyleSheet.absoluteFill, { 
             zIndex: 1,
+            backgroundColor: dynamicStyles.bg,
             transform:[{ translateX: layer1Translate }] 
           }]}>
             {renderMenu()}
-            {/* ★ 修正: 透明度を下げるのではなく、上に黒いフィルムを被せて自然に暗くする */}
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
           
-          {/* Layer 2: カテゴリ一覧層 */}
+          {/* Layer 2: カテゴリ一覧層 (影を削除し、左端に極細のボーダーを追加) */}
           {navStack.length > 1 && (
             <Animated.View 
-                style={[StyleSheet.absoluteFill, layerShadowStyle, { 
+                style={[StyleSheet.absoluteFill, layerBorderStyle, { 
                   zIndex: 2,
+                  backgroundColor: dynamicStyles.bg,
                   transform:[{ translateX: layer2Translate }] 
                 }]}
             >
@@ -690,11 +691,12 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
             </Animated.View>
           )}
 
-          {/* Layer 3: 楽曲リスト層 */}
+          {/* Layer 3: 楽曲リスト層 (影を削除し、左端に極細のボーダーを追加) */}
           {navStack.length > 2 && (
             <Animated.View 
-                style={[StyleSheet.absoluteFill, layerShadowStyle, { 
+                style={[StyleSheet.absoluteFill, layerBorderStyle, { 
                   zIndex: 3,
+                  backgroundColor: dynamicStyles.bg,
                   transform:[{ translateX: layer3Translate }] 
                 }]}
             >
