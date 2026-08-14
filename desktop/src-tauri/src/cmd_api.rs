@@ -1,6 +1,6 @@
 use serde_json::Value;
 use tauri::State;
-use crate::server::{SharedAuthState, PendingRequest};
+use crate::server::SharedAuthState;
 use std::net::UdpSocket;
 use rand::{rng, Rng};
 use tauri::Emitter;
@@ -119,7 +119,6 @@ pub async fn force_disconnect_session(ip: String, device: String, auth: State<'_
     Ok(())
 }
 
-// ★ 修正: Broken Pipe（パイプ破壊によるクラッシュ）を完全に防ぐ永続トンネル起動処理
 #[tauri::command]
 pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuthState>) -> Result<String, String> {
     let mut state = auth.lock().await;
@@ -150,7 +149,6 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
 
         let (tx, rx) = tokio::sync::oneshot::channel::<String>();
 
-        // ★ 修正: バックグラウンドの独立タスクでログを常時受け流すことで Broken Pipe によるプロセスの即死を防止
         tokio::spawn(async move {
             let mut reader = BufReader::new(stderr);
             let mut line = String::new();
@@ -174,7 +172,6 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
             }
         });
 
-        // 20秒以内に URL が生成されるのを待機
         match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
             Ok(Ok(wan_url)) => {
                 state.tunnel_process = Some(child);

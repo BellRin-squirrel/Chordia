@@ -2,7 +2,7 @@ use serde_json::Value;
 use tauri::State;
 
 use crate::AppState;
-use crate::utils::{evaluate_smart_rules, match_search, get_asset_url};
+use crate::utils::{evaluate_smart_rules, match_search};
 
 #[tauri::command]
 pub fn get_library_count(

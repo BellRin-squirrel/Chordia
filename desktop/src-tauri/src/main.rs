@@ -6,7 +6,6 @@ mod cmd_window;
 mod cmd_settings;
 mod cmd_add_music;
 mod cmd_playlist;
-// ★ 分割された各モジュールをフラットに読み込む
 mod cmd_lib_lufs;
 mod cmd_lib_query;
 mod cmd_lib_mutate;
@@ -14,6 +13,7 @@ mod cmd_lib_import;
 mod cmd_history;
 mod cmd_export;
 mod cmd_extensions;
+mod cmd_integrity; // ★ 追加
 mod server;
 mod cmd_api;
 
@@ -237,7 +237,6 @@ fn main() {
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs,
             cmd_playlist::get_playlist_cover, cmd_playlist::save_playlist_cover_image, cmd_playlist::set_playlist_cover_from_song,
-            // ★ 修正：それぞれ別々のモジュールから呼び出す
             cmd_lib_query::get_library_count, 
             cmd_lib_query::get_library_chunk, 
             cmd_lib_query::get_common_values_for_selected, 
@@ -256,6 +255,7 @@ fn main() {
             cmd_history::record_playback, cmd_history::get_playback_history,
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
+            cmd_integrity::check_system_integrity, // ★ 追加
             cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session, 
             resolve_path, restart_app
         ])

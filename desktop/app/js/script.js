@@ -9,8 +9,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSettings = document.getElementById('btnSettings');
     const btnInfo = document.getElementById('btnInfo');
     const btnExtensions = document.getElementById('btnExtensions'); 
+    const btnIntegrity = document.getElementById('btnIntegrity');
 
-    // ★ 追加：「曲を追加」ボタンの分岐
     if (btnAddMusic) {
         btnAddMusic.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
@@ -108,7 +108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ★ 追加：「設定」ボタンの分岐
+    if (btnIntegrity) {
+        btnIntegrity.addEventListener('click', () => window.location.href = 'integrity.html');
+    }
+
     if (btnSettings) {
         btnSettings.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
@@ -136,6 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             case '1': case 'A': targetBtn = btnAddMusic; break;
             case '2': case 'D': targetBtn = btnManage; break;
             case '3': case 'M': targetBtn = btnMigration; break; 
+            case '4': case 'V': targetBtn = btnIntegrity; break;
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;
