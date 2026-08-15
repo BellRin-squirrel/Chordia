@@ -23,7 +23,6 @@ pub fn record_playback(song: Value) {
     let _ = fs::write(&h_path, serde_json::to_string_pretty(&h).unwrap_or_default());
 }
 
-// ★ 修正: DBと突き合わせてアートワークURLを付与する
 #[tauri::command]
 pub fn get_playback_history(state: State<'_, AppState>) -> Vec<Value> {
     let h_path = get_base_dir().join("userfiles/history.json");
@@ -45,7 +44,7 @@ pub fn get_playback_history(state: State<'_, AppState>) -> Vec<Value> {
                 }
                 
                 if found_img.is_empty() {
-                    found_img = get_asset_url("library/images/default.png");
+                    found_img = get_asset_url("app/icon/Chordia.png");
                 }
                 
                 if let Some(obj) = h.as_object_mut() {

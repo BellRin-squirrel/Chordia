@@ -1,9 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
-    let isInitialized = false; // ★ 初期設定ロード中の誤保存を防止するフラグ
+    let isInitialized = false;
 
-    // ★ 新ウィンドウモード判定（左上の「トップへ戻る」非表示化）
     try {
         const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'settings_window';
         const settings = await invoke("get_app_settings");
@@ -15,7 +14,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(e);
     }
 
-    // ナビゲーションの同期切り替え制御
     const navButtons = document.querySelectorAll('.settings-nav-btn');
     const sections = document.querySelectorAll('.settings-section');
 
@@ -45,7 +43,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const artInput = document.getElementById('artInput');
     const btnRestoreArt = document.getElementById('btnRestoreArt');
     
-    // 入力要素
     const chkNewWindow = document.getElementById('openPlayerNewWindow');
     const chkManageNewWindow = document.getElementById('openManageNewWindow');
     const chkExtensionsNewWindow = document.getElementById('openExtensionsNewWindow');
@@ -53,7 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chkSettingsNewWindow = document.getElementById('openSettingsNewWindow');
     
     const chkNormalizeVolume = document.getElementById('normalizeVolume');
-    const ffmpegWarningText = document.getElementById('ffmpegWarningText');
 
     const itemsPerPage = document.getElementById('itemsPerPage');
     const primaryColor = document.getElementById('primaryColor');
@@ -73,10 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmTheme = document.getElementById('btnConfirmTheme');
     const btnCancelTheme = document.getElementById('btnCancelTheme');
 
-    const ffmpegWarningModal = document.getElementById('ffmpegWarningModal');
-    const btnConfirmFfmpeg = document.getElementById('btnConfirmFfmpeg');
-    const btnCancelFfmpeg = document.getElementById('btnCancelFfmpeg');
-
     const THEME_PRESETS = {
         light: { bg: '#f3f4f6', subBg: '#ffffff', text: '#1f2937' },
         dark: { bg: '#111827', subBg: '#1f2937', text: '#f9fafb' }
@@ -95,11 +87,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    // ★ メイン自動保存ロジック
     let saveTimeout = null;
 
     async function saveAllSettings(showNotify = true) {
-        if (!isInitialized) return; // 初期化が完了するまでは誤発火を防止
+        if (!isInitialized) return;
 
         const active_tags = Array.from(document.querySelectorAll('.chk-db:checked')).map(cb => cb.value);
         const player_visible_tags = Array.from(document.querySelectorAll('.chk-player:checked')).map(cb => cb.value);
@@ -138,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem('theme_text_color', newSettings.text_color);
 
             if (showNotify) showToast("設定を保存しました");
-            checkFfmpegStatus();
         } else {
             if (showNotify) showToast("保存に失敗しました", true);
         }
@@ -155,7 +145,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveAllSettings(true);
     }
 
-    // 設定値の読み込みとフォーム適用
     const settings = await invoke("get_app_settings");
     currentSettings = settings;
     selectedThemeMode = settings.theme_mode || 'light';
@@ -170,18 +159,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (chkSettingsNewWindow) chkSettingsNewWindow.checked = settings.open_settings_new_window;
     if (chkNormalizeVolume) chkNormalizeVolume.checked = settings.normalize_volume;
     primaryColor.value = settings.primary_color;
-
-    const checkFfmpegStatus = async () => {
-        const status = await invoke("check_tools_status");
-        const hasFfmpeg = status['ffmpeg'];
-        if (chkNormalizeVolume && chkNormalizeVolume.checked && !hasFfmpeg) {
-            ffmpegWarningText.style.display = 'block';
-        } else if (ffmpegWarningText) {
-            ffmpegWarningText.style.display = 'none';
-        }
-        return hasFfmpeg;
-    };
-    checkFfmpegStatus();
 
     customSelectTrigger.onclick = (e) => {
         e.stopPropagation();
@@ -297,13 +274,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     renderCombinedTagList();
 
-    // 初期化が完了したためフラグをON
     isInitialized = true;
 
-    // ★ 全てのフォーム要素への自動保存イベントバインド
     const allInputs = [
         itemsPerPage, chkNewWindow, chkManageNewWindow, chkExtensionsNewWindow, 
-        chkAddMusicNewWindow, chkSettingsNewWindow, chkNormalizeVolume,
+        chkAddMusicNewWindow, chkSettingsNewWindow,
         primaryColor, backgroundColor, subBackgroundColor, textColor
     ];
 
@@ -316,53 +291,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // ★ 修正：一定音量有効化の事前条件チェック（FFmpeg ＆ 音量解析の完了）
     if (chkNormalizeVolume) {
         chkNormalizeVolume.addEventListener('click', async (e) => {
             if (chkNormalizeVolume.checked) {
-                e.preventDefault();
-                const hasFfmpeg = await checkFfmpegStatus();
-                if (!hasFfmpeg) {
-                    ffmpegWarningModal.style.display = 'flex';
-                } else {
-                    chkNormalizeVolume.checked = true;
-                    handleChange();
-                    launchLufsCalcWindow();
+                e.preventDefault(); 
+                
+                // 1. FFmpeg のチェック
+                const status = await invoke("check_tools_status");
+                if (!status['ffmpeg']) {
+                    alert("一定音量機能を有効にするには、まず拡張機能画面から FFmpeg をインストールしてください。");
+                    chkNormalizeVolume.checked = false;
+                    return;
                 }
+
+                // 2. 音量測定(LUFS解析)完了のチェック
+                try {
+                    const lufsInfo = await invoke("check_lufs_status");
+                    if (!lufsInfo.is_completed) {
+                        alert(`一定音量機能を有効にするには、事前に拡張機能の画面で測定を完了させておく必要があります。\n\n(未測定の楽曲: ${lufsInfo.uncalculated} 曲)\n\n拡張機能画面から「音量測定」を実行してください。`);
+                        chkNormalizeVolume.checked = false;
+                        return;
+                    }
+                } catch(e) {
+                    alert("測定ステータスの確認に失敗しました。");
+                    chkNormalizeVolume.checked = false;
+                    return;
+                }
+
+                // すべて満たしている場合のみ有効化
+                chkNormalizeVolume.checked = true;
+                handleChange();
+                showToast("一定音量機能を有効にしました");
             } else {
                 handleChange();
             }
         });
-    }
-
-    if (btnConfirmFfmpeg) {
-        btnConfirmFfmpeg.addEventListener('click', () => {
-            chkNormalizeVolume.checked = true;
-            ffmpegWarningModal.style.display = 'none';
-            handleChange();
-            showToast("一定音量機能を有効にしました（FFmpeg導入後に機能します）");
-            launchLufsCalcWindow();
-        });
-    }
-
-    if (btnCancelFfmpeg) {
-        btnCancelFfmpeg.addEventListener('click', () => {
-            chkNormalizeVolume.checked = false;
-            ffmpegWarningModal.style.display = 'none';
-        });
-    }
-
-    async function launchLufsCalcWindow() {
-        try {
-            await invoke("open_new_window", {
-                label: "lufs_calc_window",
-                url: new URL("lufs_calc.html", window.location.href).href,
-                title: "音量解析の実行 - Chordia",
-                width: 600.0,
-                height: 400.0
-            });
-        } catch (err) {
-            console.error(err);
-        }
     }
 
     btnSaveOriginalTheme.addEventListener('click', () => {

@@ -7,6 +7,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const progressBar = document.getElementById('progressBar');
     const btnClose = document.getElementById('btnClose');
 
+    // ★ URLから force パラメータを取得
+    const params = new URLSearchParams(window.location.search);
+    const forceRecalc = params.get('force') === 'true';
+
     if (listen) {
         await listen("lufs_calc_progress", (event) => {
             const data = event.payload;
@@ -24,7 +28,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ★ 修正：Rustコマンド経由で自ウィンドウを確実に削除・破棄する
     btnClose.addEventListener('click', async () => {
         try {
             await invoke("close_lufs_calc_window");
@@ -34,7 +37,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     try {
-        await invoke("start_lufs_calculation_all");
+        // ★ force オプションを渡して実行
+        await invoke("start_lufs_calculation_all", { force: forceRecalc });
     } catch (e) {
         calcMessage.textContent = "エラーが発生しました";
         calcMessage.style.color = "#ef4444";

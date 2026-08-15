@@ -7,7 +7,7 @@ use id3::{Tag, TagLike};
 use ini::Ini;
 
 use crate::AppState;
-use crate::utils::{get_base_dir, normalize_rel_path};
+use crate::utils::{get_base_dir, normalize_rel_path, load_lufs_cache};
 
 #[derive(Serialize, Clone)]
 pub struct TagMismatchItem {
@@ -52,9 +52,14 @@ pub struct IntegrityReport {
 
 #[tauri::command]
 pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<IntegrityReport, String> {
-    // ★ 修正: spawn_blocking 前にメモリデータを取得・所有権化してクロージャへ渡す
     let db_data = state.db.lock().unwrap().clone();
-    let lufs_cache_data = state.lufs_cache.lock().unwrap().clone();
+
+    // ★ 修正: spawn_blocking の外でディスクキャッシュの読み込みとメモリの同期を実行
+    let disk_lufs_cache = load_lufs_cache();
+    {
+        let mut cache_guard = state.lufs_cache.lock().unwrap();
+        *cache_guard = disk_lufs_cache.clone();
+    }
 
     tokio::task::spawn_blocking(move || {
         let base_dir = get_base_dir();
@@ -144,14 +149,16 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             unexpected_files,
         };
 
-        // --- 3. LUFS未計測曲の検出 ---
+        // --- 3. LUFS未計測曲の検出 (所有権を持った disk_lufs_cache を利用) ---
         let mut uncalculated_lufs = Vec::new();
 
         for song in db_data.iter() {
             if let Some(rel_music) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                if !lufs_cache_data.contains_key(rel_music) {
+                let norm_music = normalize_rel_path(rel_music);
+                
+                if !disk_lufs_cache.contains_key(&norm_music) && !disk_lufs_cache.contains_key(rel_music) {
                     uncalculated_lufs.push(UncalculatedLufsItem {
-                        filename: rel_music.to_string(),
+                        filename: norm_music.clone(),
                         title: song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
                         artist: song.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string(),
                     });
@@ -226,6 +233,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
         let mut referenced_music = HashSet::new();
         let mut referenced_images = HashSet::new();
 
+        referenced_images.insert("app/icon/Chordia.png".to_string());
         referenced_images.insert("library/images/default.png".to_string());
 
         for song in db_data.iter() {

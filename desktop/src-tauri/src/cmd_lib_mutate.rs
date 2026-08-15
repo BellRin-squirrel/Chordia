@@ -29,13 +29,13 @@ pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<
     let mut db = state.db.lock().unwrap();
     if let Some(target) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { 
-            if !old.contains("default.png") { 
+            if !old.contains("Chordia.png") && !old.contains("default.png") { 
                 let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(old))); 
             } 
         }
         if remove {
-            target.insert("imageFilename".into(), "library/images/default.png".into());
-            target.insert("imageData".into(), get_asset_url("library/images/default.png").into());
+            target.insert("imageFilename".into(), "app/icon/Chordia.png".into());
+            target.insert("imageData".into(), get_asset_url("app/icon/Chordia.png").into());
         }
         else if let Some(b64) = new_art_base64 {
             let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
@@ -65,7 +65,11 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
             cache.remove(p);
             save_lufs_cache(&cache);
         }
-        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
+        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) {
+            if !p.contains("Chordia.png") && !p.contains("default.png") {
+                let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p)));
+            }
+        }
         save_db(&db).is_ok()
     } else { false }
 }
@@ -100,14 +104,14 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
             
             if let Some(ref b64) = artwork_b64 {
                 if let Some(old) = i.get("imageFilename").and_then(|v| v.as_str()) {
-                    if !old.contains("default.png") {
+                    if !old.contains("Chordia.png") && !old.contains("default.png") {
                         let _ = fs::remove_file(base.join(normalize_rel_path(old)));
                     }
                 }
                 
                 if b64 == "REMOVE" {
-                    i.insert("imageFilename".into(), "library/images/default.png".into());
-                    i.insert("imageData".into(), get_asset_url("library/images/default.png").into());
+                    i.insert("imageFilename".into(), "app/icon/Chordia.png".into());
+                    i.insert("imageData".into(), get_asset_url("app/icon/Chordia.png").into());
                 } else {
                     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
                     let path = format!("library/images/{}.png", f_id);
@@ -141,7 +145,11 @@ pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>)
                 let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); 
                 removed_paths.push(p.to_string());
             }
-            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p))); } }
+            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) {
+                if !p.contains("Chordia.png") && !p.contains("default.png") {
+                    let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p)));
+                }
+            }
             count += 1; false
         } else { true }
     });

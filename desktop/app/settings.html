@@ -85,7 +85,6 @@
                             <h3 class="item-group-title">ページの開き方</h3>
                             <p class="form-desc" style="margin-bottom: 10px;">オンにすると対象の画面が新しいウィンドウで起動します。</p>
                             <div class="settings-list">
-                                <!-- ★ 追加：曲を追加 -->
                                 <div class="settings-row">
                                     <div class="row-text">
                                         <span class="row-title">曲を追加</span>
@@ -126,7 +125,6 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
-                                <!-- ★ 追加：設定 -->
                                 <div class="settings-row">
                                     <div class="row-text">
                                         <span class="row-title">設定</span>
@@ -146,8 +144,7 @@
                                 <div class="settings-row">
                                     <div class="row-text">
                                         <span class="row-title">音楽再生時に楽曲ごとに音量を調整する（一定音量）</span>
-                                        <span class="row-desc">全曲のラウドネス(LUFS)を計測し、再生時の音圧を自動で均一化します。</span>
-                                        <p id="ffmpegWarningText" class="form-desc" style="color: #ef4444; font-weight: bold; margin-top: 6px; display: none;">FFmpegがインストールされていません。拡張機能画面からインストールしてください。</p>
+                                        <span class="row-desc">事前に拡張機能画面で音量(LUFS)測定を完了させることで有効化できます。</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="normalizeVolume">
@@ -232,21 +229,6 @@
 
             <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-top: 24px;">
                 設定は変更時に自動で保存されます。
-            </div>
-        </div>
-    </div>
-
-    <!-- モーダル各種 -->
-    <div id="ffmpegWarningModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
-        <div style="background: var(--card-bg); padding: 40px; border-radius: 24px; width: 450px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4); border: 2px solid #f59e0b; box-sizing: border-box;">
-            <h3 style="color: #f59e0b; font-size: 1.5rem; margin-top: 0;">拡張機能が必要です</h3>
-            <p style="color: var(--text-main); font-weight: bold; line-height: 1.6; margin: 20px 0; text-align: left;">
-                「一定音量」機能を利用するには、拡張機能画面から <strong>FFmpeg</strong> をインストールする必要があります。<br><br>
-                現在の状態でも設定をオンにすることは可能ですが、FFmpegがインストールされるまで音量調整は機能しません。
-            </p>
-            <div style="display: flex; gap: 12px; margin-top: 32px;">
-                <button id="btnCancelFfmpeg" class="btn-small secondary-btn" style="flex: 1; padding: 14px;">キャンセル</button>
-                <button id="btnConfirmFfmpeg" class="btn-small" style="flex: 1; padding: 14px; background-color: #f59e0b;">それでも続行する</button>
             </div>
         </div>
     </div>

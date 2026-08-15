@@ -6,7 +6,7 @@ use tokio::sync::Semaphore;
 use std::os::windows::process::CommandExt;
 
 use crate::AppState;
-use crate::utils::{get_base_dir, normalize_rel_path, save_lufs_cache};
+use crate::utils::{get_base_dir, normalize_rel_path, save_lufs_cache, load_lufs_cache};
 
 #[tauri::command]
 pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32> {
@@ -14,8 +14,58 @@ pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32
     cache.get(&filename).copied()
 }
 
+// ★ 修正: 呼び出し時にディスク上の lufs_cache.json 状態とメモリ領域を同期
 #[tauri::command]
-pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+pub async fn check_lufs_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    // ディスク上の最新キャッシュ状態を取得してメモリに反映（ファイル削除時は空になる）
+    {
+        let latest_disk_cache = load_lufs_cache();
+        let mut cache_guard = state.lufs_cache.lock().unwrap();
+        *cache_guard = latest_disk_cache;
+    }
+
+    let db_guard = state.db.lock().unwrap();
+    let cache_guard = state.lufs_cache.lock().unwrap();
+    let total = db_guard.len();
+    let mut calculated = 0;
+    
+    for song in db_guard.iter() {
+        if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
+            if cache_guard.contains_key(rel_path) {
+                calculated += 1;
+            }
+        }
+    }
+    
+    let uncalculated = total.saturating_sub(calculated);
+    let is_completed = total > 0 && uncalculated == 0;
+
+    Ok(serde_json::json!({
+        "total": total,
+        "calculated": calculated,
+        "uncalculated": uncalculated,
+        "is_completed": is_completed
+    }))
+}
+
+#[tauri::command]
+pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    let force_recalc = force.unwrap_or(false);
+
+    // ★ ディスクの状態と同期した上で再計算判定
+    {
+        let disk_cache = if force_recalc {
+            std::collections::HashMap::new()
+        } else {
+            load_lufs_cache()
+        };
+        let mut cache = state.lufs_cache.lock().unwrap();
+        *cache = disk_cache;
+        if force_recalc {
+            save_lufs_cache(&cache);
+        }
+    }
+
     let mut targets_to_calc = Vec::new();
     
     {
@@ -23,7 +73,7 @@ pub async fn start_lufs_calculation_all(state: State<'_, AppState>, app: AppHand
         let cache = state.lufs_cache.lock().unwrap();
         for song in db.iter() {
             if let Some(rel_path) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                if !cache.contains_key(rel_path) {
+                if force_recalc || !cache.contains_key(rel_path) {
                     let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
                     targets_to_calc.push((rel_path.to_string(), title));
                 }

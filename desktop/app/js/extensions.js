@@ -28,9 +28,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const alertMessage = document.getElementById('alertMessage');
     const btnAlertOk = document.getElementById('btnAlertOk');
 
+    const lufsStatusText = document.getElementById('lufsStatusText');
+    const lufsCountText = document.getElementById('lufsCountText');
+    const btnStartLufsCalc = document.getElementById('btnStartLufsCalc');
+
+    const lufsProgressContainer = document.getElementById('lufsProgressContainer');
+    const lufsProgressMessage = document.getElementById('lufsProgressMessage');
+    const lufsProgressCount = document.getElementById('lufsProgressCount');
+    const lufsProgressBar = document.getElementById('lufsProgressBar');
+
+    let isLufsCalculating = false;
+
     const TOOL_DETAILS = {
         'yt-dlp': 'YouTubeなどの動画プラットフォームから動画・音声をダウンロードします。',
-        'ffmpeg': 'ダウンロードした動画から音声を抽出・変換するために使用します。',
+        'ffmpeg': 'ダウンロードした動画からの音声抽出および「一定音量(LUFS)」の音量解析に使用します。',
         'deno': '一部のサイトのダウンロード処理を補助するJavaScriptランタイムです。',
         'cloudflared': 'WANでMobile版に楽曲を同期するために使用します。'
     };
@@ -66,6 +77,112 @@ document.addEventListener('DOMContentLoaded', async () => {
             progressText.textContent = `${toolName} をダウンロード中... ${percent}%`;
             progressBar.style.width = `${percent}%`;
         });
+
+        // ★ 音量解析のリアルタイムプログレスイベントを拡張機能画面内で直接受信してインライン描画
+        listen('lufs_calc_progress', (event) => {
+            const data = event.payload;
+            if (!data) return;
+
+            if (lufsProgressContainer && lufsProgressContainer.style.display !== 'none') {
+                if (lufsProgressMessage) lufsProgressMessage.textContent = data.message;
+                if (lufsProgressCount) lufsProgressCount.textContent = `${data.current} / ${data.total}`;
+                if (lufsProgressBar && data.total > 0) {
+                    const percent = (data.current / data.total) * 100;
+                    lufsProgressBar.style.width = `${percent}%`;
+                }
+            }
+        });
+    }
+
+    async function checkLufsStatus() {
+        if (!lufsStatusText || !lufsCountText || !btnStartLufsCalc) return;
+        try {
+            lufsStatusText.textContent = "確認中...";
+            lufsStatusText.style.color = "var(--text-main)";
+
+            const status = await invoke("check_tools_status");
+            const hasFfmpeg = !!status['ffmpeg'];
+
+            if (!hasFfmpeg) {
+                lufsStatusText.textContent = "FFmpegが未インストールです";
+                lufsStatusText.style.color = "#ef4444";
+                lufsCountText.textContent = "-- / -- 曲";
+                btnStartLufsCalc.disabled = true;
+                btnStartLufsCalc.textContent = "FFmpegが必要です";
+                return;
+            }
+
+            const lufsInfo = await invoke("check_lufs_status");
+            lufsCountText.textContent = `${lufsInfo.calculated} / ${lufsInfo.total} 曲`;
+
+            if (lufsInfo.total === 0) {
+                lufsStatusText.textContent = "ライブラリに楽曲がありません";
+                lufsStatusText.style.color = "var(--text-sub)";
+                btnStartLufsCalc.disabled = true;
+                btnStartLufsCalc.textContent = "楽曲を追加してください";
+            } else if (lufsInfo.is_completed) {
+                lufsStatusText.textContent = "測定完了 (全曲解析済み)";
+                lufsStatusText.style.color = "#10b981";
+                btnStartLufsCalc.disabled = false;
+                btnStartLufsCalc.textContent = "音量測定を再実行";
+            } else {
+                lufsStatusText.textContent = `未測定の楽曲があります (未解析: ${lufsInfo.uncalculated}曲)`;
+                lufsStatusText.style.color = "#f59e0b";
+                btnStartLufsCalc.disabled = false;
+                btnStartLufsCalc.textContent = "音量測定を開始";
+            }
+        } catch (e) {
+            console.error("Failed to check LUFS status:", e);
+            if (lufsStatusText) {
+                lufsStatusText.textContent = "ステータス取得失敗";
+                lufsStatusText.style.color = "#ef4444";
+            }
+        }
+    }
+
+    window.addEventListener('focus', () => {
+        if (!isLufsCalculating) {
+            checkLufsStatus();
+        }
+    });
+
+    // ★ 修正: 新しいウィンドウを開かず、同画面のインラインエリアで直接測定を実行
+    if (btnStartLufsCalc) {
+        btnStartLufsCalc.addEventListener('click', async () => {
+            if (isLufsCalculating) return;
+
+            try {
+                const lufsInfo = await invoke("check_lufs_status");
+                const isForce = lufsInfo && lufsInfo.is_completed;
+
+                isLufsCalculating = true;
+                btnStartLufsCalc.disabled = true;
+                btnStartLufsCalc.textContent = "測定中...";
+
+                if (lufsProgressContainer) {
+                    lufsProgressContainer.style.display = 'block';
+                    if (lufsProgressBar) lufsProgressBar.style.width = '0%';
+                    if (lufsProgressMessage) lufsProgressMessage.textContent = "準備中...";
+                    if (lufsProgressCount) lufsProgressCount.textContent = "0 / 0";
+                }
+
+                // 直接バックグラウンド解析タスクを呼び出し
+                await invoke("start_lufs_calculation_all", { force: isForce });
+
+                showAlert("完了", "すべての楽曲の音量測定が完了しました！");
+            } catch (err) {
+                console.error("LUFS calculation error:", err);
+                showAlert("エラー", "音量測定中にエラーが発生しました: " + err, true);
+            } finally {
+                isLufsCalculating = false;
+                if (lufsProgressContainer) {
+                    setTimeout(() => {
+                        lufsProgressContainer.style.display = 'none';
+                    }, 2000);
+                }
+                await checkLufsStatus();
+            }
+        });
     }
 
     async function checkStatus() {
@@ -77,10 +194,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateActionCard(status);
         } catch (e) {
             toolsList.innerHTML = `<div class="tool-item not-installed">エラーが発生しました</div>`;
+        } finally {
+            await checkLufsStatus();
         }
     }
 
-    // ★ 修正：TOOL_DETAILSのキーに基づいて定義済みの全ツールを確実にリスト化・描画
     function renderTools(status) {
         toolsList.innerHTML = '';
         const allTools = Object.keys(TOOL_DETAILS);
@@ -94,7 +212,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ★ 修正：全ツールを対象に未インストールチェックを行う
     function updateActionCard(status) {
         const allTools = Object.keys(TOOL_DETAILS);
         const missingTools = allTools.filter(tool => !status[tool]);

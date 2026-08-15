@@ -13,7 +13,7 @@ mod cmd_lib_import;
 mod cmd_history;
 mod cmd_export;
 mod cmd_extensions;
-mod cmd_integrity; // ★ 追加
+mod cmd_integrity;
 mod server;
 mod cmd_api;
 
@@ -252,10 +252,11 @@ fn main() {
             cmd_lib_import::execute_zip_import, 
             cmd_lib_lufs::start_lufs_calculation_all, 
             cmd_lib_lufs::get_song_lufs,
+            cmd_lib_lufs::check_lufs_status, // ★ 追加
             cmd_history::record_playback, cmd_history::get_playback_history,
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
-            cmd_integrity::check_system_integrity, // ★ 追加
+            cmd_integrity::check_system_integrity,
             cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session, 
             resolve_path, restart_app
         ])

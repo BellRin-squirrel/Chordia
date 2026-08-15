@@ -78,7 +78,7 @@ pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, V
         }
         
         if !img_saved {
-            let rel_img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("library/images/default.png").to_string();
+            let rel_img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("app/icon/Chordia.png").to_string();
             item.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
         }
         item.remove("artworkBase64");
@@ -173,7 +173,6 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
         if file.is_file() {
             let name = file.name().to_string();
             
-            // ★ 修正: Mac 特有の不要ファイル (__MACOSX や ._ から始まるリソースフォーク) を完全にスキップ
             if name.contains("__MACOSX") || name.split('/').last().unwrap_or("").starts_with("._") {
                 continue;
             }
@@ -251,7 +250,6 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
             if let Ok(file) = file_res {
                 let archive_name = normalize_rel_path(file.name());
 
-                // ★ 修正: 展開時も __MACOSX 関連ファイルを除外する二重保護
                 if archive_name.contains("__MACOSX") || archive_name.split('/').last().unwrap_or("").starts_with("._") {
                     continue;
                 }
@@ -306,8 +304,8 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
                 }
                 
                 if !img_saved {
-                    item.insert("imageFilename".to_string(), Value::String("library/images/default.png".to_string()));
-                    item.insert("imageData".to_string(), Value::String(get_asset_url("library/images/default.png")));
+                    item.insert("imageFilename".to_string(), Value::String("app/icon/Chordia.png".to_string()));
+                    item.insert("imageData".to_string(), Value::String(get_asset_url("app/icon/Chordia.png")));
                 }
                 
                 item.remove("artworkBase64");

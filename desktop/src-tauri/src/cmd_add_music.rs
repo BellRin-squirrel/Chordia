@@ -83,18 +83,17 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_default_art_url() -> String { get_asset_url("library/images/default.png") }
+pub fn get_default_art_url() -> String { get_asset_url("app/icon/Chordia.png") }
 
 #[tauri::command]
 pub fn update_default_artwork(b64_data: String) -> bool {
     let b64 = if b64_data.contains(',') { b64_data.split(',').nth(1).unwrap() } else { &b64_data };
-    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("library/images/default.png"))).unwrap_or(false)
+    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("app/icon/Chordia.png"))).unwrap_or(false)
 }
 
 #[tauri::command]
 pub fn reset_default_artwork() -> bool {
-    let base = get_base_dir();
-    fs::copy(base.join("app/icon/Chordia.png"), base.join("library/images/default.png")).is_ok()
+    true
 }
 
 #[tauri::command]
@@ -221,7 +220,6 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
     let url = data.get("video_url").and_then(|v| v.as_str()).ok_or("No URL")?.to_string();
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     
-    // ★ 修正: 処理前に必ず userfiles フォルダを明示的に作成
     let _ = fs::create_dir_all(base.join("userfiles"));
     let _ = fs::create_dir_all(base.join("library/music")); 
     let _ = fs::create_dir_all(base.join("library/images"));
@@ -301,7 +299,7 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
         }
     }
 
-    let mut i_rel = "library/images/default.png".to_string();
+    let mut i_rel = "app/icon/Chordia.png".to_string();
     if let Some(by) = artwork_bytes {
         let ir = format!("library/images/{}.png", f_id);
         let base_for_img = base.clone();
@@ -342,7 +340,6 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
 #[tauri::command]
 pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     let base = get_base_dir();
-    // ★ 修正: 保存処理前に確実に userfiles を作成
     let _ = fs::create_dir_all(base.join("userfiles"));
     let _ = fs::create_dir_all(base.join("library/music"));
     let _ = fs::create_dir_all(base.join("library/images"));
@@ -394,8 +391,8 @@ pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: St
         data.insert("imageFilename".to_string(), Value::String(rel_img_path.clone()));
         data.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
     } else {
-        data.insert("imageFilename".to_string(), Value::String("library/images/default.png".to_string()));
-        data.insert("imageData".to_string(), Value::String(get_asset_url("library/images/default.png")));
+        data.insert("imageFilename".to_string(), Value::String("app/icon/Chordia.png".to_string()));
+        data.insert("imageData".to_string(), Value::String(get_asset_url("app/icon/Chordia.png")));
     }
 
     let mut db_guard = state.db.lock().unwrap();
