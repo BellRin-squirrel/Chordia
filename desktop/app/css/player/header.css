@@ -11,6 +11,7 @@
     justify-content: center; 
     align-items: center; 
     padding: 0 20px; 
+    z-index: 500; /* ★ 修正: サイドバー(z-index:100)よりもヘッダー全体の重なり順を優先指定 */
 }
 
 .header-left { 
@@ -79,7 +80,6 @@
     border: 1px solid rgba(128, 128, 128, 0.1);
 }
 
-/* ★ AirPlay / 出力切り替えボタン */
 .airplay-btn {
     background: none;
     border: none;
@@ -110,7 +110,6 @@
     height: 18px;
 }
 
-/* ★ オーディオ出力デバイス選択メニュー */
 .airplay-menu {
     position: absolute;
     top: 48px;
@@ -294,8 +293,12 @@
         display: none !important;
     }
 
-    .volume-slider-container {
-        width: 50px;
+    .header-volume-wrapper {
+        display: none !important;
+    }
+
+    .header-center {
+        max-width: 38%;
     }
 
     .hp-col-info {
