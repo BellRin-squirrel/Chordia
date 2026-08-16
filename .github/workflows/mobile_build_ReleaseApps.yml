@@ -1,4 +1,4 @@
-name: Build Release Apps (iOS & Android) v5.0.0-beta3
+name: Build Release Apps (iOS & Android) v5.0.0
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
