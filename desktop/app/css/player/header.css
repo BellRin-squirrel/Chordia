@@ -18,13 +18,12 @@
     left: 20px; 
     top: 50%; 
     transform: translateY(-50%); 
-    z-index: 100; /* 重なり優先順位を向上 */
+    z-index: 100; 
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-/* ★ ハンバーガーメニューボタン */
 .btn-hamburger {
     display: none;
     background: var(--card-bg);
@@ -68,8 +67,9 @@
 .back-link:hover { color: var(--primary-color); }
 .back-link svg { width: 20px; height: 20px; }
 
-/* 音量コントロール */
+/* 音量＆AirPlayコントロール */
 .header-volume-wrapper {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -79,12 +79,101 @@
     border: 1px solid rgba(128, 128, 128, 0.1);
 }
 
-.volume-icon {
-    width: 18px;
-    height: 18px;
+/* ★ AirPlay / 出力切り替えボタン */
+.airplay-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    width: 22px;
+    height: 22px;
     color: var(--text-sub);
     display: flex;
     align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.1s;
+    flex-shrink: 0;
+}
+
+.airplay-btn:hover {
+    color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.airplay-btn.active {
+    color: var(--primary-color);
+}
+
+.airplay-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ★ オーディオ出力デバイス選択メニュー */
+.airplay-menu {
+    position: absolute;
+    top: 48px;
+    left: 0;
+    background-color: color-mix(in srgb, var(--card-bg) 88%, transparent);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 0.5px solid rgba(128, 128, 128, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    min-width: 240px;
+    z-index: 2000;
+    padding: 8px;
+    box-sizing: border-box;
+    display: none;
+    text-align: left;
+}
+
+.airplay-menu h4 {
+    margin: 4px 8px 8px 8px;
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+    padding-bottom: 6px;
+}
+
+.airplay-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.airplay-menu li {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text-main);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    transition: background 0.1s;
+}
+
+.airplay-menu li:hover {
+    background-color: var(--primary-color);
+    color: #ffffff !important;
+}
+
+.airplay-menu li.selected {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.airplay-menu li.selected:hover {
+    color: #ffffff !important;
 }
 
 .volume-slider-container {
@@ -196,25 +285,26 @@
 .btn-ctrl-circle.large:hover { background: var(--primary-color-dark); } 
 .btn-ctrl-circle.large svg { width: 24px; height: 24px; }
 
-/* ★ 画面幅 900px 未満でのヘッダーレイアウト強制適用 */
 @media (max-width: 900px) {
     .btn-hamburger {
-        display: flex !important; /* ハンバーガーボタンを強制表示 */
+        display: flex !important;
     }
     
     .back-text {
-        display: none !important; /* 「トップへ」テキストを隠してアイコンのみ表示 */
+        display: none !important;
     }
 
-    .header-volume-wrapper {
-        display: none !important; /* 音量スライダーを一時格納してスペースを確保 */
-    }
-
-    .header-center {
-        max-width: 38%;
+    .volume-slider-container {
+        width: 50px;
     }
 
     .hp-col-info {
         width: 130px;
+    }
+}
+
+@media (max-width: 650px) {
+    .header-volume-wrapper {
+        display: none;
     }
 }

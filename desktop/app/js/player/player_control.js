@@ -12,7 +12,6 @@
             this.volumeBar = document.getElementById('volumeBar');
 
             if (this.audio) {
-                // セキュリティ制約回避
                 this.audio.crossOrigin = "anonymous";
             }
 
@@ -33,6 +32,9 @@
                     this.volumeBar.style.background = `linear-gradient(to right, var(--primary-color) ${val}%, rgba(128,128,128,0.2) ${val}%)`;
                 };
             }
+
+            // ★ AirPlay / 出力デバイス切り替え機能の初期化
+            this.initAirPlay();
 
             const btnPlayPause = document.getElementById('hdrBtnPlayPause');
             if (btnPlayPause) btnPlayPause.addEventListener('click', () => this.togglePlayPause());
@@ -158,7 +160,120 @@
             });
         },
 
-        // ★ 修正：Web Audio API (GainNode) を廃止し、標準の audio.volume で安全に調整
+        // ★ 新設: AirPlay ＆ オーディオ出力先変更機能
+        initAirPlay: function() {
+            const btnAirPlay = document.getElementById('btnAirPlay');
+            const audio = document.getElementById('mainAudio');
+            const menu = document.getElementById('airplayDeviceMenu');
+
+            if (!btnAirPlay || !audio) return;
+
+            document.addEventListener('click', (e) => {
+                if (menu && !e.target.closest('#btnAirPlay') && !e.target.closest('#airplayDeviceMenu')) {
+                    menu.style.display = 'none';
+                }
+            });
+
+            btnAirPlay.addEventListener('click', async (e) => {
+                e.stopPropagation();
+
+                // 1. macOS / Safari (WKWebView) 純正 AirPlay ピッカーの呼出し
+                if (typeof audio.webkitShowPlaybackTargetPicker === 'function') {
+                    try {
+                        audio.webkitShowPlaybackTargetPicker();
+                        return;
+                    } catch (err) {
+                        console.warn("webkitShowPlaybackTargetPicker failed, falling back to Web API:", err);
+                    }
+                }
+
+                // 2. ブラウザ標準 selectAudioOutput API (Chromium / Web API サポート環境)
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.selectAudioOutput === 'function') {
+                    try {
+                        const device = await navigator.mediaDevices.selectAudioOutput();
+                        if (device && typeof audio.setSinkId === 'function') {
+                            await audio.setSinkId(device.deviceId);
+                            u.showToast(`出力先: ${device.label || '選択されたデバイス'}`);
+                            btnAirPlay.classList.add('active');
+                            return;
+                        }
+                    } catch (err) {
+                        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                            console.warn("selectAudioOutput error:", err);
+                        }
+                    }
+                }
+
+                // 3. 出力デバイス選択ポップアップ (Windows / Mac 共通 Fallback)
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+                    try {
+                        let devices = await navigator.mediaDevices.enumerateDevices();
+                        let audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+
+                        if (audioOutputs.length > 0 && !audioOutputs[0].label) {
+                            try {
+                                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                                stream.getTracks().forEach(track => track.stop());
+                                devices = await navigator.mediaDevices.enumerateDevices();
+                                audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                            } catch(e) {}
+                        }
+
+                        if (audioOutputs.length > 0) {
+                            this.showAudioDeviceMenu(audioOutputs, btnAirPlay, menu, audio);
+                            return;
+                        }
+                    } catch (err) {
+                        console.error("enumerateDevices error:", err);
+                    }
+                }
+
+                u.showToast("オーディオ出力先の選択に対応していません", true);
+            });
+        },
+
+        showAudioDeviceMenu: function(devices, btn, menu, audio) {
+            if (!menu) return;
+            const list = menu.querySelector('ul');
+            if (!list) return;
+
+            list.innerHTML = '';
+            const currentSinkId = (typeof audio.sinkId === 'string') ? audio.sinkId : 'default';
+
+            devices.forEach((dev, idx) => {
+                const li = document.createElement('li');
+                const label = dev.label || `出力デバイス ${idx + 1}`;
+                const isSelected = (dev.deviceId === currentSinkId) || (currentSinkId === '' && idx === 0);
+                
+                if (isSelected) li.classList.add('selected');
+                
+                li.innerHTML = `
+                    <span>${u.escapeHtml(label)}</span>
+                    ${isSelected ? '<svg style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}
+                `;
+
+                li.onclick = async () => {
+                    try {
+                        if (typeof audio.setSinkId === 'function') {
+                            await audio.setSinkId(dev.deviceId);
+                            u.showToast(`出力先を変更しました: ${label}`);
+                            btn.classList.add('active');
+                        } else {
+                            u.showToast("この環境では出力先の動的変更に対応していません", true);
+                        }
+                    } catch (err) {
+                        console.error("setSinkId error:", err);
+                        u.showToast("出力先の変更に失敗しました", true);
+                    }
+                    menu.style.display = 'none';
+                };
+
+                list.appendChild(li);
+            });
+
+            menu.style.display = 'block';
+        },
+
         applyVolume: async function() {
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
             let targetGain = this.userVolume;
@@ -174,14 +289,11 @@
                         const TARGET_LUFS = -14.0;
                         let diff = TARGET_LUFS - lufs;
                         
-                        // ±15dBの範囲でクリップ。ただし標準volume機能は1.0以上にならないため、
-                        // 主に「うるさい曲を下げる」ためのアッテネーターとして機能します。
                         diff = Math.max(-15, Math.min(3, diff)); 
                         
                         const factor = Math.pow(10, diff / 20);
                         targetGain = this.userVolume * factor;
                         
-                        // 0.0 〜 1.0 の範囲に収める（音割れとピッチバグを完全に防止）
                         targetGain = Math.max(0.0, Math.min(1.0, targetGain));
                         
                         console.log(`[Volume Normalized] LUFS: ${lufs.toFixed(2)}, Diff: ${diff.toFixed(2)}dB, Final Volume: ${targetGain.toFixed(2)}`);
