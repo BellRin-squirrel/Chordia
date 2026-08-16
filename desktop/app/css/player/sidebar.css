@@ -16,6 +16,7 @@
     z-index: 100;
     display: flex;
     flex-direction: column;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .sidebar-header {
@@ -28,7 +29,6 @@
     border-bottom: 1px solid rgba(128, 128, 128, 0.1);
 }
 
-/* --- 美しいカスタムセレクター (重ね合わせ版) --- */
 .custom-select-wrapper {
     position: relative;
     width: 100%;
@@ -130,8 +130,6 @@
     font-weight: 500;
 }
 
-/* -------------------------------- */
-
 .playlist-nav { 
     list-style: none; 
     margin: 12px; 
@@ -185,4 +183,44 @@
     background: var(--bg-color); 
     color: var(--text-main);
     box-sizing: border-box;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 900;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-overlay.drawer-open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ★ 幅 900px 未満でのサイドバーのドロワー退避制御 */
+@media (max-width: 900px) {
+    .sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        height: 100vh !important;
+        border-radius: 0 16px 16px 0 !important;
+        z-index: 1000 !important;
+        transform: translateX(-105%) !important; /* 画面外へ退避 */
+        border: none !important;
+        border-right: 2px solid var(--primary-color) !important;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.2) !important;
+    }
+
+    .sidebar.drawer-open {
+        transform: translateX(0) !important; /* スライドイン表示 */
+    }
 }

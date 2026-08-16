@@ -84,7 +84,9 @@ pub fn get_app_settings() -> AppSettings {
         items_per_page: get_int("Database", "items_per_page", 50),
         open_player_new_window: get_bool("Database", "open_player_new_window", false),
         open_manage_new_window: get_bool("Database", "open_manage_new_window", false),
-        developer_mode: get_bool("Database", "developer_mode", false),
+        open_extensions_new_window: get_bool("Database", "open_extensions_new_window", false),
+        open_add_music_new_window: get_bool("Database", "open_add_music_new_window", false),
+        open_settings_new_window: get_bool("Database", "open_settings_new_window", false),
         lazy_load_playlists: false,
         primary_color: get_str("Theme", "primary_color", "#4f46e5"),
         background_color: get_str("Theme", "background_color", "#f3f4f6"),
@@ -93,6 +95,7 @@ pub fn get_app_settings() -> AppSettings {
         theme_mode: get_str("Theme", "theme_mode", "light"),
         active_tags: get_str("Tags", "active_tags", "title,artist,album,genre,track").split(',').map(|s| s.trim().to_string()).collect(),
         player_visible_tags: get_str("Tags", "player_visible_tags", "title,artist,album,track").split(',').map(|s| s.trim().to_string()).collect(),
+        normalize_volume: get_bool("Player", "normalize_volume", false),
     }
 }
 
@@ -100,7 +103,7 @@ pub fn get_app_settings() -> AppSettings {
 pub fn save_app_settings(settings: AppSettings) -> bool {
     let path = get_base_dir().join("userfiles/settings.ini");
     let mut conf = Ini::load_from_file(&path).unwrap_or_else(|_| Ini::new());
-    conf.with_section(Some("Database")).set("items_per_page", settings.items_per_page.to_string()).set("open_player_new_window", settings.open_player_new_window.to_string()).set("open_manage_new_window", settings.open_manage_new_window.to_string()).set("developer_mode", settings.developer_mode.to_string()).set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
+    conf.with_section(Some("Database")).set("items_per_page", settings.items_per_page.to_string()).set("open_player_new_window", settings.open_player_new_window.to_string()).set("open_manage_new_window", settings.open_manage_new_window.to_string()).set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
     conf.with_section(Some("Theme")).set("primary_color", settings.primary_color).set("background_color", settings.background_color).set("sub_background_color", settings.sub_background_color).set("text_color", settings.text_color).set("theme_mode", settings.theme_mode);
     conf.with_section(Some("Tags")).set("active_tags", settings.active_tags.join(",")).set("player_visible_tags", settings.player_visible_tags.join(","));
     conf.write_to_file(path).is_ok()
@@ -128,18 +131,17 @@ pub fn delete_custom_theme(name: String) -> bool {
 }
 
 #[tauri::command]
-pub fn get_default_art_url() -> String { get_asset_url("library/images/default.png") }
+pub fn get_default_art_url() -> String { get_asset_url("app/icon/Chordia.png") }
 
 #[tauri::command]
 pub fn update_default_artwork(b64_data: String) -> bool {
     let b64 = if b64_data.contains(',') { b64_data.split(',').nth(1).unwrap() } else { &b64_data };
-    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("library/images/default.png"))).unwrap_or(false)
+    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("app/icon/Chordia.png"))).unwrap_or(false)
 }
 
 #[tauri::command]
 pub fn reset_default_artwork() -> bool {
-    let base = get_base_dir();
-    fs::copy(base.join("app/icon/Chordia.png"), base.join("library/images/default.png")).is_ok()
+    true
 }
 
 #[tauri::command]
@@ -551,10 +553,14 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
 pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<String>, remove: bool, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(target) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
-        if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { if !old.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(old)); } }
+        if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) {
+            if !old.contains("Chordia.png") && !old.contains("default.png") {
+                let _ = fs::remove_file(get_base_dir().join(old));
+            }
+        }
         if remove {
-            target.insert("imageFilename".into(), "library/images/default.png".into());
-            target.insert("imageData".into(), get_asset_url("library/images/default.png").into());
+            target.insert("imageFilename".into(), "app/icon/Chordia.png".into());
+            target.insert("imageData".into(), get_asset_url("app/icon/Chordia.png").into());
         }
         else if let Some(b64) = new_art_base64 {
             let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
@@ -577,7 +583,11 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
     if let Some(pos) = db.iter().position(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         let i = db.remove(pos);
         if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(p)); }
-        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(p)); } }
+        if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) {
+            if !p.contains("Chordia.png") && !p.contains("default.png") {
+                let _ = fs::remove_file(get_base_dir().join(p));
+            }
+        }
         save_db(&db).is_ok()
     } else { false }
 }
@@ -617,7 +627,11 @@ pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>)
     db.retain(|i| {
         if filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into()) {
             if let Some(p) = i.get("musicFilename").and_then(|v| v.as_str()) { let _ = fs::remove_file(get_base_dir().join(p)); }
-            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) { if !p.contains("default.png") { let _ = fs::remove_file(get_base_dir().join(p)); } }
+            if let Some(p) = i.get("imageFilename").and_then(|v| v.as_str()) {
+                if !p.contains("Chordia.png") && !p.contains("default.png") {
+                    let _ = fs::remove_file(get_base_dir().join(p));
+                }
+            }
             count += 1; false
         } else { true }
     });
@@ -729,7 +743,7 @@ pub fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: 
         
     if !out.status.success() { return Err(String::from_utf8_lossy(&out.stderr).into()); }
     
-    let mut i_rel = "library/images/default.png".to_string();
+    let mut i_rel = "app/icon/Chordia.png".to_string();
     if let Some(art) = data.get("artwork_data").and_then(|v| v.as_str()) {
         if !art.is_empty() {
             let bc = if art.contains(',') { art.split(',').nth(1).unwrap() } else { art };
@@ -792,8 +806,8 @@ pub fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_
             }
         }
     } else {
-        data.insert("imageFilename".to_string(), Value::String("library/images/default.png".to_string()));
-        data.insert("imageData".to_string(), Value::String(get_asset_url("library/images/default.png")));
+        data.insert("imageFilename".to_string(), Value::String("app/icon/Chordia.png".to_string()));
+        data.insert("imageData".to_string(), Value::String(get_asset_url("app/icon/Chordia.png")));
     }
 
     let mut db_guard = state.db.lock().unwrap();

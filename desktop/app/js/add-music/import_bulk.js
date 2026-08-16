@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // Tauri環境外やブリッジ未読込時でもクラッシュしないように厳重に保護
     const tauri = window.__TAURI__;
     const invoke = (tauri && tauri.core) ? tauri.core.invoke : (tauri && tauri.tauri ? tauri.tauri.invoke : null);
     const listen = (tauri && tauri.event) ? tauri.event.listen : null;
+    const convertFileSrc = (tauri && tauri.core) ? tauri.core.convertFileSrc : (tauri && tauri.tauri ? tauri.tauri.convertFileSrc : null);
 
     const u = {
         escapeHtml: (str) => str ? String(str).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '',
@@ -45,6 +45,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (progressText) progressText.textContent = data.message;
             if (progressBar) progressBar.style.width = (data.current / data.total * 100) + '%';
         });
+
+        listen("tauri://drag-drop", async (event) => {
+            const payload = event.payload;
+            if (payload && payload.paths && payload.paths.length > 0) {
+                const filePath = payload.paths[0];
+                const fileName = filePath.split(/[\\/]/).pop();
+                
+                const activeTabBtn = document.querySelector('.tab-menu .tab-btn.active');
+                const activeTarget = activeTabBtn ? activeTabBtn.dataset.target : '';
+
+                if (activeTarget === 'tab-mp3zip' || importMode === 'zip') {
+                    if (fileName.toLowerCase().endsWith('.zip')) {
+                        if (convertFileSrc) {
+                            try {
+                                const response = await fetch(convertFileSrc(filePath));
+                                const blob = await response.blob();
+                                const file = new File([blob], fileName, { type: 'application/zip' });
+                                handleZipFile(file);
+                            } catch(e) {
+                                console.error("Native drop file fetch failed:", e);
+                            }
+                        }
+                    } else {
+                        u.showToast("ZIP形式 (.zip) のファイルを選択してください", true);
+                    }
+                } else if (activeTarget === 'tab-jsoncsv' || importMode === 'list') {
+                    if (fileName.toLowerCase().endsWith('.json') || fileName.toLowerCase().endsWith('.csv')) {
+                        const mime = fileName.toLowerCase().endsWith('.json') ? 'application/json' : 'text/csv';
+                        if (convertFileSrc) {
+                            try {
+                                const response = await fetch(convertFileSrc(filePath));
+                                const blob = await response.blob();
+                                const file = new File([blob], fileName, { type: mime });
+                                handleListFile(file);
+                            } catch(e) {
+                                console.error("Native drop file fetch failed:", e);
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
 
     let scannedData = [];
@@ -53,7 +95,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentZipPassword = ""; 
     let currentEditIndex = -1;
 
-    // 初期化時：タグ情報のフェッチ
     if (invoke) {
         try {
             const settings = await invoke("get_app_settings");
@@ -62,7 +103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch(e) { console.error(e); }
     }
 
-    // タブ切り替え監視
     const tabs = document.querySelectorAll('.tab-menu-btn');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -72,10 +112,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    window.addEventListener('drop', (e) => e.preventDefault(), false);
+
     function setupDragAndDrop(element, callback) {
         if (!element) return;
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            element.addEventListener(eventName, e => { e.preventDefault(); e.stopPropagation(); }, false);
+            element.addEventListener(eventName, e => { 
+                e.preventDefault(); 
+                e.stopPropagation(); 
+            }, false);
         });
         ['dragenter', 'dragover'].forEach(eventName => {
             element.addEventListener(eventName, () => element.classList.add('dragover'), false);
@@ -84,8 +130,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             element.addEventListener(eventName, () => element.classList.remove('dragover'), false);
         });
         element.addEventListener('drop', e => {
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) callback(e.dataTransfer.files[0]);
-        });
+            e.preventDefault();
+            e.stopPropagation();
+            element.classList.remove('dragover');
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                callback(e.dataTransfer.files[0]);
+            }
+        }, false);
     }
 
     // --- TAB 3: リスト (JSON/CSV) インポート ---
@@ -95,7 +146,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const importFileInfo = document.getElementById('importFileInfo');
     const importListResultSection = document.getElementById('importListResultSection');
 
-    // ★ 修正：ファイル入力（クリック）時の無限バブリングイベントループを完全に防止するため、stopPropagation を強制
     if (dropArea && fileInputImport) {
         dropArea.onclick = () => fileInputImport.click();
         fileInputImport.onclick = (e) => e.stopPropagation();
@@ -156,7 +206,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnScanZip = document.getElementById('btnScanZip');
     const zipResultSection = document.getElementById('zipResultSection');
 
-    // ★ 修正：ファイル入力（クリック）時の無限バブリングイベントループを完全に防止するため、stopPropagation を強制
     if (dropAreaZip && fileInputZip) {
         dropAreaZip.onclick = () => fileInputZip.click();
         fileInputZip.onclick = (e) => e.stopPropagation();
@@ -166,6 +215,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function handleZipFile(file) {
         if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            u.showToast("ZIP形式 (.zip) のファイルを選択してください", true);
+            return;
+        }
         if (zipFileName) zipFileName.textContent = file.name;
         if (dropAreaZip) dropAreaZip.style.display = 'none';
         if (zipFileInfo) zipFileInfo.style.display = 'flex';
@@ -183,6 +236,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(dropAreaZip) dropAreaZip.style.display = 'block';
             if(btnScanZip) btnScanZip.disabled = true;
             if(zipResultSection) zipResultSection.style.display = 'none';
+
+            const zipScanSection = document.getElementById('zipScanSection');
+            if (zipScanSection) zipScanSection.style.display = 'block';
         };
     }
 
@@ -190,6 +246,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnScanZip.onclick = async () => {
             const file = window._selectedZipFile;
             if (!file) return;
+
+            // ★ 要求仕様: ボタンを押した「その瞬間」に非表示にする
+            const zipScanSection = document.getElementById('zipScanSection');
+            if (zipScanSection) zipScanSection.style.display = 'none';
             
             if (progressArea) progressArea.style.display = 'block';
             if (progressText) progressText.textContent = "ZIPファイルをスキャン中...";
@@ -214,12 +274,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     renderTable('zip');
                     if(zipResultSection) zipResultSection.style.display = 'block';
                 } else {
+                    if (zipScanSection) zipScanSection.style.display = 'block';
                     u.showAlert("エラー", res.message || "スキャンに失敗しました");
                 }
             } catch(err) {
+                if (zipScanSection) zipScanSection.style.display = 'block';
                 u.showAlert("エラー", "ZIP解析中にエラーが発生しました: " + err);
             } finally {
-                // ★ 修正：パスワード入力モーダルが実際にアクティブ（クラスに show がある）かでプログレスの非表示判定を行う
                 const pModal = document.getElementById('passwordModal');
                 const isPassVisible = pModal && pModal.classList.contains('show');
                 if (progressArea && !isPassVisible) {
@@ -233,6 +294,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pModal = document.getElementById('passwordModal');
         pModal.classList.remove('show');
         setTimeout(() => pModal.style.display = 'none', 300);
+
+        const zipScanSection = document.getElementById('zipScanSection');
+        if (zipScanSection) zipScanSection.style.display = 'block';
     };
 
     document.getElementById('btnSubmitPass').onclick = async () => {
@@ -252,6 +316,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             progressArea.style.display = 'block';
             progressText.textContent = "ZIPファイルを解析中...";
         }
+
+        const zipScanSection = document.getElementById('zipScanSection');
+        if (zipScanSection) zipScanSection.style.display = 'none';
         
         try {
             const base64Data = await new Promise((resolve) => {
@@ -265,9 +332,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderTable('zip');
                 if(zipResultSection) zipResultSection.style.display = 'block';
             } else {
+                if (zipScanSection) zipScanSection.style.display = 'block';
                 u.showAlert("エラー", res.message);
             }
         } catch(err) {
+            if (zipScanSection) zipScanSection.style.display = 'block';
             u.showAlert("エラー", "ZIP解析中にエラーが発生しました: " + err);
         } finally {
             if (progressArea) progressArea.style.display = 'none';
@@ -278,7 +347,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(btnExecZipImport) btnExecZipImport.onclick = () => handleFinalImportWithCheck('zip');
 
 
-    // 重複確認と本登録
     async function handleFinalImportWithCheck(type) {
         let validItems = [];
         let addedSignatures = new Set();

@@ -13,6 +13,33 @@
             this.playlistList = document.getElementById('playlistList');
             this.initCustomSelector();
 
+            // ★ 追加: ハンバーガーボタンとドロワーオーバーレイの制御
+            const btnToggle = document.getElementById('btnToggleSidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (btnToggle && this.sidebar && overlay) {
+                const toggleDrawer = () => {
+                    this.sidebar.classList.toggle('drawer-open');
+                    overlay.classList.toggle('drawer-open');
+                };
+                const closeDrawer = () => {
+                    this.sidebar.classList.remove('drawer-open');
+                    overlay.classList.remove('drawer-open');
+                };
+
+                btnToggle.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleDrawer();
+                };
+                overlay.onclick = () => closeDrawer();
+
+                // ウィンドウサイズが大画面（>=900px）へ戻った際に自動閉鎖
+                window.addEventListener('resize', () => {
+                    if (window.innerWidth >= 900) {
+                        closeDrawer();
+                    }
+                });
+            }
+
             document.addEventListener('click', (e) => {
                 const bg = document.getElementById('playlistBackgroundMenu');
                 const it = document.getElementById('playlistItemMenu');
@@ -47,8 +74,14 @@
             setClick('btnCancelSmart', () => document.getElementById('smartPlaylistModal').classList.remove('show'));
             setClick('btnCreateSmart', () => window.SidebarController.finishCreateSmart());
 
-            setClick('menuPlayPlaylist', () => { window.MainViewController.selectPlaylist(s.contextTargetIndex); window.PlayerController.startPlaybackSession('normal'); });
-            setClick('menuShufflePlaylist', () => { window.MainViewController.selectPlaylist(s.contextTargetIndex); window.PlayerController.startPlaybackSession('shuffle'); });
+            setClick('menuPlayPlaylist', () => { 
+                window.MainViewController.selectPlaylist(s.contextTargetIndex); 
+                window.PlayerController.startPlaybackSession('normal'); 
+            });
+            setClick('menuShufflePlaylist', () => { 
+                window.MainViewController.selectPlaylist(s.contextTargetIndex); 
+                window.PlayerController.startPlaybackSession('shuffle'); 
+            });
             setClick('menuRenamePlaylist', () => { s.editingPlaylistIndex = s.contextTargetIndex; window.SidebarController.renderSidebar(); });
             
             setClick('menuDuplicatePlaylist', async () => {
@@ -186,16 +219,21 @@
                         index === s.editingPlaylistIndex,
                         s.currentPlaylistIndex === index && s.currentPlaylistType !== 'virtual',
                         (newName) => this.finishRename(index, newName),
-                        () => window.MainViewController.selectPlaylist(index),
+                        () => {
+                            window.MainViewController.selectPlaylist(index);
+                            // 小画面時は自動でドロワーを閉じる
+                            if (window.innerWidth < 900) {
+                                if (this.sidebar) this.sidebar.classList.remove('drawer-open');
+                                const overlay = document.getElementById('sidebarOverlay');
+                                if (overlay) overlay.classList.remove('drawer-open');
+                            }
+                        },
                         (e) => {
                             e.preventDefault(); e.stopPropagation(); s.contextTargetIndex = index;
-                            
-                            // ★ 修正：右クリックされた項目がスマートプレイリストの場合、「ルールを編集」にテキストを変更
                             const menuEditSongs = document.getElementById('menuEditSongs');
                             if (menuEditSongs) {
                                 menuEditSongs.textContent = pl.type === 'smart' ? "ルールを編集" : "曲を編集";
                             }
-
                             const menu = document.getElementById('playlistItemMenu');
                             if (menu) window.SidebarController.showContextMenu(menu, e.clientX, e.clientY);
                         }
@@ -214,7 +252,15 @@
                         false,
                         isActive,
                         null,
-                        () => this.selectVirtualPlaylist(this.currentView, name),
+                        () => {
+                            this.selectVirtualPlaylist(this.currentView, name);
+                            // 小画面時は自動でドロワーを閉じる
+                            if (window.innerWidth < 900) {
+                                if (this.sidebar) this.sidebar.classList.remove('drawer-open');
+                                const overlay = document.getElementById('sidebarOverlay');
+                                if (overlay) overlay.classList.remove('drawer-open');
+                            }
+                        },
                         null 
                     );
                     this.playlistList.appendChild(li);

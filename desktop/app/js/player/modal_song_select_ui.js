@@ -5,9 +5,9 @@
 
     Object.assign(m, {
         isRendered: false, 
-        advSearchTags:[], 
+        advSearchTags: [], 
 
-        textOps:[
+        textOps: [
             {val: 'contains', label: 'を含む'},
             {val: 'not_contains', label: 'を含まない'},
             {val: 'equals', label: 'である'},
@@ -15,7 +15,7 @@
             {val: 'startswith', label: 'で始まる'},
             {val: 'endswith', label: 'で終わる'}
         ],
-        numOps:[
+        numOps: [
             {val: 'equals', label: 'である'},
             {val: 'not_equals', label: 'ではない'},
             {val: 'greater', label: 'より大きい'},
@@ -41,7 +41,6 @@
                 });
             }
 
-            // ★ 修正：「曲を編集 / ルールを編集」がクリックされた際の分岐処理
             const menuEditSongs = document.getElementById('menuEditSongs');
             if (menuEditSongs) {
                 menuEditSongs.addEventListener('click', async () => {
@@ -57,7 +56,6 @@
                     }
 
                     if (targetPl.type === 'smart') {
-                        // スマートプレイリストの場合は「ルールを編集」モーダルを起動
                         let plData = targetPl;
                         if (!plData.conditions) {
                             try {
@@ -72,7 +70,6 @@
                             window.SidebarController.openSmartPlaylistModal(plData || targetPl);
                         }
                     } else {
-                        // 通常プレイリストの場合は楽曲選択・編集モーダルを起動
                         this.open(targetPl.id);
                     }
                 });
@@ -261,7 +258,7 @@
 
             const updateInputs = (tag, op, val = null) => {
                 inputContainer.innerHTML = '';
-                const isNum =['track', 'year', 'disc', 'bpm'].includes(tag);
+                const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
                 if (isNum) {
                     if (op === 'range') {
                         const i1 = document.createElement('input'); i1.type = 'number'; i1.className = 'smart-input'; i1.placeholder = '0';
@@ -284,7 +281,7 @@
 
             const tagSelector = this.createDynamicCustomSelector(this.advSearchTags, row.dataset.tag, (newTag) => {
                 row.dataset.tag = newTag;
-                const isNum =['track', 'year', 'disc', 'bpm'].includes(newTag);
+                const isNum = ['track', 'year', 'disc', 'bpm'].includes(newTag);
                 const newOps = isNum ? this.numOps : this.textOps;
                 const newOp = newOps[0].val;
                 row.dataset.op = newOp;
@@ -298,7 +295,7 @@
                 updateInputs(newTag, newOp);
             });
 
-            const initialOps =['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? this.numOps : this.textOps;
+            const initialOps = ['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? this.numOps : this.textOps;
             const opSelector = this.createDynamicCustomSelector(initialOps, row.dataset.op, (newOp) => {
                 row.dataset.op = newOp;
                 updateInputs(row.dataset.tag, newOp);
@@ -356,7 +353,7 @@
 
             const parseGroup = (groupWrap) => {
                 const match = groupWrap.dataset.match || 'all';
-                const items =[];
+                const items = [];
                 Array.from(groupWrap.querySelector('.smart-group-body').children).forEach(child => {
                     if (child.classList.contains('smart-condition-row')) {
                         const tag = child.dataset.tag;
@@ -393,6 +390,7 @@
             if (btnAdv) btnAdv.classList.remove('active');
         },
 
+        // ★ 修正: e.preventDefault() を取り除き、clickイベントハンドラで正確にトグルをトリガー
         renderHeader: function() {
             const head = document.getElementById('selectTableHeader');
             if (!head) return;
@@ -402,12 +400,12 @@
             });
             html += `</tr>`;
             head.innerHTML = html;
-            const checkAllBtn = document.getElementById('checkAllSongs');
-            if (checkAllBtn) {
-                checkAllBtn.closest('th').addEventListener('click', (e) => {
-                    if (e.target !== checkAllBtn) e.preventDefault();
+
+            const checkAllTh = head.querySelector('th.chk-cell');
+            if (checkAllTh) {
+                checkAllTh.onclick = () => {
                     this.toggleAllSelection();
-                });
+                };
             }
         },
 
@@ -484,21 +482,37 @@
             if (rows.length === 0) { checkAllBtn.checked = false; checkAllBtn.indeterminate = false; return; }
             let checkedCount = 0;
             rows.forEach(tr => { if (this.selectedFilenames.has(tr.dataset.fname)) checkedCount++; });
-            if (checkedCount === 0) { checkAllBtn.checked = false; checkAllBtn.indeterminate = false; }
-            else if (checkedCount === rows.length) { checkAllBtn.checked = true; checkAllBtn.indeterminate = false; }
-            else { checkAllBtn.checked = false; checkAllBtn.indeterminate = true; }
+            
+            if (checkedCount === 0) { 
+                checkAllBtn.checked = false; 
+                checkAllBtn.indeterminate = false; 
+            } else if (checkedCount === rows.length) { 
+                checkAllBtn.checked = true; 
+                checkAllBtn.indeterminate = false; 
+            } else { 
+                checkAllBtn.checked = false; 
+                checkAllBtn.indeterminate = true; // 半選択（ハイフン状態）
+            }
         },
 
+        // ★ 修正: setTimeout(..., 0) でイベント完了直後に同期実行し、チェックスタイル・状態を上書き確定
         toggleAllSelection: function() {
-            const checkAllBtn = document.getElementById('checkAllSongs');
             const rows = Array.from(document.querySelectorAll('#selectTableBody tr')).filter(r => r.style.display !== 'none');
-            const shouldSelectAll = !checkAllBtn.checked || checkAllBtn.indeterminate;
+            if (rows.length === 0) return;
+
+            const allSelected = rows.every(tr => this.selectedFilenames.has(tr.dataset.fname));
+            const shouldSelectAll = !allSelected;
+
             rows.forEach(tr => {
                 const fname = tr.dataset.fname;
                 if (shouldSelectAll) this.selectedFilenames.add(fname);
                 else this.selectedFilenames.delete(fname);
             });
-            this.syncSelectedUI();
+
+            // クリックイベント処理完了後に確実にUI状態とチェックボックス表示を更新
+            setTimeout(() => {
+                this.syncSelectedUI();
+            }, 0);
         },
 
         initMarqueeSelection: function() {

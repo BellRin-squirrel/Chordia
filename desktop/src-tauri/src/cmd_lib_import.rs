@@ -115,6 +115,7 @@ pub fn check_import_duplicates(import_list: Vec<serde_json::Map<String, Value>>,
     duplicates
 }
 
+// ★ 修正: 表示タグ設定に含まれるすべてのMP3タグおよび歌詞(USLT)を抽出
 #[tauri::command]
 pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result<serde_json::Value, String> {
     if let Some(ref pass) = password {
@@ -185,12 +186,50 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                 let mut title = normalized_name.split('/').last().unwrap_or(&name).to_string();
                 let mut artist = String::new();
                 let mut album = String::new();
+                let mut genre = String::new();
+                let mut track = String::new();
+                let mut year = String::new();
+                let mut album_artist = String::new();
+                let mut disc = String::new();
+                let mut bpm = String::new();
+                let mut composer = String::new();
+                let mut comment = String::new();
+                let mut lyric = String::new();
                 let mut artwork_base64 = String::new();
                 
                 if let Ok(tag) = id3::Tag::read_from2(&mut Cursor::new(&buffer)) {
-                    if let Some(t) = tag.title() { title = t.to_string(); }
+                    if let Some(t) = tag.title() { if !t.trim().is_empty() { title = t.to_string(); } }
                     if let Some(a) = tag.artist() { artist = a.to_string(); }
                     if let Some(al) = tag.album() { album = al.to_string(); }
+                    if let Some(g) = tag.genre() { genre = g.to_string(); }
+                    if let Some(tr) = tag.track() { track = tr.to_string(); }
+                    if let Some(y) = tag.year() { year = y.to_string(); }
+                    if let Some(aa) = tag.album_artist() { album_artist = aa.to_string(); }
+                    if let Some(d) = tag.disc() { disc = d.to_string(); }
+
+                    // BPM (TBPM)
+                    if let Some(frame) = tag.get("TBPM") {
+                        if let Some(text) = frame.content().text() {
+                            bpm = text.to_string();
+                        }
+                    }
+
+                    // 作曲者 (TCOM)
+                    if let Some(frame) = tag.get("TCOM") {
+                        if let Some(text) = frame.content().text() {
+                            composer = text.to_string();
+                        }
+                    }
+
+                    // コメント (COMM)
+                    if let Some(c) = tag.comments().next() {
+                        comment = c.text.to_string();
+                    }
+
+                    // 歌詞 (USLT)
+                    if let Some(l) = tag.lyrics().next() {
+                        lyric = l.text.replace("\r\n", "\n").replace('\r', "\n");
+                    }
                     
                     if let Some(pic) = tag.pictures().next() {
                         if let Ok(img) = image::load_from_memory(&pic.data) {
@@ -214,6 +253,15 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                     "title": title,
                     "artist": artist,
                     "album": album,
+                    "genre": genre,
+                    "track": track,
+                    "year": year,
+                    "album_artist": album_artist,
+                    "disc": disc,
+                    "bpm": bpm,
+                    "composer": composer,
+                    "comment": comment,
+                    "lyric": lyric,
                     "artworkBase64": artwork_base64,
                     "status": "スキャン完了"
                 }));

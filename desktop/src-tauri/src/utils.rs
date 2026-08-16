@@ -71,21 +71,81 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     db
 }
 
-// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
+// ★ 追加: 起動時に進捗メッセージをフロントエンドへ送信しながらDBを安全にロードする関数
+pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<String, Value>> {
+    use tauri::Emitter;
+    
+    let _ = app.emit("splash_progress", serde_json::json!({
+        "message": "データベースを読み込んでいます...",
+        "percent": 10
+    }));
+
+    let base = get_base_dir();
+    let path = base.join("userfiles/music.json");
+    if !path.exists() {
+        let _ = app.emit("splash_progress", serde_json::json!({
+            "message": "初期データベースの準備完了",
+            "percent": 80
+        }));
+        return Vec::new(); 
+    }
+    
+    let data = fs::read_to_string(&path).unwrap_or_default();
+    let mut db: Vec<serde_json::Map<String, Value>> = serde_json::from_str(&data).unwrap_or_else(|_| Vec::new());
+    
+    let total = db.len();
+    let _ = app.emit("splash_progress", serde_json::json!({
+        "message": format!("楽曲データを解析中 (0 / {})", total),
+        "percent": 20
+    }));
+
+    for (idx, item) in db.iter_mut().enumerate() {
+        if let Some(m_path) = item.get("musicFilename").and_then(|v| v.as_str()) {
+            let norm = normalize_rel_path(m_path);
+            item.insert("musicFilename".to_string(), Value::String(norm));
+        }
+        if let Some(i_path) = item.get("imageFilename").and_then(|v| v.as_str()) {
+            let norm = normalize_rel_path(i_path);
+            item.insert("imageFilename".to_string(), Value::String(norm));
+        }
+
+        item.insert("duration".to_string(), Value::String(get_duration_str(item.get("musicFilename"))));
+        let img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("");
+        item.insert("imageData".to_string(), Value::String(get_asset_url(img_path)));
+        let music_path = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
+        item.insert("streamUrl".to_string(), Value::String(get_asset_url(music_path)));
+
+        if total > 0 && (idx % 5 == 0 || idx == total - 1) {
+            let current = idx + 1;
+            let percent = 20 + (((current as f32) / (total as f32)) * 65.0) as u32;
+            let _ = app.emit("splash_progress", serde_json::json!({
+                "message": format!("楽曲データを解析中 ({} / {})", current, total),
+                "percent": percent
+            }));
+        }
+    }
+
+    let _ = app.emit("splash_progress", serde_json::json!({
+        "message": "データベースの解析が完了しました",
+        "percent": 85
+    }));
+
+    db
+}
+
 pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     let mut db_to_save = db.clone();
     for item in db_to_save.iter_mut() {
         item.remove("duration"); item.remove("imageData"); item.remove("streamUrl");
     }
     let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    let _ = fs::create_dir_all(&dir);
     
     let path = dir.join("music.json");
     let data = serde_json::to_string_pretty(&db_to_save).map_err(|e| e.to_string())?;
     fs::write(path, data).map_err(|e| e.to_string())
 }
 
-// 楽曲Map(JSON)からMP3ファイル本体へID3v2タグを直接書き込む処理
 pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
     let rel_music_path = match song.get("musicFilename").and_then(|v| v.as_str()) {
         Some(p) if !p.is_empty() => p,
@@ -157,7 +217,7 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
     }
 
     if let Some(rel_img_path) = song.get("imageFilename").and_then(|v| v.as_str()) {
-        if !rel_img_path.is_empty() && !rel_img_path.contains("default.png") {
+        if !rel_img_path.is_empty() && !rel_img_path.contains("Chordia.png") && !rel_img_path.contains("default.png") {
             let norm_img = normalize_rel_path(rel_img_path);
             let abs_img_path = get_base_dir().join(&norm_img);
             if abs_img_path.exists() {
@@ -184,10 +244,9 @@ pub fn load_playlists_master() -> Vec<Value> {
     fs::read_to_string(&path).ok().and_then(|d| serde_json::from_str(&d).ok()).unwrap_or_default()
 }
 
-// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
 pub fn save_playlists_master(playlists: &[Value]) {
     let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    let _ = fs::create_dir_all(&dir);
     
     let path = dir.join("playlist.json");
     if let Ok(data) = serde_json::to_string_pretty(playlists) { let _ = fs::write(path, data); }
@@ -202,10 +261,9 @@ pub fn load_lufs_cache() -> HashMap<String, f32> {
         .unwrap_or_default()
 }
 
-// ★ 修正: 確実に userfiles フォルダを自動生成してから保存する
 pub fn save_lufs_cache(cache: &HashMap<String, f32>) {
     let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir); // ★ フォルダが無ければ作成
+    let _ = fs::create_dir_all(&dir);
     
     let path = dir.join("lufs_cache.json");
     if let Ok(data) = serde_json::to_string_pretty(cache) {

@@ -7,7 +7,7 @@
         selectedTrackIndices: new Set(), 
         lastTrackClickedIndex: null,    
         selectedCoverData: { type: 'keep', val: null },
-        currentPlSongsForCover: [], // カバー選択モーダル用楽曲データ配列
+        currentPlSongsForCover: [],
 
         init: function() {
             const setClick = (id, fn) => {
@@ -55,7 +55,6 @@
             if (btnCloseX) btnCloseX.onclick = closeModal;
             if (btnCancel) btnCancel.onclick = closeModal;
 
-            // タブ切り替え
             const tabs = modal.querySelectorAll('#plCoverTabsMini .art-mini-tab-btn');
             tabs.forEach(btn => {
                 btn.onclick = () => {
@@ -67,7 +66,6 @@
                 };
             });
 
-            // リアルタイム検索バインド
             const songSearchInput = document.getElementById('plCoverSongSearch');
             if (songSearchInput) {
                 songSearchInput.oninput = (e) => {
@@ -75,7 +73,6 @@
                 };
             }
 
-            // ローカルファイル選択 & ドラッグオーバー装飾
             const dropZone = document.getElementById('plCoverDropZone');
             const fileInput = document.getElementById('plCoverFileInput');
 
@@ -105,7 +102,6 @@
                 });
             }
 
-            // 保存処理
             if (btnSave) {
                 btnSave.onclick = async () => {
                     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
@@ -179,10 +175,10 @@
             const searchInput = document.getElementById('plCoverSongSearch');
             if (searchInput) searchInput.value = '';
 
-            // 楽曲データの保持と初期グリッド生成
             if (targetPl.songs && targetPl.songs.length > 0) {
                 const songImages = targetPl.songs.map(song => ({
-                    path: song.imageFilename || "library/images/default.png",
+                    // ★ 修正: アラート・パス判定を app/icon/Chordia.png に変更
+                    path: song.imageFilename || "app/icon/Chordia.png",
                     url: song.imageData || s.DEFAULT_ICON,
                     title: song.title || "Unknown Title",
                     artist: song.artist || "Unknown Artist"
@@ -684,7 +680,7 @@
                 });
                 sortArea.appendChild(sortKeySelector);
 
-                const orderOptions =[{ value: 'asc', label: '昇順' }, { value: 'desc', label: '降順' }];
+                const orderOptions = [{ value: 'asc', label: '昇順' }, { value: 'desc', label: '降順' }];
                 const currentOrder = isDesc ? 'desc' : 'asc';
                 const orderSelector = this.createCustomSelector('sortOrder', orderOptions, currentOrder, async (val) => {
                     const isDescending = (val === 'desc');

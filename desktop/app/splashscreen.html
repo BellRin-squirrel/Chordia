@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/splashscreen/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <script src="js/theme_head.js"></script>
+</head>
+<body class="splash-body">
+    <div class="splash-container">
+        <div class="splash-logo-area">
+            <img src="icon/Chordia_nobg.png" alt="Chordia Logo" class="splash-logo">
+            <h1 class="splash-title">Chordia</h1>
+            <p class="splash-subtitle">ライブラリをスマートに管理</p>
+        </div>
+
+        <div class="splash-progress-area">
+            <div class="splash-text-row">
+                <span id="splashMessage">アプリを起動しています...</span>
+                <span id="splashPercent">0%</span>
+            </div>
+            <div class="splash-bar-bg">
+                <div id="splashBarFill" class="splash-bar-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/splashscreen/main.js"></script>
+    <script src="js/theme.js"></script>
+</body>
+</html>
