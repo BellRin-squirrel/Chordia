@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
 </head>
 <body>
     <div class="container">
@@ -19,22 +20,21 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    トップへ戻る
+                    <span data-i18n="Common.back_to_top">トップへ戻る</span>
                 </a>
             </div>
-            <h1>情報</h1>
+            <h1 data-i18n="Info.title">情報</h1>
         </header>
 
         <div class="info-container">
             <div class="license-card">
-                <p class="app-name">Chordia Desktop版</p>
+                <p class="app-name" data-i18n="Info.app_name">Chordia Desktop版</p>
                 <p class="app-version"></p>
                 <div class="divider"></div>
-                <p class="copyright">&copy; 2026 BellRin</p>
+                <p class="copyright" data-i18n="Info.copyright">&copy; 2026 BellRin</p>
             </div>
         </div>
     </div>
-    
     
     <script src="js/info.js"></script>
     <script src="js/theme.js"></script>

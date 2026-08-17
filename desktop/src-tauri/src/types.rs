@@ -6,14 +6,15 @@ pub struct AppSettings {
     pub open_player_new_window: bool,
     pub open_manage_new_window: bool,
     pub open_extensions_new_window: bool,
-    pub open_add_music_new_window: bool,  // ★ 追加
-    pub open_settings_new_window: bool,   // ★ 追加
+    pub open_add_music_new_window: bool,
+    pub open_settings_new_window: bool,
     pub lazy_load_playlists: bool,
     pub primary_color: String,
     pub background_color: String,
     pub sub_background_color: String,
     pub text_color: String,
     pub theme_mode: String,
+    pub language: String, // ★ 追加: 表示言語設定ファイル名 (例: "Japanese.ini")
     pub active_tags: Vec<String>,
     pub player_visible_tags: Vec<String>,
     pub normalize_volume: bool,

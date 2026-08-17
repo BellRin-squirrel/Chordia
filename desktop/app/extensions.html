@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/extensions.css">
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
 </head>
 <body>
 
@@ -17,52 +18,50 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    トップへ戻る
+                    <span data-i18n="Common.back_to_top">トップへ戻る</span>
                 </a>
             </div>
             <div class="header-center">
-                <h1>拡張機能</h1>
-                <p class="subtitle">外部ツールの管理およびライブラリ音量測定</p>
+                <h1 data-i18n="Extensions.title">拡張機能</h1>
+                <p class="subtitle" data-i18n="Extensions.subtitle">外部ツールの管理およびライブラリ音量測定</p>
             </div>
         </header>
 
         <main class="ext-container">
             
             <div class="status-card">
-                <h2>インストール状況</h2>
+                <h2 data-i18n="Extensions.installation_status">インストール状況</h2>
                 <div class="tools-list" id="toolsList">
-                    <div class="tool-item loading">読み込み中...</div>
+                    <div class="tool-item loading" data-i18n="Common.loading">読み込み中...</div>
                 </div>
             </div>
 
             <div class="action-card">
                 <div class="action-info">
-                    <h3 id="actionTitle">確認中...</h3>
-                    <p id="actionDesc">必要なツールをチェックしています。</p>
+                    <h3 id="actionTitle">...</h3>
+                    <p id="actionDesc">...</p>
                 </div>
-                <button id="btnMainAction" class="btn-primary" disabled>処理を選択</button>
+                <button id="btnMainAction" class="btn-primary" disabled>...</button>
             </div>
 
-            <!-- 一定音量の測定カード (インライン進捗表示を追加) -->
             <div id="lufsCard" class="status-card">
-                <h2>一定音量機能の測定 (音量解析)</h2>
+                <h2 data-i18n="Extensions.lufs_title">一定音量機能の測定 (音量解析)</h2>
                 <div class="lufs-status-info" style="margin-bottom: 16px;">
-                    <p style="margin: 0 0 12px 0; color: var(--text-sub); font-size: 0.9rem; line-height: 1.5;">
+                    <p style="margin: 0 0 12px 0; color: var(--text-sub); font-size: 0.9rem; line-height: 1.5;" data-i18n="Extensions.lufs_desc">
                         設定画面で「一定音量」機能を有効化するには、事前に全楽曲の音量(LUFS)測定を完了させておく必要があります。
                     </p>
                     <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.15);">
                         <div>
-                            <span style="font-weight: bold; color: var(--text-main);">測定ステータス: </span>
-                            <span id="lufsStatusText" style="font-weight: bold;">確認中...</span>
+                            <span style="font-weight: bold; color: var(--text-main);" data-i18n="Extensions.lufs_status_label">測定ステータス: </span>
+                            <span id="lufsStatusText" style="font-weight: bold;">...</span>
                         </div>
-                        <span id="lufsCountText" style="font-family: monospace; font-weight: bold; font-size: 0.95rem; color: var(--text-sub);">0 / 0 曲</span>
+                        <span id="lufsCountText" style="font-family: monospace; font-weight: bold; font-size: 0.95rem; color: var(--text-sub);">0 / 0</span>
                     </div>
                 </div>
 
-                <!-- ★ 拡張機能ウィンドウ内で完結するインラインの測定進捗エリア -->
                 <div id="lufsProgressContainer" style="display: none; margin-bottom: 16px; background: var(--bg-color); padding: 16px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.15);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span id="lufsProgressMessage" style="font-weight: bold; font-size: 0.88rem; color: var(--primary-color);">準備中...</span>
+                        <span id="lufsProgressMessage" style="font-weight: bold; font-size: 0.88rem; color: var(--primary-color);" data-i18n="Extensions.lufs_preparing">準備中...</span>
                         <span id="lufsProgressCount" style="font-family: monospace; font-weight: bold; font-size: 0.85rem; color: var(--text-sub);">0 / 0</span>
                     </div>
                     <div style="width: 100%; height: 8px; background: rgba(128,128,128,0.2); border-radius: 4px; overflow: hidden;">
@@ -71,24 +70,20 @@
                 </div>
 
                 <div style="text-align: right;">
-                    <button id="btnStartLufsCalc" class="btn-primary" disabled>音量測定を開始</button>
+                    <button id="btnStartLufsCalc" class="btn-primary" disabled>...</button>
                 </div>
             </div>
 
-            <!-- アップデート確認結果エリア -->
             <div id="updateCard" class="status-card" style="display: none;">
-                <h2>アップデートの確認結果</h2>
-                <div class="tools-list" id="updateResultList">
-                    <!-- JSで描画 -->
-                </div>
+                <h2 data-i18n="Extensions.update_results">アップデートの確認結果</h2>
+                <div class="tools-list" id="updateResultList"></div>
                 <div style="margin-top: 16px; text-align: right;">
-                    <button id="btnExecUpdate" class="btn-primary" disabled>アップデートを実行</button>
+                    <button id="btnExecUpdate" class="btn-primary" disabled>...</button>
                 </div>
             </div>
 
-            <!-- 進捗エリア (ツールダウンロード用) -->
             <div id="progressArea" style="display: none; background: #fff; padding: 24px; border-radius: 16px; box-shadow: var(--shadow-md);">
-                <p id="progressText" style="margin-top: 0; margin-bottom: 12px; font-weight: bold; color: var(--text-main); font-size: 0.95rem;">ダウンロード準備中...</p>
+                <p id="progressText" style="margin-top: 0; margin-bottom: 12px; font-weight: bold; color: var(--text-main); font-size: 0.95rem;">...</p>
                 <div style="width: 100%; height: 10px; background: #e5e7eb; border-radius: 5px; overflow: hidden;">
                     <div id="progressBar" style="height: 100%; width: 0%; background: var(--primary-color); transition: width 0.1s linear;"></div>
                 </div>
@@ -97,12 +92,11 @@
         </main>
     </div>
 
-    <!-- 汎用アラートモーダル -->
     <div id="alertModal" class="modal-overlay">
         <div class="modal-content">
-            <h3 id="alertTitle" style="margin-top: 0; font-size: 1.2rem;">お知らせ</h3>
+            <h3 id="alertTitle" style="margin-top: 0; font-size: 1.2rem;" data-i18n="Common.notice">お知らせ</h3>
             <p id="alertMessage" style="margin-bottom: 24px; color: var(--text-main); font-size: 0.95rem; line-height: 1.5; word-break: break-word;"></p>
-            <button id="btnAlertOk" class="btn-primary" style="width: 100%;">OK</button>
+            <button id="btnAlertOk" class="btn-primary" style="width: 100%;" data-i18n="Common.ok">OK</button>
         </div>
     </div>
 

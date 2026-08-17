@@ -14,6 +14,7 @@ mod cmd_history;
 mod cmd_export;
 mod cmd_extensions;
 mod cmd_integrity;
+mod cmd_i18n;
 mod server;
 mod cmd_api;
 
@@ -26,7 +27,8 @@ use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_di
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
-const APP_VERSION: &str = "v4.1.0";
+// ★ バージョンを v5.1.0 に更新
+const APP_VERSION: &str = "v5.1.0";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
@@ -100,6 +102,8 @@ fn main() {
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
 
+    cmd_i18n::init_default_languages();
+
     let auth_state = Arc::new(Mutex::new(server::AuthState::new()));
     let auth_state_for_task = auth_state.clone();
 
@@ -118,12 +122,10 @@ fn main() {
                 }
             }
 
-            // メインウィンドウを一旦隠し、初期化完了までスプラッシュ画面を表示
             if let Some(main_win) = app.get_webview_window("main") {
                 let _ = main_win.hide();
             }
 
-            // ★ スプラッシュウィンドウの生成・起動
             let _splash_win = WebviewWindowBuilder::new(
                 app,
                 "splashscreen",
@@ -136,15 +138,12 @@ fn main() {
             .always_on_top(true)
             .build();
 
-            // ★ バックグラウンド初期化＆進捗送信タスク
             let app_handle_for_init = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-                // 1. 進捗報告付きDBロード
                 let initial_db = load_db_with_progress(&app_handle_for_init);
 
-                // 2. プレイリストとLUFSキャッシュのロード
                 let _ = app_handle_for_init.emit("splash_progress", serde_json::json!({
                     "message": "プレイリストとキャッシュをロード中...",
                     "percent": 90
@@ -152,7 +151,6 @@ fn main() {
                 let initial_playlists = load_playlists_master();
                 let initial_lufs_cache = load_lufs_cache();
 
-                // 3. AppState にデータをセット
                 {
                     let state = app_handle_for_init.state::<AppState>();
                     *state.db.lock().unwrap() = initial_db;
@@ -167,7 +165,6 @@ fn main() {
 
                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
-                // 4. メインウィンドウを表示してスプラッシュ画面を閉じる
                 if let Some(main_win) = app_handle_for_init.get_webview_window("main") {
                     let _ = main_win.show();
                     let _ = main_win.set_focus();
@@ -177,7 +174,6 @@ fn main() {
                 }
             });
 
-            // モバイル同期タイマー
             let app_handle_for_timer = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use rand::{rng, Rng};
@@ -196,7 +192,6 @@ fn main() {
                 }
             });
 
-            // 一定音量バックグラウンド監視ループ
             let app_handle_for_lufs = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
@@ -313,6 +308,7 @@ fn main() {
             cmd_export::get_default_export_path, cmd_export::ask_save_path, cmd_export::ask_import_path, cmd_export::execute_export, cmd_export::execute_migration_import, get_app_version,
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
             cmd_integrity::check_system_integrity,
+            cmd_i18n::get_available_languages, cmd_i18n::get_language_pack,
             cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session, 
             resolve_path, restart_app
         ])

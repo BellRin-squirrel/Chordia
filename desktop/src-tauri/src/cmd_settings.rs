@@ -27,6 +27,7 @@ pub fn get_app_settings() -> AppSettings {
         sub_background_color: get_str("Theme", "sub_background_color", "#ffffff"),
         text_color: get_str("Theme", "text_color", "#1f2937"),
         theme_mode: get_str("Theme", "theme_mode", "light"),
+        language: get_str("General", "language", "Japanese.ini"), // ★ 追加
         active_tags: get_str("Tags", "active_tags", "title,artist,album,genre,track").split(',').map(|s| s.trim().to_string()).collect(),
         player_visible_tags: get_str("Tags", "player_visible_tags", "title,artist,album,track").split(',').map(|s| s.trim().to_string()).collect(),
         normalize_volume: get_bool("Player", "normalize_volume", false),
@@ -40,7 +41,6 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
     let _ = fs::create_dir_all(&dir);
 
     let path = dir.join("settings.ini");
-    // ★ 修正：既存のIni構造に依存せず、最新のAppSettingsからクリーンにファイルを新規作成・上書き保存
     let mut conf = Ini::new();
 
     conf.with_section(Some("Database"))
@@ -51,6 +51,9 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
         .set("open_add_music_new_window", settings.open_add_music_new_window.to_string())
         .set("open_settings_new_window", settings.open_settings_new_window.to_string())
         .set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
+
+    conf.with_section(Some("General"))
+        .set("language", settings.language); // ★ 追加
     
     conf.with_section(Some("Theme"))
         .set("primary_color", settings.primary_color)

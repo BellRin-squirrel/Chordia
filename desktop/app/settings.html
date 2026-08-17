@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
 </head>
 <body>
 
@@ -20,75 +21,81 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    トップへ戻る
+                    <span data-i18n="Common.back_to_top">トップへ戻る</span>
                 </a>
             </div>
-            <h1>設定</h1>
+            <h1 data-i18n="Settings.title">設定</h1>
         </header>
 
         <div class="settings-container">
-            <!-- 上部タブバー (中画面用) -->
             <div class="settings-tab-bar" id="settingsTabBar">
                 <button class="settings-nav-btn active" data-target="sec-general">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
-                    <span>一般設定</span>
+                    <span data-i18n="Settings.general">一般設定</span>
                 </button>
                 <button class="settings-nav-btn" data-target="sec-design">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
-                    <span>デザイン</span>
+                    <span data-i18n="Settings.design">デザイン</span>
                 </button>
                 <button class="settings-nav-btn" data-target="sec-artwork">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-                    <span>アートワーク</span>
+                    <span data-i18n="Settings.artwork">アルバムアート</span>
                 </button>
                 <button class="settings-nav-btn" data-target="sec-tags">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-                    <span>表示タグ</span>
+                    <span data-i18n="Settings.tags">表示タグ</span>
                 </button>
             </div>
 
             <div class="settings-main-wrapper">
-                <!-- 左サイドバー (大画面用) -->
                 <aside class="settings-sidebar" id="settingsSidebar">
                     <button class="settings-nav-btn active" data-target="sec-general">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
-                        <span>一般設定</span>
+                        <span data-i18n="Settings.general">一般設定</span>
                     </button>
                     <button class="settings-nav-btn" data-target="sec-design">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
-                        <span>デザイン</span>
+                        <span data-i18n="Settings.design">デザイン</span>
                     </button>
                     <button class="settings-nav-btn" data-target="sec-artwork">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
-                        <span>アルバムアート</span>
+                        <span data-i18n="Settings.artwork">アルバムアート</span>
                     </button>
                     <button class="settings-nav-btn" data-target="sec-tags">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-                        <span>表示タグ設定</span>
+                        <span data-i18n="Settings.tags">表示タグ設定</span>
                     </button>
                 </aside>
 
-                <!-- メインコンテンツ領域 -->
                 <main class="settings-content-area">
                     
                     <!-- 1. 一般設定 -->
                     <section id="sec-general" class="settings-section active">
-                        <h2 class="section-title">一般設定</h2>
+                        <h2 class="section-title" data-i18n="Settings.general">一般設定</h2>
                         
                         <div class="form-group" style="margin-bottom: 24px;">
-                            <label>1ページの表示曲数</label>
+                            <label data-i18n="Settings.language">表示言語 (Language)</label>
+                            <div class="custom-select-wrapper" id="langSelectorWrapper">
+                                <button class="custom-select-trigger" id="langSelectTrigger">
+                                    <span id="langSelectValue">...</span>
+                                    <svg class="custom-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                </button>
+                                <div class="custom-select-dropdown" id="langSelectDropdown"></div>
+                            </div>
+                            <p class="form-desc" data-i18n="Settings.language_desc">アプリの表示言語を選択します。</p>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 24px;">
+                            <label data-i18n="Settings.items_per_page">1ページの表示曲数</label>
                             <input type="number" id="itemsPerPage" min="10" max="500">
-                            <p class="form-desc">変更は即座に保存されます。</p>
                         </div>
 
                         <div class="setting-item-group">
-                            <h3 class="item-group-title">ページの開き方</h3>
-                            <p class="form-desc" style="margin-bottom: 10px;">オンにすると対象の画面が新しいウィンドウで起動します。</p>
+                            <h3 class="item-group-title" data-i18n="Settings.open_new_window">ページの開き方</h3>
                             <div class="settings-list">
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">曲を追加</span>
-                                        <span class="row-desc">曲を追加画面を別ウィンドウで開く</span>
+                                        <span class="row-title" data-i18n="Menu.add_music">曲を追加</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="openAddMusicNewWindow">
@@ -97,8 +104,7 @@
                                 </div>
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">データベース管理</span>
-                                        <span class="row-desc">管理画面を別ウィンドウで開く</span>
+                                        <span class="row-title" data-i18n="Menu.manage_db">データベース管理</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="openManageNewWindow">
@@ -107,8 +113,7 @@
                                 </div>
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">音楽を再生（従来のプレイヤー）</span>
-                                        <span class="row-desc">プレイヤー画面を別ウィンドウで開く</span>
+                                        <span class="row-title" data-i18n="Menu.player">音楽を再生</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="openPlayerNewWindow">
@@ -117,8 +122,7 @@
                                 </div>
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">拡張機能</span>
-                                        <span class="row-desc">拡張機能画面を別ウィンドウで開く</span>
+                                        <span class="row-title" data-i18n="Menu.extensions">拡張機能</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="openExtensionsNewWindow">
@@ -127,8 +131,7 @@
                                 </div>
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">設定</span>
-                                        <span class="row-desc">設定画面を別ウィンドウで開く</span>
+                                        <span class="row-title" data-i18n="Menu.settings">設定</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="openSettingsNewWindow">
@@ -139,12 +142,11 @@
                         </div>
 
                         <div class="setting-item-group">
-                            <h3 class="item-group-title">一定音量</h3>
+                            <h3 class="item-group-title" data-i18n="Settings.normalize_volume">一定音量</h3>
                             <div class="settings-list">
                                 <div class="settings-row">
                                     <div class="row-text">
-                                        <span class="row-title">音楽再生時に楽曲ごとに音量を調整する（一定音量）</span>
-                                        <span class="row-desc">事前に拡張機能画面で音量(LUFS)測定を完了させることで有効化できます。</span>
+                                        <span class="row-title" data-i18n="Settings.normalize_volume">音楽再生時に楽曲ごとに音量を調整する（一定音量）</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="normalizeVolume">
@@ -157,39 +159,39 @@
 
                     <!-- 2. デザイン -->
                     <section id="sec-design" class="settings-section">
-                        <h2 class="section-title">デザイン設定</h2>
+                        <h2 class="section-title" data-i18n="Settings.design">デザイン設定</h2>
                         <div class="form-group">
-                            <label>テーマカラー</label>
+                            <label data-i18n="Settings.theme_color">テーマカラー</label>
                             <input type="color" id="primaryColor" style="width: 100px; height: 40px; cursor: pointer;">
                         </div>
 
                         <div class="form-group" style="margin-top: 20px;">
-                            <label>テーマ選択</label>
+                            <label data-i18n="Settings.theme_select">テーマ選択</label>
                             <div style="display: flex; gap: 10px; align-items: center; position: relative;">
                                 <div class="custom-select-wrapper" id="themeSelectorWrapper" style="flex: 1;">
                                     <button class="custom-select-trigger" id="themeSelectTrigger">
-                                        <span id="themeSelectValue">読み込み中...</span>
+                                        <span id="themeSelectValue">...</span>
                                         <svg class="custom-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
                                     </button>
                                     <div class="custom-select-dropdown" id="themeSelectDropdown"></div>
                                 </div>
 
-                                <button id="btnSaveOriginalTheme" class="btn-small" style="display: none; white-space: nowrap;">オリジナルテーマとして保存</button>
-                                <button id="btnDeleteOriginalTheme" class="btn-small" style="display: none; white-space: nowrap; background-color: #ef4444;">テーマを削除</button>
+                                <button id="btnSaveOriginalTheme" class="btn-small" style="display: none; white-space: nowrap;" data-i18n="Settings.save_custom_theme">オリジナルテーマとして保存</button>
+                                <button id="btnDeleteOriginalTheme" class="btn-small" style="display: none; white-space: nowrap; background-color: #ef4444;" data-i18n="Settings.delete_theme">テーマを削除</button>
                             </div>
                         </div>
 
                         <div id="themeColorPickers" class="config-box" style="display: flex; gap: 32px; margin-top: 20px; flex-wrap: wrap; padding: 20px; border-radius: 12px;">
                             <div class="form-group">
-                                <label>背景色</label>
+                                <label data-i18n="Settings.bg_color">背景色</label>
                                 <input type="color" id="backgroundColor" style="width: 100px; height: 40px;">
                             </div>
                             <div class="form-group">
-                                <label>サブ背景色</label>
+                                <label data-i18n="Settings.sub_bg_color">サブ背景色</label>
                                 <input type="color" id="subBackgroundColor" style="width: 100px; height: 40px;">
                             </div>
                             <div class="form-group">
-                                <label>文字色</label>
+                                <label data-i18n="Settings.text_color">文字色</label>
                                 <input type="color" id="textColor" style="width: 100px; height: 40px;">
                             </div>
                         </div>
@@ -197,14 +199,14 @@
 
                     <!-- 3. 初期アルバムアート -->
                     <section id="sec-artwork" class="settings-section">
-                        <h2 class="section-title">初期アルバムアート</h2>
+                        <h2 class="section-title" data-i18n="Settings.artwork">初期アルバムアート</h2>
                         <div class="config-box" style="display: flex; align-items: center; gap: 24px; padding: 16px; border-radius: 12px;">
                             <img id="defaultArtPreview" src="" alt="Preview" style="width: 100px; height: 100px; border-radius: 8px; object-fit: cover; border: 1px solid rgba(128, 128, 128, 0.3);">
                             <div>
-                                <p class="form-desc" style="margin-bottom: 12px; color: var(--text-sub);">アートワーク未設定の楽曲に使用される画像です。</p>
+                                <p class="form-desc" style="margin-bottom: 12px; color: var(--text-sub);" data-i18n="Settings.default_art_desc">アートワーク未設定の楽曲に使用される画像です。</p>
                                 <div style="display: flex; gap: 10px;">
-                                    <button class="btn-small" onclick="document.getElementById('artInput').click()">画像を変更</button>
-                                    <button id="btnRestoreArt" class="btn-small secondary-btn">初期値に戻す</button>
+                                    <button class="btn-small" onclick="document.getElementById('artInput').click()" data-i18n="Settings.change_image">画像を変更</button>
+                                    <button id="btnRestoreArt" class="btn-small secondary-btn" data-i18n="Settings.reset_default">初期値に戻す</button>
                                 </div>
                                 <input type="file" id="artInput" style="display:none;" accept="image/*">
                             </div>
@@ -213,12 +215,12 @@
 
                     <!-- 4. 表示タグ設定 -->
                     <section id="sec-tags" class="settings-section">
-                        <h2 class="section-title">表示タグ設定</h2>
+                        <h2 class="section-title" data-i18n="Settings.tags">表示タグ設定</h2>
                         <div class="tag-control-area">
                             <div class="tag-list-header">
-                                <span>タグ名</span>
-                                <span style="text-align: center;">データベース</span>
-                                <span style="text-align: center;">プレイヤー</span>
+                                <span data-i18n="Settings.tag_name">タグ名</span>
+                                <span style="text-align: center;" data-i18n="Settings.tag_db">データベース</span>
+                                <span style="text-align: center;" data-i18n="Settings.tag_player">プレイヤー</span>
                             </div>
                             <ul id="combinedTagsList" class="tag-list"></ul>
                         </div>
@@ -226,21 +228,17 @@
 
                 </main>
             </div>
-
-            <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-top: 24px;">
-                設定は変更時に自動で保存されます。
-            </div>
         </div>
     </div>
 
     <div id="themeModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
         <div style="background: var(--card-bg); padding: 32px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid rgba(128,128,128,0.2);">
-            <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 16px;">テーマの保存</h3>
-            <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;">このテーマに名前を付けてください。</p>
-            <input type="text" id="newThemeName" placeholder="テーマ名を入力" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-color); color: var(--text-main); margin-bottom: 24px; outline: none;">
+            <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 16px;" data-i18n="Settings.save_theme_title">テーマの保存</h3>
+            <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;" data-i18n="Settings.save_theme_desc">このテーマに名前を付けてください。</p>
+            <input type="text" id="newThemeName" data-i18n-placeholder="Settings.theme_name_placeholder" placeholder="テーマ名を入力" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-color); color: var(--text-main); margin-bottom: 24px; outline: none;">
             <div style="display: flex; gap: 12px;">
-                <button id="btnCancelTheme" class="btn-small secondary-btn" style="flex: 1; padding: 12px;">キャンセル</button>
-                <button id="btnConfirmTheme" class="btn-small" style="flex: 1; padding: 12px;">保存</button>
+                <button id="btnCancelTheme" class="btn-small secondary-btn" style="flex: 1; padding: 12px;" data-i18n="Common.cancel">キャンセル</button>
+                <button id="btnConfirmTheme" class="btn-small" style="flex: 1; padding: 12px;" data-i18n="Common.save">保存</button>
             </div>
         </div>
     </div>

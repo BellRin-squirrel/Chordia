@@ -39,11 +39,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let isLufsCalculating = false;
 
-    const TOOL_DETAILS = {
-        'yt-dlp': 'YouTubeなどの動画プラットフォームから動画・音声をダウンロードします。',
-        'ffmpeg': 'ダウンロードした動画からの音声抽出および「一定音量(LUFS)」の音量解析に使用します。',
-        'deno': '一部のサイトのダウンロード処理を補助するJavaScriptランタイムです。',
-        'cloudflared': 'WANでMobile版に楽曲を同期するために使用します。'
+    const getToolDesc = (tool) => {
+        if (!window.i18n) return "";
+        return window.i18n.t(`Extensions.tool_${tool.replace('-', '')}_desc`);
     };
 
     let pendingUpdates = [];
@@ -69,22 +67,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         listen('update_ext_download_progress', (event) => {
             const { toolName, downloaded, total } = event.payload;
             if (downloaded === "extracting") {
-                progressText.textContent = `${toolName} を解凍・配置中...`;
+                progressText.textContent = window.i18n ? window.i18n.t('Extensions.msg_extracting', { tool: toolName }) : `${toolName} を解凍中...`;
                 progressBar.style.width = '100%';
                 return;
             }
             let percent = total > 0 ? Math.floor((downloaded / total) * 100) : 0;
-            progressText.textContent = `${toolName} をダウンロード中... ${percent}%`;
+            progressText.textContent = window.i18n ? window.i18n.t('Extensions.msg_downloading', { tool: toolName, percent: percent }) : `${toolName} をダウンロード中... ${percent}%`;
             progressBar.style.width = `${percent}%`;
         });
 
-        // ★ 音量解析のリアルタイムプログレスイベントを拡張機能画面内で直接受信してインライン描画
+        // ★ 音量解析の進捗メッセージを言語設定に応じて動的生成
         listen('lufs_calc_progress', (event) => {
             const data = event.payload;
             if (!data) return;
 
             if (lufsProgressContainer && lufsProgressContainer.style.display !== 'none') {
-                if (lufsProgressMessage) lufsProgressMessage.textContent = data.message;
+                let msg = data.message || "";
+                if (window.i18n && data.status_code) {
+                    switch (data.status_code) {
+                        case "already_completed":
+                            msg = window.i18n.t('Extensions.lufs_already_completed');
+                            break;
+                        case "preparing":
+                            msg = window.i18n.t('Extensions.lufs_preparing_analysis');
+                            break;
+                        case "analyzing":
+                            msg = window.i18n.t('Extensions.lufs_analyzing', { title: data.title || "" });
+                            break;
+                        case "analyzed":
+                            msg = window.i18n.t('Extensions.lufs_analyzed', { title: data.title || "" });
+                            break;
+                        case "completed":
+                            msg = window.i18n.t('Extensions.lufs_completed');
+                            break;
+                    }
+                }
+
+                if (lufsProgressMessage) lufsProgressMessage.textContent = msg;
                 if (lufsProgressCount) lufsProgressCount.textContent = `${data.current} / ${data.total}`;
                 if (lufsProgressBar && data.total > 0) {
                     const percent = (data.current / data.total) * 100;
@@ -97,44 +116,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function checkLufsStatus() {
         if (!lufsStatusText || !lufsCountText || !btnStartLufsCalc) return;
         try {
-            lufsStatusText.textContent = "確認中...";
+            lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_checking') : "確認中...";
             lufsStatusText.style.color = "var(--text-main)";
 
             const status = await invoke("check_tools_status");
             const hasFfmpeg = !!status['ffmpeg'];
 
             if (!hasFfmpeg) {
-                lufsStatusText.textContent = "FFmpegが未インストールです";
+                lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_ffmpeg_missing') : "FFmpegが未インストールです";
                 lufsStatusText.style.color = "#ef4444";
-                lufsCountText.textContent = "-- / -- 曲";
+                lufsCountText.textContent = "-- / --";
                 btnStartLufsCalc.disabled = true;
-                btnStartLufsCalc.textContent = "FFmpegが必要です";
+                btnStartLufsCalc.textContent = window.i18n ? window.i18n.t('Extensions.btn_ffmpeg_required') : "FFmpegが必要です";
                 return;
             }
 
             const lufsInfo = await invoke("check_lufs_status");
-            lufsCountText.textContent = `${lufsInfo.calculated} / ${lufsInfo.total} 曲`;
+            lufsCountText.textContent = `${lufsInfo.calculated} / ${lufsInfo.total}`;
 
             if (lufsInfo.total === 0) {
-                lufsStatusText.textContent = "ライブラリに楽曲がありません";
+                lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_no_songs') : "ライブラリに楽曲がありません";
                 lufsStatusText.style.color = "var(--text-sub)";
                 btnStartLufsCalc.disabled = true;
-                btnStartLufsCalc.textContent = "楽曲を追加してください";
+                btnStartLufsCalc.textContent = window.i18n ? window.i18n.t('Extensions.btn_add_songs') : "楽曲を追加してください";
             } else if (lufsInfo.is_completed) {
-                lufsStatusText.textContent = "測定完了 (全曲解析済み)";
+                lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_completed') : "測定完了 (全曲解析済み)";
                 lufsStatusText.style.color = "#10b981";
                 btnStartLufsCalc.disabled = false;
-                btnStartLufsCalc.textContent = "音量測定を再実行";
+                btnStartLufsCalc.textContent = window.i18n ? window.i18n.t('Extensions.btn_recalc_lufs') : "音量測定を再実行";
             } else {
-                lufsStatusText.textContent = `未測定の楽曲があります (未解析: ${lufsInfo.uncalculated}曲)`;
+                lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_uncalculated', { count: lufsInfo.uncalculated }) : `未測定の楽曲があります (${lufsInfo.uncalculated}曲)`;
                 lufsStatusText.style.color = "#f59e0b";
                 btnStartLufsCalc.disabled = false;
-                btnStartLufsCalc.textContent = "音量測定を開始";
+                btnStartLufsCalc.textContent = window.i18n ? window.i18n.t('Extensions.btn_start_lufs') : "音量測定を開始";
             }
         } catch (e) {
             console.error("Failed to check LUFS status:", e);
             if (lufsStatusText) {
-                lufsStatusText.textContent = "ステータス取得失敗";
+                lufsStatusText.textContent = window.i18n ? window.i18n.t('Extensions.status_failed') : "ステータス取得失敗";
                 lufsStatusText.style.color = "#ef4444";
             }
         }
@@ -146,7 +165,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ★ 修正: 新しいウィンドウを開かず、同画面のインラインエリアで直接測定を実行
     if (btnStartLufsCalc) {
         btnStartLufsCalc.addEventListener('click', async () => {
             if (isLufsCalculating) return;
@@ -157,22 +175,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 isLufsCalculating = true;
                 btnStartLufsCalc.disabled = true;
-                btnStartLufsCalc.textContent = "測定中...";
+                btnStartLufsCalc.textContent = window.i18n ? window.i18n.t('Extensions.btn_calculating') : "測定中...";
 
                 if (lufsProgressContainer) {
                     lufsProgressContainer.style.display = 'block';
                     if (lufsProgressBar) lufsProgressBar.style.width = '0%';
-                    if (lufsProgressMessage) lufsProgressMessage.textContent = "準備中...";
+                    if (lufsProgressMessage) lufsProgressMessage.textContent = window.i18n ? window.i18n.t('Extensions.lufs_preparing') : "準備中...";
                     if (lufsProgressCount) lufsProgressCount.textContent = "0 / 0";
                 }
 
-                // 直接バックグラウンド解析タスクを呼び出し
                 await invoke("start_lufs_calculation_all", { force: isForce });
 
-                showAlert("完了", "すべての楽曲の音量測定が完了しました！");
+                showAlert(
+                    window.i18n ? window.i18n.t('Common.complete') : "完了",
+                    window.i18n ? window.i18n.t('Extensions.msg_lufs_completed') : "すべての楽曲の音量測定が完了しました！"
+                );
             } catch (err) {
                 console.error("LUFS calculation error:", err);
-                showAlert("エラー", "音量測定中にエラーが発生しました: " + err, true);
+                showAlert(
+                    window.i18n ? window.i18n.t('Common.error') : "エラー",
+                    (window.i18n ? window.i18n.t('Extensions.msg_lufs_error') : "音量測定中にエラーが発生しました: ") + err,
+                    true
+                );
             } finally {
                 isLufsCalculating = false;
                 if (lufsProgressContainer) {
@@ -193,7 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderTools(status);
             updateActionCard(status);
         } catch (e) {
-            toolsList.innerHTML = `<div class="tool-item not-installed">エラーが発生しました</div>`;
+            toolsList.innerHTML = `<div class="tool-item not-installed">${window.i18n ? window.i18n.t('Common.error') : 'エラーが発生しました'}</div>`;
         } finally {
             await checkLufsStatus();
         }
@@ -201,29 +225,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderTools(status) {
         toolsList.innerHTML = '';
-        const allTools = Object.keys(TOOL_DETAILS);
+        const allTools = ['yt-dlp', 'ffmpeg', 'deno', 'cloudflared'];
 
         for (const tool of allTools) {
             const isInstalled = !!status[tool];
             const item = document.createElement('div');
             item.className = `tool-item ${isInstalled ? 'installed' : 'not-installed'}`;
-            item.innerHTML = `<div class="tool-info"><span class="tool-name">${tool}</span><span class="tool-desc">${TOOL_DETAILS[tool] || ''}</span></div><span class="tool-status">${isInstalled ? '正常にインストール済み' : '未インストール (または不正なファイル)'}</span>`;
+            
+            const statusText = isInstalled 
+                ? (window.i18n ? window.i18n.t('Extensions.tool_status_installed') : '正常にインストール済み')
+                : (window.i18n ? window.i18n.t('Extensions.tool_status_not_installed') : '未インストール (または不正なファイル)');
+
+            item.innerHTML = `<div class="tool-info"><span class="tool-name">${tool}</span><span class="tool-desc">${getToolDesc(tool)}</span></div><span class="tool-status">${statusText}</span>`;
             toolsList.appendChild(item);
         }
     }
 
     function updateActionCard(status) {
-        const allTools = Object.keys(TOOL_DETAILS);
+        const allTools = ['yt-dlp', 'ffmpeg', 'deno', 'cloudflared'];
         const missingTools = allTools.filter(tool => !status[tool]);
 
         if (missingTools.length === 0) {
-            actionTitle.textContent = "全てのツールが揃っています";
-            btnMainAction.textContent = "アップデートを確認";
+            actionTitle.textContent = window.i18n ? window.i18n.t('Extensions.action_title_all_ready') : "全てのツールが揃っています";
+            actionDesc.textContent = window.i18n ? window.i18n.t('Extensions.action_desc_all_ready') : "すべての外部ツールが正常に利用可能です。";
+            btnMainAction.textContent = window.i18n ? window.i18n.t('Extensions.btn_check_updates') : "アップデートを確認";
             btnMainAction.disabled = false;
             btnMainAction.onclick = () => checkForUpdates();
         } else {
-            actionTitle.textContent = "不足・不正なツールがあります";
-            btnMainAction.textContent = "再ダウンロードを実行";
+            actionTitle.textContent = window.i18n ? window.i18n.t('Extensions.action_title_missing') : "不足・不正なツールがあります";
+            actionDesc.textContent = window.i18n ? window.i18n.t('Extensions.action_desc_missing') : "一部の機能を利用するにはツールの更新・追加が必要です。";
+            btnMainAction.textContent = window.i18n ? window.i18n.t('Extensions.btn_redownload') : "再ダウンロードを実行";
             btnMainAction.disabled = false;
             btnMainAction.onclick = () => installTools(missingTools);
         }
@@ -231,12 +262,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function checkForUpdates() {
         btnMainAction.disabled = true;
-        btnMainAction.textContent = "確認中...";
+        btnMainAction.textContent = window.i18n ? window.i18n.t('Extensions.btn_checking') : "確認中...";
         try {
             const results = await invoke("check_tool_updates");
             renderUpdateResults(results);
-        } catch (e) { showAlert("エラー", "通信に失敗しました", true); }
-        finally { btnMainAction.textContent = "アップデートを確認"; btnMainAction.disabled = false; }
+        } catch (e) {
+            showAlert(
+                window.i18n ? window.i18n.t('Common.error') : "エラー",
+                window.i18n ? window.i18n.t('Extensions.msg_network_error') : "通信に失敗しました",
+                true
+            );
+        }
+        finally {
+            btnMainAction.textContent = window.i18n ? window.i18n.t('Extensions.btn_check_updates') : "アップデートを確認";
+            btnMainAction.disabled = false;
+        }
     }
 
     function renderUpdateResults(results) {
@@ -249,8 +289,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const isCorrupted = info.localVersion.includes("正しいファイルではありません");
             const localVersionHtml = isCorrupted 
-                ? `<span style="color:#ef4444; font-weight:bold;">${info.localVersion}</span>` 
+                ? `<span style="color:#ef4444; font-weight:bold;">${window.i18n ? window.i18n.t('Extensions.tool_corrupted') : '不正なファイル'}</span>` 
                 : info.localVersion;
+
+            const statusText = info.updateNeeded 
+                ? (isCorrupted ? (window.i18n ? window.i18n.t('Extensions.tool_reinstall_needed') : '再インストール') : (window.i18n ? window.i18n.t('Extensions.tool_update_needed') : '要更新')) 
+                : (window.i18n ? window.i18n.t('Extensions.tool_up_to_date') : '最新');
 
             item.className = `tool-item ${info.updateNeeded ? 'not-installed' : 'installed'}`;
             item.innerHTML = `
@@ -258,13 +302,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <span class="tool-name">${tool}</span>
                     <span class="tool-desc">${localVersionHtml} → ${info.latestVersion}</span>
                 </div>
-                <span class="tool-status">${info.updateNeeded ? (isCorrupted ? '再インストール' : '要更新') : '最新'}</span>
+                <span class="tool-status">${statusText}</span>
             `;
             updateResultList.appendChild(item);
         }
         updateCard.style.display = 'block';
         btnExecUpdate.disabled = updateCount === 0;
-        btnExecUpdate.textContent = updateCount > 0 ? "アップデート・修復を実行" : "すべて最新版で正常です";
+        btnExecUpdate.textContent = updateCount > 0 
+            ? (window.i18n ? window.i18n.t('Extensions.btn_exec_update') : "アップデート・修復を実行") 
+            : (window.i18n ? window.i18n.t('Extensions.btn_all_latest') : "すべて最新版で正常です");
         btnExecUpdate.onclick = () => installTools(pendingUpdates);
     }
 
@@ -276,8 +322,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const tool of toolsToInstall) {
                 await invoke("install_tool", { toolName: tool });
             }
-            showAlert("完了", "すべてのツールを更新・修復しました。");
-        } catch (e) { showAlert("エラー", e, true); }
+            showAlert(
+                window.i18n ? window.i18n.t('Common.complete') : "完了",
+                window.i18n ? window.i18n.t('Extensions.msg_all_tools_updated') : "すべてのツールを更新・修復しました。"
+            );
+        } catch (e) {
+            showAlert(
+                window.i18n ? window.i18n.t('Common.error') : "エラー",
+                e,
+                true
+            );
+        }
         progressArea.style.display = 'none';
         
         await checkStatus();

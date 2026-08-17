@@ -14,10 +14,8 @@ pub fn get_song_lufs(filename: String, state: State<'_, AppState>) -> Option<f32
     cache.get(&filename).copied()
 }
 
-// ★ 修正: 呼び出し時にディスク上の lufs_cache.json 状態とメモリ領域を同期
 #[tauri::command]
 pub async fn check_lufs_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    // ディスク上の最新キャッシュ状態を取得してメモリに反映（ファイル削除時は空になる）
     {
         let latest_disk_cache = load_lufs_cache();
         let mut cache_guard = state.lufs_cache.lock().unwrap();
@@ -52,7 +50,6 @@ pub async fn check_lufs_status(state: State<'_, AppState>) -> Result<serde_json:
 pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     let force_recalc = force.unwrap_or(false);
 
-    // ★ ディスクの状態と同期した上で再計算判定
     {
         let disk_cache = if force_recalc {
             std::collections::HashMap::new()
@@ -83,14 +80,16 @@ pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, Ap
 
     let total = targets_to_calc.len();
     if total == 0 {
+        // ★ status_code を送信
         let _ = app.emit("lufs_calc_progress", serde_json::json!({
-            "current": 0, "total": 0, "message": "すべての楽曲の音量解析は完了しています"
+            "current": 0, "total": 0, "status_code": "already_completed", "message": "すべての楽曲の音量解析は完了しています"
         }));
         return Ok(());
     }
 
+    // ★ status_code を送信
     let _ = app.emit("lufs_calc_progress", serde_json::json!({
-        "current": 0, "total": total, "message": "解析の準備中..."
+        "current": 0, "total": total, "status_code": "preparing", "message": "解析の準備中..."
     }));
 
     let base_dir = get_base_dir();
@@ -117,9 +116,12 @@ pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, Ap
             let _permit = semaphore_clone.acquire_owned().await.unwrap();
             
             let current_now = counter_clone.load(Ordering::SeqCst);
+            // ★ status_code と title を送信
             let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
                 "current": current_now,
                 "total": total,
+                "status_code": "analyzing",
+                "title": title,
                 "message": format!("「{}」を解析中...", title)
             }));
 
@@ -148,9 +150,12 @@ pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, Ap
             }
             
             let current_after = counter_clone.fetch_add(1, Ordering::SeqCst) + 1;
+            // ★ status_code と title を送信
             let _ = app_clone.emit("lufs_calc_progress", serde_json::json!({
                 "current": current_after,
                 "total": total,
+                "status_code": "analyzed",
+                "title": title,
                 "message": format!("「{}」の解析完了", title)
             }));
 
@@ -175,8 +180,9 @@ pub async fn start_lufs_calculation_all(force: Option<bool>, state: State<'_, Ap
         save_lufs_cache(&cache);
     }
 
+    // ★ status_code を送信
     let _ = app.emit("lufs_calc_progress", serde_json::json!({
-        "current": total, "total": total, "message": "すべての解析が完了しました！"
+        "current": total, "total": total, "status_code": "completed", "message": "すべての解析が完了しました！"
     }));
 
     Ok(())
