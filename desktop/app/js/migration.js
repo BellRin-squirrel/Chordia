@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const invoke = (tauri && tauri.core) ? tauri.core.invoke : (tauri && tauri.tauri ? tauri.tauri.invoke : null);
     const listen = (tauri && tauri.event) ? tauri.event.listen : null;
     
-    // --- 要素の取得 ---
     const chkMusic = document.getElementById('chkMusic');
     const chkImages = document.getElementById('chkImages');
     const chkDb = document.getElementById('chkDb');
@@ -13,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const exportPathInput = document.getElementById('exportPath');
     const btnBrowse = document.getElementById('btnBrowse');
     const btnExport = document.getElementById('btnExport');
+    const btnExportText = document.getElementById('btnExportText');
     const exportPassword = document.getElementById('exportPassword');
     
     const dropArea = document.getElementById('dropAreaImport');
@@ -33,14 +33,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedImportPath = "";
     let isCancelled = false;
 
-    // Rust側でファイルの書き出しが終わって「キャッシュ（AppState）上書き」に遷移した瞬間のイベントを監視し表示を書き換えます
+    const isMac = navigator.userAgent.includes('Mac') || navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
     if (listen) {
         try {
             await listen("migration_status", (event) => {
                 if (event.payload === "rewriting_cache") {
                     const textEl = document.getElementById('loadingText');
                     if (textEl) {
-                        textEl.textContent = "キャッシュを再度書き込んでいます...";
+                        textEl.textContent = window.i18n ? window.i18n.t('Migration.msg_rewriting_cache') : "キャッシュを再度書き込んでいます...";
                     }
                 }
             });
@@ -49,7 +50,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- エクスポート側の初期設定 ---
     try {
         const defaultPath = await invoke("get_default_export_path");
         if (exportPathInput) exportPathInput.value = defaultPath;
@@ -62,20 +62,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // キャンセルボタンクリック時の処理
     if (btnCancelLoading) {
         btnCancelLoading.addEventListener('click', () => {
             isCancelled = true;
             if (loadingOverlay) loadingOverlay.style.display = 'none';
             if (btnExport) btnExport.disabled = false;
-            showToast("処理を中断しました", true);
+            showToast(window.i18n ? window.i18n.t('Migration.toast_interrupted') : "処理を中断しました", true);
         });
     }
 
     if (btnExport) {
         btnExport.addEventListener('click', async () => {
             const savePath = exportPathInput.value;
-            if (!savePath) { showToast("エクスポート先のファイル名を指定してください", true); return; }
+            if (!savePath) { 
+                showToast(window.i18n ? window.i18n.t('Migration.toast_specify_path') : "エクスポート先のファイル名を指定してください", true); 
+                return; 
+            }
 
             const targets = {
                 music: chkMusic.checked,
@@ -85,17 +87,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 playlists: chkPlaylists.checked
             };
 
-            if (!Object.values(targets).includes(true)) { showToast("項目を1つ以上選択してください", true); return; }
+            if (!Object.values(targets).includes(true)) { 
+                showToast(window.i18n ? window.i18n.t('Migration.toast_select_target') : "項目を1つ以上選択してください", true); 
+                return; 
+            }
 
             const pass = exportPassword ? exportPassword.value : "";
-            if (pass.length > 128) { showToast("パスワードは128文字以内にしてください", true); return; }
+            if (pass.length > 128) { 
+                showToast(window.i18n ? window.i18n.t('Migration.toast_pass_too_long') : "パスワードは128文字以内にしてください", true); 
+                return; 
+            }
 
-            // キャンセルフラグ初期化
             isCancelled = false;
             btnExport.disabled = true;
-            btnExport.textContent = 'エクスポート中...';
+            if (btnExportText) {
+                btnExportText.textContent = window.i18n ? window.i18n.t('Migration.btn_exporting') : 'エクスポート中...';
+            }
+
             if (loadingOverlay) {
-                document.getElementById('loadingText').textContent = "データをバックアップ用に圧縮しています...";
+                document.getElementById('loadingText').textContent = window.i18n ? window.i18n.t('Migration.msg_compressing') : "データをバックアップ用に圧縮しています...";
                 loadingOverlay.style.display = 'flex';
             }
 
@@ -110,41 +120,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
                 if (result.success) {
-                    showToast("エクスポートが完了しました", false);
-                    document.getElementById('modalTitle').textContent = "エクスポート完了";
-                    document.getElementById('modalMessage').textContent = "データが正常にバックアップされました。";
+                    showToast(window.i18n ? window.i18n.t('Migration.toast_export_success') : "エクスポートが完了しました", false);
+                    document.getElementById('modalTitle').textContent = window.i18n ? window.i18n.t('Migration.modal_export_title') : "エクスポート完了";
+                    document.getElementById('modalMessage').textContent = window.i18n ? window.i18n.t('Migration.modal_export_msg') : "データが正常にバックアップされました。";
+                    
                     if (resultPathDisplay) {
                         resultPathDisplay.textContent = result.path;
                         resultPathDisplay.style.display = 'block';
                     }
                     if (btnComplete) {
-                        btnComplete.textContent = "トップへ戻る";
+                        btnComplete.textContent = window.i18n ? window.i18n.t('Common.back_to_top') : "トップへ戻る";
                     }
                     if (btnShowInExplorer) {
+                        btnShowInExplorer.textContent = isMac 
+                            ? (window.i18n ? window.i18n.t('Migration.btn_show_finder') : "Finderで表示") 
+                            : (window.i18n ? window.i18n.t('Migration.btn_show_explorer') : "エクスプローラーで表示");
                         btnShowInExplorer.style.display = 'inline-flex';
                     }
                     modalOverlay.classList.add('show');
                 } else { 
-                    showToast(`エラー: ${result.message}`, true); 
+                    showToast(`Error: ${result.message}`, true); 
                 }
             } catch (e) { 
                 if (isCancelled) return;
                 if (loadingOverlay) loadingOverlay.style.display = 'none';
-                showToast("システムエラーが発生しました", true); 
+                showToast(window.i18n ? window.i18n.t('Migration.toast_system_error') : "システムエラーが発生しました", true); 
                 console.error(e);
             } finally { 
                 if (!isCancelled) {
                     btnExport.disabled = false; 
-                    btnExport.innerHTML = `
-                        <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                        </svg> エクスポートを実行`;
+                    if (btnExportText) {
+                        btnExportText.textContent = window.i18n ? window.i18n.t('Migration.btn_export') : "エクスポートを実行";
+                    }
                 }
             }
         });
     }
 
-    // エクスプローラー展開ボタンのハンドリング
     if (btnShowInExplorer) {
         btnShowInExplorer.addEventListener('click', async () => {
             const exportedPath = resultPathDisplay ? resultPathDisplay.textContent : "";
@@ -152,13 +164,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                     await invoke("show_in_explorer", { path: exportedPath });
                 } catch (e) {
-                    showToast("エクスプローラーの展開に失敗しました", true);
+                    showToast(isMac 
+                        ? (window.i18n ? window.i18n.t('Migration.toast_finder_failed') : "Finderの展開に失敗しました")
+                        : (window.i18n ? window.i18n.t('Migration.toast_explorer_failed') : "エクスプローラーの展開に失敗しました"), 
+                        true
+                    );
                 }
             }
         });
     }
 
-    // ★ 修正：クリック時はネイティブダイアログ（ask_import_path）で直接絶対パスを取得（ブラウザメモリ上限を回避）
     if (dropArea) {
         dropArea.onclick = async () => {
             try {
@@ -177,12 +192,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         };
 
-        // D&D時も File オブジェクトからダイレクトパスを取得
         setupDragAndDrop(dropArea, async (file) => {
             if (!file) return;
             const path = file.path || file.name;
             if (!path.toLowerCase().endsWith('.zip')) {
-                showToast("引継ぎファイルはZIP形式である必要があります", true);
+                showToast(window.i18n ? window.i18n.t('Migration.toast_zip_required') : "引継ぎファイルはZIP形式である必要があります", true);
                 return;
             }
             selectedImportPath = path;
@@ -195,12 +209,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // パスワード手動入力適用時のリトライ処理
     if (btnSubmitPassword) {
         btnSubmitPassword.onclick = async () => {
             const pass = importPassword ? importPassword.value : "";
             if (!pass) {
-                showToast("復号用パスワードを入力してください", true);
+                showToast(window.i18n ? window.i18n.t('Migration.toast_enter_password') : "復号用パスワードを入力してください", true);
                 return;
             }
             await runImportRestore(pass);
@@ -212,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 e.preventDefault();
                 const pass = importPassword.value;
                 if (!pass) {
-                    showToast("復号用パスワードを入力してください", true);
+                    showToast(window.i18n ? window.i18n.t('Migration.toast_enter_password') : "復号用パスワードを入力してください", true);
                     return;
                 }
                 await runImportRestore(pass);
@@ -230,18 +243,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // ★ 修正：Base64エンコードを行わず、ファイルのパス文字列だけをRustへ渡して直接解凍
     async function runImportRestore(pass = "") {
         if (!selectedImportPath) return;
 
         isCancelled = false;
         if (loadingOverlay) {
-            document.getElementById('loadingText').textContent = "引継ぎZIPファイルを解析・復元しています...";
+            document.getElementById('loadingText').textContent = window.i18n ? window.i18n.t('Migration.msg_restoring') : "引継ぎZIPファイルを解析・復元しています...";
             loadingOverlay.style.display = 'flex';
         }
 
         try {
-            // パスを直接Rustへ渡してディスクからストリーム解凍（Out of Memoryを100%回避）
             const result = await invoke("execute_migration_import", {
                 zipPath: selectedImportPath,
                 password: pass || null
@@ -251,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (loadingOverlay) loadingOverlay.style.display = 'none';
 
             if (result.status === "password_required") {
-                showToast("このファイルはパスワードで保護されています", true);
+                showToast(window.i18n ? window.i18n.t('Migration.toast_password_protected') : "このファイルはパスワードで保護されています", true);
                 if (importPasswordContainer) importPasswordContainer.style.display = 'block';
                 if (importPassword) {
                     importPassword.value = '';
@@ -260,12 +271,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (result.status === "success") {
                 if (importPasswordContainer) importPasswordContainer.style.display = 'none';
                 
-                showToast("インポートが完了しました", false);
-                document.getElementById('modalTitle').textContent = "インポート(復元)完了";
-                document.getElementById('modalMessage').textContent = "すべてのライブラリと設定が正常に復元されました。";
+                showToast(window.i18n ? window.i18n.t('Migration.toast_import_success') : "インポートが完了しました", false);
+                document.getElementById('modalTitle').textContent = window.i18n ? window.i18n.t('Migration.modal_import_title') : "インポート(復元)完了";
+                document.getElementById('modalMessage').textContent = window.i18n ? window.i18n.t('Migration.modal_import_msg') : "すべてのライブラリと設定が正常に復元されました。";
                 if (resultPathDisplay) resultPathDisplay.style.display = 'none';
                 if (btnComplete) {
-                    btnComplete.textContent = "トップへ戻る";
+                    btnComplete.textContent = window.i18n ? window.i18n.t('Common.back_to_top') : "トップへ戻る";
                 }
                 if (btnShowInExplorer) {
                     btnShowInExplorer.style.display = 'none';
@@ -275,7 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
             if (isCancelled) return;
             if (loadingOverlay) loadingOverlay.style.display = 'none';
-            showToast(`復元に失敗しました: ${err}`, true);
+            showToast(window.i18n ? window.i18n.t('Migration.toast_restore_failed', { err: err }) : `復元に失敗しました: ${err}`, true);
         }
     }
 

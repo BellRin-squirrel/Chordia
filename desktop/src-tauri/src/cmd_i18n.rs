@@ -3,8 +3,8 @@ use ini::Ini;
 use std::fs;
 use crate::utils::get_base_dir;
 
-// ★ 内蔵デフォルト日本語INIテンプレート（フォールバック用）
-const DEFAULT_JAPANESE_INI: &str = r#"[Meta]
+// ★ pub 公開定数化して整合性チェックから全キー比較できるように修正
+pub const DEFAULT_JAPANESE_INI: &str = r#"[Meta]
 name = "日本語"
 code = "ja"
 
@@ -22,6 +22,7 @@ loading = "読み込み中..."
 notice = "お知らせ"
 complete = "完了"
 error = "エラー"
+please_wait = "このまましばらくお待ちください"
 
 [Menu]
 title = "Chordia"
@@ -49,6 +50,275 @@ info_desc = "ライセンス・バージョン情報"
 title = "情報"
 app_name = "Chordia Desktop版"
 copyright = "© 2026 BellRin"
+
+[Manage]
+title = "データベース管理"
+subtitle = "楽曲情報の編集・削除・アートワークの管理"
+btn_select_songs = "楽曲を選択"
+btn_finish_selection = "選択を終了"
+search_placeholder = "タイトル、アーティスト、アルバム名で検索..."
+btn_clear_search = "クリア"
+btn_advanced_search = "高度な検索"
+bulk_selected_count = "{count} 曲選択中"
+btn_bulk_edit = "一括変更"
+btn_bulk_delete = "一括削除"
+
+th_play = "再生"
+th_time = "時間"
+th_action = "操作"
+no_matching_songs = "一致する楽曲が見つかりませんでした"
+hint_double_click = "ダブルクリックで編集できます"
+
+btn_show_all = "すべて表示"
+btn_show_pages = "ページ別表示に戻す"
+btn_prev = "前へ"
+btn_next = "次へ"
+btn_jump = "移動"
+
+art_modal_title = "アートワーク編集"
+tab_local = "ローカル"
+tab_video_url = "動画URL"
+tab_image_url = "画像URL"
+btn_select_pc_image = "PCから画像を選択"
+ph_video_url = "YouTubeなどの動画URLを入力..."
+btn_fetch_thumb = "サムネを取得"
+ph_image_url = "画像の直接URLを入力..."
+btn_fetch_image = "画像を取得"
+art_status_current = "現在の画像"
+art_status_new = "新しい画像 (反映前)"
+art_status_thumb = "動画サムネイル (反映前)"
+art_status_url = "画像URL (反映前)"
+art_status_remove = "削除予定 (反映前)"
+btn_delete_image = "画像を削除"
+btn_apply_change = "変更を適用"
+
+lyric_modal_title = "歌詞編集"
+btn_auto_lyric = "自動取得 (LRCLIB)"
+ph_lyric = "歌詞を入力..."
+lyric_search_results = "歌詞の検索結果"
+lyric_search_desc = "確認したい歌詞をクリックしてください。"
+lyric_preview_title = "歌詞の確認"
+btn_back_to_results = "一覧に戻る"
+btn_apply_lyric = "適用"
+
+bulk_modal_title = "選択した曲を一括変更"
+bulk_meta_title = "メタデータの一括編集"
+bulk_art_title = "カバーアートの一括編集"
+bulk_lyric_title = "歌詞の一括編集"
+bulk_keep = "設定を維持する（そのまま変更しない）"
+bulk_art_overwrite = "新しい画像で一括上書きする"
+bulk_lyric_overwrite = "新しい歌詞で一括上書きする"
+btn_fetch = "取得"
+label_keep = "< 維持 >"
+label_keep_lyric = "< 維持 > (歌詞は変更されません)"
+label_keep_art = "< 維持 > (そのまま維持されます)"
+label_bulk_delete_target = "選択された {count} 曲"
+
+delete_modal_title = "楽曲を削除"
+delete_modal_desc = "以下の楽曲をライブラリとファイルから完全に削除しますか?"
+btn_delete_confirm = "削除する"
+
+adv_search_title = "高度な検索フィルター"
+btn_apply_filter = "フィルターを設定"
+btn_clear_filter = "条件をクリア"
+
+adv_match_all = "すべての"
+adv_match_any = "いずれかの"
+adv_match_rules = "ルールに一致"
+adv_particle_ga = "が"
+adv_particle_to = "と"
+adv_ph_search = "検索ワード..."
+adv_ph_number = "数字..."
+
+op_contains = "を含む"
+op_not_contains = "を含まない"
+op_equals = "である"
+op_not_equals = "ではない"
+op_startswith = "で始まる"
+op_endswith = "で終わる"
+op_greater = "より大きい"
+op_less = "より小さい"
+op_range = "の範囲内"
+
+msg_bulk_updated = "{count}曲を一括更新しました"
+msg_bulk_deleted = "{count}曲を削除しました"
+msg_bulk_edit_failed = "一括更新に失敗しました"
+msg_select_songs_prompt = "楽曲を選択してください"
+msg_lyric_saved = "歌詞を保存しました"
+msg_art_updated = "アートワークを更新しました"
+msg_deleted = "削除しました"
+msg_cannot_play = "再生できません"
+msg_not_found = "見つかりませんでした"
+msg_network_error = "通信エラーが発生しました"
+msg_enter_url = "URLを入力してください"
+msg_ext_missing = "拡張機能が不足しています"
+msg_art_fetch_success = "サムネイルを取得しました"
+msg_img_fetch_success = "画像を取得しました"
+msg_db_update_failed = "DB更新に失敗しました"
+
+[Migration]
+title = "データの引継ぎ"
+subtitle = "Chordiaの環境全体を一括エクスポート、またはバックアップから復元します"
+
+export_title = "1. 引継ぎデータのエクスポート"
+export_desc = "現在のライブラリ、設定情報、プレイリストを暗号化ZIPにまとめてエクスポートします。"
+
+target_music = "楽曲ファイル"
+target_music_desc = "library/music/ 内のすべての音声ファイル"
+target_images = "アルバムアート"
+target_images_desc = "library/images/ 内のすべての画像データ"
+target_db = "データベース"
+target_db_desc = "userfiles/music.json (曲情報リスト)"
+target_settings = "設定ファイル"
+target_settings_desc = "settings.ini / themes.json"
+target_playlists = "プレイリスト・履歴"
+target_playlists_desc = "playlist / played_times / history"
+
+save_path_label = "保存先とファイル名"
+save_path_placeholder = "保存先を選択してください..."
+btn_browse = "参照"
+password_label = "パスワード保護 (任意)"
+password_placeholder = "パスワードを入力（空欄は暗号化なし）"
+btn_export = "エクスポートを実行"
+btn_exporting = "エクスポート中..."
+
+import_title = "2. 引継ぎデータのインポート"
+import_desc = "エクスポートしたバックアップデータ（ZIP）を選択し、現在の環境に丸ごと復元します。"
+drop_main_msg = "ここに引継ぎZIPファイルをドロップ"
+drop_sub_msg = "またはクリックしてファイルを選択"
+import_pass_label = "引継ぎファイルの復号パスワード"
+import_pass_placeholder = "パスワードを入力してください"
+btn_apply = "適用"
+
+modal_export_title = "エクスポート完了"
+modal_export_msg = "データが正常にバックアップされました。"
+modal_import_title = "インポート(復元)完了"
+modal_import_msg = "すべてのライブラリと設定が正常に復元されました。"
+btn_show_explorer = "エクスプローラーで表示"
+btn_show_finder = "Finderで表示"
+
+msg_compressing = "データをバックアップ用に圧縮しています..."
+msg_rewriting_cache = "キャッシュを再度書き込んでいます..."
+msg_restoring = "引継ぎZIPファイルを解析・復元しています..."
+
+toast_interrupted = "処理を中断しました"
+toast_specify_path = "エクスポート先のファイル名を指定してください"
+toast_select_target = "項目を1つ以上選択してください"
+toast_pass_too_long = "パスワードは128文字以内にしてください"
+toast_export_success = "エクスポートが完了しました"
+toast_system_error = "システムエラーが発生しました"
+toast_explorer_failed = "エクスプローラーの展開に失敗しました"
+toast_finder_failed = "Finderの展開に失敗しました"
+toast_zip_required = "引継ぎファイルはZIP形式である必要があります"
+toast_enter_password = "復号用パスワードを入力してください"
+toast_password_protected = "このファイルはパスワードで保護されています"
+toast_import_success = "インポートが完了しました"
+toast_restore_failed = "復元に失敗しました: {err}"
+
+[Sync]
+title = "同期設定"
+wan_title = "外出先 (WAN) 接続モード"
+wan_desc = "安全なHTTPSトンネルを構築し、インターネット越しでの同期を許可します。"
+wan_status_off = "● WAN接続モード: OFF (無効)"
+wan_status_building = "● WAN接続モード: ON (トンネル構築中...)"
+wan_status_on = "● WAN接続モード: ON (有効・待機中)"
+wan_url_label = "WAN パブリック URL:"
+wan_tunnel_building = "トンネル構築中..."
+wan_qr_desc = "スマホの「QRコードで自動接続」で読み取ってください<br>(※WAN接続のため、6桁の認証コードはセキュリティ上「手入力」になります)"
+
+ip_label = "IPアドレス (LAN用)"
+port_label = "ポート番号"
+loading_ip = "取得中..."
+auth_code_desc = "以下の認証コードをスマホアプリに入力してください"
+countdown_text = "更新まであと {sec} 秒"
+qr_desc = "または、カメラでQRコードを読み取ります"
+btn_show_qr = "LAN用 QRコードを表示"
+btn_hide_qr = "QRコードを隠す"
+
+requests_title = "接続リクエスト（許可待ち）"
+no_requests = "現在リクエストはありません"
+waiting_code_title = "認証コード入力待ち"
+no_waiting_code = "現在コード入力待ちの端末はありません"
+sessions_title = "接続済みのセッション（同期中）"
+no_sessions = "接続中のデバイスはありません。"
+
+btn_approve = "許可"
+btn_reject = "拒否"
+btn_cancel_approval = "取り消し"
+btn_disconnect = "切断"
+label_waiting_code = "コード入力待ち..."
+label_remaining_time = "最終アクセス: 残り{min}分{sec}秒"
+
+toast_wan_enabled = "WAN モードを有効化しました"
+toast_wan_disabled = "WAN モードを無効化しました"
+toast_auth_request = "接続要求: {device} からのリクエスト"
+toast_auth_success = "ペアリング完了: {device} と接続されました"
+toast_server_error = "サーバーの起動に失敗しました"
+toast_waiting_port = "ポートの取得を待っています..."
+err_cloudflared_start = "cloudflaredの起動に失敗しました（{bin} を確認してください）"
+err_cloudflared_timeout = "Cloudflare Tunnel の URL 取得にタイムアウトしました。"
+
+[Integrity]
+title = "整合性確認"
+subtitle = "データベース、ファイル、設定情報の健康状態を総合チェックします"
+action_title = "全項目の検査を実行"
+action_desc = "タグの不整合、拡張機能、音量未解析、ファイル破損、不要・リンク切れファイルを読み込みます。"
+btn_start = "検査を開始"
+btn_scanning = "検査中..."
+loading_msg = "ライブラリの整合性をスキャン中..."
+summary_status = "全体ステータス"
+summary_issues = "検出された問題件数"
+count_unit = "{count}件"
+
+status_ok = "正常 (問題なし)"
+status_error = "要確認"
+status_warning = "軽微な警告あり"
+
+sec_tag_title = "1. MP3タグ・歌詞の不整合"
+sec_tag_desc = "DB上の登録内容とMP3ファイル本体に書き込まれているID3タグの間に違いがあります。"
+sec_bin_title = "2. 拡張機能 (binフォルダ) の状態"
+sec_bin_desc = "欠損ツールや不要なファイル、起動不可能なファイルがないか確認します。"
+sec_lufs_title = "3. 音量解析 (LUFS) 未計測曲"
+sec_lufs_desc = "一定音量（ラウドネス・ノーマライゼーション）がまだ計算されていない楽曲です。"
+sec_corrupted_title = "4. 設定・言語・データベースファイルの破損"
+sec_corrupted_desc = "構文エラーや欠損により正常に読み込みできない設定・言語パック・データベースファイルです。"
+sec_orphan_title = "5. 不要・リンク切れファイル (libraryフォルダ)"
+sec_orphan_desc = "DBに存在しない不要な実ファイルや、実ファイルが見つからないリンク切れデータです。"
+
+msg_tag_ok = "すべての楽曲のタグ情報がDBと一致しています。"
+msg_bin_ok = "すべての必須ツールが揃っており、不要なファイルもありません。"
+msg_lufs_ok = "すべての楽曲の音量解析が完了しています。"
+msg_corrupted_ok = "設定、言語パック、およびデータベースファイルに破損は見つかりませんでした。"
+msg_orphan_ok = "不要な孤立ファイルやリンク切れファイルはありません。"
+
+label_bin_missing = "❌ 欠損:"
+label_bin_invalid = "⚠️ 破損:"
+label_bin_unexpected = "❓ 不審ファイル:"
+label_missing_music = "❌ リンク切れ(音源):"
+label_missing_image = "❌ リンク切れ(画像):"
+label_orphan_music = "🗑️ 孤立音源:"
+label_orphan_image = "🗑️ 孤立画像:"
+label_corrupted = "❌ 読込エラー:"
+
+desc_bin_missing = "必須ツール {tool} がインストールされていません。"
+desc_bin_invalid = "ツール {tool} が正しく起動できません。"
+desc_bin_unexpected = "binフォルダ内に未知の不要ファイル {file} が存在します。"
+desc_missing_music = "DBに登録されていますがファイルが存在しません ({file})"
+desc_missing_image = "DBに登録されていますが画像が存在しません ({file})"
+desc_orphan_music = "DBで参照されていない不要な楽曲ファイル ({file})"
+desc_orphan_image = "DBやプレイリストで参照されていない不要な画像 ({file})"
+
+err_official_lang_missing = "公式言語パックが見つかりません"
+err_lang_keys_missing = "必須翻訳キーの欠損: {details}"
+err_ini_syntax = "INI構文エラー (破損)"
+err_json_syntax = "JSON構文エラー (破損)"
+err_playlist_syntax = "プレイリストJSON構文エラー (破損)"
+err_file_read = "ファイルの読み込みに失敗"
+
+th_file = "ファイル"
+th_field = "項目"
+th_db_val = "DB上の値"
+th_tag_val = "MP3タグ上の値"
 
 [Extensions]
 title = "拡張機能"
@@ -168,19 +438,8 @@ theme_saved = "テーマ \"{name}\" を保存しました"
 theme_deleted = "テーマ \"{name}\" を削除しました"
 "#;
 
-pub fn init_default_languages() {
-    let base_dir = get_base_dir();
-    let lang_dir = base_dir.join("lang");
-    let _ = fs::create_dir_all(&lang_dir);
-
-    let ja_path = lang_dir.join("Japanese.ini");
-    if !ja_path.exists() {
-        let _ = fs::write(ja_path, DEFAULT_JAPANESE_INI);
-    }
-
-    let en_path = lang_dir.join("English.ini");
-    if !en_path.exists() {
-        let default_en = r#"[Meta]
+// ★ pub 公開定数化
+pub const DEFAULT_ENGLISH_INI: &str = r#"[Meta]
 name = "English"
 code = "en"
 
@@ -198,6 +457,7 @@ loading = "Loading..."
 notice = "Notice"
 complete = "Complete"
 error = "Error"
+please_wait = "Please wait a moment..."
 
 [Menu]
 title = "Chordia"
@@ -225,6 +485,275 @@ info_desc = "License & Version info"
 title = "About"
 app_name = "Chordia Desktop Edition"
 copyright = "© 2026 BellRin"
+
+[Manage]
+title = "Manage Library"
+subtitle = "Edit, delete tracks and manage artwork"
+btn_select_songs = "Select Songs"
+btn_finish_selection = "Done Selection"
+search_placeholder = "Search by title, artist, album..."
+btn_clear_search = "Clear"
+btn_advanced_search = "Advanced Search"
+bulk_selected_count = "{count} songs selected"
+btn_bulk_edit = "Batch Edit"
+btn_bulk_delete = "Batch Delete"
+
+th_play = "Play"
+th_time = "Duration"
+th_action = "Action"
+no_matching_songs = "No matching songs found"
+hint_double_click = "Double click to edit"
+
+btn_show_all = "Show All"
+btn_show_pages = "Show Pages"
+btn_prev = "Prev"
+btn_next = "Next"
+btn_jump = "Go"
+
+art_modal_title = "Edit Artwork"
+tab_local = "Local"
+tab_video_url = "Video URL"
+tab_image_url = "Image URL"
+btn_select_pc_image = "Select from PC"
+ph_video_url = "Enter YouTube or video URL..."
+btn_fetch_thumb = "Fetch Thumbnail"
+ph_image_url = "Enter direct image URL..."
+btn_fetch_image = "Fetch Image"
+art_status_current = "Current Image"
+art_status_new = "New Image (Unsaved)"
+art_status_thumb = "Video Thumbnail (Unsaved)"
+art_status_url = "Image URL (Unsaved)"
+art_status_remove = "To be deleted"
+btn_delete_image = "Remove Image"
+btn_apply_change = "Apply Changes"
+
+lyric_modal_title = "Edit Lyrics"
+btn_auto_lyric = "Auto Fetch (LRCLIB)"
+ph_lyric = "Enter lyrics..."
+lyric_search_results = "Lyrics Search Results"
+lyric_search_desc = "Click on a result to preview lyrics."
+lyric_preview_title = "Preview Lyrics"
+btn_back_to_results = "Back to List"
+btn_apply_lyric = "Apply"
+
+bulk_modal_title = "Batch Edit Selected Songs"
+bulk_meta_title = "Batch Edit Metadata"
+bulk_art_title = "Batch Edit Artwork"
+bulk_lyric_title = "Batch Edit Lyrics"
+bulk_keep = "Keep existing value (No change)"
+bulk_art_overwrite = "Overwrite with new image"
+bulk_lyric_overwrite = "Overwrite with new lyrics"
+btn_fetch = "Fetch"
+label_keep = "< Keep >"
+label_keep_lyric = "< Keep > (Lyrics will not be changed)"
+label_keep_art = "< Keep > (Image will not be changed)"
+label_bulk_delete_target = "{count} selected songs"
+
+delete_modal_title = "Delete Song"
+delete_modal_desc = "Are you sure you want to completely delete this song from your library and storage?"
+btn_delete_confirm = "Delete"
+
+adv_search_title = "Advanced Search Filter"
+btn_apply_filter = "Apply Filter"
+btn_clear_filter = "Clear Filter"
+
+adv_match_all = "All of"
+adv_match_any = "Any of"
+adv_match_rules = "rules match"
+adv_particle_ga = " "
+adv_particle_to = "and"
+adv_ph_search = "Search word..."
+adv_ph_number = "Number..."
+
+op_contains = "Contains"
+op_not_contains = "Does not contain"
+op_equals = "Equals"
+op_not_equals = "Does not equal"
+op_startswith = "Starts with"
+op_endswith = "Ends with"
+op_greater = "Greater than"
+op_less = "Less than"
+op_range = "In range"
+
+msg_bulk_updated = "Updated {count} songs successfully"
+msg_bulk_deleted = "Deleted {count} songs successfully"
+msg_bulk_edit_failed = "Failed to update songs"
+msg_select_songs_prompt = "Please select songs"
+msg_lyric_saved = "Lyrics saved successfully"
+msg_art_updated = "Artwork updated successfully"
+msg_deleted = "Deleted successfully"
+msg_cannot_play = "Cannot play audio"
+msg_not_found = "Not found"
+msg_network_error = "Network communication error"
+msg_enter_url = "Please enter a URL"
+msg_ext_missing = "Required extensions are missing"
+msg_art_fetch_success = "Thumbnail fetched successfully"
+msg_img_fetch_success = "Image fetched successfully"
+msg_db_update_failed = "Failed to update database"
+
+[Migration]
+title = "Data Transfer"
+subtitle = "Batch export the entire Chordia environment or restore from backup"
+
+export_title = "1. Export Transfer Data"
+export_desc = "Bundle your library, settings, and playlists into an encrypted ZIP backup."
+
+target_music = "Music Files"
+target_music_desc = "All audio files in library/music/"
+target_images = "Album Artwork"
+target_images_desc = "All image data in library/images/"
+target_db = "Database"
+target_db_desc = "userfiles/music.json (track info list)"
+target_settings = "Configuration Files"
+target_settings_desc = "settings.ini / themes.json"
+target_playlists = "Playlists & History"
+target_playlists_desc = "playlist / played_times / history"
+
+save_path_label = "Destination & File Name"
+save_path_placeholder = "Select export destination..."
+btn_browse = "Browse"
+password_label = "Password Protection (Optional)"
+password_placeholder = "Enter password (leave blank for no encryption)"
+btn_export = "Run Export"
+btn_exporting = "Exporting..."
+
+import_title = "2. Import Transfer Data"
+import_desc = "Select an exported backup archive (ZIP) to restore everything into your current environment."
+drop_main_msg = "Drop backup ZIP file here"
+drop_sub_msg = "or click to select file"
+import_pass_label = "Decryption Password"
+import_pass_placeholder = "Enter decryption password"
+btn_apply = "Apply"
+
+modal_export_title = "Export Complete"
+modal_export_msg = "Your data has been successfully backed up."
+modal_import_title = "Restore Complete"
+modal_import_msg = "All library data and settings have been restored."
+btn_show_explorer = "Show in Explorer"
+btn_show_finder = "Show in Finder"
+
+msg_compressing = "Compressing data for backup..."
+msg_rewriting_cache = "Rewriting internal cache..."
+msg_restoring = "Extracting and restoring backup ZIP archive..."
+
+toast_interrupted = "Operation cancelled"
+toast_specify_path = "Please specify an export destination file name"
+toast_select_target = "Please select at least one item to export"
+toast_pass_too_long = "Password must be within 128 characters"
+toast_export_success = "Export completed successfully"
+toast_system_error = "A system error occurred"
+toast_explorer_failed = "Failed to open in Explorer"
+toast_finder_failed = "Failed to open in Finder"
+toast_zip_required = "Backup file must be a ZIP archive (.zip)"
+toast_enter_password = "Please enter the decryption password"
+toast_password_protected = "This backup file is password protected"
+toast_import_success = "Import completed successfully"
+toast_restore_failed = "Failed to restore: {err}"
+
+[Sync]
+title = "Sync Settings"
+wan_title = "Remote (WAN) Connection Mode"
+wan_desc = "Builds a secure HTTPS tunnel to allow syncing over the Internet."
+wan_status_off = "● WAN Mode: OFF (Disabled)"
+wan_status_building = "● WAN Mode: ON (Building tunnel...)"
+wan_status_on = "● WAN Mode: ON (Active / Waiting)"
+wan_url_label = "WAN Public URL:"
+wan_tunnel_building = "Building tunnel..."
+wan_qr_desc = "Scan with \"Auto Connect via QR Code\" on mobile app<br>(*Due to WAN connection, 6-digit code must be entered manually for security)"
+
+ip_label = "IP Address (LAN)"
+port_label = "Port Number"
+loading_ip = "Fetching..."
+auth_code_desc = "Enter the following authentication code into the mobile app"
+countdown_text = "Refreshes in {sec}s"
+qr_desc = "Or scan the QR code with your camera"
+btn_show_qr = "Show LAN QR Code"
+btn_hide_qr = "Hide QR Code"
+
+requests_title = "Connection Requests (Pending)"
+no_requests = "No pending requests"
+waiting_code_title = "Waiting for Code Entry"
+no_waiting_code = "No devices currently waiting for code entry"
+sessions_title = "Active Connected Sessions (Syncing)"
+no_sessions = "No connected devices."
+
+btn_approve = "Approve"
+btn_reject = "Reject"
+btn_cancel_approval = "Cancel"
+btn_disconnect = "Disconnect"
+label_waiting_code = "Waiting for code..."
+label_remaining_time = "Last access: {min}m {sec}s remaining"
+
+toast_wan_enabled = "WAN mode enabled"
+toast_wan_disabled = "WAN mode disabled"
+toast_auth_request = "Connection request from {device}"
+toast_auth_success = "Pairing complete: Connected to {device}"
+toast_server_error = "Failed to start sync server"
+toast_waiting_port = "Waiting to obtain port..."
+err_cloudflared_start = "Failed to start cloudflared (Please check {bin})"
+err_cloudflared_timeout = "Timed out waiting for Cloudflare Tunnel URL."
+
+[Integrity]
+title = "Integrity Check"
+subtitle = "Comprehensively check the health of database, files, and settings"
+action_title = "Run Full System Check"
+action_desc = "Scans for tag mismatches, extension tools, unmeasured loudness, file corruption, and orphan/missing files."
+btn_start = "Start Check"
+btn_scanning = "Checking..."
+loading_msg = "Scanning library integrity..."
+summary_status = "Overall Status"
+summary_issues = "Detected Issues"
+count_unit = "{count} items"
+
+status_ok = "Healthy (No issues)"
+status_error = "Needs Attention"
+status_warning = "Minor Warnings Found"
+
+sec_tag_title = "1. MP3 Tag & Lyrics Mismatches"
+sec_tag_desc = "Differences between database metadata and ID3 tags stored in MP3 files."
+sec_bin_title = "2. Extension Tools (bin folder) Status"
+sec_bin_desc = "Checks for missing tools, corrupted binaries, and unexpected files."
+sec_lufs_title = "3. Unmeasured Loudness (LUFS) Songs"
+sec_lufs_desc = "Songs that have not yet been analyzed for Loudness Normalization."
+sec_corrupted_title = "4. Corrupted Settings, Language & Database Files"
+sec_corrupted_desc = "Settings, language packs, and database files that cannot be parsed due to syntax errors or corruption."
+sec_orphan_title = "5. Orphan & Missing Files (library folder)"
+sec_orphan_desc = "Unreferenced files in library folders and broken file links in database."
+
+msg_tag_ok = "All song tags match the database."
+msg_bin_ok = "All required tools are installed with no unexpected files."
+msg_lufs_ok = "Loudness measurement is complete for all songs."
+msg_corrupted_ok = "No corrupted settings, language packs, or database files found."
+msg_orphan_ok = "No orphan or missing files found."
+
+label_bin_missing = "❌ Missing:"
+label_bin_invalid = "⚠️ Corrupted:"
+label_bin_unexpected = "❓ Unknown File:"
+label_missing_music = "❌ Missing Audio:"
+label_missing_image = "❌ Missing Image:"
+label_orphan_music = "🗑️ Orphan Audio:"
+label_orphan_image = "🗑️ Orphan Image:"
+label_corrupted = "❌ Read Error:"
+
+desc_bin_missing = "Required tool {tool} is not installed."
+desc_bin_invalid = "Tool {tool} failed to start properly."
+desc_bin_unexpected = "Unexpected file {file} found in bin folder."
+desc_missing_music = "Registered in database but file does not exist ({file})"
+desc_missing_image = "Registered in database but image does not exist ({file})"
+desc_orphan_music = "Unreferenced audio file ({file})"
+desc_orphan_image = "Unreferenced image file ({file})"
+
+err_official_lang_missing = "Official language pack is missing"
+err_lang_keys_missing = "Missing required translation keys: {details}"
+err_ini_syntax = "INI syntax error (Corrupted)"
+err_json_syntax = "JSON syntax error (Corrupted)"
+err_playlist_syntax = "Playlist JSON syntax error (Corrupted)"
+err_file_read = "Failed to read file"
+
+th_file = "File"
+th_field = "Field"
+th_db_val = "DB Value"
+th_tag_val = "Tag Value"
 
 [Extensions]
 title = "Extensions"
@@ -343,7 +872,20 @@ art_restored = "Reset to default artwork"
 theme_saved = "Saved theme \"{name}\""
 theme_deleted = "Deleted theme \"{name}\""
 "#;
-        let _ = fs::write(en_path, default_en);
+
+pub fn init_default_languages() {
+    let base_dir = get_base_dir();
+    let lang_dir = base_dir.join("lang");
+    let _ = fs::create_dir_all(&lang_dir);
+
+    let ja_path = lang_dir.join("Japanese.ini");
+    if !ja_path.exists() {
+        let _ = fs::write(ja_path, DEFAULT_JAPANESE_INI);
+    }
+
+    let en_path = lang_dir.join("English.ini");
+    if !en_path.exists() {
+        let _ = fs::write(en_path, DEFAULT_ENGLISH_INI);
     }
 }
 
@@ -391,7 +933,6 @@ fn ini_to_json_value(ini: &Ini) -> Value {
     Value::Object(root_map)
 }
 
-// ★ 修正: エラー発生時でも必ず日本語フォールバックデータを返す堅牢な設計
 #[tauri::command]
 pub fn get_language_pack(filename: Option<String>) -> Result<Value, String> {
     let target_file = match filename {
@@ -401,14 +942,12 @@ pub fn get_language_pack(filename: Option<String>) -> Result<Value, String> {
 
     let target_path = get_base_dir().join("lang").join(&target_file);
 
-    // 1. 要求された言語ファイルの読み込みを試行
     if target_path.exists() {
         if let Ok(ini) = Ini::load_from_file(&target_path) {
             return Ok(ini_to_json_value(&ini));
         }
     }
 
-    // 2. 失敗した場合、ディスク上の Japanese.ini の読み込みを試行 (フォールバック 1)
     let ja_path = get_base_dir().join("lang/Japanese.ini");
     if ja_path.exists() {
         if let Ok(ini) = Ini::load_from_file(&ja_path) {
@@ -416,7 +955,6 @@ pub fn get_language_pack(filename: Option<String>) -> Result<Value, String> {
         }
     }
 
-    // 3. ディスクのファイルが全て読めない場合でも、埋め込みの日本語デフォルトデータから生成 (フォールバック 2)
     let fallback_ini = Ini::load_from_str(DEFAULT_JAPANESE_INI).unwrap_or_else(|_| Ini::new());
     Ok(ini_to_json_value(&fallback_ini))
 }

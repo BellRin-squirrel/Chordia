@@ -5,22 +5,27 @@
 
     window.AdvancedSearchController = {
         activeTags: [],
-        isOpening: false, // ★ 追加：二重展開を防ぐセーフガードフラグ
-        textOps: [
-            { val: 'contains', label: 'を含む' },
-            { val: 'not_contains', label: 'を含まない' },
-            { val: 'equals', label: 'である' },
-            { val: 'not_equals', label: 'ではない' },
-            { val: 'startswith', label: 'で始まる' },
-            { val: 'endswith', label: 'で終わる' }
-        ],
-        numOps: [
-            { val: 'equals', label: 'である' },
-            { val: 'not_equals', label: 'ではない' },
-            { val: 'greater', label: 'より大きい' },
-            { val: 'less', label: 'より小さい' },
-            { val: 'range', label: 'の範囲内' }
-        ],
+        isOpening: false,
+
+        getTextOps: function() {
+            return [
+                { val: 'contains', label: window.i18n ? window.i18n.t('Manage.op_contains') : 'を含む' },
+                { val: 'not_contains', label: window.i18n ? window.i18n.t('Manage.op_not_contains') : 'を含まない' },
+                { val: 'equals', label: window.i18n ? window.i18n.t('Manage.op_equals') : 'である' },
+                { val: 'not_equals', label: window.i18n ? window.i18n.t('Manage.op_not_equals') : 'ではない' },
+                { val: 'startswith', label: window.i18n ? window.i18n.t('Manage.op_startswith') : 'で始まる' },
+                { val: 'endswith', label: window.i18n ? window.i18n.t('Manage.op_endswith') : 'で終わる' }
+            ];
+        },
+        getNumOps: function() {
+            return [
+                { val: 'equals', label: window.i18n ? window.i18n.t('Manage.op_equals') : 'である' },
+                { val: 'not_equals', label: window.i18n ? window.i18n.t('Manage.op_not_equals') : 'ではない' },
+                { val: 'greater', label: window.i18n ? window.i18n.t('Manage.op_greater') : 'より大きい' },
+                { val: 'less', label: window.i18n ? window.i18n.t('Manage.op_less') : 'より小さい' },
+                { val: 'range', label: window.i18n ? window.i18n.t('Manage.op_range') : 'の範囲内' }
+            ];
+        },
 
         init: function() {
             const btnAdvanced = document.getElementById('btnAdvancedSearch');
@@ -33,15 +38,18 @@
         },
 
         open: async function() {
-            if (this.isOpening) return; // 既に展開中の場合は多重実行をガード
+            if (this.isOpening) return; 
             const container = document.getElementById('advSearchRootContainer');
             if (container.children.length === 0) {
                 this.isOpening = true;
                 try {
                     const settings = await invoke("get_app_settings");
                     const allTags = await invoke("get_available_tags");
-                    this.activeTags = allTags.filter(t => settings.active_tags.includes(t.key)).map(t => ({val: t.key, label: t.label}));
-                    this.activeTags.push({val: 'lyric', label: '歌詞'});
+                    this.activeTags = allTags.filter(t => settings.active_tags.includes(t.key)).map(t => ({
+                        val: t.key, 
+                        label: (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${t.key}`) : t.label
+                    }));
+                    this.activeTags.push({val: 'lyric', label: window.i18n ? window.i18n.t('Tags.lyric') : '歌詞'});
                     container.appendChild(this.createConditionGroup(true));
                     this.updateAllMinusButtons();
                 } catch (e) {
@@ -94,16 +102,22 @@
             groupWrap.dataset.match = matchVal;
             const groupHeader = document.createElement('div');
             groupHeader.className = 'smart-group-header';
-            const matchSelector = this.createDynamicCustomSelector([{val:'all', label:'すべての'}, {val:'any', label:'いずれかの'}],
-                matchVal,
-                (val) => { groupWrap.dataset.match = val; }
-            );
+            
+            const matchOptions = [
+                {val:'all', label: window.i18n ? window.i18n.t('Manage.adv_match_all') : 'すべての'}, 
+                {val:'any', label: window.i18n ? window.i18n.t('Manage.adv_match_any') : 'いずれかの'}
+            ];
+
+            const matchSelector = this.createDynamicCustomSelector(matchOptions, matchVal, (val) => { groupWrap.dataset.match = val; });
             const textSpan = document.createElement('span');
-            textSpan.className = 'smart-text'; textSpan.textContent = 'ルールに一致';
+            textSpan.className = 'smart-text'; 
+            textSpan.textContent = window.i18n ? window.i18n.t('Manage.adv_match_rules') : 'ルールに一致';
+            
             const spacer = document.createElement('div'); spacer.style.flex = "1";
             groupHeader.appendChild(matchSelector);
             groupHeader.appendChild(textSpan);
             groupHeader.appendChild(spacer);
+            
             const btnContainer = document.createElement('div');
             btnContainer.className = 'smart-btn-container';
             const btnMinus = document.createElement('button');
@@ -145,6 +159,11 @@
             inputContainer.className = 'smart-input-container';
             const opContainer = document.createElement('div');
             opContainer.className = 'custom-select-wrapper';
+
+            const phSearch = window.i18n ? window.i18n.t('Manage.adv_ph_search') : '検索ワード...';
+            const phNumber = window.i18n ? window.i18n.t('Manage.adv_ph_number') : '数字...';
+            const particleTo = window.i18n ? window.i18n.t('Manage.adv_particle_to') : 'と';
+
             const updateInputs = (tag, op, val = null) => {
                 inputContainer.innerHTML = '';
                 const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
@@ -154,23 +173,24 @@
                         const i2 = document.createElement('input'); i2.type = 'number'; i2.className = 'smart-input'; i2.placeholder = '0';
                         if (Array.isArray(val)) { i1.value = val[0]; i2.value = val[1]; }
                         inputContainer.appendChild(i1);
-                        inputContainer.innerHTML += '<span class="smart-text">と</span>';
+                        inputContainer.innerHTML += `<span class="smart-text">${particleTo}</span>`;
                         inputContainer.appendChild(i2);
                     } else {
-                        const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = '数字...';
+                        const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = phNumber;
                         if (val) i.value = val;
                         inputContainer.appendChild(i);
                     }
                 } else {
-                    const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = '検索ワード...';
+                    const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = phSearch;
                     if (val) i.value = val;
                     inputContainer.appendChild(i);
                 }
             };
+
             const tagSelector = this.createDynamicCustomSelector(this.activeTags, row.dataset.tag, (newTag) => {
                 row.dataset.tag = newTag;
                 const isNum = ['track', 'year', 'disc', 'bpm'].includes(newTag);
-                const newOps = isNum ? this.numOps : this.textOps;
+                const newOps = isNum ? this.getNumOps() : this.getTextOps();
                 const newOp = newOps[0].val;
                 row.dataset.op = newOp;
                 const newOpSelector = this.createDynamicCustomSelector(newOps, newOp, (o) => {
@@ -181,14 +201,18 @@
                 opContainer.appendChild(newOpSelector);
                 updateInputs(newTag, newOp);
             });
-            const initialOps = ['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? this.numOps : this.textOps;
+
+            const initialOps = ['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? this.getNumOps() : this.getTextOps();
             const opSelector = this.createDynamicCustomSelector(initialOps, row.dataset.op, (newOp) => {
                 row.dataset.op = newOp;
                 updateInputs(row.dataset.tag, newOp);
             });
             opContainer.appendChild(opSelector);
+            
             const textSpan = document.createElement('span');
-            textSpan.className = 'smart-text'; textSpan.textContent = 'が';
+            textSpan.className = 'smart-text'; 
+            textSpan.textContent = window.i18n ? window.i18n.t('Manage.adv_particle_ga') : 'が';
+            
             const btnContainer = document.createElement('div');
             btnContainer.className = 'smart-btn-container';
             const btnMinus = document.createElement('button');
@@ -234,8 +258,6 @@
                         const op = child.dataset.op;
                         const inputs = child.querySelectorAll('.smart-input');
                         
-                        // ★ 修正と改善: 数値型のタグ（track, year, disc, bpm）の場合に、JS側で明示的に数値型へパース
-                        // これを行わない場合、Rustのデシリアライザが厳格に処理しようとする際、型ミスマッチとして条件が無効化（サイレント失敗）されます。
                         const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
                         let val;
                         if (isNum) {
@@ -259,9 +281,6 @@
                 return { type: 'group', match, items };
             };
             const conditions = parseGroup(rootElement);
-            
-            // ★ デバッグログの出力（F12デベロッパーツールで確認可能）
-            console.log("[DEBUG] apply advanced search conditions (generated JSON):", JSON.stringify(conditions, null, 2));
 
             document.getElementById('advancedSearchModal').classList.remove('show');
             if (window.TableController) window.TableController.execAdvancedSearch(conditions);

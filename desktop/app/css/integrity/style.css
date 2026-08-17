@@ -30,6 +30,42 @@
     font-size: 0.9rem;
 }
 
+/* ★ 修正: 「検査を開始」ボタンのボタンスタイル定義 */
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    padding: 12px 28px !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2) !important;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-color-dark) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3) !important;
+}
+
+.btn-primary:active {
+    transform: translateY(0) !important;
+}
+
+.btn-primary:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
 .loading-card {
     background: var(--card-bg);
     border-radius: 20px;

@@ -1,7 +1,6 @@
 (function() {
     const s = window.ManageState;
     const u = window.ManageUtils;
-    // Tauri API
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
     const convertFileSrc = window.__TAURI__.core ? window.__TAURI__.core.convertFileSrc : window.__TAURI__.tauri.convertFileSrc;
 
@@ -13,7 +12,6 @@
 
             if (!audioPlayer || !seekBar || !barPlayBtn) return;
 
-            // 再生時間更新
             audioPlayer.addEventListener('timeupdate', () => {
                 if (!s.isSeeking) {
                     const current = audioPlayer.currentTime;
@@ -54,7 +52,6 @@
                 }
             });
 
-            // ★ 修正：管理画面の試聴用プレイヤーも、OSのメディア物理キー操作に追従させます。
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.setActionHandler('play', () => {
                     if (audioPlayer.paused && s.currentPlayingIndex !== -1) {
@@ -91,7 +88,6 @@
                 return;
             }
 
-            // 前の再生ボタンをリセット
             if (s.currentPlayingIndex !== -1) {
                 const prevBtn = document.getElementById(`btnPlay_${s.currentPlayingIndex}`);
                 if (prevBtn) { prevBtn.innerHTML = s.SVG_PLAY; prevBtn.classList.remove('playing'); }
@@ -101,9 +97,7 @@
 
             if (item.musicFilename) {
                 try {
-                    // 相対パスを絶対パスに解決
                     const absPath = await invoke("resolve_path", { relPath: item.musicFilename });
-                    // 絶対パスをAssetプロトコルのURLに変換
                     const assetUrl = convertFileSrc(absPath);
                     
                     audioPlayer.src = assetUrl;
@@ -111,7 +105,6 @@
                     await audioPlayer.play();
                     this.updatePlayIcons(true);
 
-                    // ★ 修正：管理画面の試聴プレイヤー再生時もOSの Now Playing にメタデータをプッシュ
                     if ('mediaSession' in navigator) {
                         navigator.mediaSession.metadata = new MediaMetadata({
                             title: item.title || 'Unknown Title',
@@ -125,7 +118,7 @@
                     }
                 } catch (e) {
                     console.error("Playback failed:", e);
-                    u.showToast("再生できません", true);
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_cannot_play') : "再生できません", true);
                 }
             }
 
@@ -143,7 +136,6 @@
             }
             document.getElementById('barPlayBtn').innerHTML = s.SVG_PLAY;
 
-            // ★ 修正：OS側に停止ステータスを通知
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'none';
             }

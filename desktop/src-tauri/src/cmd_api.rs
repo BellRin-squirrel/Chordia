@@ -9,7 +9,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use std::path::PathBuf;
 use crate::utils::get_base_dir;
 
-// ★ userfiles/bin/ 内の cloudflared を最優先で自動検索する関数
 fn get_cloudflared_path() -> String {
     let exe_name = if cfg!(target_os = "windows") { "cloudflared.exe" } else { "cloudflared" };
     
@@ -143,9 +142,9 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
-            .map_err(|e| format!("cloudflared の起動に失敗しました（{} を確認してください）: {}", binary_path, e))?;
+            .map_err(|_| format!("ERR_CLOUDFLARED_START:{}", binary_path))?;
 
-        let stderr = child.stderr.take().ok_or("標準エラー出力の取得に失敗しました")?;
+        let stderr = child.stderr.take().ok_or("ERR_STDERR_PIPE")?;
 
         let (tx, rx) = tokio::sync::oneshot::channel::<String>();
 
@@ -180,7 +179,7 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
             }
             _ => {
                 let _ = child.kill().await;
-                Err("Cloudflare Tunnel の URL 取得にタイムアウトしました。".to_string())
+                Err("ERR_CLOUDFLARED_TIMEOUT".to_string())
             }
         }
     } else {

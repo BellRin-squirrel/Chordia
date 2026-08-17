@@ -1,7 +1,6 @@
 (function() {
     const s = window.ManageState;
     const u = window.ManageUtils;
-    // Tauriのinvokeを取得
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
     function showLoading(msg = "データを準備中...") {
@@ -10,7 +9,7 @@
         const detail = document.getElementById('loadingDetail');
         
         if (text) text.textContent = msg;
-        if (detail) detail.textContent = "少々お待ちください...";
+        if (detail) detail.textContent = window.i18n ? window.i18n.t('Common.please_wait') : "少々お待ちください...";
         if (overlay) overlay.style.display = 'flex';
     }
 
@@ -21,7 +20,7 @@
 
     window.TableController = {
         loadTableData: async function() {
-            showLoading("データを読み込んでいます..."); 
+            showLoading(window.i18n ? window.i18n.t('Common.loading') : "データを読み込んでいます..."); 
             try {
                 const settings = await invoke("get_app_settings");
                 s.itemsPerPage = settings.items_per_page;
@@ -34,7 +33,6 @@
                 s.searchQuery = s.searchQuery || "";
                 s.advancedConditions = s.advancedConditions || null; 
 
-                // 総件数の取得（高度な検索の条件を引数として正しく渡します）
                 const totalItems = await invoke("get_library_count", {
                     searchQuery: s.searchQuery,
                     advancedConditions: s.advancedConditions
@@ -107,7 +105,7 @@
                 this.updateBulkBar();
             } catch (err) {
                 console.error("fetchChunk Error:", err);
-                u.showToast("データの取得に失敗しました", true);
+                u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "データの取得に失敗しました", true);
             }
         },
 
@@ -122,7 +120,9 @@
                 const btn = document.getElementById('btnToggleSelection');
                 if(btn) {
                     btn.classList.toggle('active', s.isSelectionMode);
-                    btn.textContent = s.isSelectionMode ? "選択を終了" : "楽曲を選択";
+                    btn.textContent = s.isSelectionMode 
+                        ? (window.i18n ? window.i18n.t('Manage.btn_finish_selection') : "選択を終了") 
+                        : (window.i18n ? window.i18n.t('Manage.btn_select_songs') : "楽曲を選択");
                 }
                 
                 this.fetchChunk();
@@ -170,6 +170,11 @@
             }
             const countEl = document.getElementById('bulkCount');
             if(countEl) countEl.textContent = s.selectedIds.size;
+            
+            const infoTextEl = document.getElementById('bulkInfoText');
+            if (infoTextEl && window.i18n) {
+                infoTextEl.innerHTML = window.i18n.t('Manage.bulk_selected_count', { count: `<span id="bulkCount">${s.selectedIds.size}</span>` });
+            }
         },
 
         renderHeader: function() {
@@ -192,30 +197,36 @@
 
             let th = document.createElement('th');
             th.className = 'col-art'; headerRow.appendChild(th);
+            
             th = document.createElement('th');
-            th.className = 'col-play'; th.textContent = '再生'; headerRow.appendChild(th);
+            th.className = 'col-play'; 
+            th.textContent = window.i18n ? window.i18n.t('Manage.th_play') : '再生'; 
+            headerRow.appendChild(th);
             
             s.activeTags.forEach(key => {
                 th = document.createElement('th');
-                th.className = `sortable col-${key}`; th.textContent = s.tagLabels[key] || key;
+                th.className = `sortable col-${key}`; 
+                th.textContent = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${key}`) : (s.tagLabels[key] || key);
                 th.onclick = () => this.sortData(key);
                 th.innerHTML += ` <span class="sort-icon" id="sort-${key}"></span>`;
                 headerRow.appendChild(th);
             });
             
             th = document.createElement('th');
-            th.className = 'col-time sortable'; th.textContent = '時間';
+            th.className = 'col-time sortable'; 
+            th.textContent = window.i18n ? window.i18n.t('Manage.th_time') : '時間';
             th.onclick = () => this.sortData('duration');
             th.innerHTML += ' <span class="sort-icon" id="sort-duration"></span>';
             headerRow.appendChild(th);
             
             th = document.createElement('th');
-            th.className = 'col-action'; th.textContent = '操作';
+            th.className = 'col-action'; 
+            th.textContent = window.i18n ? window.i18n.t('Manage.th_action') : '操作';
             headerRow.appendChild(th);
         },
 
         sortData: function(field) {
-            showLoading("データを並び替えています...");
+            showLoading(window.i18n ? window.i18n.t('Common.loading') : "データを並び替えています...");
             setTimeout(async () => {
                 try {
                     if (s.sortState.field === field) {
@@ -245,7 +256,8 @@
             
             if (s.libraryData.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td colspan="100%" style="text-align:center; padding: 40px; color: var(--text-sub);">一致する楽曲が見つかりませんでした</td>`;
+                const noSongsMsg = window.i18n ? window.i18n.t('Manage.no_matching_songs') : '一致する楽曲が見つかりませんでした';
+                tr.innerHTML = `<td colspan="100%" style="text-align:center; padding: 40px; color: var(--text-sub);">${noSongsMsg}</td>`;
                 tbody.appendChild(tr);
                 return;
             }
@@ -294,9 +306,12 @@
             
             const btnShowAll = document.createElement('button');
             btnShowAll.className = s.isShowAll ? 'btn-page active' : 'btn-page';
-            btnShowAll.textContent = s.isShowAll ? 'ページ別表示に戻す' : 'すべて表示';
+            btnShowAll.textContent = s.isShowAll 
+                ? (window.i18n ? window.i18n.t('Manage.btn_show_pages') : 'ページ別表示に戻す')
+                : (window.i18n ? window.i18n.t('Manage.btn_show_all') : 'すべて表示');
+                
             btnShowAll.onclick = () => {
-                showLoading("データを読み込んでいます...");
+                showLoading(window.i18n ? window.i18n.t('Common.loading') : "データを読み込んでいます...");
                 setTimeout(async () => {
                     try { s.isShowAll = !s.isShowAll; s.currentPage = 1; await this.fetchChunk(); }
                     finally { hideLoading(); }
@@ -307,7 +322,9 @@
             if (!s.isShowAll) {
                 const totalPages = Math.ceil(s.totalItems / s.itemsPerPage);
                 const btnPrev = document.createElement('button');
-                btnPrev.className = 'btn-page'; btnPrev.textContent = '前へ'; btnPrev.disabled = s.currentPage === 1;
+                btnPrev.className = 'btn-page'; 
+                btnPrev.textContent = window.i18n ? window.i18n.t('Manage.btn_prev') : '前へ'; 
+                btnPrev.disabled = s.currentPage === 1;
                 btnPrev.onclick = () => {
                     if (s.currentPage > 1) { showLoading(); setTimeout(async () => { try { s.currentPage--; await this.fetchChunk(); } finally { hideLoading(); } }, 50); }
                 };
@@ -318,7 +335,9 @@
                 controlsDiv.appendChild(spanInfo);
                 
                 const btnNext = document.createElement('button');
-                btnNext.className = 'btn-page'; btnNext.textContent = '次へ'; btnNext.disabled = s.currentPage >= totalPages || totalPages === 0;
+                btnNext.className = 'btn-page'; 
+                btnNext.textContent = window.i18n ? window.i18n.t('Manage.btn_next') : '次へ'; 
+                btnNext.disabled = s.currentPage >= totalPages || totalPages === 0;
                 btnNext.onclick = () => {
                     if (s.currentPage < totalPages) { showLoading(); setTimeout(async () => { try { s.currentPage++; await this.fetchChunk(); } finally { hideLoading(); } }, 50); }
                 };
@@ -329,7 +348,8 @@
                 const inputJump = document.createElement('input');
                 inputJump.type = 'number'; inputJump.className = 'jump-input';
                 const btnJump = document.createElement('button');
-                btnJump.className = 'btn-jump'; btnJump.textContent = '移動';
+                btnJump.className = 'btn-jump'; 
+                btnJump.textContent = window.i18n ? window.i18n.t('Manage.btn_jump') : '移動';
                 btnJump.onclick = () => {
                     let pageNum = parseInt(inputJump.value, 10);
                     if (!isNaN(pageNum)) {
@@ -346,13 +366,12 @@
         showEditHint: function() {
             if (s.isSelectionMode) return;
             if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
-            u.showToast("ダブルクリックで編集できます", false);
+            u.showToast(window.i18n ? window.i18n.t('Manage.hint_double_click') : "ダブルクリックで編集できます", false);
         },
 
         startEdit: function(td, index, field) {
             if (s.isSelectionMode) return;
             const originalText = td.textContent.trim();
-            // ★修正: ダブルクォーテーションが含まれていても崩れないようエスケープする
             td.innerHTML = `<input type="text" class="inline-input" value="${u.escapeHtml(originalText)}">`;
             const input = td.querySelector('input');
             

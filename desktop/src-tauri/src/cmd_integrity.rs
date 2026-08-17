@@ -7,6 +7,7 @@ use id3::{Tag, TagLike};
 use ini::Ini;
 
 use crate::AppState;
+use crate::cmd_i18n::DEFAULT_JAPANESE_INI;
 use crate::utils::{get_base_dir, normalize_rel_path, load_lufs_cache};
 
 #[derive(Serialize, Clone)]
@@ -95,7 +96,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                         }
                     }
 
-                    // 歌詞の不整合確認
                     let db_lyric = song.get("lyric").and_then(|v| v.as_str()).unwrap_or("").replace("\r\n", "\n").replace('\r', "\n");
                     let tag_lyric = tag.lyrics().next().map(|l| l.text.replace("\r\n", "\n").replace('\r', "\n")).unwrap_or_default();
                     if db_lyric.trim() != tag_lyric.trim() {
@@ -165,10 +165,91 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // --- 4. userfilesフォルダ内のファイル破損チェック ---
+        // --- 4. userfiles & lang フォルダ内のファイル破損・欠損・ディープチェック ---
         let mut corrupted_userfiles = Vec::new();
         let userfiles_dir = base_dir.join("userfiles");
+        let lang_dir = base_dir.join("lang");
 
+        // 基準テンプレートINIのパース
+        let template_ini = Ini::load_from_str(DEFAULT_JAPANESE_INI).unwrap_or_else(|_| Ini::new());
+
+        // ★ (1) 公式言語パック (Japanese.ini / English.ini) の存在・破損・必須キー欠損チェック
+        let official_lang_files = ["Japanese.ini", "English.ini"];
+        for lang_file in official_lang_files {
+            let p = lang_dir.join(lang_file);
+            if !p.exists() {
+                corrupted_userfiles.push(CorruptedFileItem {
+                    filepath: format!("lang/{}", lang_file),
+                    error_reason: "ERR_OFFICIAL_LANG_MISSING".to_string(),
+                });
+            } else if let Ok(content) = fs::read_to_string(&p) {
+                match Ini::load_from_str(&content) {
+                    Ok(user_ini) => {
+                        // 必須セクションおよび全必須キーの突合
+                        let mut missing_keys = Vec::new();
+                        for (section, prop) in template_ini.iter() {
+                            let sec_name = section.unwrap_or("Common");
+                            let user_sec = user_ini.section(Some(sec_name));
+
+                            for (k, _) in prop.iter() {
+                                let has_val = user_sec.and_then(|s| s.get(k)).map(|v| !v.trim().is_empty()).unwrap_or(false);
+                                if !has_val {
+                                    missing_keys.push(format!("[{}].{}", sec_name, k));
+                                }
+                            }
+                        }
+
+                        if !missing_keys.is_empty() {
+                            let details = if missing_keys.len() <= 2 {
+                                missing_keys.join(", ")
+                            } else {
+                                format!("{} 他{}件", missing_keys[..2].join(", "), missing_keys.len() - 2)
+                            };
+                            corrupted_userfiles.push(CorruptedFileItem {
+                                filepath: format!("lang/{}", lang_file),
+                                error_reason: format!("ERR_LANG_KEYS_MISSING:{}", details),
+                            });
+                        }
+                    }
+                    Err(_) => {
+                        corrupted_userfiles.push(CorruptedFileItem {
+                            filepath: format!("lang/{}", lang_file),
+                            error_reason: "ERR_INI_SYNTAX".to_string(),
+                        });
+                    }
+                }
+            } else {
+                corrupted_userfiles.push(CorruptedFileItem {
+                    filepath: format!("lang/{}", lang_file),
+                    error_reason: "ERR_FILE_READ".to_string(),
+                });
+            }
+        }
+
+        // (2) lang フォルダ内のその他カスタム言語パックの構文チェック
+        if lang_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&lang_dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("ini") {
+                        if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
+                            if !official_lang_files.contains(&fname) {
+                                if let Ok(content) = fs::read_to_string(&path) {
+                                    if Ini::load_from_str(&content).is_err() {
+                                        corrupted_userfiles.push(CorruptedFileItem {
+                                            filepath: format!("lang/{}", fname),
+                                            error_reason: "ERR_INI_SYNTAX".to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // (3) userfiles JSON ファイルの整合性チェック
         let json_files = [
             "music.json",
             "playlist.json",
@@ -186,13 +267,13 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     if serde_json::from_str::<Value>(&content).is_err() {
                         corrupted_userfiles.push(CorruptedFileItem {
                             filepath: format!("userfiles/{}", json_file),
-                            error_reason: "JSON構文エラー".to_string(),
+                            error_reason: "ERR_JSON_SYNTAX".to_string(),
                         });
                     }
                 } else {
                     corrupted_userfiles.push(CorruptedFileItem {
                         filepath: format!("userfiles/{}", json_file),
-                        error_reason: "ファイルの読み込みに失敗".to_string(),
+                        error_reason: "ERR_FILE_READ".to_string(),
                     });
                 }
             }
@@ -203,7 +284,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             if Ini::load_from_file(&ini_path).is_err() {
                 corrupted_userfiles.push(CorruptedFileItem {
                     filepath: "userfiles/settings.ini".to_string(),
-                    error_reason: "INI構文エラー".to_string(),
+                    error_reason: "ERR_INI_SYNTAX".to_string(),
                 });
             }
         }
@@ -219,7 +300,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                                 let fname = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                                 corrupted_userfiles.push(CorruptedFileItem {
                                     filepath: format!("userfiles/playlist/{}", fname),
-                                    error_reason: "プレイリストJSON構文エラー".to_string(),
+                                    error_reason: "ERR_PLAYLIST_SYNTAX".to_string(),
                                 });
                             }
                         }
@@ -232,7 +313,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
         let mut referenced_music = HashSet::new();
         let mut referenced_images = HashSet::new();
 
-        // ★ 修正: app/icon/Chordia.png のみを標準アセット保護対象に
         referenced_images.insert("app/icon/Chordia.png".to_string());
 
         for song in db_data.iter() {

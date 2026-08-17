@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
 </head>
 <body class="integrity-body">
 
@@ -20,35 +21,34 @@
                     <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    トップへ戻る
+                    <span data-i18n="Common.back_to_top">トップへ戻る</span>
                 </a>
             </div>
-            <h1>整合性確認</h1>
-            <p class="subtitle">データベース、ファイル、設定情報の健康状態を総合チェックします</p>
+            <h1 data-i18n="Integrity.title">整合性確認</h1>
+            <p class="subtitle" data-i18n="Integrity.subtitle">データベース、ファイル、設定情報の健康状態を総合チェックします</p>
         </header>
 
         <div class="integrity-action-card">
             <div class="action-info">
-                <h2>全項目の検査を実行</h2>
-                <p>タグの不整合、拡張機能、音量未解析、ファイル破損、不要・リンク切れファイルを読み込みます。</p>
+                <h2 data-i18n="Integrity.action_title">全項目の検査を実行</h2>
+                <p data-i18n="Integrity.action_desc">タグの不整合、拡張機能、音量未解析、ファイル破損、不要・リンク切れファイルを読み込みます。</p>
             </div>
-            <button id="btnStartCheck" class="btn-primary">検査を開始</button>
+            <button id="btnStartCheck" class="btn-primary" data-i18n="Integrity.btn_start">検査を開始</button>
         </div>
 
         <div id="loadingArea" class="loading-card" style="display: none;">
             <div class="spinner"></div>
-            <p id="loadingMsg">ライブラリの整合性をスキャン中...</p>
+            <p id="loadingMsg" data-i18n="Integrity.loading_msg">ライブラリの整合性をスキャン中...</p>
         </div>
 
-        <!-- 検査結果表示エリア -->
         <div id="resultsContainer" style="display: none; margin-top: 24px;">
             <div class="summary-cards-grid">
                 <div class="summary-card" id="cardSummaryStatus">
-                    <span class="summary-title">全体ステータス</span>
+                    <span class="summary-title" data-i18n="Integrity.summary_status">全体ステータス</span>
                     <span class="summary-value" id="summaryStatusVal">--</span>
                 </div>
                 <div class="summary-card">
-                    <span class="summary-title">検出された問題件数</span>
+                    <span class="summary-title" data-i18n="Integrity.summary_issues">検出された問題件数</span>
                     <span class="summary-value" id="summaryIssueCountVal">0</span>
                 </div>
             </div>
@@ -56,50 +56,50 @@
             <!-- セクション1: MP3タグ不整合 -->
             <section class="result-section">
                 <div class="result-section-header">
-                    <h3>1. MP3タグ・歌詞の不整合</h3>
-                    <span class="badge" id="badgeTagCount">0件</span>
+                    <h3 data-i18n="Integrity.sec_tag_title">1. MP3タグ・歌詞の不整合</h3>
+                    <span class="badge" id="badgeTagCount">0</span>
                 </div>
-                <p class="desc-text">DB上の登録内容とMP3ファイル本体に書き込まれているID3タグの間に違いがあります。</p>
+                <p class="desc-text" data-i18n="Integrity.sec_tag_desc">DB上の登録内容とMP3ファイル本体に書き込まれているID3タグの間に違いがあります。</p>
                 <div class="table-container" id="containerTagMismatches"></div>
             </section>
 
             <!-- セクション2: 拡張機能・binフォルダ -->
             <section class="result-section">
                 <div class="result-section-header">
-                    <h3>2. 拡張機能 (binフォルダ) の状態</h3>
-                    <span class="badge" id="badgeBinCount">0件</span>
+                    <h3 data-i18n="Integrity.sec_bin_title">2. 拡張機能 (binフォルダ) の状態</h3>
+                    <span class="badge" id="badgeBinCount">0</span>
                 </div>
-                <p class="desc-text">欠損ツールや不要なファイル、起動不可能なファイルがないか確認します。</p>
+                <p class="desc-text" data-i18n="Integrity.sec_bin_desc">欠損ツールや不要なファイル、起動不可能なファイルがないか確認します。</p>
                 <div class="result-box" id="boxBinStatus"></div>
             </section>
 
             <!-- セクション3: LUFS未計測曲 -->
             <section class="result-section">
                 <div class="result-section-header">
-                    <h3>3. 音量解析 (LUFS) 未計測曲</h3>
-                    <span class="badge" id="badgeLufsCount">0件</span>
+                    <h3 data-i18n="Integrity.sec_lufs_title">3. 音量解析 (LUFS) 未計測曲</h3>
+                    <span class="badge" id="badgeLufsCount">0</span>
                 </div>
-                <p class="desc-text">一定音量（ラウドネス・ノーマライゼーション）がまだ計算されていない楽曲です。</p>
+                <p class="desc-text" data-i18n="Integrity.sec_lufs_desc">一定音量（ラウドネス・ノーマライゼーション）がまだ計算されていない楽曲です。</p>
                 <div class="table-container" id="containerLufsUncalculated"></div>
             </section>
 
             <!-- セクション4: userfilesファイル破損 -->
             <section class="result-section">
                 <div class="result-section-header">
-                    <h3>4. userfilesフォルダ内のデータ破損</h3>
-                    <span class="badge" id="badgeCorruptedCount">0件</span>
+                    <h3 data-i18n="Integrity.sec_corrupted_title">4. userfilesフォルダ内のデータ破損</h3>
+                    <span class="badge" id="badgeCorruptedCount">0</span>
                 </div>
-                <p class="desc-text">構文エラー等により正常に読み込みできない設定・データベースファイルです。</p>
+                <p class="desc-text" data-i18n="Integrity.sec_corrupted_desc">構文エラー等により正常に読み込みできない設定・データベースファイルです。</p>
                 <div class="result-box" id="boxCorruptedFiles"></div>
             </section>
 
             <!-- セクション5: 孤立・リンク切れファイル -->
             <section class="result-section">
                 <div class="result-section-header">
-                    <h3>5. 不要・リンク切れファイル (libraryフォルダ)</h3>
-                    <span class="badge" id="badgeOrphanCount">0件</span>
+                    <h3 data-i18n="Integrity.sec_orphan_title">5. 不要・リンク切れファイル (libraryフォルダ)</h3>
+                    <span class="badge" id="badgeOrphanCount">0</span>
                 </div>
-                <p class="desc-text">DBに存在しない不要な実ファイルや、実ファイルが見つからないリンク切れデータです。</p>
+                <p class="desc-text" data-i18n="Integrity.sec_orphan_desc">DBに存在しない不要な実ファイルや、実ファイルが見つからないリンク切れデータです。</p>
                 <div class="result-box" id="boxOrphanFiles"></div>
             </section>
         </div>

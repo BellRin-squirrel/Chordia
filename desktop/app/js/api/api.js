@@ -17,6 +17,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const wanStatusBadge = document.getElementById('wanStatusBadge');
     const wanInfoBox = document.getElementById('wanInfoBox');
     const displayWanUrl = document.getElementById('displayWanUrl');
+    const displayIp = document.getElementById('displayIp');
+    const wanQrDesc = document.getElementById('wanQrDesc');
+
+    if (displayIp) {
+        displayIp.textContent = window.i18n ? window.i18n.t('Sync.loading_ip') : "取得中...";
+    }
+    if (wanQrDesc && window.i18n) {
+        wanQrDesc.innerHTML = window.i18n.t('Sync.wan_qr_desc');
+    }
 
     function generateWanQrCode(url) {
         const container = document.getElementById('wan-qrcode-container');
@@ -33,49 +42,61 @@ document.addEventListener('DOMContentLoaded', async () => {
             isWanEnabled = e.target.checked;
             
             if (isWanEnabled) {
-                wanStatusBadge.textContent = "● WAN接続モード: ON (トンネル構築中...)";
+                wanStatusBadge.textContent = window.i18n ? window.i18n.t('Sync.wan_status_building') : "● WAN接続モード: ON (トンネル構築中...)";
                 wanStatusBadge.style.color = "#f59e0b";
                 if (wanInfoBox) wanInfoBox.style.display = "block";
-                if (displayWanUrl) displayWanUrl.textContent = "トンネル構築中...";
+                if (displayWanUrl) displayWanUrl.textContent = window.i18n ? window.i18n.t('Sync.wan_tunnel_building') : "トンネル構築中...";
                 document.getElementById('wanQrWrapper').style.display = 'none';
 
                 try {
                     const url = await invoke("toggle_wan_mode", { enable: true, port: parseInt(globalPort) });
                     currentWanUrl = url;
-                    wanStatusBadge.textContent = "● WAN接続モード: ON (有効・待機中)";
+                    wanStatusBadge.textContent = window.i18n ? window.i18n.t('Sync.wan_status_on') : "● WAN接続モード: ON (有効・待機中)";
                     wanStatusBadge.style.color = "#10b981";
                     if (displayWanUrl) displayWanUrl.textContent = url;
-                    showToast("WAN モードを有効化しました");
+                    showToast(window.i18n ? window.i18n.t('Sync.toast_wan_enabled') : "WAN モードを有効化しました");
                     
                     generateWanQrCode(url);
                 } catch(err) {
-                    showToast(err);
+                    let errMsg = err;
+                    if (typeof err === 'string') {
+                        if (err.startsWith('ERR_CLOUDFLARED_START')) {
+                            const parts = err.split(':');
+                            const bin = parts[1] || 'cloudflared';
+                            errMsg = window.i18n ? window.i18n.t('Sync.err_cloudflared_start', { bin: bin }) : `cloudflared の起動に失敗しました (${bin})`;
+                        } else if (err === 'ERR_CLOUDFLARED_TIMEOUT') {
+                            errMsg = window.i18n ? window.i18n.t('Sync.err_cloudflared_timeout') : "Cloudflare Tunnel の URL 取得にタイムアウトしました。";
+                        }
+                    }
+                    showToast(errMsg);
                     wanToggle.checked = false;
                     isWanEnabled = false;
-                    wanStatusBadge.textContent = "● WAN接続モード: OFF (無効)";
+                    wanStatusBadge.textContent = window.i18n ? window.i18n.t('Sync.wan_status_off') : "● WAN接続モード: OFF (無効)";
                     wanStatusBadge.style.color = "#ef4444";
                     if (wanInfoBox) wanInfoBox.style.display = "none";
                 }
             } else {
-                wanStatusBadge.textContent = "● WAN接続モード: OFF (無効)";
+                wanStatusBadge.textContent = window.i18n ? window.i18n.t('Sync.wan_status_off') : "● WAN接続モード: OFF (無効)";
                 wanStatusBadge.style.color = "#ef4444";
                 if (wanInfoBox) wanInfoBox.style.display = "none";
                 currentWanUrl = null;
                 
                 await invoke("toggle_wan_mode", { enable: false, port: 0 });
-                showToast("WAN モードを無効化しました");
+                showToast(window.i18n ? window.i18n.t('Sync.toast_wan_disabled') : "WAN モードを無効化しました");
             }
         });
     }
 
     await listen('notify_auth_request', (event) => {
         const data = event.payload; 
-        showToast(`接続要求: ${data.device} からのリクエスト`);
+        const msg = window.i18n ? window.i18n.t('Sync.toast_auth_request', { device: data.device }) : `接続要求: ${data.device} からのリクエスト`;
+        showToast(msg);
         addRequestItem(data);
     });
 
     await listen('notify_auth_success', (event) => {
-        showToast(`ペアリング完了: ${event.payload.device} と接続されました`);
+        const msg = window.i18n ? window.i18n.t('Sync.toast_auth_success', { device: event.payload.device }) : `ペアリング完了: ${event.payload.device} と接続されました`;
+        showToast(msg);
         loadSessions();
         
         for (const [id, reqData] of Object.entries(pendingRequests)) { reqData.element.remove(); }
@@ -118,8 +139,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const seconds = Math.ceil(timeLeftMs / 1000);
-            const timer = document.getElementById('codeTimer');
-            if (timer) timer.textContent = seconds;
+            const countdownTextDisplay = document.getElementById('countdownTextDisplay');
+            if (countdownTextDisplay && window.i18n) {
+                countdownTextDisplay.innerHTML = window.i18n.t('Sync.countdown_text', { sec: `<span id="codeTimer">${seconds}</span>` });
+            } else {
+                const timer = document.getElementById('codeTimer');
+                if (timer) timer.textContent = seconds;
+            }
 
             const progress = (timeLeftMs / timerDuration) * 100;
             const barFill = document.getElementById('codeProgressBar');
@@ -136,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('displayIp').textContent = globalIp;
         document.getElementById('displayPort').textContent = globalPort;
     } catch(e) {
-        showToast("サーバーの起動に失敗しました");
+        showToast(window.i18n ? window.i18n.t('Sync.toast_server_error') : "サーバーの起動に失敗しました");
         console.error(e);
     }
 
@@ -148,6 +174,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             pendingRequests[req.id].element.remove();
         }
         
+        const btnRejectText = window.i18n ? window.i18n.t('Sync.btn_reject') : "拒否";
+        const btnApproveText = window.i18n ? window.i18n.t('Sync.btn_approve') : "許可";
+
         const li = document.createElement('li');
         li.className = 'request-item';
         li.innerHTML = `
@@ -156,8 +185,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <small style="color:var(--text-sub);">${u.escapeHtml(req.ip)} (${u.escapeHtml(req.os)})</small>
             </div>
             <div class="request-actions">
-                <button class="btn-reject" onclick="window.handleRequest('${req.id}', false)">拒否</button>
-                <button class="btn-approve" onclick="window.handleRequest('${req.id}', true)">許可</button>
+                <button class="btn-reject" onclick="window.handleRequest('${req.id}', false)">${btnRejectText}</button>
+                <button class="btn-approve" onclick="window.handleRequest('${req.id}', true)">${btnApproveText}</button>
             </div>
         `;
         list.appendChild(li);
@@ -187,16 +216,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('noWaitingCodeMsg').style.display = 'none';
         const list = document.getElementById('waitingCodeList');
 
+        const labelWaiting = window.i18n ? window.i18n.t('Sync.label_waiting_code') : "コード入力待ち...";
+        const btnCancelText = window.i18n ? window.i18n.t('Sync.btn_cancel_approval') : "取り消し";
+
         const li = document.createElement('li');
         li.className = 'request-item';
         li.style.borderColor = 'var(--text-sub)'; 
         li.innerHTML = `
             <div class="request-info">
                 <strong style="font-size:1.1rem; color:var(--text-main);">${u.escapeHtml(req.device)}</strong><br>
-                <small style="color:var(--text-sub);">${u.escapeHtml(req.ip)} (コード入力待ち...)</small>
+                <small style="color:var(--text-sub);">${u.escapeHtml(req.ip)} (${labelWaiting})</small>
             </div>
             <div class="request-actions">
-                <button class="btn-reject" onclick="window.handleRequest('${req.id}', false)">取り消し</button>
+                <button class="btn-reject" onclick="window.handleRequest('${req.id}', false)">${btnCancelText}</button>
             </div>
         `;
         list.appendChild(li);
@@ -230,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('btnShowQr').onclick = () => {
         if (!globalPort || globalPort === 0) {
-            showToast("ポートの取得を待っています...");
+            showToast(window.i18n ? window.i18n.t('Sync.toast_waiting_port') : "ポートの取得を待っています...");
             return;
         }
 
@@ -248,19 +280,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sessions = await invoke("get_active_sessions");
         const list = document.getElementById('sessionsList');
         if (sessions.length === 0) {
-            list.innerHTML = '<li class="no-sessions">接続中のデバイスはありません。</li>';
+            const noSessionsText = window.i18n ? window.i18n.t('Sync.no_sessions') : "接続中のデバイスはありません。";
+            list.innerHTML = `<li class="no-sessions">${noSessionsText}</li>`;
             return;
         }
         list.innerHTML = "";
+        const btnDisconnectText = window.i18n ? window.i18n.t('Sync.btn_disconnect') : "切断";
+
         sessions.forEach(s => {
             const li = document.createElement('li');
             li.className = 'session-item';
+            const remainingMsg = window.i18n 
+                ? window.i18n.t('Sync.label_remaining_time', { min: Math.floor(s.remaining / 60), sec: s.remaining % 60 })
+                : `最終アクセス: 残り${Math.floor(s.remaining / 60)}分${s.remaining % 60}秒`;
+
             li.innerHTML = `
                 <div class="session-info">
                     <strong style="color:var(--text-main); font-size:1.05rem;">${u.escapeHtml(s.device)}</strong><br>
-                    <small style="color:var(--text-sub);">${s.ip} - 最終アクセス: 残り${Math.floor(s.remaining / 60)}分${s.remaining % 60}秒</small>
+                    <small style="color:var(--text-sub);">${s.ip} - ${remainingMsg}</small>
                 </div>
-                <button class="btn-disconnect" onclick="terminateSession('${s.ip}', '${u.escapeHtml(s.device)}')">切断</button>
+                <button class="btn-disconnect" onclick="terminateSession('${s.ip}', '${u.escapeHtml(s.device)}')">${btnDisconnectText}</button>
             `;
             list.appendChild(li);
         });
@@ -286,7 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 4000);
     }
 
-    const u = { escapeHtml: (str) => str.replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) };
+    const u = { escapeHtml: (str) => str ? String(str).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '' };
 
     window.onbeforeunload = () => { 
         invoke("toggle_wan_mode", { enable: false, port: 0 });

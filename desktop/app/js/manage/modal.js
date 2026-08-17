@@ -5,7 +5,6 @@
 
     window.ModalController = {
         init: function() {
-            // 単体編集用のイベントバインディング
             document.getElementById('btnCancelLyric').onclick = () => document.getElementById('lyricModal').classList.remove('show');
             document.getElementById('btnCloseLyricModalX').onclick = () => document.getElementById('lyricModal').classList.remove('show');
             document.getElementById('btnCancelArt').onclick = () => document.getElementById('artModal').classList.remove('show');
@@ -22,7 +21,7 @@
                 });
                 if (success) {
                     item.lyric = text;
-                    u.showToast("歌詞を保存しました", false);
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_lyric_saved') : "歌詞を保存しました", false);
                     document.getElementById('lyricModal').classList.remove('show');
                     window.TableController.renderTable();
                 }
@@ -54,7 +53,7 @@
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     s.newArtBase64 = ev.target.result;
-                    this.updatePreviewImage(ev.target.result, "新しい画像 (反映前)");
+                    this.updatePreviewImage(ev.target.result, window.i18n ? window.i18n.t('Manage.art_status_new') : "新しい画像 (反映前)");
                     this.showArtError("");
                 };
                 reader.readAsDataURL(file);
@@ -63,52 +62,51 @@
             document.getElementById('btnFetchVideoArt').onclick = async () => {
                 const url = document.getElementById('miniVideoUrl').value.trim();
                 this.showArtError("");
-                if (!url) { this.showArtError("URLを入力してください"); return; }
+                if (!url) { this.showArtError(window.i18n ? window.i18n.t('Manage.msg_enter_url') : "URLを入力してください"); return; }
                 const btn = document.getElementById('btnFetchVideoArt');
                 const orgText = btn.textContent;
-                btn.disabled = true; btn.textContent = "確認中...";
+                btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
                 try {
                     const status = await invoke("check_tools_status"); 
                     if (!status['yt-dlp'] || !status['ffmpeg']) {
-                        this.showArtError("拡張機能が不足しています");
+                        this.showArtError(window.i18n ? window.i18n.t('Manage.msg_ext_missing') : "拡張機能が不足しています");
                         return;
                     }
-                    btn.textContent = "取得中...";
+                    btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                     const info = await invoke("fetch_video_info", { url: url });
                     if (info.status === 'success' && info.thumbnail) {
-                        btn.textContent = "画像を変換中...";
                         const b64 = await invoke("fetch_and_crop_thumbnail", { url: info.thumbnail });
                         if (b64) {
                             s.newArtBase64 = b64;
-                            this.updatePreviewImage(b64, "動画サムネイル (反映前)");
-                            u.showToast("サムネイルを取得しました");
-                        } else { this.showArtError("画像の加工に失敗しました"); }
-                    } else { this.showArtError(info.message || "動画情報の取得に失敗しました"); }
-                } catch(e) { this.showArtError("エラーが発生しました"); }
+                            this.updatePreviewImage(b64, window.i18n ? window.i18n.t('Manage.art_status_thumb') : "動画サムネイル (反映前)");
+                            u.showToast(window.i18n ? window.i18n.t('Manage.msg_art_fetch_success') : "サムネイルを取得しました");
+                        } else { this.showArtError("Failed to crop image"); }
+                    } else { this.showArtError(info.message || "Failed to fetch info"); }
+                } catch(e) { this.showArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "エラーが発生しました"); }
                 finally { btn.disabled = false; btn.textContent = orgText; }
             };
 
             document.getElementById('btnFetchDirectArt').onclick = async () => {
                 const url = document.getElementById('miniImageUrl').value.trim();
                 this.showArtError("");
-                if (!url) { this.showArtError("URLを入力してください"); return; }
+                if (!url) { this.showArtError(window.i18n ? window.i18n.t('Manage.msg_enter_url') : "URLを入力してください"); return; }
                 const btn = document.getElementById('btnFetchDirectArt');
                 const orgText = btn.textContent;
-                btn.disabled = true; btn.textContent = "取得中...";
+                btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                 try {
                     const res = await invoke("fetch_and_crop_image_url", { url: url });
                     if (res.status === 'success') {
                         s.newArtBase64 = res.data;
-                        this.updatePreviewImage(res.data, "画像URL (反映前)");
-                        u.showToast("画像を取得しました");
-                    } else { this.showArtError("取得失敗: " + res.message); }
-                } catch(e) { this.showArtError("通信エラーが発生しました"); }
+                        this.updatePreviewImage(res.data, window.i18n ? window.i18n.t('Manage.art_status_url') : "画像URL (反映前)");
+                        u.showToast(window.i18n ? window.i18n.t('Manage.msg_img_fetch_success') : "画像を取得しました");
+                    } else { this.showArtError("Fetch failed: " + res.message); }
+                } catch(e) { this.showArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラーが発生しました"); }
                 finally { btn.disabled = false; btn.textContent = orgText; }
             };
 
             document.getElementById('btnExecRemoveArt').onclick = () => {
                 s.newArtBase64 = "REMOVE";
-                this.updatePreviewImage(s.DEFAULT_ICON, "削除予定 (反映前)");
+                this.updatePreviewImage(s.DEFAULT_ICON, window.i18n ? window.i18n.t('Manage.art_status_remove') : "削除予定 (反映前)");
                 this.showArtError("");
             };
 
@@ -117,8 +115,11 @@
                 const originalText = btn.textContent;
                 const item = s.libraryData[s.editingIndex];
                 if (!item) return;
-                if (s.newArtBase64 === null) { u.showToast("画像を選択または取得してください", true); return; }
-                btn.disabled = true; btn.textContent = "適用中...";
+                if (s.newArtBase64 === null) { 
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_select_songs_prompt') : "画像を選択してください", true); 
+                    return; 
+                }
+                btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "適用中...";
                 try {
                     const isRemove = (s.newArtBase64 === "REMOVE");
                     const b64 = isRemove ? null : s.newArtBase64;
@@ -128,10 +129,10 @@
                         remove: isRemove 
                     });
                     if (success) {
-                        u.showToast("アートワークを更新しました", false);
+                        u.showToast(window.i18n ? window.i18n.t('Manage.msg_art_updated') : "アートワークを更新しました", false);
                         document.getElementById('artModal').classList.remove('show');
                         await window.TableController.loadTableData();
-                    } else { this.showArtError("DB更新に失敗しました"); }
+                    } else { this.showArtError(window.i18n ? window.i18n.t('Manage.msg_db_update_failed') : "DB更新に失敗しました"); }
                 } catch (e) { this.showArtError("保存中に例外が発生しました"); }
                 finally { btn.disabled = false; btn.textContent = originalText; }
             };
@@ -140,18 +141,16 @@
                 const item = s.libraryData[s.editingIndex];
                 const success = await invoke("delete_song_by_id", { musicFilename: item.musicFilename });
                 if (success) {
-                    u.showToast("削除しました", false);
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_deleted') : "削除しました", false);
                     document.getElementById('deleteModal').classList.remove('show');
                     window.TableController.loadTableData();
                 }
             };
 
-            // ★ 修正：分割された高度な検索および一括変更モジュールの初期化を実行
             if (window.AdvancedSearchController) window.AdvancedSearchController.init();
             if (window.BulkEditController) window.BulkEditController.init();
         },
 
-        // ★ 修正：一括変更・一括削除は BulkEditController 側へ移譲 (main.jsなどの互換性維持用のファサード)
         openBulkEditModal: function() {
             if (window.BulkEditController) window.BulkEditController.open();
         },
@@ -194,7 +193,7 @@
             s.newArtBase64 = null; 
             this.showArtError(""); 
             const item = s.libraryData[index];
-            this.updatePreviewImage(item.imageData || s.DEFAULT_ICON, "現在の画像");
+            this.updatePreviewImage(item.imageData || s.DEFAULT_ICON, window.i18n ? window.i18n.t('Manage.art_status_current') : "現在の画像");
             document.getElementById('miniVideoUrl').value = '';
             document.getElementById('miniImageUrl').value = '';
             const defaultTab = document.querySelector('.art-mini-tab-btn[data-target="art-mini-local"]');
@@ -211,18 +210,28 @@
 
         searchLyrics: async function() {
             const item = s.libraryData[s.editingIndex];
-            if (!item.title || !item.artist) { u.showToast("タイトルとアーティストが必要です", true); return; }
+            if (!item.title || !item.artist) { 
+                u.showToast("タイトルとアーティストが必要です", true); 
+                return; 
+            }
             const btn = document.getElementById('btnAutoLyricManage');
             const originalText = btn.textContent;
-            btn.textContent = "検索中..."; btn.disabled = true;
+            btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "検索中..."; 
+            btn.disabled = true;
             try {
                 const data = await invoke("search_lyrics_online", { title: item.title, artist: item.artist });
-                if (data.statusCode === 404 || data.error) { u.showToast("見つかりませんでした", true); return; }
-                if (!Array.isArray(data) || data.length === 0) { u.showToast("見つかりませんでした", true); return; }
+                if (data.statusCode === 404 || data.error) { 
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_not_found') : "見つかりませんでした", true); 
+                    return; 
+                }
+                if (!Array.isArray(data) || data.length === 0) { 
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_not_found') : "見つかりませんでした", true); 
+                    return; 
+                }
 
                 const filtered = data.filter(d => d.plainLyrics);
                 if (filtered.length === 0) {
-                    u.showToast("見つかりませんでした", true);
+                    u.showToast(window.i18n ? window.i18n.t('Manage.msg_not_found') : "見つかりませんでした", true);
                 } else {
                     const list = document.getElementById('lyricResultListManage');
                     list.innerHTML = '';
@@ -248,7 +257,7 @@
                     document.getElementById('lyricSearchDetailViewManage').style.display = 'none';
                     document.getElementById('lyricSearchModalManage').classList.add('show');
                 }
-            } catch(e) { u.showToast("通信エラーが発生しました", true); }
+            } catch(e) { u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラーが発生しました", true); }
             finally { btn.textContent = originalText; btn.disabled = false; }
         }
     };

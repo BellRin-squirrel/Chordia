@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="css/api/api.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
     <style>
-        /* ★ WAN トグルスイッチ用のスタイル定義 */
         .switch-toggle {
             position: relative;
             display: inline-block;
@@ -53,38 +53,37 @@
 <body class="sync-body">
     <div class="container">
         <header class="header form-header">
-            <h1>同期設定</h1>
+            <h1 data-i18n="Sync.title">同期設定</h1>
         </header>
 
         <!-- WAN (HTTPS トンネル) 安全切り替えパネル -->
         <div class="card-large" style="margin-bottom: 20px; padding: 20px; border-left: 4px solid var(--accent-color, #4f46e5);">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div style="padding-right: 15px;">
-                    <h2 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">外出先 (WAN) 接続モード</h2>
-                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-sub);">
+                    <h2 style="margin: 0; font-size: 1.1rem; color: var(--text-main);" data-i18n="Sync.wan_title">外出先 (WAN) 接続モード</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: var(--text-sub);" data-i18n="Sync.wan_desc">
                         安全なHTTPSトンネルを構築し、インターネット越しでの同期を許可します。
                     </p>
                 </div>
-                <!-- ★ 正しく描画されるトグルスイッチ -->
                 <label class="switch-toggle">
                     <input type="checkbox" id="wanToggle">
                     <span class="toggle-slider" id="wanSlider"></span>
                 </label>
             </div>
             
-            <div id="wanStatusBadge" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold; color: #ef4444;">
+            <div id="wanStatusBadge" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold; color: #ef4444;" data-i18n="Sync.wan_status_off">
                 ● WAN接続モード: OFF (無効)
             </div>
 
             <div id="wanInfoBox" style="display: none; margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.05); border-radius: 8px;">
-                <span style="font-size: 0.8rem; color: var(--text-sub);">WAN パブリック URL:</span><br>
-                <strong id="displayWanUrl" style="font-size: 1.1rem; color: var(--accent-color, #4f46e5); font-family: monospace;">トンネル構築中...</strong>
+                <span style="font-size: 0.8rem; color: var(--text-sub);" data-i18n="Sync.wan_url_label">WAN パブリック URL:</span><br>
+                <strong id="displayWanUrl" style="font-size: 1.1rem; color: var(--accent-color, #4f46e5); font-family: monospace;">...</strong>
                 
                 <div id="wanQrWrapper" style="display: none; margin-top: 15px; text-align: center;">
                     <div class="qr-bg-white" style="display: inline-block; padding: 10px; border-radius: 8px;">
                         <div id="wan-qrcode-container"></div>
                     </div>
-                    <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 5px; font-weight: bold;">
+                    <p style="font-size: 0.8rem; color: var(--text-sub); margin-top: 5px; font-weight: bold;" id="wanQrDesc">
                         スマホの「QRコードで自動接続」で読み取ってください<br>
                         (※WAN接続のため、6桁の認証コードはセキュリティ上「手入力」になります)
                     </p>
@@ -96,11 +95,11 @@
             <div id="viewMain">
                 <div class="connection-info-grid">
                     <div class="info-box">
-                        <span class="info-label">IPアドレス (LAN用)</span>
-                        <span class="info-value" id="displayIp">取得中...</span>
+                        <span class="info-label" data-i18n="Sync.ip_label">IPアドレス (LAN用)</span>
+                        <span class="info-value" id="displayIp">...</span>
                     </div>
                     <div class="info-box">
-                        <span class="info-label">ポート番号</span>
+                        <span class="info-label" data-i18n="Sync.port_label">ポート番号</span>
                         <span class="info-value" id="displayPort">----</span>
                     </div>
                 </div>
@@ -109,10 +108,10 @@
                 
                 <div class="sync-interactive-grid">
                     <div class="interactive-panel code-panel">
-                        <p class="panel-desc">以下の認証コードをスマホアプリに入力してください</p>
+                        <p class="panel-desc" data-i18n="Sync.auth_code_desc">以下の認証コードをスマホアプリに入力してください</p>
                         <div class="auth-code-large" id="authCodeDisplay">------</div>
                         <div class="countdown-container">
-                            <div class="countdown-text">更新まであと <span id="codeTimer">30</span> 秒</div>
+                            <div class="countdown-text" id="countdownTextDisplay">更新まであと <span id="codeTimer">30</span> 秒</div>
                             <div class="progress-bar-container">
                                 <div id="codeProgressBar" class="progress-bar-fill"></div>
                             </div>
@@ -120,16 +119,16 @@
                     </div>
 
                     <div class="interactive-panel qr-panel">
-                        <p class="panel-desc">または、カメラでQRコードを読み取ります</p>
+                        <p class="panel-desc" data-i18n="Sync.qr_desc">または、カメラでQRコードを読み取ります</p>
                         <div class="qr-interactive-area">
                             <div id="qr-placeholder" class="qr-placeholder-btn-wrapper">
-                                <button class="btn-primary" id="btnShowQr">LAN用 QRコードを表示</button>
+                                <button class="btn-primary" id="btnShowQr" data-i18n="Sync.btn_show_qr">LAN用 QRコードを表示</button>
                             </div>
                             <div id="qr-wrapper" style="display:none;" class="qr-display-wrapper">
                                 <div class="qr-bg-white">
                                     <div id="qrcode-container"></div>
                                 </div>
-                                <button class="btn-secondary btn-hide-qr" id="btnHideQr">QRコードを隠す</button>
+                                <button class="btn-secondary btn-hide-qr" id="btnHideQr" data-i18n="Sync.btn_hide_qr">QRコードを隠す</button>
                             </div>
                         </div>
                     </div>
@@ -138,23 +137,23 @@
         </div>
 
         <div class="requests-container">
-            <h2>接続リクエスト（許可待ち）</h2>
+            <h2 data-i18n="Sync.requests_title">接続リクエスト（許可待ち）</h2>
             <ul id="requestsList">
-                <li class="no-sessions" id="noRequestsMsg">現在リクエストはありません</li>
+                <li class="no-sessions" id="noRequestsMsg" data-i18n="Sync.no_requests">現在リクエストはありません</li>
             </ul>
         </div>
 
         <div class="requests-container">
-            <h2>認証コード入力待ち</h2>
+            <h2 data-i18n="Sync.waiting_code_title">認証コード入力待ち</h2>
             <ul id="waitingCodeList">
-                <li class="no-sessions" id="noWaitingCodeMsg">現在コード入力待ちの端末はありません</li>
+                <li class="no-sessions" id="noWaitingCodeMsg" data-i18n="Sync.no_waiting_code">現在コード入力待ちの端末はありません</li>
             </ul>
         </div>
 
         <div class="sessions-container">
-            <h2>接続済みのセッション（同期中）</h2>
+            <h2 data-i18n="Sync.sessions_title">接続済みのセッション（同期中）</h2>
             <ul id="sessionsList">
-                <li class="no-sessions">接続中のデバイスはありません。</li>
+                <li class="no-sessions" data-i18n="Sync.no_sessions">接続中のデバイスはありません。</li>
             </ul>
         </div>
     </div>
