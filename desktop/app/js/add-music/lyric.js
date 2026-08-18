@@ -29,7 +29,7 @@ window.LyricController = {
             
             modal.classList.remove('show');
             setTimeout(() => modal.style.display = 'none', 300);
-            u.showToast("歌詞を適用しました", false);
+            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_lyric_applied') : "歌詞を適用しました", false);
         };
     },
 
@@ -44,35 +44,33 @@ window.LyricController = {
         const title = titleEl ? titleEl.value.trim() : "";
         const artist = artistEl ? artistEl.value.trim() : "";
 
+        // ★ 修正: 多言語メッセージ取得
         if (!title || !artist) { 
-            u.showToast("タイトルとアーティストを入力してください", true); 
+            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_title_artist_required') : "タイトルとアーティストを入力してください", true); 
             return; 
         }
 
         const orgText = btn.textContent;
-        btn.textContent = "検索中...";
+        btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "検索中...";
         btn.disabled = true;
 
         try {
-            // ★ 修正：Rustのコマンドを経由して安全にAPIアクセスを行う
             const data = await invoke("search_lyrics_online", { title: title, artist: artist });
             
-            // API側で「見つからない(404)」等のエラーレスポンスが返ってきた場合
             if (data.statusCode === 404 || data.error) {
-                u.showToast("見つかりませんでした", true);
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
                 return;
             }
 
-            // 配列でないか、空っぽの場合
             if (!Array.isArray(data) || data.length === 0) {
-                u.showToast("見つかりませんでした", true);
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
                 return;
             }
 
             const validData = data.filter(item => item.plainLyrics);
             
             if (validData.length === 0) {
-                u.showToast("見つかりませんでした", true);
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
             } else {
                 this.renderResults(validData);
                 const modal = document.getElementById('lyricSearchModal');
@@ -83,7 +81,7 @@ window.LyricController = {
             }
         } catch (e) {
             console.error(e);
-            u.showToast("通信エラーが発生しました", true);
+            u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラーが発生しました", true);
         } finally {
             btn.textContent = orgText;
             btn.disabled = false;

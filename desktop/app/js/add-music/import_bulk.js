@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         }
                     } else {
-                        u.showToast("ZIP形式 (.zip) のファイルを選択してください", true);
+                        u.showToast(window.i18n ? window.i18n.t('Migration.toast_zip_required') : "ZIP形式 (.zip) のファイルを選択してください", true);
                     }
                 } else if (activeTarget === 'tab-jsoncsv' || importMode === 'list') {
                     if (fileName.toLowerCase().endsWith('.json') || fileName.toLowerCase().endsWith('.csv')) {
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 const file = new File([blob], fileName, { type: mime });
                                 handleListFile(file);
                             } catch(e) {
-                                console.error("Native drop file fetch failed:", e);
+                                console.error("Native drop load failed:", e);
                             }
                         }
                     }
@@ -187,7 +187,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     scannedData = res.data;
                     renderTable('list');
                     if (importListResultSection) importListResultSection.style.display = 'block';
-                } else { u.showAlert("エラー", res.message); }
+                } else { 
+                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message); 
+                }
             };
             reader.readAsText(file);
         };
@@ -216,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function handleZipFile(file) {
         if (!file) return;
         if (!file.name.toLowerCase().endsWith('.zip')) {
-            u.showToast("ZIP形式 (.zip) のファイルを選択してください", true);
+            u.showToast(window.i18n ? window.i18n.t('Migration.toast_zip_required') : "ZIP形式 (.zip) のファイルを選択してください", true);
             return;
         }
         if (zipFileName) zipFileName.textContent = file.name;
@@ -247,12 +249,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const file = window._selectedZipFile;
             if (!file) return;
 
-            // ★ 要求仕様: ボタンを押した「その瞬間」に非表示にする
             const zipScanSection = document.getElementById('zipScanSection');
             if (zipScanSection) zipScanSection.style.display = 'none';
             
             if (progressArea) progressArea.style.display = 'block';
-            if (progressText) progressText.textContent = "ZIPファイルをスキャン中...";
+            if (progressText) progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_scanning_zip') : "ZIPファイルをスキャン中...";
             
             try {
                 const base64Data = await new Promise((resolve) => {
@@ -273,13 +274,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     scannedData = res.data;
                     renderTable('zip');
                     if(zipResultSection) zipResultSection.style.display = 'block';
+
+                    if (zipScanSection) zipScanSection.style.display = 'none';
                 } else {
                     if (zipScanSection) zipScanSection.style.display = 'block';
-                    u.showAlert("エラー", res.message || "スキャンに失敗しました");
+                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message || (window.i18n ? window.i18n.t('Common.error') : "スキャンに失敗しました"));
                 }
             } catch(err) {
                 if (zipScanSection) zipScanSection.style.display = 'block';
-                u.showAlert("エラー", "ZIP解析中にエラーが発生しました: " + err);
+                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", "ZIP解析中にエラーが発生しました: " + err);
             } finally {
                 const pModal = document.getElementById('passwordModal');
                 const isPassVisible = pModal && pModal.classList.contains('show');
@@ -302,7 +305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnSubmitPass').onclick = async () => {
         const passVal = document.getElementById('zipPassword').value;
         if (passVal.length > 128) {
-            u.showToast("パスワードは128文字以内にしてください", true);
+            u.showToast(window.i18n ? window.i18n.t('Migration.toast_pass_too_long') : "パスワードは128文字以内にしてください", true);
             return;
         }
         currentZipPassword = passVal;
@@ -314,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const file = window._selectedZipFile;
         if (progressArea) {
             progressArea.style.display = 'block';
-            progressText.textContent = "ZIPファイルを解析中...";
+            progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_analyzing_zip') : "ZIPファイルを解析中...";
         }
 
         const zipScanSection = document.getElementById('zipScanSection');
@@ -331,13 +334,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scannedData = res.data;
                 renderTable('zip');
                 if(zipResultSection) zipResultSection.style.display = 'block';
+
+                if (zipScanSection) zipScanSection.style.display = 'none';
             } else {
                 if (zipScanSection) zipScanSection.style.display = 'block';
-                u.showAlert("エラー", res.message);
+                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message);
             }
         } catch(err) {
             if (zipScanSection) zipScanSection.style.display = 'block';
-            u.showAlert("エラー", "ZIP解析中にエラーが発生しました: " + err);
+            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", "ZIP解析中にエラーが発生しました: " + err);
         } finally {
             if (progressArea) progressArea.style.display = 'none';
         }
@@ -383,7 +388,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (validItems.length === 0) {
-            u.showToast("インポートする楽曲がありません", true);
+            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_no_songs_to_import') : "インポートする楽曲がありません", true);
             return;
         }
 
@@ -404,7 +409,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const artist = u.escapeHtml(item.artist);
 
             if (isExisting) {
-                msgEl.innerHTML = `「${title}」（${artist}）の楽曲はすでに追加されています。`;
+                msgEl.innerHTML = window.i18n 
+                    ? window.i18n.t('AddMusic.dup_existing_msg', { title: title, artist: artist }) 
+                    : `「${title}」（${artist}）の楽曲はすでに追加されています。`;
+
                 if (manageBtnArea) manageBtnArea.style.display = 'block';
                 if (btnManage) {
                     btnManage.onclick = async () => {
@@ -420,7 +428,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     };
                 }
             } else {
-                msgEl.innerHTML = `「${title}」（${artist}）の楽曲はインポートの項目内で重複しています。`;
+                msgEl.innerHTML = window.i18n 
+                    ? window.i18n.t('AddMusic.dup_bulk_msg', { title: title, artist: artist }) 
+                    : `「${title}」（${artist}）の楽曲はインポートの項目内で重複しています。`;
+
                 if (manageBtnArea) manageBtnArea.style.display = 'none';
             }
 
@@ -444,7 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function executeRegistration(type, dataList) {
         if (progressArea) progressArea.style.display = 'block';
-        if (progressText) progressText.textContent = "ライブラリへ登録中...";
+        if (progressText) progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_registering') : "ライブラリへ登録中...";
         
         let res;
         if (type === 'list') {
@@ -461,7 +472,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (progressArea) progressArea.style.display = 'none';
         if (res && res.status === 'success') {
-            u.showAlert("完了", `${res.count}曲の登録が完了しました。`);
+            // ★ 完了メッセージの多言語化
+            u.showAlert(
+                window.i18n ? window.i18n.t('Common.complete') : "完了", 
+                window.i18n ? window.i18n.t('AddMusic.msg_import_success', { count: res.count }) : `${res.count}曲の登録が完了しました。`
+            );
             if (type === 'list') {
                 const btnClearImportFile = document.getElementById('btnClearImportFile');
                 if(btnClearImportFile) btnClearImportFile.click();
@@ -469,18 +484,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if(btnClearZipFile) btnClearZipFile.click();
             }
         } else {
-            u.showAlert("エラー", res ? res.message : "不明なエラーが発生しました");
+            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res ? res.message : "不明なエラーが発生しました");
         }
     }
 
+    // ★ 修正: テーブルヘッダー、各行の削除ボタンを多言語化
     function renderTable(type) {
         const thead = document.getElementById(type === 'list' ? 'importListTableHeader' : 'mp3TableHeader');
         const tbody = document.getElementById(type === 'list' ? 'importListTableBody' : 'mp3TableBody');
         if(!thead || !tbody) return;
         
-        let h = `<tr><th>No.</th><th>アート</th><th>タイトル *</th><th>アーティスト *</th>`;
-        activeTags.forEach(t => { if(t.key !== 'title' && t.key !== 'artist') h += `<th>${t.label}</th>`; });
-        h += `<th>パス / ファイル名</th><th>操作</th></tr>`; 
+        const thNo = window.i18n ? window.i18n.t('AddMusic.th_no') : "No.";
+        const thArt = window.i18n ? window.i18n.t('AddMusic.th_art') : "アート";
+        const thTitle = (window.i18n ? window.i18n.t('Tags.title') : "タイトル") + " *";
+        const thArtist = (window.i18n ? window.i18n.t('Tags.artist') : "アーティスト") + " *";
+        const thPath = window.i18n ? window.i18n.t('AddMusic.th_path_filename') : "パス / ファイル名";
+        const thAction = window.i18n ? window.i18n.t('Manage.th_action') : "操作";
+        const btnDelText = window.i18n ? window.i18n.t('Common.delete') : "削除";
+
+        let h = `<tr><th>${thNo}</th><th>${thArt}</th><th>${thTitle}</th><th>${thArtist}</th>`;
+        activeTags.forEach(t => { 
+            if(t.key !== 'title' && t.key !== 'artist') {
+                const tagLabel = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${t.key}`) : t.label;
+                h += `<th>${tagLabel}</th>`; 
+            }
+        });
+        h += `<th>${thPath}</th><th>${thAction}</th></tr>`; 
         thead.innerHTML = h;
 
         tbody.innerHTML = '';
@@ -504,7 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="col-action">
                     <button class="btn-icon-action" onclick="window.openImportLyricModal(${idx})" title="歌詞を編集"><svg style="width:20px;height:20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></button>
                     <button class="btn-icon-action" onclick="window.openImportArtModal(${idx})" title="アートワークを変更"><svg style="width:20px;height:20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></button>
-                    <button class="btn-del-row" onclick="window.deleteImportRow(${idx}, '${type}')">削除</button>
+                    <button class="btn-del-row" onclick="window.deleteImportRow(${idx}, '${type}')">${btnDelText}</button>
                 </td>`;
             tr.innerHTML = row;
             tbody.appendChild(tr);
@@ -516,7 +545,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     window.deleteImportRow = (idx, type) => {
-        if (confirm("この楽曲をインポートリストから除外しますか？")) {
+        const confirmMsg = window.i18n ? window.i18n.t('AddMusic.confirm_remove_row') : "この楽曲を追加リストから除外しますか？";
+        if (confirm(confirmMsg)) {
             scannedData.splice(idx, 1);
             renderTable(type);
         }
@@ -538,7 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const modal = document.getElementById('importLyricModal');
         modal.classList.remove('show');
         setTimeout(() => modal.style.display = 'none', 300);
-        u.showToast("反映しました", false);
+        u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_applied') : "反映しました", false);
     };
 
     document.getElementById('btnCancelImportLyric').onclick = () => {
@@ -555,7 +585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         document.getElementById('importMiniVideoUrl').value = '';
         document.getElementById('importMiniImageUrl').value = '';
-        document.getElementById('importArtStatusText').textContent = "現在の画像";
+        document.getElementById('importArtStatusText').textContent = window.i18n ? window.i18n.t('Manage.art_status_current') : "現在の画像";
         
         const errEl = document.getElementById('importArtErrorDisplay');
         if (errEl) errEl.style.display = 'none';
@@ -588,7 +618,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             artPreview.src = ev.target.result;
-            document.getElementById('importArtStatusText').textContent = "新しい画像 (反映前)";
+            document.getElementById('importArtStatusText').textContent = window.i18n ? window.i18n.t('Manage.art_status_new') : "新しい画像 (反映前)";
             showImportArtError("");
         };
         reader.readAsDataURL(file);
@@ -597,57 +627,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnFetchImportVideoArt').onclick = async () => {
         const url = document.getElementById('importMiniVideoUrl').value.trim();
         showImportArtError("");
-        if (!url) { showImportArtError("URLを入力してください"); return; }
+        if (!url) { showImportArtError(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください"); return; }
 
         const btn = document.getElementById('btnFetchImportVideoArt');
         const orgText = btn.textContent;
-        btn.disabled = true; btn.textContent = "確認中...";
+        btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
 
         try {
             const status = await invoke("check_tools_status");
             if (!status['yt-dlp'] || !status['ffmpeg']) {
-                showImportArtError("拡張機能が不足しています");
+                showImportArtError(window.i18n ? window.i18n.t('AddMusic.msg_ext_needed') : "拡張機能が不足しています");
                 return;
             }
 
-            btn.textContent = "取得中...";
+            btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
             const info = await invoke("fetch_video_info", { url: url });
             if (info.status === 'success' && info.thumbnail) {
-                btn.textContent = "画像を変換中...";
+                btn.textContent = window.i18n ? window.i18n.t('AddMusic.loading_processing_thumb') : "画像を変換中...";
                 const b64 = await invoke("fetch_and_crop_thumbnail", { url: info.thumbnail });
                 if (b64) {
                     artPreview.src = b64;
-                    document.getElementById('importArtStatusText').textContent = "動画サムネイル (反映前)";
-                    u.showToast("サムネイルを取得しました");
-                } else { showImportArtError("画像加工に失敗しました"); }
-            } else { showImportArtError(info.message || "取得失敗"); }
-        } catch(e) { showImportArtError("通信エラー"); }
+                    document.getElementById('importArtStatusText').textContent = window.i18n ? window.i18n.t('Manage.art_status_thumb') : "動画サムネイル (反映前)";
+                    u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_fetch_success') : "サムネイルを取得しました");
+                } else { showImportArtError("Failed to crop image"); }
+            } else { showImportArtError(info.message || "Failed to fetch info"); }
+        } catch(e) { showImportArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラー"); }
         finally { btn.disabled = false; btn.textContent = orgText; }
     };
 
     document.getElementById('btnFetchImportDirectArt').onclick = async () => {
         const url = document.getElementById('importMiniImageUrl').value.trim();
         showImportArtError("");
-        if (!url) { showImportArtError("URLを入力してください"); return; }
+        if (!url) { showImportArtError(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください"); return; }
 
         const btn = document.getElementById('btnFetchImportDirectArt');
         const orgText = btn.textContent;
-        btn.disabled = true; btn.textContent = "取得中...";
+        btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
 
         try {
             const res = await invoke("fetch_and_crop_image_url", { url: url });
             if (res.status === 'success') {
                 artPreview.src = res.data;
-                document.getElementById('importArtStatusText').textContent = "画像URL (反映前)";
-                u.showToast("画像を取得しました");
-            } else { showImportArtError("取得失敗: " + res.message); }
-        } catch(e) { showImportArtError("エラー"); }
+                document.getElementById('importArtStatusText').textContent = window.i18n ? window.i18n.t('Manage.art_status_url') : "画像URL (反映前)";
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_fetch_success') : "画像を取得しました");
+            } else { showImportArtError("Fetch failed: " + res.message); }
+        } catch(e) { showImportArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "エラー"); }
         finally { btn.disabled = false; btn.textContent = orgText; }
     };
 
     document.getElementById('btnExecImportRemoveArt').onclick = () => {
         artPreview.src = "REMOVE";
-        document.getElementById('importArtStatusText').textContent = "削除予定 (反映前)";
+        document.getElementById('importArtStatusText').textContent = window.i18n ? window.i18n.t('Manage.art_status_remove') : "削除予定 (反映前)";
         showImportArtError("");
     };
 
@@ -673,23 +703,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnAutoImportLyric.onclick = async () => {
             const item = scannedData[currentEditIndex];
             if (!item || !item.title || !item.artist) {
-                u.showToast("タイトルとアーティストが必要です", true);
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_title_artist_required') : "タイトルとアーティストが必要です", true);
                 return;
             }
             const orgText = btnAutoImportLyric.textContent;
-            btnAutoImportLyric.textContent = "検索中...";
+            btnAutoImportLyric.textContent = window.i18n ? window.i18n.t('Common.loading') : "検索中...";
             btnAutoImportLyric.disabled = true;
 
             try {
                 const data = await invoke("search_lyrics_online", { title: item.title, artist: item.artist });
 
                 if (data.statusCode === 404 || data.error) {
-                    u.showToast("見つかりませんでした", true);
+                    u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
                     return;
                 }
 
                 if (!Array.isArray(data) || data.length === 0) {
-                    u.showToast("見つかりませんでした", true);
+                    u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
                     return;
                 }
 
@@ -711,10 +741,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('importLyricSearchModal').style.display = 'flex'; 
                     setTimeout(() => document.getElementById('importLyricSearchModal').classList.add('show'), 10);
                 } else {
-                    u.showToast("見つかりませんでした", true);
+                    u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "見つかりませんでした", true);
                 }
             } catch (e) {
-                u.showToast("通信エラーが発生しました", true);
+                u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラーが発生しました", true);
             } finally {
                 btnAutoImportLyric.textContent = orgText;
                 btnAutoImportLyric.disabled = false;

@@ -13,7 +13,6 @@
             this.playlistList = document.getElementById('playlistList');
             this.initCustomSelector();
 
-            // ★ 追加: ハンバーガーボタンとドロワーオーバーレイの制御
             const btnToggle = document.getElementById('btnToggleSidebar');
             const overlay = document.getElementById('sidebarOverlay');
             if (btnToggle && this.sidebar && overlay) {
@@ -32,7 +31,6 @@
                 };
                 overlay.onclick = () => closeDrawer();
 
-                // ウィンドウサイズが大画面（>=900px）へ戻った際に自動閉鎖
                 window.addEventListener('resize', () => {
                     if (window.innerWidth >= 900) {
                         closeDrawer();
@@ -93,7 +91,7 @@
                     s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
                     window.SidebarController.renderSidebar();
                 }
-                u.showToast("複製しました", false);
+                u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "複製しました", false);
             });
 
             setClick('menuDeletePlaylist', () => window.SidebarController.openDeleteModal(s.contextTargetIndex));
@@ -221,7 +219,6 @@
                         (newName) => this.finishRename(index, newName),
                         () => {
                             window.MainViewController.selectPlaylist(index);
-                            // 小画面時は自動でドロワーを閉じる
                             if (window.innerWidth < 900) {
                                 if (this.sidebar) this.sidebar.classList.remove('drawer-open');
                                 const overlay = document.getElementById('sidebarOverlay');
@@ -232,7 +229,9 @@
                             e.preventDefault(); e.stopPropagation(); s.contextTargetIndex = index;
                             const menuEditSongs = document.getElementById('menuEditSongs');
                             if (menuEditSongs) {
-                                menuEditSongs.textContent = pl.type === 'smart' ? "ルールを編集" : "曲を編集";
+                                menuEditSongs.textContent = pl.type === 'smart' 
+                                    ? (window.i18n ? window.i18n.t('Player.menu_edit_rules') : "ルールを編集") 
+                                    : (window.i18n ? window.i18n.t('Player.menu_edit_songs') : "曲を編集");
                             }
                             const menu = document.getElementById('playlistItemMenu');
                             if (menu) window.SidebarController.showContextMenu(menu, e.clientX, e.clientY);
@@ -254,7 +253,6 @@
                         null,
                         () => {
                             this.selectVirtualPlaylist(this.currentView, name);
-                            // 小画面時は自動でドロワーを閉じる
                             if (window.innerWidth < 900) {
                                 if (this.sidebar) this.sidebar.classList.remove('drawer-open');
                                 const overlay = document.getElementById('sidebarOverlay');
@@ -326,7 +324,10 @@
             li.innerHTML = iconSvg;
             const input = document.createElement('input');
             input.type='text'; 
-            input.value = type === 'smart' ? "新規スマートプレイリスト" : "新規プレイリスト"; 
+            input.value = type === 'smart' 
+                ? (window.i18n ? window.i18n.t('Player.menu_new_smart_pl') : "新規スマートプレイリスト") 
+                : (window.i18n ? window.i18n.t('Player.menu_new_pl') : "新規プレイリスト");
+                
             input.className='playlist-name-input';
             let cancelled=false;
             input.onblur=()=>{ if(!cancelled) window.SidebarController.finishCreate(input.value, type); };
@@ -347,7 +348,7 @@
                 this.renderSidebar();
                 window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === newPl.id));
             }
-            u.showToast("作成しました", false);
+            u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "作成しました", false);
         },
 
         finishRename: async function(index, newName) {
@@ -364,7 +365,7 @@
                 s.currentPlaylistIndex = newIdx;
                 this.renderSidebar();
             }
-            u.showToast("更新しました", false);
+            u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "更新しました", false);
         },
 
         showContextMenu: function(menu, x, y) {
@@ -398,7 +399,7 @@
             if (this.deleteTargetIndex === s.currentPlaylistIndex) s.currentPlaylistIndex = -1;
             s.playlists.splice(this.deleteTargetIndex, 1);
             this.renderSidebar();
-            u.showToast("削除しました", false);
+            u.showToast(window.i18n ? window.i18n.t('Manage.msg_deleted') : "削除しました", false);
         }
     };
 })();

@@ -21,12 +21,14 @@ window.TagsController = {
                 const group = document.createElement('div');
                 group.className = 'form-group';
                 
+                const labelText = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${tag.key}`) : tag.label;
+
                 const label = document.createElement('label');
                 label.htmlFor = `tag_${tag.key}`;
                 if (tag.key === 'title' || tag.key === 'artist') {
-                    label.innerHTML = `${tag.label} <span class="required">*</span>`;
+                    label.innerHTML = `${labelText} <span class="required">*</span>`;
                 } else {
-                    label.textContent = tag.label;
+                    label.textContent = labelText;
                 }
 
                 const inputWrapper = document.createElement('div');
@@ -43,7 +45,8 @@ window.TagsController = {
                     input.type = 'number'; input.min = "1";
                     if (tag.key === 'track') input.placeholder = "1";
                 } else {
-                    input.type = 'text'; input.placeholder = `${tag.label}を入力`;
+                    input.type = 'text'; 
+                    input.placeholder = labelText;
                 }
 
                 if (tag.key === 'title' || tag.key === 'artist') {

@@ -206,27 +206,25 @@ document.addEventListener('DOMContentLoaded', () => {
         list.forEach(item => {
             let reasonText = item.error_reason;
             if (window.i18n) {
-                if (item.error_reason.startsWith("ERR_LANG_KEYS_MISSING:")) {
-                    const details = item.error_reason.replace("ERR_LANG_KEYS_MISSING:", "");
-                    reasonText = window.i18n.t('Integrity.err_lang_keys_missing', { details: details });
-                } else {
-                    switch(item.error_reason) {
-                        case "ERR_OFFICIAL_LANG_MISSING":
-                            reasonText = window.i18n.t('Integrity.err_official_lang_missing');
-                            break;
-                        case "ERR_INI_SYNTAX":
-                            reasonText = window.i18n.t('Integrity.err_ini_syntax');
-                            break;
-                        case "ERR_JSON_SYNTAX":
-                            reasonText = window.i18n.t('Integrity.err_json_syntax');
-                            break;
-                        case "ERR_PLAYLIST_SYNTAX":
-                            reasonText = window.i18n.t('Integrity.err_playlist_syntax');
-                            break;
-                        case "ERR_FILE_READ":
-                            reasonText = window.i18n.t('Integrity.err_file_read');
-                            break;
-                    }
+                switch(item.error_reason) {
+                    case "ERR_OFFICIAL_LANG_MISSING":
+                        reasonText = window.i18n.t('Integrity.err_official_lang_missing');
+                        break;
+                    case "ERR_LANG_FILE_MODIFIED":
+                        reasonText = window.i18n.t('Integrity.err_lang_file_modified');
+                        break;
+                    case "ERR_INI_SYNTAX":
+                        reasonText = window.i18n.t('Integrity.err_ini_syntax');
+                        break;
+                    case "ERR_JSON_SYNTAX":
+                        reasonText = window.i18n.t('Integrity.err_json_syntax');
+                        break;
+                    case "ERR_PLAYLIST_SYNTAX":
+                        reasonText = window.i18n.t('Integrity.err_playlist_syntax');
+                        break;
+                    case "ERR_FILE_READ":
+                        reasonText = window.i18n.t('Integrity.err_file_read');
+                        break;
                 }
             }
             html += `<li><span class="status-err-text">${lblCorrupted}</span> <strong>${escapeHtml(item.filepath)}</strong> (${escapeHtml(reasonText)})</li>`;

@@ -21,6 +21,11 @@ window.ArtworkController = {
         const displayVal = document.getElementById('artMethodValue');
         const contents = document.querySelectorAll('.art-tab-content');
 
+        // ★ 初期選択言語のラベルを多言語辞書からセット
+        if (displayVal && window.i18n) {
+            displayVal.textContent = window.i18n.t('AddMusic.art_opt_local');
+        }
+
         if (trigger && dropdown) {
             trigger.onclick = (e) => {
                 e.stopPropagation();
@@ -31,18 +36,19 @@ window.ArtworkController = {
                 opt.onclick = (e) => {
                     e.stopPropagation();
                     const target = opt.dataset.target;
-                    const label = opt.querySelector('span').textContent;
+                    const optKey = target.replace('art-', 'art_opt_');
+                    const label = (window.i18n && window.i18n.t) ? window.i18n.t(`AddMusic.${optKey}`) : opt.querySelector('span').textContent;
                     const srcCtrl = window.SourceController;
 
                     if (target === 'art-thumb1') {
                         if (!srcCtrl || srcCtrl.getSourceType() !== 'download' || !srcCtrl.getVideoInfo()) {
-                            u.showAlert("動画情報を取得していないため、元のサムネイルは利用できません。\n音源の設定で「動画ダウンロード」を選択し、URLから情報を取得してください。");
+                            u.showAlert(window.i18n ? window.i18n.t('AddMusic.alert_thumb1_no_video') : "動画情報を取得していないため、元のサムネイルは利用できません。\n音源の設定で「動画ダウンロード」を選択し、URLから情報を取得してください。");
                             dropdown.classList.remove('show'); return;
                         }
                     }
                     if (target === 'art-extract') {
                         if (!srcCtrl || srcCtrl.getSourceType() !== 'local' || !srcCtrl.getMusicFile()) {
-                            u.showAlert("ローカル音源ファイルが選択されていないため、抽出機能は利用できません。\n音源の設定でMP3/MP4ファイルをアップロードしてください。");
+                            u.showAlert(window.i18n ? window.i18n.t('AddMusic.alert_extract_no_local') : "ローカル音源ファイルが選択されていないため、抽出機能は利用できません。\n音源の設定でMP3/MP4ファイルをアップロードしてください。");
                             dropdown.classList.remove('show'); return;
                         }
                     }
@@ -78,9 +84,10 @@ window.ArtworkController = {
             btnExtract.addEventListener('click', async () => {
                 const srcCtrl = window.SourceController;
                 const musicFile = srcCtrl.getMusicFile();
-                if (!musicFile) { u.showToast("音源ファイルがありません", true); return; }
+                if (!musicFile) { u.showToast(window.i18n ? window.i18n.t('AddMusic.alert_select_audio_file') : "音源ファイルがありません", true); return; }
                 
-                btnExtract.disabled = true; btnExtract.textContent = "抽出中...";
+                btnExtract.disabled = true; 
+                btnExtract.textContent = window.i18n ? window.i18n.t('Common.loading') : "抽出中...";
                 
                 try {
                     const b64Music = await u.readFileAsBase64(musicFile);
@@ -92,16 +99,17 @@ window.ArtworkController = {
                     if (b64Img) {
                         this.artworkDataExtracted = b64Img;
                         imgEl.src = b64Img;
-                        u.showToast("アートワークを抽出しました", false);
+                        u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_extracted') : "アートワークを抽出しました", false);
                     } else {
                         this.artworkDataExtracted = this.defaultIconBase64;
                         imgEl.src = this.defaultIconBase64 || 'icon/Chordia.png';
-                        u.showToast("アートワークが見つかりませんでした", false);
+                        u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "アートワークが見つかりませんでした", false);
                     }
                 } catch (e) {
-                    u.showToast("抽出エラー", true);
+                    u.showToast(window.i18n ? window.i18n.t('Common.error') : "抽出エラー", true);
                 } finally {
-                    btnExtract.disabled = false; btnExtract.textContent = "抽出を実行";
+                    btnExtract.disabled = false; 
+                    btnExtract.textContent = window.i18n ? window.i18n.t('AddMusic.btn_extract_art') : "抽出を実行";
                 }
             });
         }
@@ -111,15 +119,19 @@ window.ArtworkController = {
             btnDownloadOrigThumb.addEventListener('click', async () => {
                 const srcCtrl = window.SourceController;
                 const info = srcCtrl.getVideoInfo();
-                if (!info || !info.thumbnail) { u.showToast("サムネイルがありません", true); return; }
+                if (!info || !info.thumbnail) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_not_found') : "サムネイルがありません", true); return; }
                 
-                btnDownloadOrigThumb.disabled = true; btnDownloadOrigThumb.textContent = "保存先を選択中...";
+                btnDownloadOrigThumb.disabled = true; 
+                btnDownloadOrigThumb.textContent = window.i18n ? window.i18n.t('Common.loading') : "保存先を選択中...";
                 try {
                     const result = await invoke("download_original_thumbnail", { url: info.thumbnail });
                     if (result.status === 'success') u.showToast(result.message, false);
                     else u.showToast(result.message, true);
-                } catch (e) { u.showToast("エラーが発生しました", true); } 
-                finally { btnDownloadOrigThumb.disabled = false; btnDownloadOrigThumb.textContent = "オリジナル画像を保存"; }
+                } catch (e) { u.showToast(window.i18n ? window.i18n.t('Common.error') : "エラーが発生しました", true); } 
+                finally { 
+                    btnDownloadOrigThumb.disabled = false; 
+                    btnDownloadOrigThumb.textContent = window.i18n ? window.i18n.t('AddMusic.btn_download_orig_thumb') : "オリジナル画像を保存"; 
+                }
             });
         }
 
@@ -127,9 +139,10 @@ window.ArtworkController = {
         if (btnFetchAltThumb) {
             btnFetchAltThumb.addEventListener('click', async () => {
                 const url = document.getElementById('altVideoUrl').value.trim();
-                if (!url) { u.showToast("URLを入力してください", true); return; }
+                if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
                 
-                btnFetchAltThumb.disabled = true; btnFetchAltThumb.textContent = "取得中...";
+                btnFetchAltThumb.disabled = true; 
+                btnFetchAltThumb.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                 try {
                     const info = await invoke("fetch_video_info", { url: url });
                     if (info.status === 'success' && info.thumbnail) {
@@ -138,11 +151,14 @@ window.ArtworkController = {
                             this.artworkDataThumb2 = b64;
                             const imgEl = document.getElementById('thumb2Preview');
                             imgEl.src = b64; imgEl.style.display = 'block';
-                            u.showToast("取得しました", false);
-                        } else { u.showToast("画像変換に失敗しました", true); }
-                    } else { u.showAlert(info.message || "取得失敗"); }
-                } catch(e) { u.showToast("通信エラー", true); } 
-                finally { btnFetchAltThumb.disabled = false; btnFetchAltThumb.textContent = "サムネイルを取得"; }
+                            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_fetch_success') : "取得しました", false);
+                        } else { u.showToast(window.i18n ? window.i18n.t('Common.error') : "画像変換に失敗しました", true); }
+                    } else { u.showAlert(info.message || (window.i18n ? window.i18n.t('Common.error') : "取得失敗")); }
+                } catch(e) { u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラー", true); } 
+                finally { 
+                    btnFetchAltThumb.disabled = false; 
+                    btnFetchAltThumb.textContent = window.i18n ? window.i18n.t('AddMusic.btn_fetch_alt_thumb') : "サムネイルを取得"; 
+                }
             });
         }
 
@@ -150,19 +166,23 @@ window.ArtworkController = {
         if (btnPreviewImageUrl) {
             btnPreviewImageUrl.addEventListener('click', async () => {
                 const url = document.getElementById('imageUrl').value.trim();
-                if (!url) { u.showToast("URLを入力してください", true); return; }
+                if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
                 
-                btnPreviewImageUrl.disabled = true; btnPreviewImageUrl.textContent = "取得中...";
+                btnPreviewImageUrl.disabled = true; 
+                btnPreviewImageUrl.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                 try {
                     const res = await invoke("fetch_and_crop_image_url", { url: url });
                     if (res.status === 'success') {
                         this.artworkDataUrl = res.data;
                         const imgEl = document.getElementById('urlPreview');
                         imgEl.src = res.data; imgEl.style.display = 'block';
-                        u.showToast("取得しました", false);
+                        u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_fetch_success') : "取得しました", false);
                     } else { u.showAlert(res.message); }
-                } catch(e) { u.showToast("エラー", true); }
-                finally { btnPreviewImageUrl.disabled = false; btnPreviewImageUrl.textContent = "画像をプレビュー"; }
+                } catch(e) { u.showToast(window.i18n ? window.i18n.t('Common.error') : "エラー", true); }
+                finally { 
+                    btnPreviewImageUrl.disabled = false; 
+                    btnPreviewImageUrl.textContent = window.i18n ? window.i18n.t('AddMusic.btn_preview_image_url') : "画像をプレビュー"; 
+                }
             });
         }
     },
@@ -171,7 +191,7 @@ window.ArtworkController = {
         const u = window.AddMusicUtils;
         if (!file) return;
         if (!file.type.startsWith('image/')) {
-            u.showToast('画像ファイルを選択してください', true);
+            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_select_image_file') : '画像ファイルを選択してください', true);
             return;
         }
         const reader = new FileReader();

@@ -7,7 +7,7 @@ use id3::{Tag, TagLike};
 use ini::Ini;
 
 use crate::AppState;
-use crate::cmd_i18n::DEFAULT_JAPANESE_INI;
+use crate::cmd_i18n::{DEFAULT_JAPANESE_INI, DEFAULT_ENGLISH_INI};
 use crate::utils::{get_base_dir, normalize_rel_path, load_lufs_cache};
 
 #[derive(Serialize, Clone)]
@@ -49,6 +49,17 @@ pub struct IntegrityReport {
     pub orphan_image_files: Vec<String>,
     pub missing_music_files: Vec<String>,
     pub missing_image_files: Vec<String>,
+}
+
+// ★ テキストのBOM・行末空白・改行コードを正規化して厳密比較するヘルパー関数
+fn normalize_ini_text(text: &str) -> String {
+    text.trim_start_matches('\u{feff}') // UTF-8 BOM を除去
+        .lines()
+        .map(|line| line.trim_end())   // 行末の不要な空白を除去
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()                         // 先頭・末尾の空行を除去
+        .to_string()
 }
 
 #[tauri::command]
@@ -165,58 +176,33 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // --- 4. userfiles & lang フォルダ内のファイル破損・欠損・ディープチェック ---
+        // --- 4. userfiles & lang フォルダ内のファイル破損・改変チェック ---
         let mut corrupted_userfiles = Vec::new();
         let userfiles_dir = base_dir.join("userfiles");
         let lang_dir = base_dir.join("lang");
 
-        // 基準テンプレートINIのパース
-        let template_ini = Ini::load_from_str(DEFAULT_JAPANESE_INI).unwrap_or_else(|_| Ini::new());
+        // ★ (1) 公式言語パック (Japanese.ini / English.ini) の完全一致チェック
+        let official_checks = [
+            ("Japanese.ini", DEFAULT_JAPANESE_INI),
+            ("English.ini", DEFAULT_ENGLISH_INI),
+        ];
 
-        // ★ (1) 公式言語パック (Japanese.ini / English.ini) の存在・破損・必須キー欠損チェック
-        let official_lang_files = ["Japanese.ini", "English.ini"];
-        for lang_file in official_lang_files {
+        for (lang_file, expected_content) in official_checks {
             let p = lang_dir.join(lang_file);
             if !p.exists() {
                 corrupted_userfiles.push(CorruptedFileItem {
                     filepath: format!("lang/{}", lang_file),
                     error_reason: "ERR_OFFICIAL_LANG_MISSING".to_string(),
                 });
-            } else if let Ok(content) = fs::read_to_string(&p) {
-                match Ini::load_from_str(&content) {
-                    Ok(user_ini) => {
-                        // 必須セクションおよび全必須キーの突合
-                        let mut missing_keys = Vec::new();
-                        for (section, prop) in template_ini.iter() {
-                            let sec_name = section.unwrap_or("Common");
-                            let user_sec = user_ini.section(Some(sec_name));
+            } else if let Ok(actual_content) = fs::read_to_string(&p) {
+                let actual_normalized = normalize_ini_text(&actual_content);
+                let expected_normalized = normalize_ini_text(expected_content);
 
-                            for (k, _) in prop.iter() {
-                                let has_val = user_sec.and_then(|s| s.get(k)).map(|v| !v.trim().is_empty()).unwrap_or(false);
-                                if !has_val {
-                                    missing_keys.push(format!("[{}].{}", sec_name, k));
-                                }
-                            }
-                        }
-
-                        if !missing_keys.is_empty() {
-                            let details = if missing_keys.len() <= 2 {
-                                missing_keys.join(", ")
-                            } else {
-                                format!("{} 他{}件", missing_keys[..2].join(", "), missing_keys.len() - 2)
-                            };
-                            corrupted_userfiles.push(CorruptedFileItem {
-                                filepath: format!("lang/{}", lang_file),
-                                error_reason: format!("ERR_LANG_KEYS_MISSING:{}", details),
-                            });
-                        }
-                    }
-                    Err(_) => {
-                        corrupted_userfiles.push(CorruptedFileItem {
-                            filepath: format!("lang/{}", lang_file),
-                            error_reason: "ERR_INI_SYNTAX".to_string(),
-                        });
-                    }
+                if actual_normalized != expected_normalized {
+                    corrupted_userfiles.push(CorruptedFileItem {
+                        filepath: format!("lang/{}", lang_file),
+                        error_reason: "ERR_LANG_FILE_MODIFIED".to_string(),
+                    });
                 }
             } else {
                 corrupted_userfiles.push(CorruptedFileItem {
@@ -229,11 +215,12 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
         // (2) lang フォルダ内のその他カスタム言語パックの構文チェック
         if lang_dir.exists() {
             if let Ok(entries) = fs::read_dir(&lang_dir) {
+                let official_names = ["Japanese.ini", "English.ini"];
                 for entry in entries.filter_map(|e| e.ok()) {
                     let path = entry.path();
                     if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("ini") {
                         if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
-                            if !official_lang_files.contains(&fname) {
+                            if !official_names.contains(&fname) {
                                 if let Ok(content) = fs::read_to_string(&path) {
                                     if Ini::load_from_str(&content).is_err() {
                                         corrupted_userfiles.push(CorruptedFileItem {
