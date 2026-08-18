@@ -390,7 +390,6 @@
             if (btnAdv) btnAdv.classList.remove('active');
         },
 
-        // ★ 修正: e.preventDefault() を取り除き、clickイベントハンドラで正確にトグルをトリガー
         renderHeader: function() {
             const head = document.getElementById('selectTableHeader');
             if (!head) return;
@@ -426,44 +425,44 @@
             this.updateHeaderCheckboxState();
         },
 
+        // ★ 修正：DOM構築パフォーマンスとファイル名抽出処理の安定化
         renderList: function() {
             const tbody = document.getElementById('selectTableBody');
             if (!tbody) return;
-            tbody.innerHTML = '';
-            const fragment = document.createDocumentFragment();
+            
+            let htmlStr = '';
 
             this.filteredData.forEach((item, index) => {
-                const fname = item.musicFilename.split(/[\\/]/).pop();
-                const tr = document.createElement('tr');
-                tr.className = `select-row`;
-                tr.dataset.fname = fname;
-                tr.onclick = (e) => { if (e.target.tagName !== 'INPUT') this.handleRowClick(index, e); };
-
-                const artSrc = item.imageData || s.DEFAULT_ICON;
-                let cellsHtml = `<td class="chk-cell"><input type="checkbox" class="col-check-box" onchange="window.ModalSongSelect.handleRowClick(${index}, event)"></td><td class="col-art-small"><img src="${artSrc}"></td>`;
+                const fname = item.musicFilename;
+                const isSelected = this.selectedFilenames.has(fname);
+                const trClass = isSelected ? 'select-row selected' : 'select-row';
+                
+                let cellsHtml = `<td class="chk-cell"><input type="checkbox" class="col-check-box" ${isSelected ? 'checked' : ''} onchange="window.ModalSongSelect.handleRowClick(${index}, event)"></td><td class="col-art-small"><img src="${item.imageData || s.DEFAULT_ICON}" loading="lazy"></td>`;
+                
                 this.activeTags.forEach(tag => {
                     const val = u.escapeHtml(item[tag.key] || '');
                     cellsHtml += `<td class="col-${tag.key}">${val}</td>`;
                 });
-                tr.innerHTML = cellsHtml;
-                fragment.appendChild(tr);
+                
+                htmlStr += `<tr class="${trClass}" data-fname="${u.escapeHtml(fname)}" onclick="if(event.target.tagName !== 'INPUT') window.ModalSongSelect.handleRowClick(${index}, event)">${cellsHtml}</tr>`;
             });
 
-            tbody.appendChild(fragment);
+            tbody.innerHTML = htmlStr;
+            this.updateHeaderCheckboxState();
         },
 
         handleRowClick: function(index, event) {
             const item = this.filteredData[index];
-            const fname = item.musicFilename.split(/[\\/]/).pop();
+            const fname = item.musicFilename;
 
             if (event.shiftKey && this.lastClickedIndex !== null) {
                 const start = Math.min(this.lastClickedIndex, index);
                 const end = Math.max(this.lastClickedIndex, index);
                 const startItem = this.filteredData[this.lastClickedIndex];
-                const startFname = startItem.musicFilename.split(/[\\/]/).pop();
+                const startFname = startItem.musicFilename;
                 const shouldSelect = this.selectedFilenames.has(startFname);
                 for (let i = start; i <= end; i++) {
-                    const targetFname = this.filteredData[i].musicFilename.split(/[\\/]/).pop();
+                    const targetFname = this.filteredData[i].musicFilename;
                     if (shouldSelect) this.selectedFilenames.add(targetFname);
                     else this.selectedFilenames.delete(targetFname);
                 }
@@ -491,11 +490,10 @@
                 checkAllBtn.indeterminate = false; 
             } else { 
                 checkAllBtn.checked = false; 
-                checkAllBtn.indeterminate = true; // 半選択（ハイフン状態）
+                checkAllBtn.indeterminate = true; 
             }
         },
 
-        // ★ 修正: setTimeout(..., 0) でイベント完了直後に同期実行し、チェックスタイル・状態を上書き確定
         toggleAllSelection: function() {
             const rows = Array.from(document.querySelectorAll('#selectTableBody tr')).filter(r => r.style.display !== 'none');
             if (rows.length === 0) return;
@@ -509,7 +507,6 @@
                 else this.selectedFilenames.delete(fname);
             });
 
-            // クリックイベント処理完了後に確実にUI状態とチェックボックス表示を更新
             setTimeout(() => {
                 this.syncSelectedUI();
             }, 0);
@@ -543,20 +540,25 @@
         },
 
         selectRowsInMarquee: function(x, y, w, h, containerRect, scrollY) {
-            const rows = Array.from(document.querySelectorAll('#selectTableBody tr')).filter(r => r.style.display !== 'none');
-            rows.forEach(row => {
+            const rows = document.getElementById('selectTableBody').children;
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.style.display === 'none') continue;
+                
                 const r = row.getBoundingClientRect();
                 const rTop = r.top - containerRect.top + scrollY;
                 const rBot = r.bottom - containerRect.top + scrollY;
+                
                 if (!(rBot < y || rTop > y + h)) {
                     const fname = row.dataset.fname;
                     if (!this.selectedFilenames.has(fname)) {
                         this.selectedFilenames.add(fname);
                         row.classList.add('selected');
-                        const c = row.querySelector('input'); if(c) c.checked = true;
+                        const c = row.querySelector('input'); 
+                        if(c) c.checked = true;
                     }
                 }
-            });
+            }
             this.updateHeaderCheckboxState();
         }
     });

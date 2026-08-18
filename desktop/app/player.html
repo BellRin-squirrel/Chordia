@@ -333,7 +333,7 @@
     <div id="playlistDeleteModal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="width: 320px;">
             <h3 data-i18n="Player.del_pl_title">プレイリストの削除</h3>
-            <p>「<span id="delPlaylistName"></span>」を削除してもよろしいですか？</p>
+            <p id="delPlaylistName"></p>
             <div style="display: flex; gap: 12px; margin-top: 16px;">
                 <button id="btnCancelDelPl" class="btn-action secondary" style="flex:1;" data-i18n="Common.cancel">キャンセル</button>
                 <button id="btnExecDelPl" class="btn-action primary" style="flex:1; background-color: #ef4444;" data-i18n="Common.delete">削除</button>
@@ -442,7 +442,9 @@
             <li id="menuEditSmartRules" data-i18n="Player.menu_edit_rules">ルールを編集</li>
             <li id="menuShowInExplorer">エクスプローラーで表示</li>
             <li class="menu-divider"></li>
-            <li style="position: relative;" data-i18n="Player.menu_add_to_pl">プレイリストに追加
+            <!-- ★ 修正：ホバー処理制御用にID付与、テキストノードを<span>でラップ -->
+            <li style="position: relative;" id="menuAddToPlaylistParent">
+                <span data-i18n="Player.menu_add_to_pl">プレイリストに追加</span>
                 <div id="playlistSubmenu" class="submenu"></div>
             </li>
             <li class="menu-divider"></li>

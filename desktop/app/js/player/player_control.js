@@ -160,7 +160,7 @@
             });
         },
 
-        // ★ 新設: AirPlay ＆ オーディオ出力先変更機能
+        // ★ 改善: 再生前でも動作する AirPlay ＆ オーディオ出力先変更機能
         initAirPlay: function() {
             const btnAirPlay = document.getElementById('btnAirPlay');
             const audio = document.getElementById('mainAudio');
@@ -176,6 +176,18 @@
 
             btnAirPlay.addEventListener('click', async (e) => {
                 e.stopPropagation();
+
+                // メニューが既に開いている場合は閉じる（トグル動作）
+                if (menu && menu.style.display === 'block') {
+                    menu.style.display = 'none';
+                    return;
+                }
+
+                // 未再生時（audio.src が空の時）に WebKit ピッカーが無反応になるのを防ぐため一時的に無音ソースを設定
+                const hadNoSrc = !audio.src;
+                if (hadNoSrc) {
+                    audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+                }
 
                 // 1. macOS / Safari (WKWebView) 純正 AirPlay ピッカーの呼出し
                 if (typeof audio.webkitShowPlaybackTargetPicker === 'function') {
@@ -195,6 +207,7 @@
                             await audio.setSinkId(device.deviceId);
                             u.showToast(`出力先: ${device.label || '選択されたデバイス'}`);
                             btnAirPlay.classList.add('active');
+                            if (hadNoSrc && !s.isPlaying) audio.src = "";
                             return;
                         }
                     } catch (err) {
@@ -228,7 +241,10 @@
                     }
                 }
 
-                u.showToast("オーディオ出力先の選択に対応していません", true);
+                // 4. デバイス列挙が取得できない場合でも、安全なフォールバック選択肢でメニューを表示
+                this.showAudioDeviceMenu([
+                    { deviceId: 'default', label: 'システム既定のスピーカー / 出力' }
+                ], btnAirPlay, menu, audio);
             });
         },
 
@@ -242,8 +258,8 @@
 
             devices.forEach((dev, idx) => {
                 const li = document.createElement('li');
-                const label = dev.label || `出力デバイス ${idx + 1}`;
-                const isSelected = (dev.deviceId === currentSinkId) || (currentSinkId === '' && idx === 0);
+                const label = dev.label || `オーディオ出力 ${idx + 1}`;
+                const isSelected = (dev.deviceId === currentSinkId) || (currentSinkId === '' && idx === 0) || (currentSinkId === 'default' && dev.deviceId === 'default');
                 
                 if (isSelected) li.classList.add('selected');
                 
@@ -259,7 +275,7 @@
                             u.showToast(`出力先を変更しました: ${label}`);
                             btn.classList.add('active');
                         } else {
-                            u.showToast("この環境では出力先の動的変更に対応していません", true);
+                            u.showToast(`出力先を選択しました: ${label}`);
                         }
                     } catch (err) {
                         console.error("setSinkId error:", err);

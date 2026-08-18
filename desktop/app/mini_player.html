@@ -5,6 +5,7 @@
     <title>Chordia - Mini Player</title>
     <link rel="icon" href="icon/Chordia.ico">
     <link rel="stylesheet" href="css/style.css">
+    <script src="js/i18n.js"></script>
     <style>
         /* ★ テーマ背景色を適用 */
         body {
@@ -36,14 +37,13 @@
 
         .top-bar {
             display: flex;
-            justify-content: flex-start; /* 修正：Mac風に左揃えに変更 */
+            justify-content: flex-start;
             align-items: center;
             width: 100%;
             margin-bottom: 2vh;
             flex-shrink: 0;
         }
 
-        /* 修正：信号機ボタン格納用のフレックスコンテナ */
         .window-controls-mac {
             display: flex;
             gap: 8px;
@@ -54,19 +54,18 @@
             border-radius: 50%;
             border: none; cursor: pointer;
             display: flex; justify-content: center; align-items: center;
-            color: transparent; /* 通常時は中身のシンボルを透明化 */
+            color: transparent;
             transition: all 0.2s;
             padding: 0;
             position: relative;
         }
         .btn-circle-mac svg { width: 10px; height: 10px; font-weight: bold; }
         
-        /* 修正：3つのいずれかにホバーした際、Mac同様に一斉にシンボルを浮かび上がらせる */
         .window-controls-mac:hover .btn-circle-mac { color: rgba(0, 0, 0, 0.55); }
         .window-controls-mac:hover .btn-circle-mac:hover { color: rgba(0, 0, 0, 0.85); }
 
         .btn-red { background-color: #ff5e56; }   
-        .btn-yellow { background-color: #f8be39; } /* 新設：最小化ボタン（黄色） */
+        .btn-yellow { background-color: #f8be39; }
         .btn-green { background-color: #28c840; } 
 
         .art-wrapper {
@@ -82,7 +81,6 @@
             transition: all 0.3s;
         }
 
-        /* 修正：シームレスに回転（Marquee）するためのコンテナ設定 */
         .marquee-wrapper { 
             display: flex; 
             white-space: nowrap; 
@@ -90,7 +88,6 @@
             width: 100%; 
         }
 
-        /* 修正：切れ目のない無限流しアニメーション（2つのテキストが完全に重なる-100%まで流し戻す） */
         .marquee-content { 
             display: inline-block; 
             padding-right: 50px; 
@@ -106,7 +103,6 @@
         .info-area { text-align: center; margin-bottom: 2vh; flex-shrink: 0; width: 100%; overflow: hidden; }
         .info-title { font-weight: 800; font-size: clamp(1rem, 5vw, 1.3rem); white-space: nowrap; overflow: hidden; margin-bottom: 0.5vh; }
         .info-artist { color: var(--text-sub); font-size: clamp(0.8rem, 4vw, 1rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .info-album { color: var(--text-sub); font-size: clamp(0.75rem, 3.5vw, 0.9rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.7; margin-top: 2px;}
 
         .ctrl-area { display: flex; justify-content: center; align-items: center; gap: 6vw; margin-bottom: 2vh; flex-shrink: 0; }
         .btn-ctrl { background: none; border: none; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: transform 0.1s;}
@@ -156,7 +152,7 @@
         .small-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.05) 40%, transparent 80%);
-            display: flex; justify-content: flex-start; align-items: flex-start; /* 修正：Mac風に左揃えに変更 */
+            display: flex; justify-content: flex-start; align-items: flex-start;
             padding: 10px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s;
             border-radius: 12px;
             -webkit-app-region: drag;
@@ -164,17 +160,15 @@
         body.mode-small .art-wrapper:hover .small-overlay { opacity: 1; }
 
         body.mode-medium .large-area { display: none; }
-        body.mode-large #album { display: none; }
 
         .no-data { text-align: center; color: var(--text-sub); font-size: 0.85rem; padding: 20px 0; }
     </style>
 </head>
-<body class="mode-large"> 
-    <div class="mini-container">
+<body class="mode-large" data-tauri-drag-region> 
+    <div class="mini-container" data-tauri-drag-region>
         
         <!-- Large/Medium用のトップバー -->
-        <div class="top-bar">
-            <!-- 修正：信号機レイアウトに変更 -->
+        <div class="top-bar" data-tauri-drag-region>
             <div class="window-controls-mac">
                 <button id="btnClosePlayer" class="btn-circle-mac btn-red tick-btn" title="閉じる">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -188,11 +182,10 @@
             </div>
         </div>
 
-        <div class="art-wrapper">
-            <img id="art" src="icon/Chordia.png">
+        <div class="art-wrapper" data-tauri-drag-region>
+            <img id="art" src="icon/Chordia.png" data-tauri-drag-region>
             <!-- Smallモード専用のオーバーレイ -->
-            <div class="small-overlay">
-                <!-- 修正：小規模用オーバーレイも信号機レイアウトに変更 -->
+            <div class="small-overlay" data-tauri-drag-region>
                 <div class="window-controls-mac">
                     <button id="btnCloseSmall" class="btn-circle-mac btn-red tick-btn" title="閉じる">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -207,10 +200,9 @@
             </div>
         </div>
 
-        <div class="info-area">
-            <div id="title" class="info-title">Title</div>
-            <div id="artist" class="info-artist">Artist</div>
-            <div id="album" class="info-album"></div>
+        <div class="info-area" data-tauri-drag-region>
+            <div id="title" class="info-title" data-tauri-drag-region>Title</div>
+            <div id="artist" class="info-artist" data-tauri-drag-region>Artist</div>
         </div>
         
         <div class="ctrl-area">
@@ -229,9 +221,9 @@
 
         <div class="large-area">
             <div class="large-tabs">
-                <button class="tab-btn active" data-target="pane-queue">次に再生</button>
-                <button class="tab-btn" data-target="pane-lyric">歌詞</button>
-                <button class="tab-btn" data-target="pane-history">履歴</button>
+                <button class="tab-btn active" data-target="pane-queue" data-i18n="Player.tab_queue">次に再生</button>
+                <button class="tab-btn" data-target="pane-lyric" data-i18n="Tags.lyric">歌詞</button>
+                <button class="tab-btn" data-target="pane-history" data-i18n="Player.tab_history">履歴</button>
             </div>
             <div class="large-content">
                 <div id="pane-queue" class="large-pane active">

@@ -2,7 +2,6 @@
     const s = window.PlayerState;
     const u = window.PlayerUtils;
 
-    // ドロップダウンの外側をクリックしたら閉じる処理をグローバルに追加
     document.addEventListener('click', (e) => {
         document.querySelectorAll('.smart-group-wrapper .custom-select-dropdown').forEach(d => {
             if (!e.target.closest('.custom-select-wrapper')) {
@@ -12,21 +11,25 @@
     });
 
     Object.assign(window.SidebarController, {
-        textOps:[
-            {val: 'contains', label: 'を含む'},
-            {val: 'not_contains', label: 'を含まない'},
-            {val: 'equals', label: 'である'},
-            {val: 'not_equals', label: 'ではない'},
-            {val: 'startswith', label: 'で始まる'},
-            {val: 'endswith', label: 'で終わる'}
-        ],
-        numOps:[
-            {val: 'equals', label: 'である'},
-            {val: 'not_equals', label: 'ではない'},
-            {val: 'greater', label: 'より大きい'},
-            {val: 'less', label: 'より小さい'},
-            {val: 'range', label: 'の範囲内'}
-        ],
+        getTextOps: function() {
+            return [
+                { val: 'contains', label: window.i18n ? window.i18n.t('Manage.op_contains') : 'を含む' },
+                { val: 'not_contains', label: window.i18n ? window.i18n.t('Manage.op_not_contains') : 'を含まない' },
+                { val: 'equals', label: window.i18n ? window.i18n.t('Manage.op_equals') : 'である' },
+                { val: 'not_equals', label: window.i18n ? window.i18n.t('Manage.op_not_equals') : 'ではない' },
+                { val: 'startswith', label: window.i18n ? window.i18n.t('Manage.op_startswith') : 'で始まる' },
+                { val: 'endswith', label: window.i18n ? window.i18n.t('Manage.op_endswith') : 'で終わる' }
+            ];
+        },
+        getNumOps: function() {
+            return [
+                { val: 'equals', label: window.i18n ? window.i18n.t('Manage.op_equals') : 'である' },
+                { val: 'not_equals', label: window.i18n ? window.i18n.t('Manage.op_not_equals') : 'ではない' },
+                { val: 'greater', label: window.i18n ? window.i18n.t('Manage.op_greater') : 'より大きい' },
+                { val: 'less', label: window.i18n ? window.i18n.t('Manage.op_less') : 'より小さい' },
+                { val: 'range', label: window.i18n ? window.i18n.t('Manage.op_range') : 'の範囲内' }
+            ];
+        },
 
         openSmartPlaylistModal: async function(existingPl = null) {
             try {
@@ -34,23 +37,35 @@
                 const settings = await invoke("get_app_settings");
                 const allTags = await invoke("get_available_tags");
                 const activeTags = settings.active_tags; 
-                this.smartTags = allTags.filter(t => activeTags.includes(t.key)).map(t => ({val: t.key, label: t.label}));
-                this.smartTags.push({val: 'lyric', label: '歌詞'});
+                this.smartTags = allTags.filter(t => activeTags.includes(t.key)).map(t => ({
+                    val: t.key, 
+                    label: (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${t.key}`) : t.label
+                }));
+                this.smartTags.push({ val: 'lyric', label: window.i18n ? window.i18n.t('Tags.lyric') : '歌詞' });
 
                 const modalTitle = document.querySelector('#smartPlaylistModal h3');
                 const nameInput = document.getElementById('smartPlaylistName');
                 const nameContainer = document.getElementById('smartPlaylistNameContainer');
                 const btnCreate = document.getElementById('btnCreateSmart');
+                const btnCancel = document.getElementById('btnCancelSmart');
                 const rootContainer = document.getElementById('smartConditionRoot');
                 rootContainer.innerHTML = '';
                 nameInput.classList.remove('input-error');
 
+                if (nameInput && window.i18n) {
+                    nameInput.placeholder = window.i18n.t('Player.smart_pl_name_ph');
+                }
+                if (btnCancel && window.i18n) {
+                    btnCancel.textContent = window.i18n.t('Common.cancel');
+                }
+
                 if (existingPl) {
                     this.editingSmartId = existingPl.id;
-                    modalTitle.textContent = "スマートプレイリストを編集";
-                    nameContainer.style.display = 'none'; 
+                    if (modalTitle) modalTitle.textContent = window.i18n ? window.i18n.t('Player.smart_modal_edit_title') : "スマートプレイリストを編集";
+                    if (nameContainer) nameContainer.style.display = 'none'; 
                     nameInput.value = existingPl.playlistName;
-                    btnCreate.textContent = "保存";
+                    if (btnCreate) btnCreate.textContent = window.i18n ? window.i18n.t('Common.save') : "保存";
+                    
                     const buildUI = (rules, container, isRoot) => {
                         if (rules.type === 'group') {
                             const groupWrap = window.SidebarController.createConditionGroup(isRoot, rules.match);
@@ -66,10 +81,10 @@
                     buildUI(existingPl.conditions, rootContainer, true);
                 } else {
                     this.editingSmartId = null;
-                    modalTitle.textContent = "スマートプレイリストを新規作成";
-                    nameContainer.style.display = 'block'; 
+                    if (modalTitle) modalTitle.textContent = window.i18n ? window.i18n.t('Player.smart_modal_create_title') : "スマートプレイリストを新規作成";
+                    if (nameContainer) nameContainer.style.display = 'block'; 
                     nameInput.value = "";
-                    btnCreate.textContent = "作成";
+                    if (btnCreate) btnCreate.textContent = window.i18n ? window.i18n.t('Player.btn_create_smart') : "作成";
                     rootContainer.appendChild(window.SidebarController.createConditionGroup(true, 'all'));
                 }
                 window.SidebarController.updateAllMinusButtons();
@@ -77,7 +92,7 @@
                 if(modal) modal.classList.add('show');
             } catch(e) { 
                 console.error("Open Smart Modal Error:", e);
-                u.showToast("設定の読み込みに失敗しました", true); 
+                u.showToast(window.i18n ? window.i18n.t('Common.error') : "設定の読み込みに失敗しました", true); 
             }
         },
 
@@ -125,14 +140,20 @@
             const groupHeader = document.createElement('div');
             groupHeader.className = 'smart-group-header';
 
-            const matchSelector = this.createDynamicCustomSelector([{val:'all', label:'すべての'}, {val:'any', label:'いずれかの'}],
+            const matchOptions = [
+                { val: 'all', label: window.i18n ? window.i18n.t('Manage.adv_match_all') : 'すべての' },
+                { val: 'any', label: window.i18n ? window.i18n.t('Manage.adv_match_any') : 'いずれかの' }
+            ];
+
+            const matchSelector = this.createDynamicCustomSelector(
+                matchOptions,
                 matchVal,
                 (val) => { groupWrap.dataset.match = val; }
             );
 
             const textSpan = document.createElement('span');
             textSpan.className = 'smart-text';
-            textSpan.textContent = 'ルールに一致';
+            textSpan.textContent = window.i18n ? window.i18n.t('Manage.adv_match_rules') : 'ルールに一致';
             
             const spacer = document.createElement('div');
             spacer.style.flex = "1";
@@ -185,6 +206,10 @@
             const opContainer = document.createElement('div');
             opContainer.className = 'custom-select-wrapper';
 
+            const phSearch = window.i18n ? window.i18n.t('Manage.adv_ph_search') : '検索ワード...';
+            const phNumber = window.i18n ? window.i18n.t('Manage.adv_ph_number') : '数字...';
+            const particleTo = window.i18n ? window.i18n.t('Manage.adv_particle_to') : 'と';
+
             const updateInputs = (tag, op, val = null) => {
                 inputContainer.innerHTML = '';
                 const isNum = ['track', 'year', 'disc', 'bpm'].includes(tag);
@@ -194,24 +219,27 @@
                         const i2 = document.createElement('input'); i2.type = 'number'; i2.className = 'smart-input'; i2.placeholder = '0';
                         if (Array.isArray(val)) { i1.value = val[0]; i2.value = val[1]; }
                         inputContainer.appendChild(i1);
-                        inputContainer.insertAdjacentHTML('beforeend', '<span class="smart-text">と</span>');
+                        inputContainer.insertAdjacentHTML('beforeend', `<span class="smart-text">${particleTo}</span>`);
                         inputContainer.appendChild(i2);
                     } else {
-                        const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = '数字...';
+                        const i = document.createElement('input'); i.type = 'number'; i.className = 'smart-input'; i.placeholder = phNumber;
                         if (val !== null && val !== undefined) i.value = val;
                         inputContainer.appendChild(i);
                     }
                 } else {
-                    const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = '検索ワード...';
+                    const i = document.createElement('input'); i.type = 'text'; i.className = 'smart-input'; i.placeholder = phSearch;
                     if (val !== null && val !== undefined) i.value = val;
                     inputContainer.appendChild(i);
                 }
             };
 
+            const numOps = this.getNumOps();
+            const textOps = this.getTextOps();
+
             const tagSelector = this.createDynamicCustomSelector(this.smartTags, row.dataset.tag, (newTag) => {
                 row.dataset.tag = newTag;
                 const isNum = ['track', 'year', 'disc', 'bpm'].includes(newTag);
-                const newOps = isNum ? this.numOps : this.textOps;
+                const newOps = isNum ? this.getNumOps() : this.getTextOps();
                 const newOp = newOps[0].val;
                 row.dataset.op = newOp;
                 
@@ -224,7 +252,7 @@
                 updateInputs(newTag, newOp);
             });
 
-            const initialOps = ['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? this.numOps : this.textOps;
+            const initialOps = ['track', 'year', 'disc', 'bpm'].includes(row.dataset.tag) ? numOps : textOps;
             const opSelector = this.createDynamicCustomSelector(initialOps, row.dataset.op, (newOp) => {
                 row.dataset.op = newOp;
                 updateInputs(row.dataset.tag, newOp);
@@ -232,7 +260,8 @@
             opContainer.appendChild(opSelector);
 
             const textSpan = document.createElement('span');
-            textSpan.className = 'smart-text'; textSpan.textContent = 'が';
+            textSpan.className = 'smart-text';
+            textSpan.textContent = window.i18n ? window.i18n.t('Manage.adv_particle_ga') : 'が';
 
             const btnContainer = document.createElement('div');
             btnContainer.className = 'smart-btn-container';
@@ -284,7 +313,7 @@
             let name = nameInput.value.trim();
             if (!this.editingSmartId && !name) {
                 nameInput.classList.add('input-error'); nameInput.focus();
-                u.showToast("プレイリスト名を入力してください", true);
+                u.showToast(window.i18n ? window.i18n.t('Player.smart_pl_name_ph') : "プレイリスト名を入力してください", true);
                 nameInput.addEventListener('input', () => nameInput.classList.remove('input-error'), { once: true }); return;
             }
             if (this.editingSmartId) {
@@ -294,7 +323,6 @@
             const rootElement = document.querySelector('#smartConditionRoot > .smart-group-wrapper');
             if (!rootElement) return;
 
-            // ★ 修正：dataset.match / dataset.tag / dataset.op を正確に解析・キャスト
             const parseGroup = (groupWrap) => {
                 const match = groupWrap.dataset.match || 'all';
                 const items = [];
@@ -336,18 +364,20 @@
                     resultPl = await invoke("update_smart_playlist", { plId: this.editingSmartId, name: name, conditions: rules });
                     const idx = s.playlists.findIndex(p => p.id === this.editingSmartId);
                     if (idx !== -1) s.playlists[idx] = resultPl;
-                    u.showToast("更新しました", false);
+                    u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "更新しました", false);
                 } else {
                     resultPl = await invoke("create_smart_playlist", { name: name, conditions: rules });
                     s.playlists.push(resultPl);
-                    u.showToast("作成しました", false);
+                    u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "作成しました", false);
                 }
                 s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
-                this.renderSidebar();
-                window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === resultPl.id));
+                await this.renderSidebar();
+                if (window.MainViewController) {
+                    window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === resultPl.id));
+                }
             } catch(e) { 
                 console.error("Smart Playlist Create/Update Error:", e);
-                u.showToast("処理に失敗しました", true); 
+                u.showToast(window.i18n ? window.i18n.t('Common.error') : "処理に失敗しました", true); 
             }
         }
     });

@@ -26,7 +26,6 @@ window.PlayerUtils = {
         toast.className = 'toast show ' + (isErr ? 'error' : 'success');
         setTimeout(() => toast.classList.remove('show'), 3000);
     },
-    // ★修正: ダブルクォーテーションやシングルクォーテーションも確実にエスケープする
     escapeHtml: function(text) {
         if (text === null || text === undefined) return '';
         return String(text).replace(/[&<>"']/g, function(match) {
@@ -44,10 +43,24 @@ window.PlayerUtils = {
         const s = Math.floor(seconds % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
     },
+    // ★ 修正：言語設定に応じた再生時間の多言語フォーマット
     formatTotalDuration: function(seconds) {
-        if (seconds < 60) return `${Math.floor(seconds)}秒`;
-        if (seconds < 3600) return `${Math.floor(seconds / 60)}分`;
-        return `${(seconds / 3600).toFixed(1)}時間`;
+        if (seconds < 60) {
+            const sec = Math.floor(seconds);
+            return (window.i18n && window.i18n.t)
+                ? window.i18n.t('Player.duration_seconds', { sec: sec })
+                : `${sec}秒`;
+        }
+        if (seconds < 3600) {
+            const min = Math.floor(seconds / 60);
+            return (window.i18n && window.i18n.t)
+                ? window.i18n.t('Player.duration_minutes', { min: min })
+                : `${min}分`;
+        }
+        const hr = (seconds / 3600).toFixed(1);
+        return (window.i18n && window.i18n.t)
+            ? window.i18n.t('Player.duration_hours', { hr: hr })
+            : `${hr}時間`;
     },
     shuffleArray: function(array) {
         for (let i = array.length - 1; i > 0; i--) {

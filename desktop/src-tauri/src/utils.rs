@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use id3::{Tag, TagLike};
 use id3::frame::{Picture, PictureType, Comment, Lyrics};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 pub fn get_base_dir() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if cfg!(debug_assertions) {
@@ -24,6 +27,52 @@ pub fn get_base_dir() -> PathBuf {
         if let Some(parent) = exe_path.parent() { return parent.to_path_buf(); }
     }
     path
+}
+
+// ★ macOS/Unix環境で確実に書き込み権限（0o777）を付与するヘルパー
+pub fn ensure_dir_writable<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<()> {
+    let p = path.as_ref();
+    if !p.exists() {
+        fs::create_dir_all(p)?;
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(metadata) = fs::metadata(p) {
+            let mut perms = metadata.permissions();
+            perms.set_mode(0o777);
+            let _ = fs::set_permissions(p, perms);
+        }
+    }
+    Ok(())
+}
+
+// ★ macOS/Unix環境でファイルに書き込み権限（0o666）を付与するヘルパー
+pub fn ensure_file_writable<P: AsRef<std::path::Path>>(path: P) {
+    let p = path.as_ref();
+    if p.exists() {
+        #[cfg(unix)]
+        {
+            if let Ok(metadata) = fs::metadata(p) {
+                let mut perms = metadata.permissions();
+                perms.set_mode(0o666);
+                let _ = fs::set_permissions(p, perms);
+            }
+        }
+    }
+}
+
+// ★ ディレクトリとファイルのパーミッションを自動解決して安全に保存する共通関数
+pub fn safe_write_file<P: AsRef<std::path::Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<(), String> {
+    let p = path.as_ref();
+    if let Some(parent) = p.parent() {
+        ensure_dir_writable(parent).map_err(|e| format!("ディレクトリ権限付与失敗 ({:?}): {}", parent, e))?;
+    }
+    ensure_file_writable(p);
+
+    fs::write(p, contents).map_err(|e| format!("ファイル書き込み失敗 ({:?}): {}", p, e))?;
+
+    ensure_file_writable(p);
+    Ok(())
 }
 
 pub fn normalize_rel_path(rel_path: &str) -> String {
@@ -71,7 +120,6 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     db
 }
 
-// ★ 追加: 起動時に進捗メッセージをフロントエンドへ送信しながらDBを安全にロードする関数
 pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<String, Value>> {
     use tauri::Emitter;
     
@@ -138,12 +186,9 @@ pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     for item in db_to_save.iter_mut() {
         item.remove("duration"); item.remove("imageData"); item.remove("streamUrl");
     }
-    let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir);
-    
-    let path = dir.join("music.json");
+    let path = get_base_dir().join("userfiles/music.json");
     let data = serde_json::to_string_pretty(&db_to_save).map_err(|e| e.to_string())?;
-    fs::write(path, data).map_err(|e| e.to_string())
+    safe_write_file(&path, data.as_bytes())
 }
 
 pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
@@ -162,6 +207,8 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
     if abs_music_path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) != Some("mp3".to_string()) {
         return;
     }
+
+    ensure_file_writable(&abs_music_path);
 
     let mut tag = Tag::read_from_path(&abs_music_path).unwrap_or_else(|_| Tag::new());
 
@@ -245,11 +292,10 @@ pub fn load_playlists_master() -> Vec<Value> {
 }
 
 pub fn save_playlists_master(playlists: &[Value]) {
-    let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir);
-    
-    let path = dir.join("playlist.json");
-    if let Ok(data) = serde_json::to_string_pretty(playlists) { let _ = fs::write(path, data); }
+    let path = get_base_dir().join("userfiles/playlist.json");
+    if let Ok(data) = serde_json::to_string_pretty(playlists) {
+        let _ = safe_write_file(&path, data.as_bytes());
+    }
 }
 
 pub fn load_lufs_cache() -> HashMap<String, f32> {
@@ -262,16 +308,18 @@ pub fn load_lufs_cache() -> HashMap<String, f32> {
 }
 
 pub fn save_lufs_cache(cache: &HashMap<String, f32>) {
-    let dir = get_base_dir().join("userfiles");
-    let _ = fs::create_dir_all(&dir);
-    
-    let path = dir.join("lufs_cache.json");
+    let path = get_base_dir().join("userfiles/lufs_cache.json");
     if let Ok(data) = serde_json::to_string_pretty(cache) {
-        let _ = fs::write(path, data);
+        let _ = safe_write_file(&path, data.as_bytes());
     }
 }
 
 pub fn force_save_as_png(image_bytes: &[u8], target_path: &std::path::PathBuf) -> bool {
+    if let Some(parent) = target_path.parent() {
+        let _ = ensure_dir_writable(parent);
+    }
+    ensure_file_writable(target_path);
+
     if let Ok(img) = load_from_memory(image_bytes) {
         let mut final_img = img;
         if final_img.color().has_alpha() {
@@ -280,7 +328,9 @@ pub fn force_save_as_png(image_bytes: &[u8], target_path: &std::path::PathBuf) -
             let _ = image::imageops::overlay(&mut bg_dynamic, &final_img, 0, 0);
             final_img = bg_dynamic;
         }
-        return final_img.into_rgb8().save_with_format(target_path, image::ImageFormat::Png).is_ok();
+        let res = final_img.into_rgb8().save_with_format(target_path, image::ImageFormat::Png).is_ok();
+        ensure_file_writable(target_path);
+        return res;
     }
     false
 }

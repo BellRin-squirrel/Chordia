@@ -1,10 +1,28 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+    const tauri = window.__TAURI__;
+    const invoke = (tauri && tauri.core) ? tauri.core.invoke : (tauri && tauri.tauri ? tauri.tauri.invoke : null);
+    
+    const getCurrentWindow = () => {
+        if (tauri && tauri.window && tauri.window.getCurrentWindow) {
+            return tauri.window.getCurrentWindow();
+        }
+        return null;
+    };
+    const appWindow = getCurrentWindow();
+
+    document.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, .large-content, .btn-ctrl, .tab-btn, .queue-item, .seek-bar')) {
+            return;
+        }
+        if (appWindow && typeof appWindow.startDragging === 'function') {
+            appWindow.startDragging().catch(() => {});
+        }
+    });
     
     const artEl = document.getElementById('art');
     const titleEl = document.getElementById('title');
     const artistEl = document.getElementById('artist');
-    const albumEl = document.getElementById('album');
     const playpauseBtn = document.getElementById('playpause');
     const prevBtn = document.getElementById('prev');
     const nextBtn = document.getElementById('next');
@@ -18,23 +36,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const SVG_PAUSE = `<svg viewBox="0 0 24 24"><path d="M6.75 5.25a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Zm10.5 0a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Z" /></svg>`;
 
     let isSeeking = false;
-    let currentMode = 'large'; // 修正：初期起動は大規模（large）
+    let currentMode = 'large';
     let lastRenderedSongFilename = null; 
     let isSystemResizing = false; 
 
-    // 手動リサイズ判定用の「直前の安定サイズ」
     let lastWidth = window.outerWidth || 256; 
     let lastHeight = window.outerHeight || 750; 
 
     const escapeHtml = (str) => String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
-    // 修正：シームレスな2つのテキスト並列ループに変更
     const setTextWithMarquee = (el, text, className) => {
         el.innerHTML = `<div class="${className}" style="display:inline-block; max-width:100%; white-space:nowrap;">${text}</div>`;
         requestAnimationFrame(() => {
             const inner = el.firstElementChild;
             if (inner && inner.scrollWidth > el.clientWidth) {
-                // 親の marquee-wrapper の中で、2枚の marquee-content を並行に走らせて切れ目のないループを構築
                 el.innerHTML = `<div class="marquee-wrapper"><span class="marquee-content">${text}</span><span class="marquee-content">${text}</span></div>`;
             }
         });
@@ -90,7 +105,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const switchMode = async () => {
-        // 修正：大規模 ➔ 中規模 ➔ 小規模 ➔ 大規模 のローテーション
         if (currentMode === 'large') currentMode = 'medium';
         else if (currentMode === 'medium') currentMode = 'small';
         else if (currentMode === 'small') currentMode = 'large';
@@ -99,10 +113,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         isSystemResizing = true; 
 
         try {
-            await invoke('set_mini_player_mode', { mode: currentMode });
+            if (invoke) {
+                await invoke('set_mini_player_mode', { mode: currentMode });
+            }
             if (currentMode === 'large') loadHistory();
-        } catch(e) { console.error(e); }
-        finally {
+        } catch(e) { 
+            console.error(e); 
+        } finally {
             setTimeout(() => {
                 lastWidth = window.outerWidth || 256;
                 lastHeight = window.outerHeight || 750;
@@ -112,12 +129,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const closePlayer = async () => {
-        try { await invoke('close_mini_player'); } catch(e) { window.close(); }
+        try { 
+            if (invoke) await invoke('close_mini_player'); 
+            else window.close();
+        } catch(e) { 
+            window.close(); 
+        }
     };
 
-    // ★ 新設: 最小化処理の呼び出し
     const minimizePlayer = async () => {
-        try { await invoke('minimize_mini_player'); } catch(e) { console.error(e); }
+        try { 
+            if (invoke) await invoke('minimize_mini_player'); 
+        } catch(e) { 
+            console.error(e); 
+        }
     };
 
     document.getElementById('btnSwitchMode').addEventListener('click', switchMode);
@@ -125,7 +150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnClosePlayer').addEventListener('click', closePlayer);
     document.getElementById('btnCloseSmall').addEventListener('click', closePlayer);
     
-    // イベントリスナー登録
     document.getElementById('btnMinimizePlayer').addEventListener('click', minimizePlayer);
     document.getElementById('btnMinimizeSmall').addEventListener('click', minimizePlayer);
 
@@ -142,16 +166,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const widthIsMaster = diffWidth >= diffHeight;
 
                 isSystemResizing = true; 
-                invoke('make_window_square', { widthIsMaster })
-                    .then(() => {
-                        lastWidth = window.outerWidth || 256;
-                        lastHeight = window.outerHeight || 256;
-                        setTimeout(() => { isSystemResizing = false; }, 200);
-                    })
-                    .catch(e => {
-                        console.error(e);
-                        isSystemResizing = false;
-                    });
+                if (invoke) {
+                    invoke('make_window_square', { widthIsMaster })
+                        .then(() => {
+                            lastWidth = window.outerWidth || 256;
+                            lastHeight = window.outerHeight || 256;
+                            setTimeout(() => { isSystemResizing = false; }, 200);
+                        })
+                        .catch(e => {
+                            console.error(e);
+                            isSystemResizing = false;
+                        });
+                }
             }, 100);
         }
     });
@@ -167,8 +193,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const loadHistory = async () => {
-        historyListEl.innerHTML = '<div class="no-data">読み込み中...</div>';
+        const loadingText = (window.i18n && window.i18n.t) ? window.i18n.t('Player.history_loading') : "読み込み中...";
+        historyListEl.innerHTML = `<div class="no-data">${loadingText}</div>`;
         try {
+            if (!invoke) return;
             const historyData = await invoke("get_playback_history");
             historyListEl.innerHTML = '';
             if (historyData && historyData.length > 0) {
@@ -189,10 +217,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     historyListEl.appendChild(item);
                 });
             } else {
-                historyListEl.innerHTML = '<div class="no-data">再生履歴はありません</div>';
+                const noHistText = (window.i18n && window.i18n.t) ? window.i18n.t('Player.no_history') : "再生履歴はありません";
+                historyListEl.innerHTML = `<div class="no-data">${noHistText}</div>`;
             }
         } catch (e) {
-            historyListEl.innerHTML = '<div class="no-data">履歴の取得に失敗しました</div>';
+            const failText = (window.i18n && window.i18n.t) ? window.i18n.t('Player.history_failed') : "履歴の取得に失敗しました";
+            historyListEl.innerHTML = `<div class="no-data">${failText}</div>`;
         }
     };
 
@@ -205,12 +235,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTextWithMarquee(titleEl, escapeHtml(state.song.title || 'Unknown Title'), 'info-title');
             setTextWithMarquee(artistEl, escapeHtml(state.song.artist || 'Unknown Artist'), 'info-artist');
             
-            if (state.song.album) {
-                setTextWithMarquee(albumEl, escapeHtml(state.song.album), 'info-album');
-                albumEl.style.display = 'block';
-            } else {
-                albumEl.style.display = 'none';
-            }
             lyricTextEl.textContent = state.song.lyric || '歌詞情報はありません。';
 
             if (currentMode === 'large' && lastRenderedSongFilename !== state.song.musicFilename) {
@@ -242,7 +266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 queueListEl.appendChild(item);
             });
             if (state.queue.length === 0) {
-                queueListEl.innerHTML = '<div class="no-data">次に再生される曲はありません</div>';
+                const noNextText = (window.i18n && window.i18n.t) ? window.i18n.t('Player.no_next_songs') : "次に再生される曲はありません";
+                queueListEl.innerHTML = `<div class="no-data">${noNextText}</div>`;
             }
         }
     };

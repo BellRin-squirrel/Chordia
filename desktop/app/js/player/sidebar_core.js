@@ -193,14 +193,14 @@
                 summaries.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
                 
                 s.playlists = summaries;
-                this.renderSidebar();
+                await this.renderSidebar();
                 
-                if (s.playlists.length > 0 && s.currentPlaylistIndex === -1) {
-                    window.MainViewController.selectPlaylist(0);
+                if (s.playlists.length > 0 && s.currentPlaylistIndex === -1 && window.MainViewController) {
+                    await window.MainViewController.selectPlaylist(0);
                 }
             } catch (e) { 
                 console.error("Load Error:", e); 
-                u.showToast("データの読み込みに失敗しました", true);
+                u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "データの読み込みに失敗しました", true);
             }
         },
 
@@ -218,7 +218,7 @@
                         s.currentPlaylistIndex === index && s.currentPlaylistType !== 'virtual',
                         (newName) => this.finishRename(index, newName),
                         () => {
-                            window.MainViewController.selectPlaylist(index);
+                            if (window.MainViewController) window.MainViewController.selectPlaylist(index);
                             if (window.innerWidth < 900) {
                                 if (this.sidebar) this.sidebar.classList.remove('drawer-open');
                                 const overlay = document.getElementById('sidebarOverlay');
@@ -306,8 +306,11 @@
                     s.currentVirtualField = field;
                     s.currentPlaylistIndex = -1; 
                     
-                    this.renderSidebar();
-                    window.MainViewController.renderMainView();
+                    await this.renderSidebar();
+                    if (window.MainViewController) {
+                        await window.MainViewController.updatePlaylistCoverUI(virtualPl);
+                        window.MainViewController.renderMainView();
+                    }
                 }
             } catch(e) {
                 console.error(e);
@@ -341,14 +344,23 @@
         finishCreate: async function(name, type) {
             s.editingPlaylistIndex = -1;
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-            const newPl = await invoke("create_playlist", { name: name, plType: type }); 
-            if (newPl) {
-                s.playlists.push(newPl);
-                s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
-                this.renderSidebar();
-                window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === newPl.id));
+            
+            try {
+                const newPl = await invoke("create_playlist", { name: name, plType: type }); 
+
+                if (newPl) {
+                    s.playlists.push(newPl);
+                    s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
+                    await this.renderSidebar();
+                    if (window.MainViewController) {
+                        window.MainViewController.selectPlaylist(s.playlists.findIndex(p => p.id === newPl.id));
+                    }
+                }
+                u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "作成しました", false);
+            } catch (err) {
+                console.error("create_playlist error:", err);
+                u.showToast(window.i18n ? window.i18n.t('Common.error') : "作成に失敗しました", true);
             }
-            u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "作成しました", false);
         },
 
         finishRename: async function(index, newName) {
@@ -360,7 +372,7 @@
             if (updatedPl) {
                 s.playlists[index].playlistName = updatedPl.playlistName; 
                 s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
-                this.renderSidebar();
+                await this.renderSidebar();
                 const newIdx = s.playlists.findIndex(p => p.id === plId);
                 s.currentPlaylistIndex = newIdx;
                 this.renderSidebar();
@@ -384,9 +396,13 @@
         openDeleteModal: function(index) {
             this.deleteTargetIndex = index;
             const pl = s.playlists[index];
-            const nameEl = document.getElementById('delPlaylistName');
             const modal = document.getElementById('playlistDeleteModal');
-            if(nameEl) nameEl.textContent = pl.playlistName;
+            const msgEl = modal ? modal.querySelector('p') : null;
+            if (msgEl) {
+                msgEl.textContent = (window.i18n && window.i18n.t)
+                    ? window.i18n.t('Player.del_pl_msg', { name: pl.playlistName })
+                    : `「${pl.playlistName}」を削除してもよろしいですか？`;
+            }
             if(modal) modal.classList.add('show');
         },
 
