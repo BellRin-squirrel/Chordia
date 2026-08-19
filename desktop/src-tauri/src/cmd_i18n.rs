@@ -1,770 +1,382 @@
+#![allow(dead_code, unused_variables, unused_assignments)]
+
 use serde_json::Value;
 use ini::Ini;
 use std::fs;
 use std::path::Path;
+use std::collections::HashSet;
 use crate::utils::get_base_dir;
 
-// =======================================================
-// 暗号化データ定数 (100個のUnicodeコードポイント)
-// =======================================================
-const ENCRYPTED_DATA: [u16; 100] = [
-    0x2E63, 0xD4C5, 0x05EB, 0xE7A6, 0xDAA4, 0x3BF9, 0xAF05, 0x4770, 0x7E37, 0x1A14,
-    0xFA3A, 0x9327, 0x7179, 0x8898, 0x8EFE, 0x9043, 0x8F5A, 0xC499, 0xB510, 0xAE19,
-    0xE868, 0x6E12, 0x0B81, 0x1818, 0x87AA, 0x51E2, 0xFED2, 0x83B3, 0x4632, 0x88C4,
-    0x87EE, 0x5E62, 0xD564, 0x65F9, 0x959E, 0xBB82, 0x41BD, 0x7292, 0x87B6, 0x643B,
-    0xF8A5, 0xB04C, 0xEB04, 0xC965, 0xCD2B, 0x24C8, 0xE58D, 0xAE7C, 0x789C, 0x8EB0,
-    0x5CE7, 0x228B, 0xBEE5, 0x5248, 0x1600, 0x546D, 0x524F, 0xDA38, 0x3344, 0x738E,
-    0x19BD, 0x46FB, 0xF947, 0x0D6C, 0x11B3, 0xBE2C, 0xE19A, 0xF69E, 0x05E4, 0x08F1,
-    0x673F, 0xB5A4, 0x7E02, 0x47B0, 0x1980, 0xE87C, 0xE8B7, 0xD12D, 0xF3C0, 0xFEF2,
-    0xCEEC, 0xAF09, 0xB2B5, 0xBE08, 0x4332, 0x6E62, 0x992B, 0x82C7, 0x76FF, 0x89C0,
-    0xD8FF, 0xC7F5, 0x2D4D, 0x5821, 0x8370, 0x089E, 0x8254, 0x55B0, 0x76A3, 0x9ECF,
+pub use crate::i18n_japanese::DEFAULT_JAPANESE_INI;
+pub use crate::i18n_english::DEFAULT_ENGLISH_INI;
+
+pub const ENCRYPTED_DATA: [u16; 100] = [
+    0x5B6C, 0x8F51, 0xFDBA, 0x2572, 0xD73B, 0x02A3, 0x4BC5, 0xBDE8, 0xA1F3, 0xC1EB,
+    0xB2CE, 0x506A, 0xBB74, 0xFD2A, 0x2CF1, 0x4CAF, 0xE6F9, 0x5293, 0x59DC, 0x9F6C,
+    0x83F9, 0x0897, 0xF926, 0x3F8E, 0xD886, 0x94B3, 0xD406, 0x8042, 0x7230, 0x0206,
+    0x7682, 0x8544, 0xD27E, 0xE036, 0x69EE, 0x750C, 0xD892, 0x9F5F, 0x8BBF, 0xD54F,
+    0x07D4, 0xD7C7, 0xE797, 0x0BAF, 0x62CD, 0x1D53, 0xA9D0, 0x584E, 0xC795, 0x166D,
+    0x2706, 0x2E93, 0xE64D, 0x2577, 0x3465, 0x5BAB, 0x20AE, 0x1013, 0x2A9E, 0xBA2A,
+    0x420F, 0xB316, 0xD8CE, 0x6F9D, 0x5257, 0xFF17, 0x1FF1, 0xC5F2, 0x364E, 0xCD65,
+    0xAE86, 0xBF85, 0x7B9E, 0xA3CD, 0xC702, 0xF731, 0x6220, 0x891E, 0xE9CC, 0x2338,
+    0x3CC0, 0x0D05, 0x19A0, 0x0938, 0x5CF8, 0x70CD, 0xFE24, 0xBDFF, 0x0AA7, 0x1983,
+    0x72C9, 0x127A, 0x1279, 0xAAE5, 0x3E42, 0x2BE2, 0x1C51, 0x6B08, 0xD98E, 0x82B6,
 ];
 
-const KEY_ALPHA: u32 = 0x9E3779B9;
-const KEY_BETA: u32  = 0x5A827999;
-const KEY_GAMMA: u32 = 0x67452301;
+pub const KEY_ALPHA: u32 = 0x9E3779B9;
+pub const KEY_BETA: u32  = 0x5A827999;
+pub const KEY_GAMMA: u32 = 0x67452301;
 
-const AFFINE_INV_MULT: u16 = 0x770D;
-const AFFINE_ADD: u16      = 0x7E19;
+pub const AFFINE_INV_MULT: u16 = 0x9A2D;
+pub const AFFINE_ADD: u16      = 0x7E19;
 
-/// 暗号化データを動的に復号し、100文字の検証用Unicode文字リストを復元
-pub fn decrypt_prohibited_characters(cipher: &[u16; 100]) -> Vec<char> {
-    let mut data = *cipher;
+static _0x_AUX_LUT: [u32; 16] = [
+    0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE,
+    0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
+    0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE,
+    0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
+];
 
-    // Stage 1: Phase 5の逆変換
-    for i in 0..100 {
-        let k = (KEY_GAMMA.wrapping_add((i as u32).wrapping_mul(0x7A3B))).rotate_left((i % 11) as u32) as u16;
-        let mut v = data[i];
-        v = v.wrapping_sub(0x3141u16.wrapping_mul(i as u16 + 1));
-        v ^= k;
-        v = v.rotate_right(((i * 5 + 7) % 15 + 1) as u32);
-        data[i] = v;
+fn _0x_fnv1a_hash(_0xa0: &[u8]) -> u64 {
+    let mut _0xa1: u64 = 0xCBF29CE484222325;
+    for &_0xa2 in _0xa0 {
+        _0xa1 ^= _0xa2 as u64;
+        _0xa1 = _0xa1.wrapping_mul(0x100000001B3);
     }
-
-    // Stage 2: Phase 4の逆変換
-    for i in 0..100 {
-        let next = if i == 99 { 0xBEEF } else { data[i + 1] };
-        data[i] = (data[i].wrapping_sub(next.rotate_right(4))) ^ next.rotate_left(7);
-    }
-
-    // Stage 3: Phase 3の逆変換
-    for i in 0..100 {
-        data[i] = data[i].wrapping_sub(AFFINE_ADD).wrapping_mul(AFFINE_INV_MULT);
-    }
-
-    // Stage 4: Phase 2の逆変換
-    for i in (0..100).rev() {
-        let prev = if i == 0 { 0xACE1 } else { data[i - 1] };
-        data[i] = (data[i].wrapping_sub(prev.rotate_right(3))) ^ prev.rotate_left(5);
-    }
-
-    // Stage 5: Phase 1の逆変換
-    for i in 0..100 {
-        let k1 = (KEY_ALPHA.wrapping_add((i as u32).wrapping_mul(0x104D))) as u16;
-        let k2 = (KEY_BETA.rotate_left((i % 16) as u32)) as u16;
-        let mut v = data[i];
-        v = v.rotate_right(((i * 7 + 3) % 13 + 1) as u32);
-        v = v.wrapping_sub(k2);
-        v ^= k1;
-        data[i] = v;
-    }
-
-    data.iter().filter_map(|&u| std::char::from_u32(u as u32)).collect()
+    _0xa1
 }
 
-/// 指定された文字列内に禁止Unicode文字が含まれていないかを検証
-pub fn is_language_content_safe(content: &str) -> bool {
-    let prohibited = decrypt_prohibited_characters(&ENCRYPTED_DATA);
-    for ch in prohibited {
-        if content.contains(ch) {
-            return false;
+fn _0x_sbox_transform(_0xb0: u16, _0xb1: u32) -> u16 {
+    let _0xb2 = ((_0xb0 >> 8) as u8) ^ ((_0xb1 & 0xFF) as u8);
+    let _0xb3 = (_0xb0 as u8) ^ (((_0xb1 >> 8) & 0xFF) as u8);
+    let _0xb4 = _0x_AUX_LUT[(_0xb2 & 0x0F) as usize] as u16;
+    let _0xb5 = _0x_AUX_LUT[(_0xb3 >> 4) as usize] as u16;
+    ((_0xb4.rotate_left(3)) ^ _0xb5).wrapping_add(0x5A82)
+}
+
+fn _0x_calc_entropy_vector(_0xc0: &[u16]) -> (u32, u32) {
+    let mut _0xc1: u32 = 0x811C9DC5;
+    let mut _0xc2: u32 = 0x12345678;
+    for (idx, &_0xc3) in _0xc0.iter().enumerate() {
+        let _0xc4 = _0x_AUX_LUT[idx % _0x_AUX_LUT.len()];
+        _0xc1 = _0xc1.wrapping_add((_0xc3 as u32) ^ _0xc4).rotate_left((idx % 7 + 1) as u32);
+        _0xc2 = (_0xc2 ^ (_0xc3 as u32)).wrapping_mul(0x5BD1E995);
+    }
+    (_0xc1, _0xc2)
+}
+
+fn _0x_matrix_permute(_0xd0: &mut [u16; 100], _0xd1: u32) {
+    let mut _0xd2 = [0u16; 100];
+    let _0xd3 = (_0xd1 % 97 + 1) as usize;
+    for _0xd4 in 0..100 {
+        let _0xd5 = (_0xd4 * _0xd3 + 13) % 100;
+        _0xd2[_0xd5] = _0xd0[_0xd4].rotate_left(((_0xd4 % 5) + 1) as u32);
+    }
+    for _0xd4 in 0..100 {
+        let _0xd6 = _0x_sbox_transform(_0xd2[_0xd4], _0xd1.wrapping_add(_0xd4 as u32));
+        _0xd0[_0xd4] = _0xd2[_0xd4] ^ (_0xd6 & 0x0000);
+    }
+}
+
+fn _0x_verify_pipeline_state(_0xe0: &[u16; 100], _0xe1: u32) -> bool {
+    let mut _0xe2: u32 = 0;
+    for (i, &_0xe3) in _0xe0.iter().enumerate() {
+        let _0xe4 = _0x_sbox_transform(_0xe3, _0xe1 ^ (i as u32));
+        _0xe2 = _0xe2.wrapping_add(_0xe4 as u32);
+    }
+    _0xe2 != 0xFFFFFFFF
+}
+
+fn _0x_adler32_pseudo(_0xf0: &str) -> u32 {
+    let mut _0xf1: u32 = 1;
+    let mut _0xf2: u32 = 0;
+    for _0xf3 in _0xf0.bytes() {
+        _0xf1 = (_0xf1 + _0xf3 as u32) % 65521;
+        _0xf2 = (_0xf2 + _0xf1) % 65521;
+    }
+    (_0xf2 << 16) | _0xf1
+}
+
+fn _0x_expand_round_keys(_0x100: u32) -> [u32; 8] {
+    let mut _0x101 = [0u32; 8];
+    let mut _0x102 = _0x100;
+    for _0x103 in 0..8 {
+        _0x102 = _0x102.wrapping_mul(0x6C078965).wrapping_add(1);
+        let _0x104 = _0x_AUX_LUT[_0x103 % _0x_AUX_LUT.len()];
+        _0x101[_0x103] = _0x102 ^ _0x104.rotate_right((_0x103 * 3) as u32);
+    }
+    _0x101
+}
+
+pub fn decrypt_to_unicode_array(_0x0a: &[u16; 100]) -> [u16; 100] {
+    let mut _0x0b = *_0x0a;
+    let _0x_dummy_keys = _0x_expand_round_keys(KEY_ALPHA ^ KEY_GAMMA);
+    let mut _0x_dummy_shadow = [0u16; 100];
+    for _0xd_idx in 0..100 {
+        _0x_dummy_shadow[_0xd_idx] = _0x0b[_0xd_idx] ^ (_0x_dummy_keys[_0xd_idx % 8] as u16);
+    }
+    let (_0x_ent_a, _0x_ent_b) = _0x_calc_entropy_vector(&_0x_dummy_shadow);
+
+    for _0x0c in 0..100 {
+        let _0x0d = (KEY_GAMMA.wrapping_add((_0x0c as u32).wrapping_mul(0x7A3B)))
+            .rotate_left((_0x0c % 11) as u32) as u16;
+        let mut _0x0e = _0x0b[_0x0c];
+        _0x0e = _0x0e.wrapping_sub((0x3141u16).wrapping_mul((_0x0c as u16).wrapping_add(1)));
+        _0x0e ^= _0x0d;
+        _0x0e = _0x0e.rotate_right((((_0x0c * 5 + 7) % 15) + 1) as u32);
+        _0x0b[_0x0c] = _0x0e;
+    }
+
+    let mut _0x_pass_chk = 0u32;
+    for _0xd_idx in 0..100 {
+        let _0xd_sub = _0x_sbox_transform(_0x0b[_0xd_idx], _0x_ent_a ^ (_0xd_idx as u32));
+        _0x_pass_chk = _0x_pass_chk.wrapping_add(_0xd_sub as u32);
+    }
+
+    for _0x0c in 0..100 {
+        let _0x0f = if _0x0c == 99 { 0xBEEF } else { _0x0b[_0x0c + 1] };
+        _0x0b[_0x0c] = (_0x0b[_0x0c].wrapping_sub(_0x0f.rotate_right(4))) ^ _0x0f.rotate_left(7);
+    }
+
+    if _0x_pass_chk == 0xDEADBEEF {
+        _0x_matrix_permute(&mut _0x_dummy_shadow, _0x_ent_b);
+    }
+
+    for _0x0c in 0..100 {
+        _0x0b[_0x0c] = _0x0b[_0x0c].wrapping_sub(AFFINE_ADD).wrapping_mul(AFFINE_INV_MULT);
+    }
+
+    let mut _0x_sc = _0x_ent_b;
+    for _0xd_idx in 0..50 {
+        let _0xd_x = _0x0b[_0xd_idx] as u32;
+        _0x_sc = (_0x_sc << 5).wrapping_add(_0x_sc).wrapping_add(_0xd_x);
+    }
+
+    for _0x0c in (0..100).rev() {
+        let _0x10 = if _0x0c == 0 { 0xACE1 } else { _0x0b[_0x0c - 1] };
+        _0x0b[_0x0c] = (_0x0b[_0x0c].wrapping_sub(_0x10.rotate_right(3))) ^ _0x10.rotate_left(5);
+    }
+
+    let _0x_valid_flag = _0x_verify_pipeline_state(&_0x0b, KEY_BETA);
+    if !_0x_valid_flag {
+        let _0xd_corr = (_0x_sc & 0x01) as u16;
+        _0x0b[0] ^= _0xd_corr & 0x0000;
+    }
+
+    for _0x0c in 0..100 {
+        let _0x11 = KEY_ALPHA.wrapping_add((_0x0c as u32).wrapping_mul(0x104D)) as u16;
+        let _0x12 = (KEY_BETA.rotate_left((_0x0c % 16) as u32)) as u16;
+        let mut _0x0e = _0x0b[_0x0c];
+        _0x0e = _0x0e.rotate_right((((_0x0c * 7 + 3) % 13) + 1) as u32);
+        _0x0e = _0x0e.wrapping_sub(_0x12);
+        _0x0e ^= _0x11;
+        _0x0b[_0x0c] = _0x0e;
+    }
+
+    _0x0b
+}
+
+fn _0x_prefilter_lexical(_0x110: &str) -> u64 {
+    let mut _0x111 = 0u64;
+    let _0x112 = _0x110.as_bytes();
+    if _0x112.len() >= 4 {
+        _0x111 = _0x_fnv1a_hash(&_0x112[0..4]);
+    } else {
+        _0x111 = _0x_fnv1a_hash(_0x112);
+    }
+    _0x111
+}
+
+pub fn find_prohibited_characters(_0x20: &str) -> Vec<(char, u16)> {
+    let _0x_dummy_hash = _0x_prefilter_lexical(_0x20);
+    let _0x_chk_adler = _0x_adler32_pseudo(_0x20);
+
+    let _0x21 = decrypt_to_unicode_array(&ENCRYPTED_DATA);
+    let _0x22: HashSet<u16> = _0x21.iter().copied().collect();
+
+    let mut _0x23 = Vec::new();
+    let mut _0x24 = HashSet::new();
+
+    let mut _0x_shadow_acc = _0x_chk_adler;
+    for _0x25 in _0x20.encode_utf16() {
+        _0x_shadow_acc = _0x_shadow_acc.wrapping_mul(31).wrapping_add(_0x25 as u32);
+        if _0x22.contains(&_0x25) && _0x24.insert(_0x25) {
+            let _0x26 = std::char::from_u32(_0x25 as u32).unwrap_or('?');
+            _0x23.push((_0x26, _0x25));
         }
     }
-    true
+
+    if _0x_shadow_acc == 0x12344321 {
+        _0x23.retain(|&(_c, _u)| _u != 0xFFFF);
+    }
+
+    _0x23
 }
 
-/// INIファイルの内容を読み込み、安全基準を満たしているかを検証
-pub fn is_language_file_safe(path: &Path) -> bool {
-    if let Ok(content) = fs::read_to_string(path) {
-        is_language_content_safe(&content)
+fn _0x_deep_scan_buffer(_0x120: &[u8]) -> (bool, u32) {
+    let mut _0x121: u32 = 0x811C9DC5;
+    let mut _0x122 = true;
+    for (i, &_0x123) in _0x120.iter().enumerate() {
+        _0x121 ^= _0x123 as u32;
+        _0x121 = _0x121.wrapping_mul(0x01000193);
+        if _0x123 == 0x00 && i < 16 {
+            _0x122 = false;
+        }
+    }
+    (_0x122, _0x121)
+}
+
+pub fn is_language_content_safe(_0x30: &str) -> bool {
+    let (_0x_valid_raw, _0x_checksum) = _0x_deep_scan_buffer(_0x30.as_bytes());
+    if !_0x_valid_raw && _0x_checksum == 0xCAFEBABE {
+        return false;
+    }
+    find_prohibited_characters(_0x30).is_empty()
+}
+
+fn _0x_inspect_path_security(_0x130: &Path) -> u32 {
+    let _0x131 = _0x130.to_string_lossy();
+    let mut _0x132 = 0x55AA55AAu32;
+    for byte in _0x131.bytes() {
+        _0x132 = (_0x132 << 3) ^ (byte as u32).wrapping_add(0x7F);
+    }
+    _0x132
+}
+
+pub fn is_language_file_safe(_0x31: &Path) -> bool {
+    let _0x_path_score = _0x_inspect_path_security(_0x31);
+    if _0x_path_score == 0x00000000 {
+        return false;
+    }
+
+    if let Ok(_0x32) = fs::read_to_string(_0x31) {
+        let _0x_aux_hash = _0x_adler32_pseudo(&_0x32);
+        if _0x_aux_hash == 0xFEEDFACE {
+            return false;
+        }
+        is_language_content_safe(&_0x32)
     } else {
         false
     }
 }
 
-pub const DEFAULT_JAPANESE_INI: &str = r#"[Meta]
-name = "日本語"
-code = "ja"
+fn _0x_verify_runtime_environment() -> (u32, bool) {
+    let mut _0x140 = 0x9E3779B9u32;
+    for (i, &val) in _0x_AUX_LUT.iter().enumerate() {
+        _0x140 = _0x140.wrapping_add(val ^ (i as u32));
+    }
+    (_0x140, true)
+}
+
+pub fn init_default_languages() {
+    let (_0x_rt_code, _0x_rt_ok) = _0x_verify_runtime_environment();
+    let _0x40 = get_base_dir();
+    let _0x41 = _0x40.join("lang");
+    let _ = fs::create_dir_all(&_0x41);
+
+    let _0x42 = _0x41.join("Japanese.ini");
+    if !_0x42.exists() {
+        let _0x_chk_ja = _0x_adler32_pseudo(DEFAULT_JAPANESE_INI);
+        if _0x_chk_ja != 0x00000000 || _0x_rt_ok {
+            let _ = fs::write(_0x42, DEFAULT_JAPANESE_INI);
+        }
+    }
+
+    let _0x43 = _0x41.join("English.ini");
+    if !_0x43.exists() {
+        let _0x_chk_en = _0x_adler32_pseudo(DEFAULT_ENGLISH_INI);
+        if _0x_chk_en != 0x00000000 || _0x_rt_ok {
+            let _ = fs::write(_0x43, DEFAULT_ENGLISH_INI);
+        }
+    }
+}
+
+fn _0x_directory_entropy_filter(_0x150: &Path) -> (u64, usize) {
+    let mut _0x151 = 0xCBF29CE484222325u64;
+    let mut _0x152 = 0usize;
+    if let Ok(entries) = fs::read_dir(_0x150) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            if let Some(name) = entry.file_name().to_str() {
+                _0x151 ^= _0x_fnv1a_hash(name.as_bytes());
+                _0x152 = _0x152.wrapping_add(1);
+            }
+        }
+    }
+    (_0x151, _0x152)
+}
 
-[Common]
-back_to_top = "トップへ戻る"
-cancel = "キャンセル"
-save = "保存"
-delete = "削除"
-ok = "OK"
-close = "閉じる"
-none = "なし"
-search = "検索"
-status = "ステータス"
-loading = "読み込み中..."
-notice = "お知らせ"
-complete = "完了"
-error = "エラー"
-please_wait = "このまましばらくお待ちください"
-
-[Menu]
-title = "Chordia"
-subtitle = "ライブラリをスマートに管理"
-add_music = "曲を追加"
-add_music_desc = "個別またはスキャン一括登録"
-manage_db = "データベースを管理"
-manage_db_desc = "編集・削除・整理"
-migration = "データの引継ぎ"
-migration_desc = "エクスポート・復元(インポート)"
-integrity = "整合性確認"
-integrity_desc = "タグ・音源・不要データの確認"
-player = "音楽を再生"
-player_desc = "プレイヤーを開く"
-mobile_sync = "Mobile版に同期"
-mobile_sync_desc = "セキュアな接続設定"
-extensions = "拡張機能"
-extensions_desc = "DL機能などを管理"
-settings = "設定"
-settings_desc = "アプリの環境設定"
-info = "情報"
-info_desc = "ライセンス・バージョン情報"
-
-[Info]
-title = "情報"
-app_name = "Chordia Desktop版"
-copyright = "© 2026 BellRin"
-
-[AddMusic]
-title = "曲を追加"
-subtitle = "情報を設定してライブラリに楽曲を登録します"
-tab_single = "1曲追加"
-tab_bulk_yt = "一括追加 (YouTubeリスト)"
-tab_jsoncsv = "一括追加 (JSON/CSV)"
-tab_mp3zip = "一括追加 (ZIPファイル)"
-
-pane_info_title = "曲の情報"
-dup_warning_text = "⚠️ 重複する楽曲がライブラリにあります"
-btn_show_existing = "既存曲を再生"
-
-pane_source_title = "音源の設定"
-src_local = "ローカルファイル"
-src_download = "動画ダウンロード"
-drop_music_main = "MP3 / MP4 ファイルをドラッグ＆ドロップ"
-drop_music_sub1 = "または"
-drop_music_sub2 = "クリックして参照"
-video_url_label = "動画のURL"
-video_url_ph = "..."
-btn_fetch_video = "動画情報を取得"
-btn_cancel_video = "この動画を使わない"
-
-pane_art_title = "アルバムアート"
-art_opt_local = "ローカル"
-art_opt_extract = "音源から抽出"
-art_opt_thumb1 = "元のサムネ"
-art_opt_thumb2 = "別動画"
-art_opt_url = "画像URL"
-art_opt_none = "設定しない"
-drop_art_text = "PNG画像を選択"
-art_extract_desc = "音源ファイルに埋め込まれているアルバムアートを抽出します。"
-btn_extract_art = "抽出を実行"
-art_thumb1_desc = "動画のサムネイルをスクエアに切り取って使用します。"
-btn_download_orig_thumb = "オリジナル画像を保存"
-alt_video_label = "別の動画URL"
-btn_fetch_alt_thumb = "サムネイルを取得"
-image_url_label = "画像のURL"
-btn_preview_image_url = "画像をプレビュー"
-art_none_desc = "以下のデフォルト画像が適用されます。"
-
-btn_auto_lyric = "歌詞を自動取得 (LRCLIB)"
-ph_lyric = "ここに歌詞を入力してください..."
-btn_submit_single = "この設定で楽曲を追加"
-
-bulk_yt_title = "YouTube 再生リストから一括追加"
-bulk_yt_url_label = "再生リストのURL"
-btn_fetch_bulk_yt = "取得"
-btn_submit_bulk_yt = "表示されている楽曲を一括追加"
-
-bulk_jsoncsv_title = "JSON / CSVファイルから一括追加"
-bulk_jsoncsv_desc = "エクスポートされたメタデータ一覧ファイルを読み込み、リストに沿って楽曲を一括登録します。"
-drop_jsoncsv_main = "ここにJSONまたはCSVファイルをドラッグ＆ドロップ"
-drop_jsoncsv_sub = "またはクリックしてファイルを選択 (JSON / CSV)"
-btn_scan_list = "リストを解析"
-list_result_title = "解析された楽曲リスト"
-btn_submit_list = "表示されている楽曲をすべて登録"
-
-bulk_zip_title = "MP3 ZIPファイルから一括追加"
-bulk_zip_desc = "ZIP内のMP3データを読み込み、埋め込まれているタグ情報を自動抽出して一括登録します。"
-drop_zip_main = "ここにZIPファイルをドラッグ＆ドロップ"
-drop_zip_sub = "またはクリックしてファイルを選択 (ZIP)"
-btn_scan_zip = "ZIPファイルを解析"
-zip_result_title = "抽出された楽曲リスト"
-btn_submit_zip = "表示されている楽曲をすべて追加"
-
-th_no = "No."
-th_art = "アート"
-th_path_filename = "パス / ファイル名"
-btn_watch_video = "動画を見る"
-
-progress_scanning_zip = "ZIPファイルをスキャン中..."
-progress_analyzing_zip = "ZIPファイルを解析中..."
-progress_registering = "ライブラリへ登録中..."
-
-modal_password_title = "パスワードが必要です"
-modal_password_desc = "このZIPファイルは保護されています。"
-modal_password_ph = "パスワードを入力"
-btn_confirm_pass = "確定"
-
-dup_existing_msg = "「{title}」（{artist}）の楽曲はすでに追加されています。"
-dup_bulk_msg = "「{title}」（{artist}）の楽曲は一括追加の項目内で重複しています。"
-dup_modal_title = "重複の確認"
-dup_modal_desc = "同じタイトル・アーティストの楽曲が既に登録されています。<br>このまま追加を続行しますか?"
-btn_continue = "そのまま続行"
-btn_skip = "この曲をスキップ"
-btn_cancel_bulk = "一括追加をキャンセル"
-btn_open_db_manage = "データベース管理画面を開く"
-
-confirm_remove_row = "この楽曲を追加リストから除外しますか?"
-msg_import_success = "{count}曲の登録が完了しました。"
-msg_no_songs_to_import = "追加する楽曲がありません。"
-msg_applied = "反映しました"
-msg_title_artist_required = "タイトルとアーティストを入力してください"
-msg_lyric_applied = "歌詞を適用しました"
-msg_art_extracted = "アートワークを抽出しました"
-msg_art_not_found = "アートワークが見つかりませんでした"
-msg_select_image_file = "画像ファイルを選択してください"
-msg_art_fetch_success = "サムネイルを取得しました"
-msg_enter_url = "URLを入力してください"
-msg_music_format_error = "MP3またはMP4ファイルのみ対応しています"
-msg_ext_needed = "動画機能を利用するには拡張機能（yt-dlp, ffmpeg）が必要です"
-msg_ext_needed_bulk = "動画機能を利用するには拡張機能（yt-dlp, ffmpeg, deno）をインストールしてください"
-msg_fetch_failed = "取得に失敗しました: {msg}"
-label_selected_file = "選択中: {name}"
-
-loading_reading_file = "ファイルの読み込み中..."
-loading_saving_library = "ライブラリへ保存中..."
-loading_downloading_video = "動画をダウンロード中..."
-loading_processing_thumb = "サムネイル処理中..."
-loading_bulk_importing = "一括追加中... {current} / {total}"
-
-alert_thumb1_no_video = "動画情報を取得していないため、元のサムネイルは利用できません。\n音源の設定で「動画ダウンロード」を選択し、URLから情報を取得してください。"
-alert_extract_no_local = "ローカル音源ファイルが選択されていないため、抽出機能は利用できません。\n音源の設定でMP3/MP4ファイルをアップロードしてください。"
-alert_reset_art_local = "音源がローカルファイルに変更されたため、アルバムアートを「ローカル」にリセットしました。"
-alert_reset_art_download = "音源が動画ダウンロードに変更されたため、アルバムアートを「ローカル」にリセットしました。"
-alert_select_audio_file = "音源となるファイルを選択してください"
-alert_fetch_video_info = "動画情報を取得してください"
-alert_song_added = "楽曲をライブラリに追加しました！"
-alert_save_failed = "保存に失敗しました。"
-alert_bulk_complete = "{success}曲の追加が完了しました。\n(失敗: {fail}曲)"
-
-[Player]
-select_playlist = "プレイリスト"
-select_album = "アルバム"
-select_artist = "アーティスト"
-select_playlist_placeholder = "プレイリストを選択"
-search_in_list_ph = "リスト内検索 (Ctrl+F)"
-btn_edit_rules = "ルールを編集"
-btn_play_all = "再生"
-btn_shuffle_all = "シャッフル"
-
-song_count = "{count} 曲"
-duration_seconds = "{sec}秒"
-duration_minutes = "{min}分"
-duration_hours = "{hr}時間"
-label_sort = "並び順:"
-sort_desc = "降順"
-sort_asc = "昇順"
-duplicate_suffix = " - コピー"
-
-no_next_songs = "次に再生される曲はありません"
-no_history = "再生履歴はありません"
-history_loading = "履歴を読み込み中..."
-history_failed = "履歴の取得に失敗しました"
-
-cover_modal_title = "カバーアートを変更"
-tab_cover_local = "ローカル画像 (PNG)"
-tab_cover_song = "楽曲から選択"
-drop_cover_main = "PNG画像をドラッグ＆ドロップ"
-drop_cover_sub = "またはクリックしてファイルを選択 (.png)"
-ph_search_cover_song = "タイトル・アーティストで検索..."
-cover_status_title = "選択中のカバーアート"
-cover_status_desc = "「変更を適用」を押すと決定されます"
-
-tab_queue = "次に再生"
-tab_history = "履歴"
-tab_details = "詳細"
-tab_artwork = "カバーアート"
-
-del_pl_title = "プレイリストの削除"
-del_pl_msg = "「{name}」を削除してもよろしいですか？"
-confirm_title = "確認"
-smart_remove_msg = "スマートプレイリストから楽曲を削除すると、自動更新ルールが解除され、通常のプレイリストに変更されます。<br><br>よろしいですか？"
-btn_convert_and_remove = "削除して変換"
-
-edit_pl_songs_title = "プレイリストの曲を編集"
-search_ph = "検索..."
-btn_save_selection = "設定"
-
-smart_modal_create_title = "スマートプレイリストを新規作成"
-smart_modal_edit_title = "スマートプレイリストを編集"
-pl_name_label = "プレイリスト名"
-smart_pl_name_ph = "スマートプレイリストの名前を入力..."
-btn_create_smart = "作成"
-
-menu_new_pl = "新規プレイリスト"
-menu_new_smart_pl = "新規スマートプレイリスト"
-menu_play = "再生"
-menu_shuffle = "シャッフル再生"
-menu_edit_songs = "曲を編集"
-menu_edit_rules = "ルールを編集"
-menu_rename = "名前を変更"
-menu_duplicate = "複製"
-menu_song_info = "情報を見る"
-menu_add_to_pl = "プレイリストに追加"
-menu_remove_from_pl = "プレイリストから削除"
-
-[Manage]
-title = "データベース管理"
-subtitle = "楽曲情報の編集・削除・アートワークの管理"
-btn_select_songs = "楽曲を選択"
-btn_finish_selection = "選択を終了"
-search_placeholder = "タイトル、アーティスト、アルバム名で検索..."
-btn_clear_search = "クリア"
-btn_advanced_search = "高度な検索"
-bulk_selected_count = "{count} 曲選択中"
-btn_bulk_edit = "一括変更"
-btn_bulk_delete = "一括削除"
-
-th_play = "再生"
-th_time = "時間"
-th_action = "操作"
-no_matching_songs = "一致する楽曲が見つかりませんでした"
-hint_double_click = "ダブルクリックで編集できます"
-
-btn_show_all = "すべて表示"
-btn_show_pages = "ページ別表示に戻す"
-btn_prev = "前へ"
-btn_next = "次へ"
-btn_jump = "移動"
-
-art_modal_title = "アートワーク編集"
-tab_local = "ローカル"
-tab_video_url = "動画URL"
-tab_image_url = "画像URL"
-btn_select_pc_image = "PCから画像を選択"
-ph_video_url = "YouTubeなどの動画URLを入力..."
-btn_fetch_thumb = "サムネを取得"
-ph_image_url = "画像の直接URLを入力..."
-btn_fetch_image = "画像を取得"
-art_status_current = "現在の画像"
-art_status_new = "新しい画像 (反映前)"
-art_status_thumb = "動画サムネイル (反映前)"
-art_status_url = "画像URL (反映前)"
-art_status_remove = "削除予定 (反映前)"
-btn_delete_image = "画像を削除"
-btn_apply_change = "変更を適用"
-
-lyric_modal_title = "歌詞編集"
-btn_auto_lyric = "自動取得 (LRCLIB)"
-ph_lyric = "歌詞を入力..."
-lyric_search_results = "歌詞の検索結果"
-lyric_search_desc = "確認したい歌詞をクリックしてください。"
-lyric_preview_title = "歌詞の確認"
-btn_back_to_results = "一覧に戻る"
-btn_apply_lyric = "適用"
-
-bulk_modal_title = "選択した曲を一括変更"
-bulk_meta_title = "メタデータの一括編集"
-bulk_art_title = "カバーアートの一括編集"
-bulk_lyric_title = "歌詞の一括編集"
-bulk_keep = "設定を維持する（そのまま変更しない）"
-bulk_art_overwrite = "新しい画像で一括上書きする"
-bulk_lyric_overwrite = "新しい歌詞で一括上書きする"
-btn_fetch = "取得"
-label_keep = "< 維持 >"
-label_keep_lyric = "< 維持 > (歌詞は変更されません)"
-label_keep_art = "< 維持 > (そのまま維持されます)"
-label_bulk_delete_target = "選択された {count} 曲"
-
-delete_modal_title = "楽曲を削除"
-delete_modal_desc = "以下の楽曲をライブラリとファイルから完全に削除しますか?"
-btn_delete_confirm = "削除する"
-
-adv_search_title = "高度な検索フィルター"
-btn_apply_filter = "フィルターを設定"
-btn_clear_filter = "条件をクリア"
-
-adv_match_all = "すべての"
-adv_match_any = "いずれかの"
-adv_match_rules = "ルールに一致"
-adv_particle_ga = "が"
-adv_particle_to = "と"
-adv_ph_search = "検索ワード..."
-adv_ph_number = "数字..."
-
-op_contains = "を含む"
-op_not_contains = "を含まない"
-op_equals = "である"
-op_not_equals = "ではない"
-op_startswith = "で始まる"
-op_endswith = "で終わる"
-op_greater = "より大きい"
-op_less = "より小さい"
-op_range = "の範囲内"
-
-msg_bulk_updated = "{count}曲を一括更新しました"
-msg_bulk_deleted = "{count}曲を削除しました"
-msg_bulk_edit_failed = "一括更新に失敗しました"
-msg_select_songs_prompt = "楽曲を選択してください"
-msg_lyric_saved = "歌詞を保存しました"
-msg_art_updated = "アートワークを更新しました"
-msg_deleted = "削除しました"
-msg_cannot_play = "再生できません"
-msg_not_found = "見つかりませんでした"
-msg_network_error = "通信エラーが発生しました"
-msg_enter_url = "URLを入力してください"
-msg_ext_missing = "拡張機能が不足しています"
-msg_art_fetch_success = "サムネイルを取得しました"
-msg_img_fetch_success = "画像を取得しました"
-msg_db_update_failed = "DB更新に失敗しました"
-
-[Migration]
-title = "データの引継ぎ"
-subtitle = "Chordiaの環境全体を一括エクスポート、またはバックアップから復元します"
-
-export_title = "1. 引継ぎデータのエクスポート"
-export_desc = "現在のライブラリ、設定情報、プレイリストを暗号化ZIPにまとめてエクスポートします。"
-
-target_music = "楽曲ファイル"
-target_music_desc = "library/music/ 内のすべての音声ファイル"
-target_images = "アルバムアート"
-target_images_desc = "library/images/ 内のすべての画像データ"
-target_db = "データベース"
-target_db_desc = "userfiles/music.json (曲情報リスト)"
-target_settings = "設定ファイル"
-target_settings_desc = "settings.ini / themes.json"
-target_playlists = "プレイリスト・履歴"
-target_playlists_desc = "playlist / played_times / history"
-
-save_path_label = "保存先とファイル名"
-save_path_placeholder = "保存先を選択してください..."
-btn_browse = "参照"
-password_label = "パスワード保護 (任意)"
-password_placeholder = "パスワードを入力（空欄は暗号化なし）"
-btn_export = "エクスポートを実行"
-btn_exporting = "エクスポート中..."
-
-import_title = "2. 引継ぎデータのインポート"
-import_desc = "エクスポートしたバックアップデータ（ZIP）を選択し、現在の環境に丸ごと復元します。"
-drop_main_msg = "ここに引継ぎZIPファイルをドロップ"
-drop_sub_msg = "またはクリックしてファイルを選択"
-import_pass_label = "引継ぎファイルの復号パスワード"
-import_pass_placeholder = "パスワードを入力してください"
-btn_apply = "適用"
-
-modal_export_title = "エクスポート完了"
-modal_export_msg = "データが正常にバックアップされました。"
-modal_import_title = "インポート(復元)完了"
-modal_import_msg = "すべてのライブラリと設定が正常に復元されました。"
-btn_show_explorer = "エクスプローラーで表示"
-btn_show_finder = "Finderで表示"
-
-msg_compressing = "データをバックアップ用に圧縮しています..."
-msg_rewriting_cache = "キャッシュを再度書き込んでいます..."
-msg_restoring = "引継ぎZIPファイルを解析・復元しています..."
-
-toast_interrupted = "処理を中断しました"
-toast_specify_path = "エクスポート先のファイル名を指定してください"
-toast_select_target = "項目を1つ以上選択してください"
-toast_pass_too_long = "パスワードは128文字以内にしてください"
-toast_export_success = "エクスポートが完了しました"
-toast_system_error = "システムエラーが発生しました"
-toast_explorer_failed = "エクスプローラーの展開に失敗しました"
-toast_finder_failed = "Finderの展開に失敗しました"
-toast_zip_required = "引継ぎファイルはZIP形式である必要があります"
-toast_enter_password = "復号用パスワードを入力してください"
-toast_password_protected = "このファイルはパスワードで保護されています"
-toast_import_success = "インポートが完了しました"
-toast_restore_failed = "復元に失敗しました: {err}"
-
-[Sync]
-title = "同期設定"
-wan_title = "外出先 (WAN) 接続モード"
-wan_desc = "安全なHTTPSトンネルを構築し、インターネット越しでの同期を許可します。"
-wan_status_off = "● WAN接続モード: OFF (無効)"
-wan_status_building = "● WAN接続モード: ON (トンネル構築中...)"
-wan_status_on = "● WAN接続モード: ON (有効・待機中)"
-wan_url_label = "WAN パブリック URL:"
-wan_tunnel_building = "トンネル構築中..."
-wan_qr_desc = "スマホの「QRコードで自動接続」で読み取ってください<br>(※WAN接続のため、6桁の認証コードはセキュリティ上「手入力」になります)"
-
-ip_label = "IPアドレス (LAN用)"
-port_label = "ポート番号"
-loading_ip = "取得中..."
-auth_code_desc = "以下の認証コードをスマホアプリに入力してください"
-countdown_text = "更新まであと {sec} 秒"
-qr_desc = "または、カメラでQRコードを読み取ります"
-btn_show_qr = "LAN用 QRコードを表示"
-btn_hide_qr = "QRコードを隠す"
-
-requests_title = "接続リクエスト（許可待ち）"
-no_requests = "現在リクエストはありません"
-waiting_code_title = "認証コード入力待ち"
-no_waiting_code = "現在コード入力待ちの端末はありません"
-sessions_title = "接続済みのセッション（同期中）"
-no_sessions = "接続中のデバイスはありません。"
-
-btn_approve = "許可"
-btn_reject = "拒否"
-btn_cancel_approval = "取り消し"
-btn_disconnect = "切断"
-label_waiting_code = "コード入力待ち..."
-label_remaining_time = "最終アクセス: 残り{min}分{sec}秒"
-
-toast_wan_enabled = "WAN モードを有効化しました"
-toast_wan_disabled = "WAN モードを無効化しました"
-toast_auth_request = "接続要求: {device} からのリクエスト"
-toast_auth_success = "ペアリング完了: {device} と接続されました"
-toast_server_error = "サーバーの起動に失敗しました"
-toast_waiting_port = "ポートの取得を待っています..."
-err_cloudflared_start = "cloudflaredの起動に失敗しました（{bin} を確認してください）"
-err_cloudflared_timeout = "Cloudflare Tunnel の URL 取得にタイムアウトしました。"
-
-[Integrity]
-title = "整合性確認"
-subtitle = "データベース、ファイル、設定情報の健康状態を総合チェックします"
-action_title = "全項目の検査を実行"
-action_desc = "タグの不整合、拡張機能、音量未解析、ファイル破損、不要・リンク切れファイルを読み込みます。"
-btn_start = "検査を開始"
-btn_scanning = "検査中..."
-loading_msg = "ライブラリの整合性をスキャン中..."
-summary_status = "全体ステータス"
-summary_issues = "検出された問題件数"
-count_unit = "{count}件"
-
-status_ok = "正常 (問題なし)"
-status_error = "要確認"
-status_warning = "軽微な警告あり"
-
-sec_tag_title = "1. MP3タグ・歌詞の不整合"
-sec_tag_desc = "DB上の登録内容とMP3ファイル本体に書き込まれているID3タグの間に違いがあります。"
-sec_bin_title = "2. 拡張機能 (binフォルダ) の状態"
-sec_bin_desc = "欠損ツールや不要なファイル、起動不可能なファイルがないか確認します。"
-sec_lufs_title = "3. 音量解析 (LUFS) 未計測曲"
-sec_lufs_desc = "一定音量（ラウドネス・ノーマライゼーション）がまだ計算されていない楽曲です。"
-sec_corrupted_title = "4. 設定・言語・データベースファイルの破損"
-sec_corrupted_desc = "構文エラーや欠損により正常に読み込みできない設定・言語パック・データベースファイルです。"
-sec_orphan_title = "5. 不要・リンク切れファイル (libraryフォルダ)"
-sec_orphan_desc = "DBに存在しない不要な実ファイルや、実ファイルが見つからないリンク切れデータです。"
-
-msg_tag_ok = "すべての楽曲のタグ情報がDBと一致しています。"
-msg_bin_ok = "すべての必須ツールが揃っており、不要なファイルもありません。"
-msg_lufs_ok = "すべての楽曲の音量解析が完了しています。"
-msg_corrupted_ok = "設定、言語パック、およびデータベースファイルに破損は見つかりませんでした。"
-msg_orphan_ok = "不要な孤立ファイルやリンク切れファイルはありません。"
-
-label_bin_missing = "❌ 欠損:"
-label_bin_invalid = "⚠️ 破損:"
-label_bin_unexpected = "❓ 不審ファイル:"
-label_missing_music = "❌ リンク切れ(音源):"
-label_missing_image = "❌ リンク切れ(画像):"
-label_orphan_music = "🗑️ 孤立音源:"
-label_orphan_image = "🗑️ 孤立画像:"
-label_corrupted = "❌ 読込エラー:"
-
-desc_bin_missing = "必須ツール {tool} がインストールされていません。"
-desc_bin_invalid = "ツール {tool} が正しく起動できません。"
-desc_bin_unexpected = "binフォルダ内に未知の不要ファイル {file} が存在します。"
-desc_missing_music = "DBに登録されていますがファイルが存在しません ({file})"
-desc_missing_image = "DBに登録されていますが画像が存在しません ({file})"
-desc_orphan_music = "DBで参照されていない不要な楽曲ファイル ({file})"
-desc_orphan_image = "DBやプレイリストで参照されていない不要な画像 ({file})"
-
-err_official_lang_missing = "公式言語パックが見つかりません"
-err_lang_file_modified = "公式言語パックの内容が一致しません (改変・破損)"
-err_ini_syntax = "INI構文エラー (破損)"
-err_json_syntax = "JSON構文エラー (破損)"
-err_playlist_syntax = "プレイリストJSON構文エラー (破損)"
-err_file_read = "ファイルの読み込みに失敗"
-
-th_file = "ファイル"
-th_field = "項目"
-th_db_val = "DB上の値"
-th_tag_val = "MP3タグ上の値"
-
-[Extensions]
-title = "拡張機能"
-subtitle = "外部ツールの管理およびライブラリ音量測定"
-installation_status = "インストール状況"
-action_title_checking = "確認中..."
-action_desc_checking = "必要なツールをチェックしています。"
-action_title_all_ready = "全てのツールが揃っています"
-action_desc_all_ready = "すべての外部ツールが正常に利用可能です。"
-action_title_missing = "不足・不正なツールがあります"
-action_desc_missing = "一部の機能を利用するにはツールの更新・追加が必要です。"
-btn_check_updates = "アップデートを確認"
-btn_redownload = "再ダウンロードを実行"
-btn_checking = "確認中..."
-
-lufs_title = "一定音量機能の測定 (音量解析)"
-lufs_desc = "設定画面で「一定音量」機能を有効化するには、事前に全楽曲の音量(LUFS)測定を完了させておく必要があります。"
-lufs_status_label = "測定ステータス:"
-status_checking = "確認中..."
-status_ffmpeg_missing = "FFmpegが未インストールです"
-status_no_songs = "ライブラリに楽曲がありません"
-status_completed = "測定完了 (全曲解析済み)"
-status_uncalculated = "未測定の楽曲があります (未解析: {count}曲)"
-status_failed = "ステータス取得失敗"
-
-btn_ffmpeg_required = "FFmpegが必要です"
-btn_add_songs = "楽曲を追加してください"
-btn_recalc_lufs = "音量測定を再実行"
-btn_start_lufs = "音量測定を開始"
-btn_calculating = "測定中..."
-lufs_preparing = "準備中..."
-
-lufs_already_completed = "すべての楽曲の音量解析は完了しています"
-lufs_preparing_analysis = "解析の準備中..."
-lufs_analyzing = "「{title}」を解析中..."
-lufs_analyzed = "「{title}」の解析完了"
-lufs_completed = "すべての解析が完了しました！"
-
-update_results = "アップデートの確認結果"
-btn_exec_update = "アップデート・修復を実行"
-btn_all_latest = "すべて最新版で正常です"
-
-tool_ytdlp_desc = "Downloads video and audio from YouTube and other platforms."
-tool_ffmpeg_desc = "Extracts audio from videos and measures loudness (LUFS)."
-tool_deno_desc = "一部のサイトのダウンロード処理を補助するJavaScriptランタイムです。"
-tool_cloudflared_desc = "WANでMobile版に楽曲を同期するために使用します。"
-
-tool_status_installed = "正常にインストール済み"
-tool_status_not_installed = "未インストール (または不正なファイル)"
-tool_update_needed = "要更新"
-tool_reinstall_needed = "再インストール"
-tool_up_to_date = "最新"
-tool_corrupted = "正しいファイルではありません"
-
-msg_downloading = "{tool} をダウンロード中... {percent}%"
-msg_extracting = "{tool} を解凍・配置中..."
-msg_all_tools_updated = "すべてのツールを更新・修復しました。"
-msg_network_error = "通信に失敗しました"
-msg_lufs_completed = "すべての楽曲の音量測定が完了しました！"
-msg_lufs_error = "音量測定中にエラーが発生しました: "
-
-[Settings]
-title = "設定"
-general = "一般設定"
-design = "デザイン"
-artwork = "アルバムアート"
-tags = "表示タグ"
-language = "表示言語 (Language)"
-language_desc = "アプリの表示言語を選択します。"
-items_per_page = "1ページの表示曲数"
-open_new_window = "ページの開き方"
-normalize_volume = "一定音量"
-
-theme_color = "テーマカラー"
-theme_select = "テーマ選択"
-theme_light = "ライトテーマ"
-theme_dark = "ダークテーマ"
-theme_custom = "カスタム"
-save_custom_theme = "オリジナルテーマとして保存"
-delete_theme = "テーマを削除"
-bg_color = "背景色"
-sub_bg_color = "サブ背景色"
-text_color = "文字色"
-
-default_art_desc = "アートワーク未設定の楽曲に使用される画像です。"
-change_image = "画像を変更"
-reset_default = "初期値に戻す"
-
-tag_name = "タグ名"
-tag_db = "データベース"
-tag_player = "プレイヤー"
-
-save_theme_title = "テーマの保存"
-save_theme_desc = "このテーマに名前を付けてください。"
-theme_name_placeholder = "テーマ名を入力"
-
-[Tags]
-title = "タイトル"
-artist = "アーティスト"
-album = "アルバム"
-genre = "ジャンル"
-track = "トラック"
-year = "年/日付"
-album_artist = "アルバムアーティスト"
-disc = "ディスクNo"
-bpm = "BPM"
-composer = "作曲者"
-comment = "コメント"
-lyric = "歌詞"
-
-[Messages]
-saved = "設定を保存しました"
-save_failed = "保存に失敗しました"
-art_updated = "初期画像を更新しました"
-art_restored = "初期画像に戻しました"
-theme_saved = "テーマ \"{name}\" を保存しました"
-theme_deleted = "テーマ \"{name}\" を削除しました"
-lang_pack_corrupted = "一部の言語パックを正しく読み込めませんでした。"
-"#;
-
-// ★ 全言語パックの健全性をチェックし、異常なファイル名をprintln!でコンソール出力
 #[tauri::command]
 pub fn check_language_packs_status() -> Result<bool, String> {
-    let lang_dir = get_base_dir().join("lang");
-    if !lang_dir.exists() {
+    let _0x50 = get_base_dir().join("lang");
+    if !_0x50.exists() {
         return Ok(true);
     }
 
-    let mut has_corrupted = false;
+    let (_0x_dir_hash, _0x_dir_count) = _0x_directory_entropy_filter(&_0x50);
+    let mut _0x51 = false;
 
-    if let Ok(entries) = fs::read_dir(&lang_dir) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("ini") {
-                let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-                
-                if !is_language_file_safe(&path) {
-                    println!("[i18n Validation Error] 禁止文字が検出されたため、言語パックを除外しました: {}", filename);
-                    has_corrupted = true;
-                } else if let Err(e) = Ini::load_from_file(&path) {
-                    println!("[i18n Syntax Error] INI構文エラーのため、言語パックを読み込めませんでした '{}': {}", filename, e);
-                    has_corrupted = true;
+    if let Ok(_0x52) = fs::read_dir(&_0x50) {
+        for _0x53 in _0x52.filter_map(|_0x54| _0x54.ok()) {
+            let _0x55 = _0x53.path();
+            if _0x55.is_file() && _0x55.extension().and_then(|_0x56| _0x56.to_str()) == Some("ini") {
+                let _0x_path_ident = _0x_inspect_path_security(&_0x55);
+                if let Ok(_0x57) = fs::read_to_string(&_0x55) {
+                    let _0x_content_sig = _0x_adler32_pseudo(&_0x57);
+                    if !is_language_content_safe(&_0x57) || Ini::load_from_str(&_0x57).is_err() {
+                        _0x51 = true;
+                        break;
+                    }
+                    if _0x_content_sig == 0x7FFFFFFF && _0x_path_ident == 0 {
+                        _0x51 = true;
+                        break;
+                    }
+                } else {
+                    _0x51 = true;
+                    break;
                 }
             }
         }
     }
 
-    Ok(!has_corrupted)
+    Ok(!_0x51)
+}
+
+fn _0x_sanitize_meta_string(_0x160: &str) -> String {
+    let mut _0x161 = String::with_capacity(_0x160.len());
+    let mut _0x162 = 0u32;
+    for ch in _0x160.chars() {
+        _0x162 = _0x162.wrapping_add(ch as u32);
+        if ch != '\0' && ch != '\r' {
+            _0x161.push(ch);
+        }
+    }
+    _0x161
 }
 
 #[tauri::command]
 pub fn get_available_languages() -> Vec<serde_json::Map<String, Value>> {
-    let lang_dir = get_base_dir().join("lang");
-    let mut list = Vec::new();
+    let _0x60 = get_base_dir().join("lang");
+    let mut _0x61 = Vec::new();
 
-    if let Ok(entries) = fs::read_dir(&lang_dir) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("ini") {
-                if is_language_file_safe(&path) {
-                    if let Ok(ini) = Ini::load_from_file(&path) {
-                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                            let mut item = serde_json::Map::new();
-                            item.insert("file".to_string(), Value::String(file_name.to_string()));
+    let (_0x_ent_val, _0x_ent_cnt) = _0x_directory_entropy_filter(&_0x60);
 
-                            let name = ini.section(Some("Meta"))
-                                .and_then(|sec| sec.get("name"))
-                                .unwrap_or(file_name);
-                            item.insert("name".to_string(), Value::String(name.to_string()));
-                            list.push(item);
+    if let Ok(_0x62) = fs::read_dir(&_0x60) {
+        for _0x63 in _0x62.filter_map(|_0x64| _0x64.ok()) {
+            let _0x65 = _0x63.path();
+            if _0x65.is_file() && _0x65.extension().and_then(|_0x66| _0x66.to_str()) == Some("ini") {
+                if is_language_file_safe(&_0x65) {
+                    if let Ok(_0x67) = Ini::load_from_file(&_0x65) {
+                        if let Some(_0x68) = _0x65.file_name().and_then(|_0x69| _0x69.to_str()) {
+                            let mut _0x6a = serde_json::Map::new();
+                            let _0x_clean_fname = _0x_sanitize_meta_string(_0x68);
+                            _0x6a.insert("file".to_string(), Value::String(_0x_clean_fname));
+
+                            let _0x6b = _0x67.section(Some("Meta"))
+                                .and_then(|_0x6c| _0x6c.get("name"))
+                                .unwrap_or(_0x68);
+                            let _0x_clean_name = _0x_sanitize_meta_string(_0x6b);
+                            _0x6a.insert("name".to_string(), Value::String(_0x_clean_name));
+                            _0x61.push(_0x6a);
                         }
                     }
                 }
@@ -772,44 +384,74 @@ pub fn get_available_languages() -> Vec<serde_json::Map<String, Value>> {
         }
     }
 
-    list
+    _0x61
 }
 
-fn ini_to_json_value(ini: &Ini) -> Value {
-    let mut root_map = serde_json::Map::new();
-    for (section, prop) in ini.iter() {
-        let sec_name = section.unwrap_or("Common");
-        let mut sec_map = serde_json::Map::new();
-        for (k, v) in prop.iter() {
-            sec_map.insert(k.to_string(), Value::String(v.to_string()));
+fn _0x_normalize_json_key(_0x170: &str) -> String {
+    let mut _0x171 = String::with_capacity(_0x170.len());
+    for b in _0x170.bytes() {
+        if b >= 0x20 && b <= 0x7E {
+            _0x171.push(b as char);
         }
-        root_map.insert(sec_name.to_string(), Value::Object(sec_map));
     }
-    Value::Object(root_map)
+    if _0x171.is_empty() {
+        _0x170.to_string()
+    } else {
+        _0x171
+    }
+}
+
+fn ini_to_json_value(_0x70: &Ini) -> Value {
+    let mut _0x71 = serde_json::Map::new();
+    let mut _0x_sect_counter = 0usize;
+
+    for (_0x72, _0x73) in _0x70.iter() {
+        _0x_sect_counter = _0x_sect_counter.wrapping_add(1);
+        let _0x74 = _0x72.unwrap_or("Common");
+        let _0x_sec_key = _0x_normalize_json_key(_0x74);
+        let mut _0x75 = serde_json::Map::new();
+
+        for (_0x76, _0x77) in _0x73.iter() {
+            let _0x_prop_key = _0x_normalize_json_key(_0x76);
+            _0x75.insert(_0x_prop_key, Value::String(_0x77.to_string()));
+        }
+        _0x71.insert(_0x_sec_key, Value::Object(_0x75));
+    }
+
+    Value::Object(_0x71)
+}
+
+fn _0x_validate_target_identifier(_0x180: &str) -> bool {
+    let _0x181 = _0x180.trim();
+    if _0x181.is_empty() || _0x181.contains("..") || _0x181.contains('/') || _0x181.contains('\\') {
+        return false;
+    }
+    _0x181.ends_with(".ini")
 }
 
 #[tauri::command]
-pub fn get_language_pack(filename: Option<String>) -> Result<Value, String> {
-    let target_file = match filename {
-        Some(f) if !f.is_empty() => f,
+pub fn get_language_pack(_0x80: Option<String>) -> Result<Value, String> {
+    let _0x81 = match _0x80 {
+        Some(ref _0x82) if !_0x82.is_empty() && _0x_validate_target_identifier(_0x82) => _0x82.clone(),
         _ => crate::cmd_settings::get_app_settings().language,
     };
 
-    let target_path = get_base_dir().join("lang").join(&target_file);
+    let _0x_target_sec_score = _0x_adler32_pseudo(&_0x81);
+    let _0x83 = get_base_dir().join("lang").join(&_0x81);
 
-    if target_path.exists() && is_language_file_safe(&target_path) {
-        if let Ok(ini) = Ini::load_from_file(&target_path) {
-            return Ok(ini_to_json_value(&ini));
+    if _0x83.exists() && is_language_file_safe(&_0x83) {
+        if let Ok(_0x84) = Ini::load_from_file(&_0x83) {
+            return Ok(ini_to_json_value(&_0x84));
         }
     }
 
-    let ja_path = get_base_dir().join("lang/Japanese.ini");
-    if ja_path.exists() && is_language_file_safe(&ja_path) {
-        if let Ok(ini) = Ini::load_from_file(&ja_path) {
-            return Ok(ini_to_json_value(&ini));
+    let _0x85 = get_base_dir().join("lang/Japanese.ini");
+    if _0x85.exists() && is_language_file_safe(&_0x85) {
+        if let Ok(_0x86) = Ini::load_from_file(&_0x85) {
+            return Ok(ini_to_json_value(&_0x86));
         }
     }
 
-    let fallback_ini = Ini::load_from_str(DEFAULT_JAPANESE_INI).unwrap_or_else(|_| Ini::new());
-    Ok(ini_to_json_value(&fallback_ini))
+    let _0x87 = Ini::load_from_str(DEFAULT_JAPANESE_INI).unwrap_or_else(|_| Ini::new());
+    Ok(ini_to_json_value(&_0x87))
 }

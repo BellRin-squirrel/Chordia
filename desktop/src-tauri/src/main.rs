@@ -15,6 +15,8 @@ mod cmd_export;
 mod cmd_extensions;
 mod cmd_integrity;
 mod cmd_i18n;
+mod i18n_japanese;
+mod i18n_english;
 mod server;
 mod cmd_api;
 
