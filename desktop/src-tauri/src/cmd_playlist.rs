@@ -96,7 +96,10 @@ pub fn get_playlist_summaries(state: State<'_, AppState>) -> Vec<Value> {
 #[tauri::command]
 pub fn get_playlist_details(pl_id: String, state: State<'_, AppState>) -> Option<Value> {
     let playlists = state.playlists.lock().unwrap();
-    let mut pl = playlists.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))?.clone();
+    let mut pl = match playlists.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
+        Some(p) => p.clone(),
+        None => return None,
+    };
     
     let db = state.db.lock().unwrap();
     let mut songs = Vec::new();
@@ -116,6 +119,7 @@ pub fn get_playlist_details(pl_id: String, state: State<'_, AppState>) -> Option
     } else {
         let base = get_base_dir();
         let path = base.join(format!("userfiles/playlist/{}.json", pl_id));
+
         if path.exists() {
             if let Ok(data) = fs::read_to_string(&path) {
                 if let Ok(list) = serde_json::from_str::<Vec<String>>(&data) {
@@ -124,10 +128,12 @@ pub fn get_playlist_details(pl_id: String, state: State<'_, AppState>) -> Option
                         
                         if let Some(song) = db.iter().find(|s| {
                             let db_path = s.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
-                            normalize_rel_path(db_path) == norm_target || Path::new(db_path).file_name().unwrap_or_default().to_str().unwrap_or("") == norm_target
+                            let db_norm = normalize_rel_path(db_path);
+                            let db_fname = Path::new(db_path).file_name().unwrap_or_default().to_str().unwrap_or("");
+                            db_norm == norm_target || db_path == norm_target || db_fname == norm_target
                         }) {
                             songs.push(song.clone());
-                            music_list.push(Value::String(norm_target));
+                            music_list.push(Value::String(norm_target.clone()));
                         }
                     }
                 }
@@ -194,7 +200,6 @@ pub fn get_virtual_playlist_details(field: String, value: String, state: State<'
     })
 }
 
-// ★ 修正：safe_write_file によりMac/Windows問わず確実に権限付与＆ファイル作成
 #[tauri::command]
 pub fn create_playlist(name: String, pl_type: String, state: State<'_, AppState>) -> Option<Value> {
     let id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
@@ -214,9 +219,7 @@ pub fn create_playlist(name: String, pl_type: String, state: State<'_, AppState>
             obj.insert("conditions".to_string(), Value::Array(Vec::new()));
         }
     } else {
-        if let Err(e) = safe_write_file(&target_file, b"[]") {
-            eprintln!("[create_playlist error] Failed to write playlist file: {}", e);
-        }
+        let _ = safe_write_file(&target_file, b"[]");
     }
 
     let mut master = state.playlists.lock().unwrap();
@@ -324,11 +327,19 @@ pub fn duplicate_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> Op
 }
 
 #[tauri::command]
-pub fn add_songs_to_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
+pub fn add_songs_to_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
     let master = state.playlists.lock().unwrap();
-    let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))?;
-    if pl.get("type").and_then(|v| v.as_str()) == Some("smart") { return None; }
+    let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))
+        .ok_or_else(|| format!("プレイリストが見つかりません: ID={}", pl_id))?;
     
+    if pl.get("type").and_then(|v| v.as_str()) == Some("smart") {
+        return Err("スマートプレイリストには直接追加できません".to_string());
+    }
+    
+    if filenames.is_empty() {
+        return Err("追加対象の楽曲がありません".to_string());
+    }
+
     let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
 
     let mut current: Vec<String> = if path.exists() {
@@ -342,29 +353,36 @@ pub fn add_songs_to_playlist(pl_id: String, filenames: Vec<String>, state: State
     
     for f in filenames { 
         let norm = normalize_rel_path(&f);
-        if !current.contains(&norm) { 
+        if !norm.is_empty() && !current.contains(&norm) { 
             current.push(norm); 
         } 
     }
 
-    let _ = safe_write_file(&path, serde_json::to_string_pretty(&current).unwrap_or_default().as_bytes());
-    Some(pl.clone())
+    let data = serde_json::to_string_pretty(&current).map_err(|e| e.to_string())?;
+    safe_write_file(&path, data.as_bytes())?;
+
+    Ok(pl.clone())
 }
 
 #[tauri::command]
-pub fn remove_songs_from_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
+pub fn remove_songs_from_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
     let master = state.playlists.lock().unwrap();
-    let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))?;
-    if pl.get("type").and_then(|v| v.as_str()) == Some("smart") { return None; }
+    let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))
+        .ok_or_else(|| format!("プレイリストが見つかりません: ID={}", pl_id))?;
+    
+    if pl.get("type").and_then(|v| v.as_str()) == Some("smart") {
+        return Err("スマートプレイリストから直接削除できません".to_string());
+    }
     
     let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
     if path.exists() {
         let mut current: Vec<String> = serde_json::from_str(&fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default();
         let norms: Vec<String> = filenames.into_iter().map(|f| normalize_rel_path(&f)).collect();
         current.retain(|f| !norms.contains(&normalize_rel_path(f)));
-        let _ = safe_write_file(&path, serde_json::to_string_pretty(&current).unwrap_or_default().as_bytes());
+        let data = serde_json::to_string_pretty(&current).map_err(|e| e.to_string())?;
+        safe_write_file(&path, data.as_bytes())?;
     }
-    Some(pl.clone())
+    Ok(pl.clone())
 }
 
 #[tauri::command]

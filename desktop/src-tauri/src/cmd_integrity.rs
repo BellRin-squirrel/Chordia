@@ -7,7 +7,7 @@ use id3::{Tag, TagLike};
 use ini::Ini;
 
 use crate::AppState;
-use crate::cmd_i18n::{DEFAULT_JAPANESE_INI, DEFAULT_ENGLISH_INI};
+use crate::cmd_i18n::{DEFAULT_JAPANESE_INI, DEFAULT_ENGLISH_INI, is_language_file_safe};
 use crate::utils::{get_base_dir, normalize_rel_path, load_lufs_cache};
 
 #[derive(Serialize, Clone)]
@@ -51,14 +51,13 @@ pub struct IntegrityReport {
     pub missing_image_files: Vec<String>,
 }
 
-// ★ テキストのBOM・行末空白・改行コードを正規化して厳密比較するヘルパー関数
 fn normalize_ini_text(text: &str) -> String {
-    text.trim_start_matches('\u{feff}') // UTF-8 BOM を除去
+    text.trim_start_matches('\u{feff}')
         .lines()
-        .map(|line| line.trim_end())   // 行末の不要な空白を除去
+        .map(|line| line.trim_end())
         .collect::<Vec<_>>()
         .join("\n")
-        .trim()                         // 先頭・末尾の空行を除去
+        .trim()
         .to_string()
 }
 
@@ -75,7 +74,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
     tokio::task::spawn_blocking(move || {
         let base_dir = get_base_dir();
         
-        // --- 1. MP3タグ・歌詞の不整合確認 ---
+        // 1. MP3タグ・歌詞の不整合確認
         let mut tag_mismatches = Vec::new();
 
         for song in db_data.iter() {
@@ -122,7 +121,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // --- 2. 拡張機能 (bin) チェック ---
+        // 2. 拡張機能 (bin) チェック
         let bin_dir = base_dir.join("userfiles/bin");
         let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
         let required_tools = ["yt-dlp", "ffmpeg", "deno", "cloudflared"];
@@ -159,7 +158,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             unexpected_files,
         };
 
-        // --- 3. LUFS未計測曲の検出 ---
+        // 3. LUFS未計測曲の検出
         let mut uncalculated_lufs = Vec::new();
 
         for song in db_data.iter() {
@@ -176,12 +175,12 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // --- 4. userfiles & lang フォルダ内のファイル破損・改変チェック ---
+        // 4. userfiles & lang フォルダ内のファイル破損チェック
         let mut corrupted_userfiles = Vec::new();
         let userfiles_dir = base_dir.join("userfiles");
         let lang_dir = base_dir.join("lang");
 
-        // ★ (1) 公式言語パック (Japanese.ini / English.ini) の完全一致チェック
+        // 公式言語パックの整合性チェック
         let official_checks = [
             ("Japanese.ini", DEFAULT_JAPANESE_INI),
             ("English.ini", DEFAULT_ENGLISH_INI),
@@ -194,6 +193,9 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     filepath: format!("lang/{}", lang_file),
                     error_reason: "ERR_OFFICIAL_LANG_MISSING".to_string(),
                 });
+            } else if !is_language_file_safe(&p) {
+                // 安全基準を満たさないものは無視（除外）
+                continue;
             } else if let Ok(actual_content) = fs::read_to_string(&p) {
                 let actual_normalized = normalize_ini_text(&actual_content);
                 let expected_normalized = normalize_ini_text(expected_content);
@@ -212,7 +214,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // (2) lang フォルダ内のその他カスタム言語パックの構文チェック
+        // その他カスタム言語パックの構文チェック
         if lang_dir.exists() {
             if let Ok(entries) = fs::read_dir(&lang_dir) {
                 let official_names = ["Japanese.ini", "English.ini"];
@@ -221,6 +223,10 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("ini") {
                         if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
                             if !official_names.contains(&fname) {
+                                // ★ 安全検証に合格しないものは無視（スキップ）
+                                if !is_language_file_safe(&path) {
+                                    continue;
+                                }
                                 if let Ok(content) = fs::read_to_string(&path) {
                                     if Ini::load_from_str(&content).is_err() {
                                         corrupted_userfiles.push(CorruptedFileItem {
@@ -236,7 +242,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // (3) userfiles JSON ファイルの整合性チェック
+        // userfiles JSON ファイルの整合性チェック
         let json_files = [
             "music.json",
             "playlist.json",
@@ -296,7 +302,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // --- 5. 不要・リンク切れファイル (library) の検出 ---
+        // 5. 不要・リンク切れファイル (library) の検出
         let mut referenced_music = HashSet::new();
         let mut referenced_images = HashSet::new();
 

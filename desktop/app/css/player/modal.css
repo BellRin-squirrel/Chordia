@@ -154,7 +154,6 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* ★ 追加：カバーアート楽曲検索バー */
 .pl-cover-search-input {
     width: 100%;
     box-sizing: border-box;
@@ -359,6 +358,7 @@
 } 
 .menu-divider:hover { background-color: transparent !important; }
 
+/* ★ 修正：サブメニューのスクロールバーと確実なボックスサイジング */
 .submenu {
     display: none;
     position: absolute;
@@ -369,10 +369,27 @@
     border-radius: 10px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
     min-width: 180px;
+    max-width: 280px;
     z-index: 1001;
     padding: 6px;
-    max-height: 80vh;
+    max-height: 70vh;
     overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+.submenu::-webkit-scrollbar {
+    width: 6px;
+}
+.submenu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.submenu::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.3);
+    border-radius: 3px;
+}
+.submenu::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.5);
 }
 
 .context-menu li:hover > .submenu {

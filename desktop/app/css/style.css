@@ -41,7 +41,7 @@ body {
 .card { 
     background: var(--card-bg); 
     border: none; 
-    border-left: 5px solid transparent; /* 修正: 初期状態で左ボーダーを透明にしておくことで、ホバー時のガタつきを防ぐ */
+    border-left: 5px solid transparent;
     border-radius: 16px; 
     padding: 24px; 
     display: flex; 
@@ -59,7 +59,7 @@ body {
 .card:hover { 
     transform: translateY(-5px); 
     box-shadow: var(--shadow-hover); 
-    border-left: 5px solid var(--primary-color); /* 修正: ホバーした時にのみテーマカラーの境界線を左に表示 */
+    border-left: 5px solid var(--primary-color); 
 }
 
 .card:active { transform: translateY(-2px); transition: 0.1s; }
@@ -68,7 +68,7 @@ body {
     width: 56px; 
     height: 56px; 
     background-color: var(--icon-bg); 
-    color: var(--primary-color); /* 修正: デフォルトのアイコン色を、黒ではなくテーマカラーに変更 */
+    color: var(--primary-color); 
     display: flex; 
     justify-content: center; 
     align-items: center; 
@@ -79,7 +79,6 @@ body {
 
 .icon svg { width: 28px; height: 28px; }
 
-/* 修正: ホバー時の全ボタン共通カラー反転エフェクト。アイコン背景をテーマカラーに、中のアイコン色を白に統一 */
 .card:hover .icon { 
     background-color: var(--primary-color); 
     color: #ffffff; 
@@ -88,5 +87,43 @@ body {
 .text { display: flex; flex-direction: column; }
 .text .title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
 .text .desc { font-size: 0.85rem; color: var(--text-sub); }
+
+/* --- トースト通知 (右上固定・スムーズフェードアウト) --- */
+.toast {
+    visibility: hidden;
+    min-width: 280px;
+    max-width: 400px;
+    background-color: #333333;
+    color: #ffffff;
+    text-align: left;
+    border-radius: 12px;
+    padding: 14px 20px;
+    position: fixed;
+    z-index: 10000;
+    right: 30px;
+    top: 20px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.3s;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    line-height: 1.4;
+}
+
+.toast.show {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(10px);
+}
+
+.toast.success {
+    background-color: #059669;
+}
+
+.toast.error {
+    background-color: #ef4444;
+}
 
 @media (max-width: 600px) { .header h1 { font-size: 2rem; } .grid-menu { grid-template-columns: 1fr; } }

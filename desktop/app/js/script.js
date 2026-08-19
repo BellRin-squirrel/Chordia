@@ -1,6 +1,16 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
+    // ★ 起動時に全言語パックの安全性を検証し、NGがあれば右上にトースト通知
+    try {
+        const isHealthy = await invoke("check_language_packs_status");
+        if (isHealthy === false) {
+            showToast(window.i18n ? window.i18n.t('Messages.lang_pack_corrupted') : "一部の言語パックを正しく読み込めませんでした。", true);
+        }
+    } catch(e) {
+        console.error("Language health check error:", e);
+    }
+
     const btnAddMusic = document.getElementById('btnAddMusic');
     const btnManage = document.getElementById('btnManage');
     const btnMigration = document.getElementById('btnMigration'); 
@@ -154,4 +164,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             targetBtn.click();
         }
     });
+
+    // ★ タイムアウト管理付き・右上表示トースト関数
+    let toastTimeout = null;
+
+    function showToast(message, isError = false) {
+        let toast = document.getElementById('toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'toast';
+            document.body.appendChild(toast);
+        }
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toast.textContent = message;
+        toast.className = 'toast ' + (isError ? 'error' : 'success');
+        
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 4000);
+    }
 });

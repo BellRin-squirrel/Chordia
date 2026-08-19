@@ -8,6 +8,7 @@
         lastTrackClickedIndex: null,    
         selectedCoverData: { type: 'keep', val: null },
         currentPlSongsForCover: [],
+        currentDisplayedSongs: [],
 
         init: function() {
             const setClick = (id, fn) => {
@@ -296,6 +297,13 @@
             }
         },
 
+        getSelectedSongs: function() {
+            if (!this.currentDisplayedSongs || this.currentDisplayedSongs.length === 0) return [];
+            return Array.from(this.selectedTrackIndices)
+                .map(idx => this.currentDisplayedSongs[idx])
+                .filter(Boolean);
+        },
+
         renderMainView: async function() {
             const isVirtual = s.currentPlaylistType === 'virtual';
             const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
@@ -314,6 +322,7 @@
                 if (actionsEl) actionsEl.style.display = 'none';
                 if (btnEditRules) btnEditRules.style.display = 'none';
                 if (tbody) tbody.innerHTML = '';
+                this.currentDisplayedSongs = [];
                 return;
             }
 
@@ -353,6 +362,7 @@
             }
 
             songs = u.sortSongs(songs, targetPl.sortBy || 'title', targetPl.sortDesc || false);
+            this.currentDisplayedSongs = songs;
 
             if (countEl) {
                 countEl.textContent = (window.i18n && window.i18n.t)
@@ -569,11 +579,14 @@
             menu.style.visibility = 'visible';
         },
 
-        // ★ 修正：ホバー時の自動位置調整を実装し、「新規作成」を追加
         populatePlaylistSubmenu: function() {
             const submenu = document.getElementById('playlistSubmenu');
             if (!submenu) return;
             submenu.innerHTML = '';
+
+            const isVirtual = s.currentPlaylistType === 'virtual';
+            const currentPl = isVirtual ? null : s.playlists[s.currentPlaylistIndex];
+            const currentPlId = currentPl ? currentPl.id : null;
 
             const createLi = document.createElement('li');
             createLi.innerHTML = `<span style="font-weight:700;">+ ${window.i18n ? window.i18n.t('Player.menu_new_pl') : "新規プレイリスト"}</span>`;
@@ -584,12 +597,7 @@
                 e.stopPropagation();
                 document.getElementById('trackContextMenu').style.display = 'none';
 
-                const selectedSongs = Array.from(this.selectedTrackIndices).map(idx => {
-                    const isVirtual = s.currentPlaylistType === 'virtual';
-                    const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
-                    return targetPl.songs[idx];
-                }).filter(Boolean);
-
+                const selectedSongs = this.getSelectedSongs();
                 let plName = window.i18n ? window.i18n.t('Player.menu_new_pl') : "新規プレイリスト";
                 if (selectedSongs.length > 0 && selectedSongs[0].title) {
                     plName = selectedSongs[0].title;
@@ -603,18 +611,22 @@
                         s.playlists.sort((a, b) => (a.playlistName||"").toLowerCase().localeCompare((b.playlistName||"").toLowerCase(), 'ja'));
                         if (window.SidebarController) await window.SidebarController.renderSidebar();
                         
-                        const filenames = selectedSongs.map(song => song.musicFilename);
-                        await invoke("add_songs_to_playlist", { plId: newPl.id, filenames: filenames });
-                        u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "プレイリストに作成して追加しました", false);
+                        const filenames = selectedSongs.map(song => song.musicFilename).filter(Boolean);
+                        if (filenames.length > 0) {
+                            await this.addSelectedTracksToPlaylist(newPl.id);
+                        }
                     }
                 } catch(err) {
+                    console.error("create playlist error:", err);
                     u.showToast(window.i18n ? window.i18n.t('Common.error') : "エラーが発生しました", true);
                 }
             };
             submenu.appendChild(createLi);
 
-            if (s.playlists.length > 0) {
-                s.playlists.forEach(pl => {
+            const availablePlaylists = s.playlists.filter(pl => pl.id !== currentPlId);
+
+            if (availablePlaylists.length > 0) {
+                availablePlaylists.forEach(pl => {
                     const li = document.createElement('li');
                     li.textContent = pl.playlistName;
                     li.onclick = async (e) => {
@@ -655,14 +667,11 @@
             const menuShowInExplorer = document.getElementById('menuShowInExplorer');
             if (menuShowInExplorer) {
                 menuShowInExplorer.onclick = async () => {
-                    const isVirtual = s.currentPlaylistType === 'virtual';
-                    const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
-                    const firstIdx = Array.from(this.selectedTrackIndices)[0];
-                    if (targetPl && targetPl.songs && targetPl.songs[firstIdx]) {
-                        const song = targetPl.songs[firstIdx];
+                    const selectedSongs = this.getSelectedSongs();
+                    if (selectedSongs.length > 0 && selectedSongs[0].musicFilename) {
                         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                         try {
-                            await invoke("show_in_explorer", { path: song.musicFilename });
+                            await invoke("show_in_explorer", { path: selectedSongs[0].musicFilename });
                         } catch (err) {
                             console.error(err);
                         }
@@ -675,17 +684,37 @@
                 menuRemove.onclick = () => this.handleRemoveFromPlaylist();
             }
 
-            // ★ 修正：サブメニューの左展開自動制御
             const addToPlParent = document.getElementById('menuAddToPlaylistParent');
             const submenu = document.getElementById('playlistSubmenu');
             if (addToPlParent && submenu) {
                 addToPlParent.onmouseenter = () => {
                     submenu.style.display = 'block';
+                    
                     const rect = submenu.getBoundingClientRect();
                     if (rect.right > window.innerWidth) {
                         submenu.classList.add('left-side');
                     } else {
                         submenu.classList.remove('left-side');
+                    }
+
+                    const parentRect = addToPlParent.getBoundingClientRect();
+                    const availableBottom = window.innerHeight - parentRect.top - 16;
+                    const availableTop = parentRect.bottom - 16;
+
+                    if (submenu.scrollHeight > availableBottom) {
+                        if (availableBottom < 220 && availableTop > availableBottom) {
+                            submenu.style.top = 'auto';
+                            submenu.style.bottom = '-6px';
+                            submenu.style.maxHeight = `${Math.min(availableTop, window.innerHeight * 0.7)}px`;
+                        } else {
+                            submenu.style.top = '-6px';
+                            submenu.style.bottom = 'auto';
+                            submenu.style.maxHeight = `${Math.max(160, availableBottom)}px`;
+                        }
+                    } else {
+                        submenu.style.top = '-6px';
+                        submenu.style.bottom = 'auto';
+                        submenu.style.maxHeight = '70vh';
                     }
                 };
                 addToPlParent.onmouseleave = () => {
@@ -694,7 +723,6 @@
             }
         },
 
-        // ★ 新設：スマートプレイリストへの追加時の変換確認モーダル
         showSmartAddConfirmModal: function(targetPlId) {
             const modal = document.getElementById('smartRemoveConfirmModal');
             if (!modal) return;
@@ -715,14 +743,9 @@
             modal.classList.add('show');
         },
 
-        // ★ 新設：スマートプレイリストを通常へ変換しつつ楽曲を追加する処理
         convertSmartAndAddTracks: async function(plId) {
-            const isVirtual = s.currentPlaylistType === 'virtual';
-            const sourcePl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
-            if (!sourcePl || !sourcePl.songs) return;
-
-            const selectedSongs = Array.from(this.selectedTrackIndices).map(idx => sourcePl.songs[idx]).filter(Boolean);
-            const filenames = selectedSongs.map(song => song.musicFilename);
+            const selectedSongs = this.getSelectedSongs();
+            const filenames = selectedSongs.map(song => song.musicFilename).filter(Boolean);
 
             if (filenames.length === 0) return;
 
@@ -734,7 +757,10 @@
                 });
                 if (updatedPl) {
                     const idx = s.playlists.findIndex(p => p.id === plId);
-                    if (idx !== -1) s.playlists[idx] = updatedPl;
+                    if (idx !== -1) {
+                        const details = await invoke("get_playlist_details", { plId: plId });
+                        s.playlists[idx] = details || updatedPl;
+                    }
                     if (window.SidebarController) window.SidebarController.renderSidebar();
                     u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "プレイリストに変換・追加しました", false);
                 }
@@ -745,21 +771,28 @@
         },
 
         addSelectedTracksToPlaylist: async function(plId) {
-            const isVirtual = s.currentPlaylistType === 'virtual';
-            const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
-            if (!targetPl || !targetPl.songs) return;
-
-            const selectedSongs = Array.from(this.selectedTrackIndices).map(idx => targetPl.songs[idx]).filter(Boolean);
-            const filenames = selectedSongs.map(s => s.musicFilename);
+            const selectedSongs = this.getSelectedSongs();
+            const filenames = selectedSongs.map(s => s.musicFilename).filter(Boolean);
 
             if (filenames.length === 0) return;
 
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
             try {
                 await invoke("add_songs_to_playlist", { plId: plId, filenames: filenames });
+
+                const updatedDetails = await invoke("get_playlist_details", { plId: plId });
+                const targetIdx = s.playlists.findIndex(p => p.id === plId);
+                if (targetIdx !== -1 && updatedDetails) {
+                    s.playlists[targetIdx] = updatedDetails;
+                }
+                
+                if (s.currentPlaylistIndex === targetIdx) {
+                    await this.selectPlaylist(targetIdx);
+                }
+
                 u.showToast(window.i18n ? window.i18n.t('Messages.saved') : "プレイリストに追加しました", false);
             } catch (err) {
-                console.error(err);
+                console.error("addSelectedTracksToPlaylist error:", err);
                 u.showToast(window.i18n ? window.i18n.t('Common.error') : "追加に失敗しました", true);
             }
         },
@@ -769,10 +802,10 @@
             if (isVirtual) return;
 
             const targetPl = s.playlists[s.currentPlaylistIndex];
-            if (!targetPl || !targetPl.songs) return;
+            if (!targetPl) return;
 
-            const selectedSongs = Array.from(this.selectedTrackIndices).map(idx => targetPl.songs[idx]).filter(Boolean);
-            const filenames = selectedSongs.map(s => s.musicFilename);
+            const selectedSongs = this.getSelectedSongs();
+            const filenames = selectedSongs.map(s => s.musicFilename).filter(Boolean);
 
             if (filenames.length === 0) return;
 
@@ -791,7 +824,8 @@
                                 filenames: filenames
                             });
                             if (updatedPl) {
-                                s.playlists[s.currentPlaylistIndex] = updatedPl;
+                                const details = await invoke("get_playlist_details", { plId: targetPl.id });
+                                s.playlists[s.currentPlaylistIndex] = details || updatedPl;
                                 await this.selectPlaylist(s.currentPlaylistIndex);
                                 this.selectedTrackIndices.clear();
                                 u.showToast(window.i18n ? window.i18n.t('Player.smart_remove_msg') : "スマートプレイリストを通常に変換し、削除しました", false);
@@ -840,11 +874,10 @@
         },
 
         openSongInfoModal: function(index) {
-            const isVirtual = s.currentPlaylistType === 'virtual';
-            const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
-            if (!targetPl || !targetPl.songs || !targetPl.songs[index]) return;
+            const selectedSongs = this.getSelectedSongs();
+            const song = selectedSongs[0] || (this.currentDisplayedSongs && this.currentDisplayedSongs[index]);
+            if (!song) return;
 
-            const song = targetPl.songs[index];
             const modal = document.getElementById('songInfoModal');
             if (!modal) return;
 
