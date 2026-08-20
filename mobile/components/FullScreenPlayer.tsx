@@ -1,5 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
+import { 
+  View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, 
+  ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, 
+  Platform 
+} from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
@@ -8,7 +12,7 @@ import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-// ★ 最新の AirPlay ライブラリから showRoutePicker をインポート
+// ★ react-airplay を正規インポート
 import { showRoutePicker } from 'react-airplay';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
@@ -220,6 +224,17 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
+  // ★ 安全に AirPlay ピッカーを起動する関数（必須引数を確実に渡す）
+  const handleAirPlayPress = () => {
+    if (Platform.OS === 'ios') {
+      try {
+        showRoutePicker({ prioritizesVideoDevices: false });
+      } catch (e) {
+        console.warn('AirPlay showRoutePicker error:', e);
+      }
+    }
+  };
+
   const renderControls = (iconSize: number, customStyle?: any) => {
     const mainIconSize = iconSize * 0.72 * btnScale; 
     const sideIconSize = iconSize * 0.48 * btnScale;
@@ -324,13 +339,48 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
+          {/* 1. 歌詞 / キュー トグルボタン */}
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
-            style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: showLyrics ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="musical-notes-outline" size={28} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} />
+            <Ionicons name="musical-notes-outline" size={24} color="#fff" />
+          </BounceButton>
+
+          {/* 2. AirPlay ボタン (横画面) */}
+          {Platform.OS === 'ios' && (
+            <BounceButton
+              onPress={handleAirPlayPress}
+              underlayColor="rgba(255,255,255,0.15)"
+              style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
+            >
+              <MaterialIcons name="airplay" size={22} color="#fff" />
+            </BounceButton>
+          )}
+
+          {/* 3. シャッフル */}
+          <BounceButton
+            onPress={toggleShuffleMode}
+            underlayColor="rgba(255,255,255,0.15)"
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isShuffle ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Ionicons name="shuffle" size={22} color="#fff" />
+          </BounceButton>
+
+          {/* 4. ループ */}
+          <BounceButton
+            onPress={toggleLoopMode}
+            underlayColor="rgba(255,255,255,0.15)"
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
+              {loopMode === 'ONE' && (
+                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
+              )}
+            </View>
           </BounceButton>
         </View>
 
@@ -425,7 +475,7 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         
-        {/* 1. 上部可変エリア (PanGestureHandlerを適用してスワイプダウン閉じるを可能にする) */}
+        {/* 1. 上部可変エリア */}
         <PanGestureHandler
           activeOffsetY={[-500, 15]}
           failOffsetX={[-15, 15]}
@@ -435,7 +485,7 @@ export const FullScreenPlayer = ({
         >
           <Animated.View style={{ flex: 1, width: '100%' }}>
             
-            {/* (A) メイン画面 (カバーアート + タイトル/アーティスト) */}
+            {/* (A) メイン画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, mainViewStyle, { justifyContent: 'center', alignItems: 'center' }]}
               pointerEvents={(!showQueue && !showLyrics) ? 'auto' : 'none'}
@@ -573,7 +623,7 @@ export const FullScreenPlayer = ({
           </Animated.View>
         </PanGestureHandler>
 
-        {/* 2. 下部固定エリア (ここからはPanGestureHandlerの「外側」なのでネイティブタッチが100%通る) */}
+        {/* 2. 下部固定エリア */}
         <View style={{ width: '100%', paddingTop: 10 }}>
           
           <View style={[styles.sliderWithTime, { paddingHorizontal: 10 }]}>
@@ -622,19 +672,11 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. AirPlay ボタン */}
+            {/* 3. AirPlay ボタン (iOS のみ表示) */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <BounceButton
-                  onPress={() => {
-                    try {
-                      // ボタンが押された時に動的に読み込む（未ビルド時のクラッシュ防止）
-                      const { showRoutePicker } = require('react-airplay');
-                      showRoutePicker();
-                    } catch (e) {
-                      console.warn('AirPlay binary not updated or not supported:', e);
-                    }
-                  }}
+                  onPress={handleAirPlayPress}
                   underlayColor="rgba(255,255,255,0.15)"
                   style={{
                     width: 44,
@@ -686,11 +728,15 @@ export const FullScreenPlayer = ({
     );
   }
 
-  const containerStyle = isIphoneLandscape
+  // ノッチ・Dynamic Island (上部・左右) および Home Indicator (下部) の保護設定
+  const containerStyle = isLandscape
     ? { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const }
-    : styles.fullPlayerContainer;
+    : [
+        styles.fullPlayerContainer,
+        { top: Math.max(insets.top, 44) } // 上部ノッチ/Dynamic Islandの直下から開始
+      ];
 
-  const contentStyle = isIphoneLandscape
+  const contentStyle = isLandscape
     ? { 
         flex: 1, 
         paddingLeft: Math.max(insets.left, 16), 

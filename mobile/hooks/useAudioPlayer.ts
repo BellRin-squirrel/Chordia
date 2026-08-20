@@ -9,12 +9,12 @@ const { height } = Dimensions.get('window');
 let isRNTPInitialized = false;
 
 export const useAudioPlayer = () => {
-  const[audioEngine, setAudioEngine] = useState<'expo-av'|'rntp'>('rntp');
+  const [audioEngine, setAudioEngine] = useState<'expo-av'|'rntp'>('rntp');
 
-  const[isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentSong, setCurrentSong] = useState<any>(null);
   const [playQueue, setPlayQueue] = useState<any[]>([]); 
-  const[currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loopMode, setLoopMode] = useState<'OFF' | 'ALL' | 'ONE'>('OFF');
   const [isShuffle, setIsShuffle] = useState(false);
   
@@ -24,7 +24,7 @@ export const useAudioPlayer = () => {
   const [navStackLength, setNavStackLength] = useState(1);
 
   const [toastVisible, setToastVisible] = useState(false);
-  const[toastMessage, setToastMessage] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
   const toastAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(height)).current;
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
@@ -88,38 +88,6 @@ export const useAudioPlayer = () => {
         }
       }
     }, 250);
-  };
-
-  const changeAudioEngine = async (engine: 'expo-av'|'rntp') => {
-    if (engine === audioEngine) return;
-    
-    const wasPlaying = isPlaying;
-    const currentSongToRestore = currentSongRef.current;
-    let currentPosition = 0;
-    
-    if (audioEngine === 'rntp') {
-      try { 
-        currentPosition = (await TrackPlayer.getPosition()) * 1000;
-        await TrackPlayer.stop(); 
-        await TrackPlayer.reset(); 
-      } catch(e){}
-    } else {
-      currentPosition = playbackStatusExpo.positionMillis || 0;
-      try { 
-        expoAudioPlayerRef.current?.pause(); 
-        clearExpoPolling();
-      } catch(e){}
-    }
-    
-    setAudioEngine(engine);
-    await AsyncStorage.setItem('audioEngine', engine);
-    
-    if (currentSongToRestore && activeQueueRef.current.length > 0) {
-      loadAndPlayInternal(currentSongToRestore, activeQueueRef.current, indexRef.current, currentPosition, wasPlaying);
-    } else {
-      setPlayQueue([]);
-      setCurrentSong(null);
-    }
   };
 
   useEffect(() => {
@@ -208,15 +176,19 @@ export const useAudioPlayer = () => {
     startExpoPolling(player);
   };
 
+  // ★ 修正: targetEngine パラメータを追加し、非同期なState更新を待たずに強制的にエンジンを決定する
   const loadAndPlayInternal = async (
     song: any, 
     activeQueue: any[] = [], 
     startIndex: number = 0, 
     startPositionMs: number = 0,
-    shouldPlay: boolean = true
+    shouldPlay: boolean = true,
+    targetEngine?: 'expo-av'|'rntp'
   ) => {
+    const engineToUse = targetEngine || audioEngine;
+
     try {
-      if (audioEngine === 'rntp') {
+      if (engineToUse === 'rntp') {
         await TrackPlayer.reset();
         const tracks = activeQueue.map(s => ({
           id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
@@ -229,25 +201,37 @@ export const useAudioPlayer = () => {
         else if (loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
         else await TrackPlayer.setRepeatMode(RepeatMode.Off);
 
-        if (startPositionMs > 0) {
-           await TrackPlayer.seekTo(startPositionMs / 1000);
-        }
+        // ★ 修正: トラックのロード完了を安全に待つため遅延を挟み、シークと再生を適用する
+        setTimeout(async () => {
+          try {
+            if (startPositionMs > 0) {
+               await TrackPlayer.seekTo(startPositionMs / 1000);
+            }
+            if (shouldPlay) {
+               await TrackPlayer.play();
+            } else {
+               setIsPlaying(false);
+            }
+          } catch(e) {}
+        }, 400);
 
-        if (shouldPlay) {
-           setTimeout(async () => {
-              try { await TrackPlayer.play(); } catch(e) {}
-           }, 300);
-        } else {
-           setIsPlaying(false);
-        }
       } else {
         const isLoopOne = loopRef.current === 'ONE';
-        initExpoAudioPlayer(song.localMusicUri, isLoopOne, shouldPlay);
+        // ★ 修正: 最初は Pause 状態でロードする
+        initExpoAudioPlayer(song.localMusicUri, isLoopOne, false); 
         
-        if (startPositionMs > 0) {
-          expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
-          setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
-        }
+        // ★ 修正: ExpoAudio の準備を待ってからシークと再生を実行
+        setTimeout(() => {
+          if (startPositionMs > 0) {
+            expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
+            setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
+          }
+          if (shouldPlay) {
+            expoAudioPlayerRef.current?.play();
+          } else {
+            setIsPlaying(false);
+          }
+        }, 200);
       }
 
       setCurrentSong(song);
@@ -263,6 +247,39 @@ export const useAudioPlayer = () => {
       saveHistory(song);
     } catch (e) {
       console.warn("loadAndPlayInternal Error:", e);
+    }
+  };
+
+  const changeAudioEngine = async (engine: 'expo-av'|'rntp') => {
+    if (engine === audioEngine) return;
+    
+    const wasPlaying = isPlaying;
+    const currentSongToRestore = currentSongRef.current;
+    let currentPosition = 0;
+    
+    // ★ 修正: エンジン切り替え時は stop() ではなく pause() を用いて安全に位置を取得する
+    if (audioEngine === 'rntp') {
+      try { 
+        currentPosition = (await TrackPlayer.getPosition()) * 1000;
+        await TrackPlayer.pause(); 
+      } catch(e){}
+    } else {
+      currentPosition = playbackStatusExpo.positionMillis || 0;
+      try { 
+        expoAudioPlayerRef.current?.pause(); 
+        clearExpoPolling();
+      } catch(e){}
+    }
+    
+    setAudioEngine(engine);
+    await AsyncStorage.setItem('audioEngine', engine);
+    
+    // ★ 修正: 切り替え先のエンジン名を第6引数（engine）として渡し、State更新ラグによるバグを回避
+    if (currentSongToRestore && activeQueueRef.current.length > 0) {
+      loadAndPlayInternal(currentSongToRestore, activeQueueRef.current, indexRef.current, currentPosition, wasPlaying, engine);
+    } else {
+      setPlayQueue([]);
+      setCurrentSong(null);
     }
   };
 
@@ -309,33 +326,28 @@ export const useAudioPlayer = () => {
     
     const currentSong = currentSongRef.current;
     
-    // 現在の曲を基準に新しいキュー順序を生成
     const newActiveQueue = rebuildActiveQueue(nextShuffle, currentSong);
     activeQueueRef.current = newActiveQueue;
 
     const targetIndex = newActiveQueue.findIndex(s => s.localMusicUri === currentSong.localMusicUri);
     
-    // JS(React)側のUIを即座に更新
     const appQueue = newActiveQueue.slice(targetIndex + 1);
     setPlayQueue(appQueue);
     queueRef.current = appQueue;
     setCurrentIndex(targetIndex);
     indexRef.current = targetIndex;
 
-    // ★ 修正: RNTPで「音楽を止めずに裏でキューだけを再構築」する処理
     if (audioEngine === 'rntp') {
       try {
         const queue = await TrackPlayer.getQueue();
         const activeIndex = await TrackPlayer.getActiveTrackIndex();
         
         if (activeIndex !== undefined && activeIndex !== null) {
-          // 現在再生中の曲「以外」をすべてネイティブから削除する
           const indicesToRemove = queue.map((_, i) => i).filter(i => i !== activeIndex);
           if (indicesToRemove.length > 0) {
             await TrackPlayer.remove(indicesToRemove);
           }
           
-          // 残った現在の曲は自動的にインデックス 0 になる。その前後に新しいリストを挿入する
           const tracksBefore = newActiveQueue.slice(0, targetIndex).map(s => ({
             id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
             artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
