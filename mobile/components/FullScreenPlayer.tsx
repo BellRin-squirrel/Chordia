@@ -1,9 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { 
-  View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, 
-  ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, 
-  Platform, Alert 
-} from 'react-native';
+import { View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, Platform } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
@@ -12,6 +8,8 @@ import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
+// ★ 最新の AirPlay ライブラリから showRoutePicker をインポート
+import { showRoutePicker } from 'react-airplay';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -326,90 +324,14 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        
-        {/* 左端サイドバーエリア：トグル、AirPlay、シャッフル、ループを配置 */}
-        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
-          
-          {/* 1. 歌詞 / キュー トグルボタン */}
+        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
-            style={{ 
-              width: 44, height: 44, borderRadius: 22, 
-              backgroundColor: showLyrics ? themeColor : 'transparent',
-              justifyContent: 'center', alignItems: 'center' 
-            }}
+            style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="musical-notes-outline" size={24} color="#fff" />
+            <Ionicons name="musical-notes-outline" size={28} color={showLyrics ? themeColor : "rgba(255,255,255,0.6)"} />
           </BounceButton>
-
-          {/* 2. AirPlay ボタン */}
-          {Platform.OS === 'ios' && (
-            <BounceButton
-              onPress={() => {
-                try {
-                  const reactAirplay = require('react-airplay');
-                  if (reactAirplay && typeof reactAirplay.showRoutePicker === 'function') {
-                    reactAirplay.showRoutePicker({ prioritizesVideoDevices: false });
-                    console.log('[AirPlay Debug] showRoutePicker invoked successfully.');
-                  } else {
-                    Alert.alert(
-                      'AirPlay デバッグ',
-                      'showRoutePicker 関数が見つかりませんでした。\nモジュールキー: ' + JSON.stringify(Object.keys(reactAirplay || {}))
-                    );
-                  }
-                } catch (e: any) {
-                  console.error('[AirPlay Error]', e);
-                  Alert.alert(
-                    'AirPlay エラー詳細',
-                    `エラーメッセージ:\n${e?.message || String(e)}\n\n※ Expo Go やネイティブモジュール未組み込みのビルドでは動作しません。`
-                  );
-                }
-              }}
-              underlayColor="rgba(255,255,255,0.15)"
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}
-            >
-              <MaterialIcons name="airplay" size={22} color="#fff" />
-            </BounceButton>
-          )}
-
-          {/* 3. シャッフル再生ボタン */}
-          <BounceButton
-            onPress={toggleShuffleMode}
-            underlayColor="rgba(255,255,255,0.15)"
-            style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: isShuffle ? themeColor : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}
-          >
-            <Ionicons name="shuffle" size={22} color="#fff" />
-          </BounceButton>
-
-          {/* 4. ループ再生ボタン */}
-          <BounceButton
-            onPress={toggleLoopMode}
-            underlayColor="rgba(255,255,255,0.15)"
-            style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}
-          >
-            <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
-              {loopMode === 'ONE' && (
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
-              )}
-            </View>
-          </BounceButton>
-
         </View>
 
         <PanGestureHandler
@@ -706,22 +628,11 @@ export const FullScreenPlayer = ({
                 <BounceButton
                   onPress={() => {
                     try {
-                      const reactAirplay = require('react-airplay');
-                      if (reactAirplay && typeof reactAirplay.showRoutePicker === 'function') {
-                        reactAirplay.showRoutePicker({ prioritizesVideoDevices: false });
-                        console.log('[AirPlay Debug] showRoutePicker invoked successfully.');
-                      } else {
-                        Alert.alert(
-                          'AirPlay デバッグ',
-                          'showRoutePicker 関数が見つかりませんでした。\nモジュールキー: ' + JSON.stringify(Object.keys(reactAirplay || {}))
-                        );
-                      }
-                    } catch (e: any) {
-                      console.error('[AirPlay Error]', e);
-                      Alert.alert(
-                        'AirPlay エラー詳細',
-                        `エラーメッセージ:\n${e?.message || String(e)}\n\n※ Expo Go やネイティブモジュール未組み込みのビルドでは動作しません。`
-                      );
+                      // ボタンが押された時に動的に読み込む（未ビルド時のクラッシュ防止）
+                      const { showRoutePicker } = require('react-airplay');
+                      showRoutePicker();
+                    } catch (e) {
+                      console.warn('AirPlay binary not updated or not supported:', e);
                     }
                   }}
                   underlayColor="rgba(255,255,255,0.15)"
@@ -775,22 +686,19 @@ export const FullScreenPlayer = ({
     );
   }
 
-  // ノッチ・Dynamic Island (上部・左右) および Home Indicator (下部) の保護設定
-  const containerStyle = isLandscape
+  const containerStyle = isIphoneLandscape
     ? { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const }
-    : [
-        styles.fullPlayerContainer,
-        { top: Math.max(insets.top, 44) } // 上部ノッチ/Dynamic Islandの直下から開始
-      ];
+    : styles.fullPlayerContainer;
 
-  const contentStyle = { 
-    flex: 1, 
-    // 横画面（isLandscape）ではノッチ(insets.left/right)からさらに十分な余白(+12px)を確保してアイコンの重なりを回避
-    paddingLeft: isLandscape ? Math.max(insets.left + 12, 28) : Math.max(insets.left, 16), 
-    paddingRight: isLandscape ? Math.max(insets.right + 12, 28) : Math.max(insets.right, 16), 
-    paddingTop: isLandscape ? Math.max(insets.top, 12) : 12, 
-    paddingBottom: Math.max(insets.bottom, 16) // 下部ホームバー(Home Indicator)との干渉を防止
-  };
+  const contentStyle = isIphoneLandscape
+    ? { 
+        flex: 1, 
+        paddingLeft: Math.max(insets.left, 16), 
+        paddingRight: Math.max(insets.right, 16), 
+        paddingTop: Math.max(insets.top, 12), 
+        paddingBottom: Math.max(insets.bottom, 16) 
+      }
+    : styles.fullPlayerContent;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
