@@ -121,7 +121,6 @@ body {
     .settings-section { display: none !important; margin-bottom: 0; }
     .settings-section.active { display: block !important; animation: settingsFadeIn 0.2s ease; }
 
-    /* ★ 修正：中画面における高さを縮小調整し、body全体の縦スクロールを発生させない */
     .settings-content-area {
         flex: 1;
         min-width: 0;
@@ -467,25 +466,41 @@ input[type="color"]:disabled {
     background: rgba(128, 128, 128, 0.3);
 }
 
+/* --- トースト通知 (コンパクト・右上固定・スムーズフェードアウト) --- */
 .toast {
     visibility: hidden;
-    min-width: 280px;
-    background-color: #333;
-    color: #fff;
-    text-align: center;
-    border-radius: 50px;
-    padding: 14px 28px;
+    min-width: 220px;
+    max-width: 360px;
+    background-color: #333333;
+    color: #ffffff;
+    text-align: left;
+    border-radius: 12px;
+    padding: 12px 18px;
     position: fixed;
-    z-index: 9999;
-    left: 50%;
-    bottom: 30px;
-    transform: translateX(-50%);
+    z-index: 10000;
+    right: 30px;
+    top: 20px;
+    font-size: 0.9rem;
     font-weight: 700;
     opacity: 0;
-    transition: opacity 0.3s, bottom 0.3s;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    transform: translateY(-20px);
+    transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.3s;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    line-height: 1.4;
+    box-sizing: border-box;
 }
 
 .toast.show {
-    visibility: visible; opacity: 1; bottom: 50px;
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(10px);
+}
+
+.toast.success {
+    background-color: #059669 !important;
+}
+
+.toast.error {
+    background-color: #ef4444 !important;
 }

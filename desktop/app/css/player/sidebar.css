@@ -22,45 +22,64 @@
 .sidebar-header {
     padding: 16px;
     background: var(--card-bg);
-    position: sticky;
-    top: 0;
     z-index: 120; 
     border-radius: 16px 16px 0 0;
     border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .custom-select-wrapper {
     position: relative;
     width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.custom-select-trigger {
-    width: 100%;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background-color: rgba(128, 128, 128, 0.08);
-    border: 1px solid rgba(128, 128, 128, 0.2);
-    border-radius: 10px;
-    padding: 10px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    outline: none;
+.sidebar-header .custom-select-trigger,
+.sidebar .custom-select-trigger {
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-color: rgba(128, 128, 128, 0.08) !important;
+    border: 1px solid rgba(128, 128, 128, 0.2) !important;
+    border-radius: 10px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+    font-family: inherit !important;
+    line-height: normal !important;
+    vertical-align: middle !important;
 }
 
-.custom-select-trigger span {
+.sidebar-header .custom-select-trigger span,
+.sidebar .custom-select-trigger span {
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text-main);
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .custom-chevron {
     width: 12px;
     height: 12px;
     color: var(--text-sub);
+    flex-shrink: 0;
 }
 
 .custom-select-dropdown {
@@ -132,12 +151,14 @@
 
 .playlist-nav { 
     list-style: none; 
-    margin: 12px; 
-    padding: 0; 
+    margin: 0; 
+    padding: 12px; 
     padding-bottom: 20px; 
     color: var(--text-main); 
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
 }
 
 .playlist-item { 
@@ -153,6 +174,7 @@
     margin-bottom: 4px; 
     user-select: none; 
     min-width: 0; 
+    box-sizing: border-box;
 }
 
 .playlist-item:hover { 
@@ -204,7 +226,6 @@
     visibility: visible;
 }
 
-/* ★ 幅 900px 未満でのサイドバーのドロワー退避制御 */
 @media (max-width: 900px) {
     .sidebar {
         position: fixed !important;
@@ -214,13 +235,13 @@
         height: 100vh !important;
         border-radius: 0 16px 16px 0 !important;
         z-index: 1000 !important;
-        transform: translateX(-105%) !important; /* 画面外へ退避 */
+        transform: translateX(-105%) !important;
         border: none !important;
         border-right: 2px solid var(--primary-color) !important;
         box-shadow: 10px 0 30px rgba(0,0,0,0.2) !important;
     }
 
     .sidebar.drawer-open {
-        transform: translateX(0) !important; /* スライドイン表示 */
+        transform: translateX(0) !important;
     }
 }

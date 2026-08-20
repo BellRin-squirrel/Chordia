@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await window.i18n.init(selectedLanguage);
                 rebuildThemeOptions(selectedThemeMode);
                 updateThemeUI();
-                renderCombinedTagList(); // ★ 言語変更時にタグ名一覧も即時翻訳・再読み込み
+                renderCombinedTagList();
             }
 
             if (showNotify) showToast(window.i18n ? window.i18n.t("Messages.saved") : "設定を保存しました");
@@ -313,7 +313,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     updateThemeUI();
 
-    // ★ 修正: 多言語辞書から動的に表示言語のタグ名を取得してレンダリング
     function renderCombinedTagList() {
         const container = document.getElementById('combinedTagsList');
         if (!container) return;
@@ -324,7 +323,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isDbChecked = currentSettings.active_tags.includes(tag.key) ? 'checked' : '';
             const isPlayerChecked = currentSettings.player_visible_tags.includes(tag.key) ? 'checked' : '';
 
-            // i18n 辞書から動的に現在の言語のタグ名を取得 (フォールバック: tag.label)
             const labelText = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${tag.key}`) : tag.label;
 
             li.innerHTML = `
@@ -385,7 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 chkNormalizeVolume.checked = true;
                 handleChange();
-                showToast(window.i18n ? window.i18n.t("Messages.saved") : "一定音量機能を有効にしました");
+                showToast(window.i18n ? window.i18n.t("Messages.saved") : "設定を保存しました");
             } else {
                 handleChange();
             }
@@ -462,13 +460,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast(window.i18n ? window.i18n.t("Messages.art_restored") : "初期画像に戻しました");
         }
     });
-});
 
-function showToast(msg, isErr = false) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.textContent = msg;
-    toast.className = 'toast show';
-    if (isErr) toast.style.backgroundColor = "#ef4444"; else toast.style.backgroundColor = "#10b981";
-    setTimeout(() => { toast.className = 'toast'; }, 3000);
-}
+    // ★ 修正：タイムアウト管理付きのコンパクトなトースト通知関数
+    let toastTimeout = null;
+
+    function showToast(msg, isErr = false) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toast.textContent = msg;
+        toast.className = 'toast ' + (isErr ? 'error' : 'success');
+        
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 3000);
+    }
+});
