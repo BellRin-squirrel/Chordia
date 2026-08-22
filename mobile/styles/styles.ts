@@ -202,7 +202,6 @@ export const styles = StyleSheet.create({
   modalBtnCancel: { padding: 10 },
   modalBtnApply: { paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10 },
 
-  // ★ 修正: より高級感と視認性を高めたLiquid Glassアラート用スタイル
   liquidAlertBox: {
     width: '85%',
     maxWidth: 320,

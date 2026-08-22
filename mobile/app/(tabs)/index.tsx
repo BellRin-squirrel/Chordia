@@ -3,7 +3,7 @@ import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, useColorScheme, useWindowDimensions, View, FlatList, ScrollView, LogBox } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import * as Network from 'expo-network';
@@ -46,6 +46,8 @@ const AppContent = () => {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const historyBackButtonScale = useRef(new Animated.Value(1)).current;
   
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(6);
+
   const [customAlert, setCustomAlert] = useState<{title: string, message?: string, buttons?: any[]} | null>(null);
 
   const insets = useSafeAreaInsets();
@@ -135,8 +137,7 @@ const AppContent = () => {
     }
   }, [activeTab]);
 
-  const isBlurBackground = activeTab === 'PLAYER' && navStackLength === 3;
-  const rootBgColor = isBlurBackground ? '#000000' : (isAppDark ? '#000000' : '#f2f2f7');
+  const rootBgColor = isAppDark ? '#000000' : '#f2f2f7';
 
   const actualDynamicStyles = {
     bg: isAppDark ? '#000000' : '#f2f2f7',
@@ -153,8 +154,13 @@ const AppContent = () => {
     Animated.spring(miniPlayerShiftAnim, { toValue: shouldShift ? 1 : 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
   }, [navStackLength, isLandscape, activeTab]);
 
+  // ★ 修正: 再生タブ（PLAYER）および全画面集中モード（FOCUS）以外は、横画面時に右側タブバー分の余白を確保して重なりを防止
   const isFocusing = activeTab === 'FOCUS' && focusStage === 'FOCUS';
-  const contentPaddingRight = isFocusing ? 0 : (isLandscape ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0);
+  const isPlayerTab = activeTab === 'PLAYER';
+  const contentPaddingRight = (isFocusing || isPlayerTab) 
+    ? 0 
+    : (isLandscape ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0);
+
   const availableWidth = width - (isLandscape ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0) - 16;
   const heroWidth = availableWidth * 0.4;
   const miniPlayerLeft = miniPlayerShiftAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 16 + heroWidth] });
@@ -199,7 +205,13 @@ const AppContent = () => {
         .reduce((sum: number, h: any) => sum + h.duration, 0);
       
       const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-      return { date: d, totalSec, label: `${d.getMonth() + 1}/${d.getDate()}`, dayName: dayNames[d.getDay()] };
+      return { 
+        date: d, 
+        totalSec, 
+        label: `${d.getMonth() + 1}/${d.getDate()}`, 
+        dayName: dayNames[d.getDay()],
+        fullDateLabel: `${d.getMonth() + 1}月${d.getDate()}日(${dayNames[d.getDay()]})`
+      };
     });
   };
 
@@ -227,6 +239,8 @@ const AppContent = () => {
   const maxSec = Math.max(...graphData.map(d => d.totalSec));
   const weekTotalSec = graphData.reduce((sum, d) => sum + d.totalSec, 0);
   const GRAPH_HEIGHT = 180;
+  
+  const selectedDayData = selectedDayIndex !== null ? graphData[selectedDayIndex] : null;
   // -------------------------------------------------------------
 
   return (
@@ -234,6 +248,7 @@ const AppContent = () => {
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: rootBgColor, zIndex: -1 }} />
       <StatusBar style={isAppDark ? "light" : "dark"} backgroundColor="transparent" translucent={true} />
       
+      {/* ★ 修正: contentPaddingRight を適用し、横画面時に各タブのコンテンツがタブバーと重ならないように保護 */}
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
         {activeTab === 'SYNC' && (
           <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
@@ -278,7 +293,16 @@ const AppContent = () => {
               
               {/* 1. 今週の棒グラフカード */}
               <View style={{ backgroundColor: actualDynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: actualDynamicStyles.border, marginBottom: 25 }}>
-                <Text style={{ color: actualDynamicStyles.subText, fontSize: 14, fontWeight: 'bold', marginBottom: 25 }}>過去7日間の集中時間</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <Text style={{ color: actualDynamicStyles.subText, fontSize: 14, fontWeight: 'bold' }}>過去7日間の集中時間</Text>
+                  {selectedDayData && (
+                    <View style={{ backgroundColor: isAppDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: isAppDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
+                      <Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold' }}>
+                        {selectedDayData.fullDateLabel}: {formatSecToHM(selectedDayData.totalSec)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 
                 <View style={{ flexDirection: 'row', height: GRAPH_HEIGHT }}>
                   <View style={{ justifyContent: 'space-between', paddingRight: 15, alignItems: 'flex-end', width: 65 }}>
@@ -290,18 +314,28 @@ const AppContent = () => {
                   <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: actualDynamicStyles.border, paddingBottom: 5 }}>
                     {graphData.map((d, i) => {
                       const barHeight = maxSec > 0 ? (d.totalSec / maxSec) * (GRAPH_HEIGHT - 25) : 0;
-                      const isToday = i === 6;
+                      const isSelected = selectedDayIndex === i;
+                      
                       return (
-                        <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+                        <TouchableOpacity 
+                          key={i} 
+                          style={{ alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' }}
+                          onPress={() => setSelectedDayIndex(i)}
+                          activeOpacity={0.7}
+                        >
                           <View style={{ 
                             height: barHeight, 
                             width: isLandscape ? 32 : 18, 
-                            backgroundColor: isToday ? themeColor : (isAppDark ? '#3a3a3c' : '#d1d1d6'), 
+                            backgroundColor: isSelected 
+                              ? themeColor 
+                              : (d.totalSec > 0 ? (isAppDark ? '#48484a' : '#c7c7cc') : (isAppDark ? '#2c2c2e' : '#e5e5ea')), 
                             borderTopLeftRadius: 6,
                             borderTopRightRadius: 6,
-                            minHeight: d.totalSec > 0 ? 6 : 0
+                            minHeight: d.totalSec > 0 ? 6 : 0,
+                            borderWidth: isSelected ? 1.5 : 0,
+                            borderColor: '#ffffff',
                           }} />
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
@@ -309,12 +343,16 @@ const AppContent = () => {
                 
                 <View style={{ flexDirection: 'row', marginLeft: 65, marginTop: 10 }}>
                   {graphData.map((d, i) => {
-                    const isToday = i === 6;
+                    const isSelected = selectedDayIndex === i;
                     return (
-                      <View key={i} style={{ alignItems: 'center', flex: 1 }}>
-                        <Text style={{ color: isToday ? themeColor : actualDynamicStyles.subText, fontSize: 12, fontWeight: isToday ? 'bold' : 'normal' }}>{d.dayName}</Text>
-                        <Text style={{ color: actualDynamicStyles.subText, fontSize: 10, marginTop: 2 }}>{d.label}</Text>
-                      </View>
+                      <TouchableOpacity 
+                        key={i} 
+                        style={{ alignItems: 'center', flex: 1 }}
+                        onPress={() => setSelectedDayIndex(i)}
+                      >
+                        <Text style={{ color: isSelected ? themeColor : actualDynamicStyles.subText, fontSize: 12, fontWeight: isSelected ? 'bold' : 'normal' }}>{d.dayName}</Text>
+                        <Text style={{ color: isSelected ? themeColor : actualDynamicStyles.subText, fontSize: 10, marginTop: 2, fontWeight: isSelected ? '600' : 'normal' }}>{d.label}</Text>
+                      </TouchableOpacity>
                     )
                   })}
                 </View>
@@ -357,12 +395,12 @@ const AppContent = () => {
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
           {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
-            <Animated.View style={[isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], { bottom: isLandscape ? (15 + insets.bottom) : (TAB_BAR_MARGIN + TAB_BAR_HEIGHT + MINI_PLAYER_GAP + insets.bottom), left: isLandscape ? miniPlayerLeft : 16, right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, shadowOpacity: isBlurBackground ? 0 : 0.1, elevation: isBlurBackground ? 0 : 10 }]}>
+            <Animated.View style={[isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], { bottom: isLandscape ? (15 + insets.bottom) : (TAB_BAR_MARGIN + TAB_BAR_HEIGHT + MINI_PLAYER_GAP + insets.bottom), left: isLandscape ? miniPlayerLeft : 16, right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, shadowOpacity: 0.1, elevation: 10 }]}>
               <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={() => { setIsFullPlayer(true); Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start(); }} togglePlayPause={togglePlayPause} handleNext={handleNext} />
             </Animated.View>
           )}
           <View style={isLandscape ?[styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] :[styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
-              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} isDark={isAppDark} isBlurBackground={isBlurBackground} showFocusTab={showFocusTab} />
+              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} />
           </View>
         </View>
       )}
@@ -399,14 +437,14 @@ const AppContent = () => {
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
-      {/* ★ 変更: ヘッダー高さと文字の位置を前の画面に揃え、戻るボタンのみを translateY で少し下へずらす */}
+      {/* 統計: 全履歴表示用モーダル */}
       <Modal visible={showAllHistory} animationType="fade" transparent={false} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
-        <View style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }} edges={['top', 'left', 'right', 'bottom']}>
           
-          <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), borderBottomWidth: 1, borderBottomColor: actualDynamicStyles.border }]}>
+          <View style={[styles.navHeader, { height: 44, borderBottomWidth: 1, borderBottomColor: actualDynamicStyles.border }]}>
             <View style={styles.navHeaderLeft}>
               <TouchableWithoutFeedback onPressIn={handleHistoryPressIn} onPressOut={handleHistoryPressOut} onPress={() => setShowAllHistory(false)}>
-                  <Animated.View style={{ transform:[{ scale: historyBackButtonScale }, { translateY: 6 }] }}>
+                  <Animated.View style={{ transform:[{ scale: historyBackButtonScale }] }}>
                       <View style={[styles.liquidGlassBackButton, { 
                           backgroundColor: isAppDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)',
                           borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)',
@@ -426,9 +464,7 @@ const AppContent = () => {
             keyExtractor={(item) => item.id}
             contentContainerStyle={{
               padding: 20,
-              paddingLeft: Math.max(insets?.left || 0, 20),
-              paddingRight: Math.max(insets?.right || 0, 20),
-              paddingBottom: (insets?.bottom || 20) + 50
+              paddingBottom: 50
             }}
             ListEmptyComponent={
               <View style={{ alignItems: 'center', marginTop: 80 }}>
@@ -461,7 +497,7 @@ const AppContent = () => {
               );
             }}
           />
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* アラートモーダル */}

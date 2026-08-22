@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
-import { styles } from '../styles/styles';
+import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { RecentSection } from './RecentSection';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -50,8 +50,11 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   const flatListRefPortrait = useRef<FlatList>(null);
   const flatListRefLandscape = useRef<FlatList>(null);
 
+  // ★ 修正: 横画面時のタブバー幅とホームバー余白を考慮した安全なコンテンツパディング
   const safePadding = {
-    paddingBottom: 180 + (insets?.bottom || 0)
+    paddingBottom: (isLandscape ? 50 : 180) + (insets?.bottom || 0),
+    paddingLeft: isLandscape ? Math.max(insets?.left || 0, 16) : 0,
+    paddingRight: isLandscape ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 0,
   };
 
   useEffect(() => {
@@ -185,7 +188,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     Animated.divide(panX, width)
   );
 
-  // ★ 修正: シャドウを完全に廃止し、左側にネイティブライクな極細ボーダーを設定
   const layerBorderStyle = {
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
@@ -307,7 +309,15 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   // -----------------------------------------------------------
 
   const renderHeader = (title: string) => (
-    <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0) }]}>
+    <View style={[
+      styles.navHeader, 
+      { 
+        paddingTop: insets?.top || 0, 
+        height: 44 + (insets?.top || 0),
+        paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15,
+        paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15,
+      }
+    ]}>
         <View style={styles.navHeaderLeft}>
             {navStack.length > 1 && (
                 <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
@@ -346,7 +356,18 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
   const renderMenu = () => (
     <View style={{flex: 1, backgroundColor: dynamicStyles.bg}}>
-        <View style={[styles.headerBar, {borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}>
+        <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+        
+        <View style={[
+          styles.headerBar, 
+          {
+            borderBottomColor: 'transparent', 
+            paddingTop: insets?.top || 0, 
+            height: 44 + (insets?.top || 0),
+            paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20,
+            paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
+          }
+        ]}>
             <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>ライブラリ</Text>
         </View>
         <FlatList
@@ -403,6 +424,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     const data = category === 'PLAYLISTS' ?[{playlistName: 'すべての楽曲', isAll: true, id: 'all_songs'}, ...localPlaylists] : category === 'ALBUMS' ? albumsList : artistsList;
     return (
       <View style={{flex: 1, backgroundColor: dynamicStyles.bg}}>
+        <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+
         {renderHeader(category === 'PLAYLISTS' ? 'プレイリスト' : category === 'ALBUMS' ? 'アルバム' : 'アーティスト')}
         <FlatList
           key={category}
@@ -586,15 +609,23 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     );
 
     return (
-        <View style={{flex: 1, backgroundColor: dynamicStyles.bg}}>
+        <View style={{flex: 1}}>
+            {/* ★ 修正: 画面外(-100px)までカバーアートとブラーを引き伸ばし、ホームバーやタブバー裏まで完全に背景を継続 */}
             {hasBlurBackground ? (
-              <View style={StyleSheet.absoluteFill}>
-                  <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: '#000', zIndex: -2 }} />
-                  <Image source={heroArtSource} style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, opacity: 0.8 }} blurRadius={80} />
-                  <BlurView intensity={isDark ? 80 : 95} tint={isDark ? 'dark' : 'light'} style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100 }} />
+              <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100 }}>
+                  <Image 
+                    source={heroArtSource} 
+                    style={StyleSheet.absoluteFill} 
+                    blurRadius={80} 
+                  />
+                  <BlurView 
+                    intensity={isDark ? 80 : 95} 
+                    tint={isDark ? 'dark' : 'light'} 
+                    style={StyleSheet.absoluteFill} 
+                  />
               </View>
             ) : (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: dynamicStyles.bg }]} />
+              <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg }} />
             )}
 
             {renderHeader(currentSelectionType === 'PLAYLIST' ? 'プレイリスト' : currentSelectionType === 'ALBUM' ? 'アルバム' : 'アーティスト')}
@@ -658,6 +689,8 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
+      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+
       <PanGestureHandler
         activeOffsetX={[-500, 10]}
         failOffsetY={[-15, 15]}
@@ -677,7 +710,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
           
-          {/* Layer 2: カテゴリ一覧層 (影を削除し、左端に極細のボーダーを追加) */}
+          {/* Layer 2: カテゴリ一覧層 (プレイリスト一覧・アルバム一覧・アーティスト一覧) */}
           {navStack.length > 1 && (
             <Animated.View 
                 style={[StyleSheet.absoluteFill, layerBorderStyle, { 
@@ -691,7 +724,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
             </Animated.View>
           )}
 
-          {/* Layer 3: 楽曲リスト層 (影を削除し、左端に極細のボーダーを追加) */}
+          {/* Layer 3: 楽曲リスト層 */}
           {navStack.length > 2 && (
             <Animated.View 
                 style={[StyleSheet.absoluteFill, layerBorderStyle, { 
