@@ -55,7 +55,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickingTarget, setPickingTarget] = useState<'MAIN' | 'WORK' | 'BREAK'>('MAIN');
 
-  // 背景のテーマカラー輝度(R,G,B)から最も見やすい文字色(#ffffff または #000000)を自動決定
   const buttonTextColor = useMemo(() => {
     const r = themeR ?? 79;
     const g = themeG ?? 70;
@@ -104,17 +103,61 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
 
   const iconBgColor = `rgba(${themeR || 79}, ${themeG || 70}, ${themeB || 229}, 0.15)`;
 
+  // ★ 修正: 日またぎが発生した際に、実際の経過時間から割合（按分）を出して自動分割保存する
   const saveSessionToHistory = async (seconds: number) => {
     if (seconds <= 0) return;
     try {
       const historyJson = await AsyncStorage.getItem(HISTORY_KEY);
       let history = historyJson ? JSON.parse(historyJson) : [];
-      const newEntry = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
-        duration: seconds
-      };
-      history = [newEntry, ...history].slice(0, 100);
+      
+      const startTime = sessionStartTimeRef.current || (Date.now() - seconds * 1000);
+      const endTime = Date.now();
+      const totalElapsedMs = endTime - startTime;
+
+      const newEntries = [];
+
+      if (totalElapsedMs <= 0) {
+        newEntries.push({
+          id: Date.now().toString(),
+          date: new Date(endTime).toISOString(),
+          duration: seconds
+        });
+      } else {
+        let currentStartMs = startTime;
+        while (currentStartMs < endTime) {
+          const currentDateObj = new Date(currentStartMs);
+          
+          // その日の終わり (23:59:59.999) を求める
+          const endOfDay = new Date(currentDateObj);
+          endOfDay.setHours(23, 59, 59, 999);
+          
+          let chunkEndMs = endOfDay.getTime();
+          if (chunkEndMs > endTime) {
+            chunkEndMs = endTime;
+          }
+          
+          // 該当日の経過時間と、それに基づく作業時間の按分
+          const chunkElapsedMs = chunkEndMs - currentStartMs;
+          const ratio = chunkElapsedMs / totalElapsedMs;
+          const chunkDurationSeconds = Math.round(seconds * ratio);
+          
+          if (chunkDurationSeconds > 0) {
+            // chunkEndMs（その日の遅い時間）を記録日とする
+            newEntries.push({
+              id: Date.now().toString() + '_' + currentStartMs,
+              date: new Date(chunkEndMs).toISOString(),
+              duration: chunkDurationSeconds
+            });
+          }
+          
+          // 次の日の始まり (00:00:00.000) へ進める
+          currentStartMs = chunkEndMs + 1;
+        }
+      }
+
+      // 新しく分割されたエントリ（最新順）を既存履歴の先頭に追加
+      history = [...newEntries.reverse(), ...history].slice(0, 100);
+      
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       await AsyncStorage.removeItem(TEMP_WORK_KEY);
     } catch (e) {
@@ -444,7 +487,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={[s.header, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), backgroundColor: dynamicStyles.bg }]}>
-        {/* ★ 修正: 左上「設定完了」ボタンを大型化し、くっきり力強く強調表示 (シャドウ付き) */}
         <TouchableOpacity 
           style={{ 
             position: 'absolute', 

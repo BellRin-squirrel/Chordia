@@ -1,7 +1,7 @@
 {
   "name": "Chordiamobile",
   "main": "expo-router/entry",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
