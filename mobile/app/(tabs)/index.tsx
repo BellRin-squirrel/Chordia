@@ -154,7 +154,6 @@ const AppContent = () => {
     Animated.spring(miniPlayerShiftAnim, { toValue: shouldShift ? 1 : 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
   }, [navStackLength, isLandscape, activeTab]);
 
-  // ★ 修正: 再生タブ（PLAYER）および全画面集中モード（FOCUS）以外は、横画面時に右側タブバー分の余白を確保して重なりを防止
   const isFocusing = activeTab === 'FOCUS' && focusStage === 'FOCUS';
   const isPlayerTab = activeTab === 'PLAYER';
   const contentPaddingRight = (isFocusing || isPlayerTab) 
@@ -248,7 +247,6 @@ const AppContent = () => {
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: rootBgColor, zIndex: -1 }} />
       <StatusBar style={isAppDark ? "light" : "dark"} backgroundColor="transparent" translucent={true} />
       
-      {/* ★ 修正: contentPaddingRight を適用し、横画面時に各タブのコンテンツがタブバーと重ならないように保護 */}
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
         {activeTab === 'SYNC' && (
           <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
@@ -437,67 +435,69 @@ const AppContent = () => {
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
-      {/* 統計: 全履歴表示用モーダル */}
+      {/* ★ 修正: Modalの直下を SafeAreaProvider で包み、初回マウント時から正確なノッチ高さを適用 */}
       <Modal visible={showAllHistory} animationType="fade" transparent={false} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }} edges={['top', 'left', 'right', 'bottom']}>
-          
-          <View style={[styles.navHeader, { height: 44, borderBottomWidth: 1, borderBottomColor: actualDynamicStyles.border }]}>
-            <View style={styles.navHeaderLeft}>
-              <TouchableWithoutFeedback onPressIn={handleHistoryPressIn} onPressOut={handleHistoryPressOut} onPress={() => setShowAllHistory(false)}>
-                  <Animated.View style={{ transform:[{ scale: historyBackButtonScale }] }}>
-                      <View style={[styles.liquidGlassBackButton, { 
-                          backgroundColor: isAppDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)',
-                          borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)',
-                      }]}>
-                          <BlurView intensity={isAppDark ? 50 : 80} tint={isAppDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                          <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
-                      </View>
-                  </Animated.View>
-              </TouchableWithoutFeedback>
-            </View>
-            <Text style={[styles.navHeaderTitle, { color: actualDynamicStyles.text }]} numberOfLines={1}>すべての履歴</Text>
-            <View style={styles.navHeaderRight} />
-          </View>
-
-          <FlatList
-            data={focusHistory}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{
-              padding: 20,
-              paddingBottom: 50
-            }}
-            ListEmptyComponent={
-              <View style={{ alignItems: 'center', marginTop: 80 }}>
-                <Ionicons name="time-outline" size={80} color={actualDynamicStyles.border} />
-                <Text style={{ color: actualDynamicStyles.subText, marginTop: 15, fontSize: 16, fontWeight: 'bold' }}>履歴がありません</Text>
+        <SafeAreaProvider>
+          <SafeAreaView style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }} edges={['top', 'left', 'right', 'bottom']}>
+            
+            <View style={[styles.navHeader, { height: 44, borderBottomWidth: 1, borderBottomColor: actualDynamicStyles.border }]}>
+              <View style={styles.navHeaderLeft}>
+                <TouchableWithoutFeedback onPressIn={handleHistoryPressIn} onPressOut={handleHistoryPressOut} onPress={() => setShowAllHistory(false)}>
+                    <Animated.View style={{ transform:[{ scale: historyBackButtonScale }] }}>
+                        <View style={[styles.liquidGlassBackButton, { 
+                            backgroundColor: isAppDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)',
+                            borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)',
+                        }]}>
+                            <BlurView intensity={isAppDark ? 50 : 80} tint={isAppDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                            <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
+                        </View>
+                    </Animated.View>
+                </TouchableWithoutFeedback>
               </View>
-            }
-            renderItem={({ item }) => {
-              const d = new Date(item.date);
-              const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-              return (
-                <View style={{ 
-                  flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-                  backgroundColor: actualDynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12,
-                  borderWidth: 1, borderColor: actualDynamicStyles.border,
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(79, 70, 229, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
-                      <Ionicons name="checkmark-done-circle" size={26} color={themeColor} />
-                    </View>
-                    <Text style={{ color: actualDynamicStyles.text, fontSize: 15, fontWeight: 'bold', flex: 1 }}>{dateStr}</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ color: themeColor, fontSize: 17, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
-                      {formatSecToHMS(item.duration)}
-                    </Text>
-                  </View>
+              <Text style={[styles.navHeaderTitle, { color: actualDynamicStyles.text }]} numberOfLines={1}>すべての履歴</Text>
+              <View style={styles.navHeaderRight} />
+            </View>
+
+            <FlatList
+              data={focusHistory}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{
+                padding: 20,
+                paddingBottom: 50
+              }}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', marginTop: 80 }}>
+                  <Ionicons name="time-outline" size={80} color={actualDynamicStyles.border} />
+                  <Text style={{ color: actualDynamicStyles.subText, marginTop: 15, fontSize: 16, fontWeight: 'bold' }}>履歴がありません</Text>
                 </View>
-              );
-            }}
-          />
-        </SafeAreaView>
+              }
+              renderItem={({ item }) => {
+                const d = new Date(item.date);
+                const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                return (
+                  <View style={{ 
+                    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+                    backgroundColor: actualDynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12,
+                    borderWidth: 1, borderColor: actualDynamicStyles.border,
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(79, 70, 229, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
+                        <Ionicons name="checkmark-done-circle" size={26} color={themeColor} />
+                      </View>
+                      <Text style={{ color: actualDynamicStyles.text, fontSize: 15, fontWeight: 'bold', flex: 1 }}>{dateStr}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: themeColor, fontSize: 17, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
+                        {formatSecToHMS(item.duration)}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
 
       {/* アラートモーダル */}
