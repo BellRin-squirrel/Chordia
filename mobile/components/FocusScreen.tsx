@@ -52,11 +52,9 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [isPaused, setIsPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
-  const [expanded, setExpanded] = useState({ PLAYLIST: true, ALBUM: false, ARTIST: false });
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickingTarget, setPickingTarget] = useState<'MAIN' | 'WORK' | 'BREAK'>('MAIN');
 
-  // ★ テーマカラーの輝度から最適な文字色を自動計算 (#000000 または #ffffff)
   const buttonTextColor = useMemo(() => {
     const r = themeR ?? 79;
     const g = themeG ?? 70;
@@ -236,11 +234,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
     setStage('SETUP');
   }, [setStage]);
 
-  const toggleSection = useCallback((section: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpanded(prev => ({ ...prev, [section]: !prev[section as keyof typeof expanded] }));
-  }, []);
-
   const onSelectCollection = useCallback((item: any) => {
     if (pickingTarget === 'MAIN') setMainPlaylist(item);
     else if (pickingTarget === 'WORK') setWorkPlaylist(item);
@@ -413,27 +406,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
     await switchPhaseMusic('WORK'); 
   };
 
-  const musicCollections = useMemo(() => {
-    const albumsMap = new Map();
-    const artistsMap = new Map();
-    localLibrary.forEach((s: any) => {
-      const ak = `${s.album}:::${s.artist}`;
-      if (!albumsMap.has(ak)) albumsMap.set(ak, { id: ak, type: 'ALBUM', title: s.album, sub: s.artist, art: s.localImageUri, songs: [] });
-      albumsMap.get(ak).songs.push(s);
-      if (!artistsMap.has(s.artist)) artistsMap.set(s.artist, { id: s.artist, type: 'ARTIST', title: s.artist, sub: 'アーティスト', art: s.localImageUri, songs: [] });
-      artistsMap.get(s.artist).songs.push(s);
-    });
-    const playlists = localPlaylists.map((p: any) => ({ id: p.id, type: 'PLAYLIST', title: p.playlistName, sub: 'プレイリスト', art: null, data: p }));
-    const res: any[] = [];
-    res.push({ isHeader: true, section: 'PLAYLIST', title: 'プレイリスト' });
-    if (expanded.PLAYLIST) res.push(...playlists);
-    res.push({ isHeader: true, section: 'ALBUM', title: 'アルバム' });
-    if (expanded.ALBUM) res.push(...Array.from(albumsMap.values()));
-    res.push({ isHeader: true, section: 'ARTIST', title: 'アーティスト' });
-    if (expanded.ARTIST) res.push(...Array.from(artistsMap.values()));
-    return res;
-  }, [localLibrary, localPlaylists, expanded]);
-
   const isReady = pomoEnabled ? (workPlaylist && breakPlaylist) : mainPlaylist;
 
   if (stage === 'FOCUS') {
@@ -459,7 +431,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                           <Text style={{ color: dynamicStyles.subText, marginBottom: isLandscape ? 15 : 25, lineHeight: 22 }}>この画面では、通常のタップ操作は制限されています。{"\n"}(現在、一時停止中です)</Text>
                           <View style={{ gap: isLandscape ? 12 : 20, marginBottom: 30 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="pause" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>一時停止 / 再開</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「タップ」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="menu" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>ヘルプ表示</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「長押し」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.15)', justifyContent: 'center', alignItems: 'center' }}><Ionicons name="exit-outline" size={22} color="#ef4444" /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>集中を終了する</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を大きくスワイプ</Text></View></View></View>
                           
-                          {/* ★ 修正: 「理解して再開する」ボタンの文字色を buttonTextColor に連動 */}
                           <TouchableOpacity style={{ backgroundColor: themeColor, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setShowHelp(false); togglePause(false); }}>
                             <Text style={{ color: buttonTextColor, fontWeight: 'bold', fontSize: 16 }}>理解して再開する</Text>
                           </TouchableOpacity>
@@ -486,7 +457,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                 <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="warning" size={20} color="#f59e0b" /><Text style={{ color: '#f59e0b', fontSize: 12, flex: 1, fontWeight: 'bold' }}>※作業中は他のアプリからの通知音等を防ぐため、強制的に標準プレイヤーが使用されます。</Text></View>
             </View>
             
-            {/* ★ 修正: 「集中を楽しむ！」ボタンの文字色を buttonTextColor に連動 */}
             <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, marginTop: 40, width: '100%' }]} onPress={startFocusSession}>
               <Text style={[s.primaryBtnText, { color: buttonTextColor }]}>集中を楽しむ！</Text>
             </TouchableOpacity>
@@ -529,7 +499,9 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       
       <FocusSetupView 
         {...{ 
-          dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, musicCollections, expanded, toggleSection, onSelectCollection, pickerVisible, setPickerVisible, setPickingTarget, isReady, 
+          dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, 
+          localLibrary, localPlaylists, insets,
+          onSelectCollection, pickerVisible, setPickerVisible, pickingTarget, setPickingTarget, isReady, 
           handleFinishSetup,
           openCustomTimerModal: (type: 'WORK' | 'BREAK') => {
               setCustomTimerType(type);
@@ -603,7 +575,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
               </View>
           </View>
       </Modal>
-
     </View>
   );
 };

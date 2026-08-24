@@ -16,9 +16,9 @@ export const useLibraryData = () => {
   const [localPlaylists, setLocalPlaylists] = useState<any[]>([]);
   
   const [showFocusTab, setShowFocusTab] = useState(true);
+  const [showSyncTab, setShowSyncTab] = useState(true);
 
   const themeColor = `rgb(${themeR}, ${themeG}, ${themeB})`;
-  // ★ 輝度計算による最適なコントラスト文字色 (#000000 または #ffffff)
   const themeTextColor = (themeR * 299 + themeG * 587 + themeB * 114) / 1000 >= 150 ? '#000000' : '#ffffff';
 
   const dynamicStyles = {
@@ -41,6 +41,7 @@ export const useLibraryData = () => {
         const custom = await AsyncStorage.getItem('is_custom_theme');
         const recent = await AsyncStorage.getItem('recent_colors');
         const focusState = await AsyncStorage.getItem('show_focus_tab');
+        const syncState = await AsyncStorage.getItem('show_sync_tab');
         
         const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         const fixUri = (uri: string | null | undefined) => {
@@ -75,6 +76,9 @@ export const useLibraryData = () => {
         if (focusState !== null) {
           setShowFocusTab(focusState === 'true');
         }
+        if (syncState !== null) {
+          setShowSyncTab(syncState === 'true');
+        }
       } catch (e) {
         console.error("Storage Load Error:", e);
       }
@@ -102,10 +106,15 @@ export const useLibraryData = () => {
     await AsyncStorage.setItem('show_focus_tab', newValue ? 'true' : 'false');
   };
 
+  const toggleSyncTab = async (newValue: boolean) => {
+    setShowSyncTab(newValue);
+    await AsyncStorage.setItem('show_sync_tab', newValue ? 'true' : 'false');
+  };
+
   return { 
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme, 
     recentColors, showRGBModal, setShowRGBModal, setThemeR, setThemeG, setThemeB, 
     setIsCustomTheme, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists, 
-    saveColor, applyCustomColor, showFocusTab, toggleFocusTab 
+    saveColor, applyCustomColor, showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab 
   };
 };

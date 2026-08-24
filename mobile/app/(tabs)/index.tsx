@@ -18,13 +18,12 @@ import { FocusScreen } from '../../components/FocusScreen';
 import { FullScreenPlayer } from '../../components/FullScreenPlayer';
 import { Library } from '../../components/Library';
 import { MiniPlayer } from '../../components/MiniPlayer';
-import { SettingsScreen } from '../../components/SettingsScreen';
+import { InfoScreen } from '../../components/InfoScreen';
 import { SyncScreen } from '../../components/SyncScreen';
 import { TabBar } from '../../components/TabBar';
-import { StatisticsScreen } from '../../components/StatisticsScreen';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 
-export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'SETTINGS' | 'LICENSE';
+export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
 
 const TAB_BAR_MARGIN = 25;
@@ -55,7 +54,7 @@ const AppContent = () => {
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
     saveColor, applyCustomColor, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists,
-    showFocusTab, toggleFocusTab
+    showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab
   } = useLibraryData();
 
   const {
@@ -148,11 +147,18 @@ const AppContent = () => {
   const heroWidth = availableWidth * 0.4;
   const miniPlayerLeft = miniPlayerShiftAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 16 + heroWidth] });
 
+  // タブが非表示になったら再生タブに切り替える
   useEffect(() => {
     if (!showFocusTab && activeTab === 'FOCUS') {
       setActiveTab('PLAYER');
     }
   }, [showFocusTab]);
+
+  useEffect(() => {
+    if (!showSyncTab && activeTab === 'SYNC') {
+      setActiveTab('PLAYER');
+    }
+  }, [showSyncTab]);
 
   const getAlertIcon = (title: string) => {
     const t = title.toLowerCase();
@@ -171,13 +177,13 @@ const AppContent = () => {
       <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent={true} />
       
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
-        {activeTab === 'SYNC' && (
+        {showSyncTab && activeTab === 'SYNC' && (
           <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
         )}
         {activeTab === 'PLAYER' && (
           <Library dynamicStyles={actualDynamicStyles} themeColor={themeColor} startQueue={startQueue} currentSong={currentSong} localLibrary={localLibrary} localPlaylists={localPlaylists} setNavStackLength={setNavStackLength} insets={insets} isDark={isAppDark} />
         )}
-        {activeTab === 'FOCUS' && (
+        {showFocusTab && activeTab === 'FOCUS' && (
           <FocusScreen 
             dynamicStyles={actualDynamicStyles} 
             insets={insets} 
@@ -193,14 +199,30 @@ const AppContent = () => {
             themeR={themeR} themeG={themeG} themeB={themeB}
           />
         )}
-        {activeTab === 'SETTINGS' && (
-          <SettingsScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} isCustomTheme={isCustomTheme} themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB} showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor} insets={insets} audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab} />
-        )}
-        {activeTab === 'LICENSE' && (
-          <StatisticsScreen 
+        {activeTab === 'INFO' && (
+          <InfoScreen 
             dynamicStyles={actualDynamicStyles} 
             themeColor={themeColor} 
+            themeTextColor={themeTextColor} 
+            isCustomTheme={isCustomTheme} 
+            themeR={themeR} 
+            themeG={themeG} 
+            themeB={themeB} 
+            recentColors={recentColors} 
+            setThemeR={setThemeR} 
+            setThemeG={setThemeG} 
+            setThemeB={setThemeB} 
+            showRGBModal={showRGBModal} 
+            setShowRGBModal={setShowRGBModal} 
+            saveColor={saveColor} 
+            applyCustomColor={applyCustomColor} 
             insets={insets} 
+            audioEngine={audioEngine} 
+            changeAudioEngine={changeAudioEngine} 
+            showFocusTab={showFocusTab} 
+            toggleFocusTab={toggleFocusTab} 
+            showSyncTab={showSyncTab}
+            toggleSyncTab={toggleSyncTab}
             isDark={isAppDark} 
             isLandscape={isLandscape} 
           />
@@ -214,9 +236,8 @@ const AppContent = () => {
               <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={() => { setIsFullPlayer(true); Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start(); }} togglePlayPause={togglePlayPause} handleNext={handleNext} />
             </Animated.View>
           )}
-          <View style={isLandscape ?[styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] :[styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
-              {/* ★ TabBar に themeTextColor を受け渡し */}
-              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} themeTextColor={themeTextColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} />
+          <View style={isLandscape ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] : [styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
+              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} themeTextColor={themeTextColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} showSyncTab={showSyncTab} />
           </View>
         </View>
       )}
@@ -248,7 +269,7 @@ const AppContent = () => {
         </View>
       </Modal>
 
-      {/* フルスクリーンプレイヤー (themeTextColor を渡す) */}
+      {/* フルスクリーンプレイヤー */}
       <Modal visible={isFullPlayer} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
@@ -261,7 +282,7 @@ const AppContent = () => {
             tint={isAppDark ? 'dark' : 'light'} 
             style={[styles.liquidAlertBox, { 
               borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.65)',
-              backgroundColor: isAppDark ? 'rgba(25,25,25,0.7)' : 'rgba(255,255,255,0.6)',
+              backgroundColor: isAppDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.6)',
             }]}
           >
             {customAlert && getAlertIcon(customAlert.title)}
@@ -298,7 +319,9 @@ const AppContent = () => {
       </Modal>
 
       {toastVisible && !isFullPlayer && (
-          <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform:[{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange:[20, 0] }) }] }]}><BlurView intensity={50} tint="dark" style={styles.toastBlur}><Text style={styles.toastText}>{toastMessage}</Text></BlurView></Animated.View>
+          <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+            <BlurView intensity={50} tint="dark" style={styles.toastBlur}><Text style={styles.toastText}>{toastMessage}</Text></BlurView>
+          </Animated.View>
       )}
     </View>
   );

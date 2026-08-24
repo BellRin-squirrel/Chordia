@@ -6,7 +6,7 @@ import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/style
 
 const INDICATOR_MARGIN = 6;
 
-export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, isDark, isBlurBackground, showFocusTab }: any) => {
+export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, isDark, isBlurBackground, showFocusTab, showSyncTab }: any) => {
   const tabIndicatorAnim = useRef(new Animated.Value(1)).current;
   const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
   const { width, height } = useWindowDimensions();
@@ -15,11 +15,10 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, is
   const textColor = themeTextColor || '#ffffff';
 
   const tabs = [
-    { key: 'SYNC', label: '同期', icon: 'cloud-download' },
+    ...(showSyncTab !== false ? [{ key: 'SYNC', label: '同期', icon: 'cloud-download' }] : []),
     { key: 'PLAYER', label: '再生', icon: 'play-circle' },
     ...(showFocusTab ? [{ key: 'FOCUS', label: '作業', icon: 'timer' }] : []),
-    { key: 'SETTINGS', label: '設定', icon: 'options' },
-    { key: 'LICENSE', label: '統計', icon: 'stats-chart' }
+    { key: 'INFO', label: '情報', icon: 'information-circle' }
   ];
 
   const tabCount = tabs.length;
@@ -29,7 +28,7 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, is
     if (index !== -1) {
         Animated.spring(tabIndicatorAnim, { toValue: index, useNativeDriver: true, bounciness: 8 }).start();
     }
-  }, [activeTab, showFocusTab]);
+  }, [activeTab, showFocusTab, showSyncTab]);
 
   const onLayout = (event: any) => {
     setContainerLayout({
@@ -85,7 +84,6 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, is
         const isActive = activeTab === tab.key;
         return (
           <TouchableOpacity key={tab.key} style={isLandscape ? styles.tabItemLandscape : styles.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.7}>
-            {/* ★ アイコンと文字色をコントラストカラーに自動連動 */}
             <Ionicons name={tab.icon as any} size={20} color={isActive ? textColor : '#8e8e93'} />
             <Text style={[isLandscape ? styles.tabTextLandscape : styles.tabText, { color: isActive ? textColor : '#8e8e93', fontSize: 10 }]}>{tab.label}</Text>
           </TouchableOpacity>
