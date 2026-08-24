@@ -28,7 +28,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   
   const [pomoEnabled, setPomoEnabled] = useState(false);
   
-  // ★ 修正: 管理単位を分数から秒数へ変更 (初期値: 25分 = 1500秒, 5分 = 300秒)
   const [workTime, setWorkTime] = useState(25 * 60);
   const [breakTime, setBreakTime] = useState(5 * 60);
   
@@ -179,7 +178,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
           if (s.showQuote !== undefined) setShowQuote(s.showQuote);
           if (s.pomoEnabled !== undefined) setPomoEnabled(s.pomoEnabled);
           
-          // ★ 修正: 旧データの互換性 (120以下の小さな値は分数として保存されていた可能性があるため秒換算)
           if (s.workTime !== undefined) {
             const wt = Number(s.workTime);
             setWorkTime(wt <= 120 ? wt * 60 : wt);
@@ -290,7 +288,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       const nextState = pomoStateRef.current === 'WORK' ? 'BREAK' : 'WORK';
       setPomoState(nextState);
       
-      // ★ 修正: 秒数をそのまま設定
       const nextSeconds = nextState === 'WORK' ? workTimeRef.current : breakTimeRef.current;
       setPomoRemaining(nextSeconds);
       phaseStartTimeRef.current = Date.now();
@@ -356,7 +353,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
         }
 
         if (pomoEnabledRef.current && phaseStartTimeRef.current) {
-            // ★ 修正: 秒数からダイレクトにミリ秒を算出
             const phaseTotalMs = (pomoStateRef.current === 'WORK' ? workTimeRef.current : breakTimeRef.current) * 1000;
             const elapsedMs = currentTime - phaseStartTimeRef.current - totalPhasePausedMsRef.current;
             const remainingSec = Math.ceil((phaseTotalMs - elapsedMs) / 1000);
@@ -424,7 +420,8 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       if (!albumsMap.has(ak)) albumsMap.set(ak, { id: ak, type: 'ALBUM', title: s.album, sub: s.artist, art: s.localImageUri, songs: [] });
       albumsMap.get(ak).songs.push(s);
       if (!artistsMap.has(s.artist)) artistsMap.set(s.artist, { id: s.artist, type: 'ARTIST', title: s.artist, sub: 'アーティスト', art: s.localImageUri, songs: [] });
-      artistsMap.get(s.artist).push(s);
+      // ★ 修正: object に対して push するのではなく、内部の songs 配列に対して push する
+      artistsMap.get(s.artist).songs.push(s);
     });
     const playlists = localPlaylists.map((p: any) => ({ id: p.id, type: 'PLAYLIST', title: p.playlistName, sub: 'プレイリスト', art: null, data: p }));
     const res: any[] = [];
@@ -524,7 +521,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
         {...{ 
           dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, musicCollections, expanded, toggleSection, onSelectCollection, pickerVisible, setPickerVisible, setPickingTarget, isReady, 
           handleFinishSetup,
-          // ★ 修正: 秒数から時間・分・秒を直接抽出
           openCustomTimerModal: (type: 'WORK' | 'BREAK') => {
               setCustomTimerType(type);
               const currentSecs = type === 'WORK' ? workTime : breakTime;
@@ -586,7 +582,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                                   Alert.alert("エラー", "1秒以上の時間を設定してください");
                                   return;
                               }
-                              // ★ 修正: 秒数をそのままセット
                               if (customTimerType === 'WORK') setWorkTime(totalSecs);
                               else setBreakTime(totalSecs);
                               setCustomTimerType(null);

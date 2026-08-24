@@ -8,3 +8,9 @@ build_ipa.yml
 app.json
 package-lock.json ２か所
 package.json
+
+要デバッグ
+すべてのタブが開けるか
+ExpoAudioで再生できるか
+RNTPで再生できるか
+ExpoAudio -> RNTP -> ExpoAudioで再生に問題がないか（フルスクリーンプレイヤーとAirPlay要チェック）
