@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
@@ -20,7 +21,6 @@ import { MiniPlayer } from '../../components/MiniPlayer';
 import { SettingsScreen } from '../../components/SettingsScreen';
 import { SyncScreen } from '../../components/SyncScreen';
 import { TabBar } from '../../components/TabBar';
-// ★ 新規作成したコンポーネントをインポート
 import { StatisticsScreen } from '../../components/StatisticsScreen';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 
@@ -52,7 +52,7 @@ const AppContent = () => {
   const isLandscape = width > height;
 
   const {
-    isDark, dynamicStyles, themeColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
+    isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
     saveColor, applyCustomColor, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists,
     showFocusTab, toggleFocusTab
@@ -120,7 +120,9 @@ const AppContent = () => {
     };
   }, []);
 
-  const rootBgColor = isAppDark ? '#000000' : '#f2f2f7';
+  const isFocusing = activeTab === 'FOCUS' && focusStage === 'FOCUS';
+  const rootBgColor = isFocusing ? '#000000' : (isAppDark ? '#000000' : '#f2f2f7');
+  const statusBarStyle = (isFocusing || isAppDark) ? 'light' : 'dark';
 
   const actualDynamicStyles = {
     bg: isAppDark ? '#000000' : '#f2f2f7',
@@ -137,7 +139,6 @@ const AppContent = () => {
     Animated.spring(miniPlayerShiftAnim, { toValue: shouldShift ? 1 : 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
   }, [navStackLength, isLandscape, activeTab]);
 
-  const isFocusing = activeTab === 'FOCUS' && focusStage === 'FOCUS';
   const isPlayerTab = activeTab === 'PLAYER';
   const contentPaddingRight = (isFocusing || isPlayerTab) 
     ? 0 
@@ -167,11 +168,11 @@ const AppContent = () => {
   return (
     <View style={[styles.container, { backgroundColor: rootBgColor }]}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: rootBgColor, zIndex: -1 }} />
-      <StatusBar style={isAppDark ? "light" : "dark"} backgroundColor="transparent" translucent={true} />
+      <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent={true} />
       
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
         {activeTab === 'SYNC' && (
-          <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
+          <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
         )}
         {activeTab === 'PLAYER' && (
           <Library dynamicStyles={actualDynamicStyles} themeColor={themeColor} startQueue={startQueue} currentSong={currentSong} localLibrary={localLibrary} localPlaylists={localPlaylists} setNavStackLength={setNavStackLength} insets={insets} isDark={isAppDark} />
@@ -193,7 +194,7 @@ const AppContent = () => {
           />
         )}
         {activeTab === 'SETTINGS' && (
-          <SettingsScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} isCustomTheme={isCustomTheme} themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB} showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor} insets={insets} audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab} />
+          <SettingsScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} isCustomTheme={isCustomTheme} themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB} showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor} insets={insets} audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab} />
         )}
         {activeTab === 'LICENSE' && (
           <StatisticsScreen 
@@ -214,7 +215,8 @@ const AppContent = () => {
             </Animated.View>
           )}
           <View style={isLandscape ?[styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] :[styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
-              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} />
+              {/* ★ TabBar に themeTextColor を受け渡し */}
+              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} themeTextColor={themeTextColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} />
           </View>
         </View>
       )}
@@ -246,9 +248,9 @@ const AppContent = () => {
         </View>
       </Modal>
 
-      {/* フルスクリーンプレイヤー */}
+      {/* フルスクリーンプレイヤー (themeTextColor を渡す) */}
       <Modal visible={isFullPlayer} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
-        <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
+        <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
       {/* アラートモーダル */}

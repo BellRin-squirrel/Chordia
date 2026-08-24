@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { styles } from '../styles/styles';
+import { MarqueeText } from './MarqueeText';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -20,12 +21,10 @@ export const RecentSection = ({
     return null;
   }
 
-  // ★ 重複する楽曲を除外 (localMusicUri ベースでユニーク化)
   const uniqueSongs = recentlyPlayedSongs ? recentlyPlayedSongs.filter((song: any, index: number, self: any[]) =>
     index === self.findIndex((s: any) => s.localMusicUri === song.localMusicUri)
   ) : [];
 
-  // ★ 重複するコレクションを除外 (id ベースでユニーク化)
   const uniqueCollections = recentlyPlayedCollections ? recentlyPlayedCollections.filter((col: any, index: number, self: any[]) =>
     index === self.findIndex((c: any) => c.id === col.id)
   ) : [];
@@ -38,7 +37,6 @@ export const RecentSection = ({
           <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>最近再生した楽曲</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
             {uniqueSongs.map((item: any, index: number) => {
-              // ★ キーを確実にユニーク化
               const itemKey = `recent-song-${item.localMusicUri || index}-${index}`;
               return (
                 <TouchableOpacity 
@@ -50,12 +48,15 @@ export const RecentSection = ({
                     source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
                     style={styles.recentSongImage} 
                   />
-                  <Text style={[styles.recentSongTitle, { color: dynamicStyles.text }]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={[styles.recentSongArtist, { color: dynamicStyles.subText }]} numberOfLines={1}>
-                    {item.artist}
-                  </Text>
+                  {/* ★ 自動スクロール */}
+                  <MarqueeText 
+                    text={item.title} 
+                    style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 
+                  />
+                  <MarqueeText 
+                    text={item.artist} 
+                    style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2 }]} 
+                  />
                 </TouchableOpacity>
               );
             })}
@@ -63,7 +64,7 @@ export const RecentSection = ({
         </View>
       )}
 
-      {/* 最近再生したコレクション (アルバム/アーティスト/プレイリスト) */}
+      {/* 最近再生したコレクション */}
       {uniqueCollections.length > 0 && (
         <View style={{ marginBottom: 25 }}>
           <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>最近再生したコレクション</Text>
@@ -88,13 +89,15 @@ export const RecentSection = ({
                     source={imageSource} 
                     style={[
                       styles.recentSongImage, 
-                      item.type === 'ARTIST' && { borderRadius: 60 } // アーティストは丸型
+                      item.type === 'ARTIST' && { borderRadius: 60 }
                     ]} 
                   />
-                  <Text style={[styles.recentSongTitle, { color: dynamicStyles.text }]} numberOfLines={1}>
-                    {title}
-                  </Text>
-                  <Text style={[styles.recentSongArtist, { color: dynamicStyles.subText }]} numberOfLines={1}>
+                  {/* ★ 自動スクロール */}
+                  <MarqueeText 
+                    text={title} 
+                    style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 
+                  />
+                  <Text style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2 }]} numberOfLines={1}>
                     {subtitle}
                   </Text>
                 </TouchableOpacity>

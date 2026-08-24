@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { RecentSection } from './RecentSection';
+import { MarqueeText } from './MarqueeText';
 
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -50,7 +51,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
   const flatListRefPortrait = useRef<FlatList>(null);
   const flatListRefLandscape = useRef<FlatList>(null);
 
-  // ★ 修正: 横画面時のタブバー幅とホームバー余白を考慮した安全なコンテンツパディング
   const safePadding = {
     paddingBottom: (isLandscape ? 50 : 180) + (insets?.bottom || 0),
     paddingLeft: isLandscape ? Math.max(insets?.left || 0, 16) : 0,
@@ -179,10 +179,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     return DEFAULT_ICON;
   };
 
-  // -----------------------------------------------------------
-  // 🌟 アニメーションとジェスチャーハンドラの設定
-  // -----------------------------------------------------------
-
   const currentProgress = Animated.subtract(
     navAnim,
     Animated.divide(panX, width)
@@ -242,7 +238,7 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     if (isNavAnimating.current || navStack.length <= 1) return;
     isNavAnimating.current = true;
     panX.setValue(0); 
-    
+
     setSearchQuery('');
     setIsSearching(false);
     Keyboard.dismiss();
@@ -335,6 +331,27 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
         </View>
         <Text style={[styles.navHeaderTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{title}</Text>
         <View style={styles.navHeaderRight} />
+    </View>
+  );
+
+  const renderFloatingBackButton = () => (
+    <View style={{
+      position: 'absolute',
+      top: 12,
+      left: isLandscape ? Math.max(insets?.left || 0, 16) : 16,
+      zIndex: 30,
+    }}>
+      <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
+        <Animated.View style={{ transform:[{ scale: backButtonScale }] }}>
+          <View style={[styles.liquidGlassBackButton, { 
+            backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(255,255,255,0.5)',
+            borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)',
+          }]}>
+            <BlurView intensity={isDark ? 60 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
+          </View>
+        </Animated.View>
+      </TouchableWithoutFeedback>
     </View>
   );
 
@@ -437,8 +454,10 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                 return (
                     <TouchableOpacity style={styles.albumGridItem} onPress={() => { setCurrentSelectionType('ALBUM'); setCurrentAlbum(item); pushView('SONG_LIST'); }}>
                         <Image source={item.coverArt ? {uri: item.coverArt} : DEFAULT_ICON} style={styles.albumGridImage} />
-                        <Text style={[styles.albumGridTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{item.album}</Text>
-                        <Text style={[styles.albumGridArtist, {color: dynamicStyles.subText}]} numberOfLines={1}>{item.artist}</Text>
+                        <View style={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
+                          <MarqueeText text={item.album} style={[styles.albumGridTitle, {color: dynamicStyles.text}]} />
+                          <MarqueeText text={item.artist} style={[styles.albumGridArtist, {color: dynamicStyles.subText, marginTop: 2}]} />
+                        </View>
                     </TouchableOpacity>
                 );
             }
@@ -451,7 +470,9 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                     pushView('SONG_LIST');
                 }}>
                     <Image source={artSource} style={[styles.playlistIconArt, category === 'ARTISTS' && {borderRadius: 35}]} />
-                    <Text style={[styles.rowTitle, {color: dynamicStyles.text}]}>{title}</Text>
+                    <View style={{ flex: 1, marginLeft: 15, marginRight: 10, minWidth: 0, overflow: 'hidden' }}>
+                      <MarqueeText text={title} style={[styles.rowTitle, {color: dynamicStyles.text, marginLeft: 0}]} />
+                    </View>
                     <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
                 </TouchableOpacity>
             );
@@ -528,8 +549,17 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
     };
 
     const searchBarElement = (
-        <View style={{ paddingHorizontal: 20, paddingVertical: 10, width: '100%', height: 60, justifyContent: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)', borderRadius: 20, paddingHorizontal: 15, height: 40 }}>
+        <View style={{ paddingHorizontal: 20, paddingVertical: 10, width: '100%', height: 60, justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)', 
+                borderRadius: 20, 
+                paddingHorizontal: 15, 
+                height: 40,
+                width: '80%',
+                maxWidth: 360,
+            }}>
                 <Ionicons name="search" size={18} color={dynamicStyles.subText} style={{ marginRight: 10 }} />
                 <TextInput
                     style={{ flex: 1, color: dynamicStyles.text, fontSize: 16 }}
@@ -561,16 +591,17 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                     } 
                 />
             )}
-            <Text 
+            <View style={{ width: '100%', paddingHorizontal: 20, alignItems: 'center', marginTop: isLandscape ? 10 : 15, minWidth: 0, overflow: 'hidden' }}>
+              <MarqueeText 
+                text={heroTitle}
+                align="center"
                 style={[
                     styles.plHeroTitle, 
-                    { color: dynamicStyles.text, marginTop: isLandscape ? 10 : 15 },
+                    { color: dynamicStyles.text, marginTop: 0, paddingHorizontal: 0 },
                     isLandscape && { fontSize: 18 }
                 ]} 
-                numberOfLines={1}
-            >
-                {heroTitle}
-            </Text>
+              />
+            </View>
             
             <View style={{
                 flexDirection: 'row', 
@@ -610,7 +641,6 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
 
     return (
         <View style={{flex: 1}}>
-            {/* ★ 修正: 画面外(-100px)までカバーアートとブラーを引き伸ばし、ホームバーやタブバー裏まで完全に背景を継続 */}
             {hasBlurBackground ? (
               <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100 }}>
                   <Image 
@@ -628,12 +658,12 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
               <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg }} />
             )}
 
-            {renderHeader(currentSelectionType === 'PLAYLIST' ? 'プレイリスト' : currentSelectionType === 'ALBUM' ? 'アルバム' : 'アーティスト')}
+            {renderFloatingBackButton()}
             
             {isLandscape ? (
-                <View style={{ flex: 1, flexDirection: 'row' }}>
+                <View style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
                     {!isSearching && (
-                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                        <View style={{ flex: 1, justifyContent: 'center', paddingTop: 10, paddingLeft: isLandscape ? Math.max(insets?.left || 0, 16) : 0 }}>
                             {heroSectionElement}
                         </View>
                     )}
@@ -642,19 +672,27 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                             ref={flatListRefLandscape} 
                             data={songs}
                             keyExtractor={(item) => item.localMusicUri}
-                            ListHeaderComponent={searchBarElement}
-                            snapToOffsets={[0, 60]} 
+                            style={{ flex: 1 }}
+                            ListHeaderComponent={
+                                <View style={{ paddingTop: 10 }}>
+                                    {searchBarElement}
+                                </View>
+                            }
+                            snapToOffsets={[0, 70]} 
                             snapToEnd={false} 
                             renderItem={({item}) => (
                                 <TouchableOpacity style={[styles.songRow, {borderBottomWidth:0, backgroundColor: 'transparent' }]} onPress={() => startQueue(songs, item, undefined)}>
                                     <Image source={item.localImageUri ? {uri: item.localImageUri} : DEFAULT_ICON} style={styles.smallArt} />
-                                    <View style={{flex: 1}}>
-                                        <Text style={[styles.songTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{item.title}</Text>
-                                        <Text style={[styles.songSub, {color: dynamicStyles.subText}]} numberOfLines={1}>{item.artist}</Text>
+                                    <View style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                                        <MarqueeText text={item.title} style={[styles.songTitle, {color: dynamicStyles.text}]} />
+                                        <MarqueeText text={item.artist} style={[styles.songSub, {color: dynamicStyles.subText, marginTop: 2}]} />
                                     </View>
                                 </TouchableOpacity>
                             )}
-                            contentContainerStyle={safePadding}
+                            contentContainerStyle={{
+                                paddingBottom: 40 + (insets?.bottom || 0),
+                                paddingRight: isLandscape ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 0,
+                            }}
                         />
                     </View>
                 </View>
@@ -663,24 +701,27 @@ export const Library = ({ dynamicStyles, themeColor, startQueue, currentSong, lo
                     ref={flatListRefPortrait} 
                     data={songs}
                     keyExtractor={(item) => item.localMusicUri}
+                    style={StyleSheet.absoluteFill}
                     ListHeaderComponent={
-                        <View>
+                        <View style={{ paddingTop: 10 }}>
                             {searchBarElement}
                             {heroSectionElement}
                         </View>
                     }
-                    snapToOffsets={[0, 60]} 
+                    snapToOffsets={[0, 70]} 
                     snapToEnd={false} 
                     renderItem={({item}) => (
                         <TouchableOpacity style={[styles.songRow, {borderBottomWidth:0, backgroundColor: 'transparent' }]} onPress={() => startQueue(songs, item, undefined)}>
                             <Image source={item.localImageUri ? {uri: item.localImageUri} : DEFAULT_ICON} style={styles.smallArt} />
-                            <View style={{flex: 1}}>
-                                <Text style={[styles.songTitle, {color: dynamicStyles.text}]} numberOfLines={1}>{item.title}</Text>
-                                <Text style={[styles.songSub, {color: dynamicStyles.subText}]} numberOfLines={1}>{item.artist}</Text>
+                            <View style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                                <MarqueeText text={item.title} style={[styles.songTitle, {color: dynamicStyles.text}]} />
+                                <MarqueeText text={item.artist} style={[styles.songSub, {color: dynamicStyles.subText, marginTop: 2}]} />
                             </View>
                         </TouchableOpacity>
                     )}
-                    contentContainerStyle={safePadding}
+                    contentContainerStyle={{
+                        paddingBottom: 180 + (insets?.bottom || 0),
+                    }}
                 />
             )}
         </View>

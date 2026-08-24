@@ -56,6 +56,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickingTarget, setPickingTarget] = useState<'MAIN' | 'WORK' | 'BREAK'>('MAIN');
 
+  // ★ テーマカラーの輝度から最適な文字色を自動計算 (#000000 または #ffffff)
   const buttonTextColor = useMemo(() => {
     const r = themeR ?? 79;
     const g = themeG ?? 70;
@@ -420,7 +421,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       if (!albumsMap.has(ak)) albumsMap.set(ak, { id: ak, type: 'ALBUM', title: s.album, sub: s.artist, art: s.localImageUri, songs: [] });
       albumsMap.get(ak).songs.push(s);
       if (!artistsMap.has(s.artist)) artistsMap.set(s.artist, { id: s.artist, type: 'ARTIST', title: s.artist, sub: 'アーティスト', art: s.localImageUri, songs: [] });
-      // ★ 修正: object に対して push するのではなく、内部の songs 配列に対して push する
       artistsMap.get(s.artist).songs.push(s);
     });
     const playlists = localPlaylists.map((p: any) => ({ id: p.id, type: 'PLAYLIST', title: p.playlistName, sub: 'プレイリスト', art: null, data: p }));
@@ -438,7 +438,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
 
   if (stage === 'FOCUS') {
     return (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
           <FocusTimerView 
               isLandscape={isLandscape} insets={insets} themeColor={themeColor} isAppDark={dynamicStyles.bg === '#000000'}
               dateStr={dateMode==='表示しない'?"": (dateMode==='年月日'?`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`: dateMode==='月日'?`${now.getMonth()+1}月${now.getDate()}日`:`${now.getDate()}日`)}
@@ -458,7 +458,12 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: isLandscape ? 15 : 20 }}><Ionicons name="information-circle" size={28} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 20, fontWeight: 'bold' }}>操作ヘルプ</Text></View>
                           <Text style={{ color: dynamicStyles.subText, marginBottom: isLandscape ? 15 : 25, lineHeight: 22 }}>この画面では、通常のタップ操作は制限されています。{"\n"}(現在、一時停止中です)</Text>
                           <View style={{ gap: isLandscape ? 12 : 20, marginBottom: 30 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="pause" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>一時停止 / 再開</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「タップ」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="menu" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>ヘルプ表示</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「長押し」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.15)', justifyContent: 'center', alignItems: 'center' }}><Ionicons name="exit-outline" size={22} color="#ef4444" /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>集中を終了する</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を大きくスワイプ</Text></View></View></View>
-                          <TouchableOpacity style={{ backgroundColor: themeColor, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setShowHelp(false); togglePause(false); }}><Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>理解して再開する</Text></TouchableOpacity>
+                          
+                          {/* ★ 修正: 「理解して再開する」ボタンの文字色を buttonTextColor に連動 */}
+                          <TouchableOpacity style={{ backgroundColor: themeColor, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setShowHelp(false); togglePause(false); }}>
+                            <Text style={{ color: buttonTextColor, fontWeight: 'bold', fontSize: 16 }}>理解して再開する</Text>
+                          </TouchableOpacity>
+                          
                           <TouchableOpacity style={{ marginTop: 20, paddingBottom: 10, alignItems: 'center' }} onPress={exitFocusMode}><Text style={{ color: '#ef4444', fontWeight: 'bold' }}>今すぐ終了する</Text></TouchableOpacity>
                       </ScrollView>
                   </View>
@@ -480,7 +485,12 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                 <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="volume-mute" size={24} color={themeColor} /><Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>ノイズキャンセリングは有効ですか？</Text></View><View style={{ paddingLeft: 39, marginBottom: 15 }}><Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>周囲の雑音を遮断することで、圧倒的に集中力が高まります。</Text></View>
                 <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="warning" size={20} color="#f59e0b" /><Text style={{ color: '#f59e0b', fontSize: 12, flex: 1, fontWeight: 'bold' }}>※作業中は他のアプリからの通知音等を防ぐため、強制的に標準プレイヤーが使用されます。</Text></View>
             </View>
-            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, marginTop: 40, width: '100%' }]} onPress={startFocusSession}><Text style={s.primaryBtnText}>集中を楽しむ！</Text></TouchableOpacity>
+            
+            {/* ★ 修正: 「集中を楽しむ！」ボタンの文字色を buttonTextColor に連動 */}
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, marginTop: 40, width: '100%' }]} onPress={startFocusSession}>
+              <Text style={[s.primaryBtnText, { color: buttonTextColor }]}>集中を楽しむ！</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity style={{ marginTop: 25 }} onPress={() => setStage('SETUP')}><Text style={{ color: dynamicStyles.subText, fontWeight: 'bold' }}>設定をやり直す</Text></TouchableOpacity>
         </ScrollView>
     );

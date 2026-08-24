@@ -10,14 +10,12 @@ import Slider from '@react-native-community/slider';
 import TrackPlayer from 'react-native-track-player';
 import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-// ★ react-airplay を正規インポート
 import { showRoutePicker } from 'react-airplay';
+import { MarqueeText } from './MarqueeText';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
-// 押し込み弾性スプリング効果付きのボタンラッパー
 const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -72,62 +70,8 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
   );
 };
 
-const MarqueeText = ({ text, style, containerWidth, align = 'center' }: { text: string, style: any, containerWidth: number, align?: 'center' | 'left' }) => {
-  const scrollAnim = useRef(new Animated.Value(0)).current;
-  const [textWidth, setTextWidth] = useState(0);
-  const [shouldScroll, setShouldScroll] = useState(false);
-
-  useEffect(() => {
-    if (textWidth > containerWidth && containerWidth > 0) {
-      setShouldScroll(true);
-      startAnimation();
-    } else {
-      setShouldScroll(false);
-      scrollAnim.setValue(0);
-    }
-  }, [text, textWidth, containerWidth]);
-
-  const startAnimation = () => {
-    scrollAnim.setValue(0);
-    const duration = textWidth * 30;
-    Animated.loop(
-      Animated.sequence([
-        Animated.delay(3000),
-        Animated.timing(scrollAnim, {
-          toValue: -textWidth - 40,
-          duration: duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  };
-
-  if (!text) return null;
-
-  const isLeft = align === 'left';
-
-  return (
-    <View style={{ width: containerWidth, overflow: 'hidden', alignItems: isLeft ? 'flex-start' : 'center' }}>
-      <Animated.View 
-        style={{ 
-          flexDirection: 'row', 
-          justifyContent: shouldScroll ? 'flex-start' : (isLeft ? 'flex-start' : 'center'),
-          width: shouldScroll ? undefined : '100%',
-          transform: [{ translateX: scrollAnim }] 
-        }}
-      >
-        <Text style={[style, !shouldScroll && { textAlign: isLeft ? 'left' : 'center' }]} onLayout={(e) => setTextWidth(e.nativeEvent.layout.width)} numberOfLines={1}>
-          {text}
-        </Text>
-        {shouldScroll && <Text style={[style, { marginLeft: 40 }]}>{text}</Text>}
-      </Animated.View>
-    </View>
-  );
-};
-
 export const FullScreenPlayer = ({
-  dynamicStyles, themeColor, currentSong, isPlaying, playbackStatus, sound,
+  dynamicStyles, themeColor, themeTextColor, currentSong, isPlaying, playbackStatus, sound,
   playQueue, loopMode, isShuffle, showQueue, showLyrics,
   toggleLoopMode, toggleShuffleMode, setShowQueue, setShowLyrics,
   handlePrev, togglePlayPause, handleNext,
@@ -138,6 +82,7 @@ export const FullScreenPlayer = ({
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const insets = useSafeAreaInsets();
+  const activeIconColor = themeTextColor || '#000000';
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
   const scrollYRef = useRef(0);
@@ -201,10 +146,10 @@ export const FullScreenPlayer = ({
   );
 
   const onHandlerStateChange = (event: any) => {
-    const { state, translationY, velocityX } = event.nativeEvent;
+    const { state, translationY, velocityY } = event.nativeEvent;
 
     if (state === State.END || state === State.CANCELLED) {
-      if (translationY > 120 || velocityX > 500) {
+      if (translationY > 80 || velocityY > 300) {
         closeFullPlayer();
       } else {
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
@@ -224,7 +169,6 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
-  // ★ 安全に AirPlay ピッカーを起動する関数（必須引数を確実に渡す）
   const handleAirPlayPress = () => {
     if (Platform.OS === 'ios') {
       try {
@@ -281,10 +225,10 @@ export const FullScreenPlayer = ({
               source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
               style={{ width: artSize, height: artSize, borderRadius: 12 }}
             />
-            <View style={{ flex: 1, marginLeft: 20, justifyContent: 'center' }}>
-              <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }} containerWidth={leftColumnWidth - artSize - 50} />
+            <View style={{ flex: 1, marginLeft: 20, justifyContent: 'center', minWidth: 0 }}>
+              <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }} align="left" />
               <View style={{ height: 6 }} />
-              <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }} containerWidth={leftColumnWidth - artSize - 50} />
+              <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14 }} align="left" />
             </View>
           </View>
           <View style={styles.sliderWithTime}>
@@ -301,10 +245,10 @@ export const FullScreenPlayer = ({
             source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
             style={{ width: landscapeArtSize, height: landscapeArtSize, borderRadius: 16, marginBottom: 20 }}
           />
-          <View style={{ width: '100%', alignItems: 'center', marginBottom: 20 }}>
-            <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' }} containerWidth={leftColumnWidth - 30} />
+          <View style={{ width: '100%', alignItems: 'center', marginBottom: 20, paddingHorizontal: 20 }}>
+            <MarqueeText text={currentSong?.title} style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }} align="center" />
             <View style={{ height: 6 }} />
-            <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15 }} containerWidth={leftColumnWidth - 30} />
+            <MarqueeText text={currentSong?.artist} style={{ color: 'rgba(255,255,255,0.65)', fontSize: 15 }} align="center" />
           </View>
           <View style={{ width: '100%' }}>
             <View style={styles.sliderWithTime}>
@@ -320,9 +264,9 @@ export const FullScreenPlayer = ({
 
   const handleBar = (
     <PanGestureHandler
-      activeOffsetY={[-500, 15]}
-      failOffsetX={[-15, 15]}
-      enabled={isLandscape}
+      activeOffsetY={[-20, 10]}
+      minPointers={1}
+      maxPointers={2}
       onGestureEvent={onGestureEvent}
       onHandlerStateChange={onHandlerStateChange}
     >
@@ -340,16 +284,15 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
         <View style={{ width: 50, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
-          {/* 1. 歌詞 / キュー トグルボタン */}
+          {/* ★ アクティブ時のアイコン色を activeIconColor に連動 */}
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: showLyrics ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="musical-notes-outline" size={24} color="#fff" />
+            <Ionicons name="musical-notes-outline" size={24} color={showLyrics ? activeIconColor : '#fff'} />
           </BounceButton>
 
-          {/* 2. AirPlay ボタン (横画面) */}
           {Platform.OS === 'ios' && (
             <BounceButton
               onPress={handleAirPlayPress}
@@ -360,33 +303,32 @@ export const FullScreenPlayer = ({
             </BounceButton>
           )}
 
-          {/* 3. シャッフル */}
           <BounceButton
             onPress={toggleShuffleMode}
             underlayColor="rgba(255,255,255,0.15)"
             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isShuffle ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="shuffle" size={22} color="#fff" />
+            <Ionicons name="shuffle" size={22} color={isShuffle ? activeIconColor : '#fff'} />
           </BounceButton>
 
-          {/* 4. ループ */}
           <BounceButton
             onPress={toggleLoopMode}
             underlayColor="rgba(255,255,255,0.15)"
             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: loopMode !== 'OFF' ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
           >
             <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
+              <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color={loopMode !== 'OFF' ? activeIconColor : '#fff'} />
               {loopMode === 'ONE' && (
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
+                <Text style={{ color: activeIconColor, fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
               )}
             </View>
           </BounceButton>
         </View>
 
         <PanGestureHandler
-          activeOffsetY={[-500, 15]}
-          failOffsetX={[-15, 15]}
+          activeOffsetY={[-20, 10]}
+          minPointers={1}
+          maxPointers={2}
           onGestureEvent={onGestureEvent}
           onHandlerStateChange={onHandlerStateChange}
         >
@@ -411,7 +353,10 @@ export const FullScreenPlayer = ({
               renderItem={({ item }) => (
                 <View style={styles.songRowQueue}>
                   <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                  <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <MarqueeText text={item.title} style={{ color: '#fff', fontWeight: 'bold' }} align="left" />
+                    <MarqueeText text={item.artist} style={{ color: '#aaa', marginTop: 2 }} align="left" />
+                  </View>
                 </View>
               )} />
           </Animated.View>
@@ -477,8 +422,9 @@ export const FullScreenPlayer = ({
         
         {/* 1. 上部可変エリア */}
         <PanGestureHandler
-          activeOffsetY={[-500, 15]}
-          failOffsetX={[-15, 15]}
+          activeOffsetY={[-20, 10]}
+          minPointers={1}
+          maxPointers={2}
           enabled={!showLyrics && !showQueue ? true : isScrollAtTop}
           onGestureEvent={onGestureEvent}
           onHandlerStateChange={onHandlerStateChange}
@@ -490,7 +436,7 @@ export const FullScreenPlayer = ({
               style={[StyleSheet.absoluteFill, mainViewStyle, { justifyContent: 'center', alignItems: 'center' }]}
               pointerEvents={(!showQueue && !showLyrics) ? 'auto' : 'none'}
             >
-              <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15 }}>
+              <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 }}>
                 <Image
                   source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
                   style={[styles.fullArtBase, {
@@ -504,16 +450,19 @@ export const FullScreenPlayer = ({
                     shadowRadius: 18,
                   }]}
                 />
+                
                 <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
                   <MarqueeText 
                     text={currentSong?.title} 
-                    style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center' }} 
-                    containerWidth={width - 50} 
+                    style={{ color: '#fff', fontSize: 22, fontWeight: 'bold' }} 
                     align="center"
                   />
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginTop: 6, textAlign: 'center' }} numberOfLines={1}>
-                    {currentSong?.artist}
-                  </Text>
+                  <View style={{ height: 6 }} />
+                  <MarqueeText 
+                    text={currentSong?.artist} 
+                    style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15 }} 
+                    align="center"
+                  />
                 </View>
               </View>
             </Animated.View>
@@ -537,16 +486,18 @@ export const FullScreenPlayer = ({
                   source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
                   style={{ width: 46, height: 46, borderRadius: 8, marginRight: 12 }}
                 />
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start', minWidth: 0 }}>
                   <MarqueeText 
                     text={currentSong?.title} 
-                    style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', textAlign: 'left' }} 
-                    containerWidth={width - 30 - 46 - 12 - 10} 
+                    style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }} 
                     align="left"
                   />
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 2, textAlign: 'left' }} numberOfLines={1}>
-                    {currentSong?.artist}
-                  </Text>
+                  <View style={{ height: 2 }} />
+                  <MarqueeText 
+                    text={currentSong?.artist} 
+                    style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }} 
+                    align="left"
+                  />
                 </View>
               </View>
 
@@ -589,16 +540,18 @@ export const FullScreenPlayer = ({
                   source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
                   style={{ width: 46, height: 46, borderRadius: 8, marginRight: 12 }}
                 />
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'flex-start', minWidth: 0 }}>
                   <MarqueeText 
                     text={currentSong?.title} 
-                    style={{ color: '#fff', fontSize: 17, fontWeight: 'bold', textAlign: 'left' }} 
-                    containerWidth={width - 30 - 46 - 12 - 10} 
+                    style={{ color: '#fff', fontSize: 17, fontWeight: 'bold' }} 
                     align="left"
                   />
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 2, textAlign: 'left' }} numberOfLines={1}>
-                    {currentSong?.artist}
-                  </Text>
+                  <View style={{ height: 2 }} />
+                  <MarqueeText 
+                    text={currentSong?.artist} 
+                    style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }} 
+                    align="left"
+                  />
                 </View>
               </View>
 
@@ -614,7 +567,11 @@ export const FullScreenPlayer = ({
                 renderItem={({ item }) => (
                   <View style={styles.songRowQueue}>
                     <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArtQueue} />
-                    <View style={{ flex: 1 }}><Text style={{ color: '#fff', fontWeight: 'bold' }} numberOfLines={1}>{item.title}</Text><Text style={{ color: '#aaa' }} numberOfLines={1}>{item.artist}</Text></View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <MarqueeText text={item.title} style={{ color: '#fff', fontWeight: 'bold' }} align="left" />
+                      <View style={{ height: 2 }} />
+                      <MarqueeText text={item.artist} style={{ color: '#aaa', fontSize: 12 }} align="left" />
+                    </View>
                   </View>
                 )} 
               />
@@ -648,7 +605,7 @@ export const FullScreenPlayer = ({
                   justifyContent: 'center', alignItems: 'center'
                 }}
               >
-                <Ionicons name="shuffle" size={22} color="#fff" />
+                <Ionicons name="shuffle" size={22} color={isShuffle ? activeIconColor : '#fff'} />
               </BounceButton>
             </View>
 
@@ -664,9 +621,9 @@ export const FullScreenPlayer = ({
                 }}
               >
                 <View style={{ width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color="#fff" />
+                  <Ionicons name={loopMode === 'ONE' ? "repeat-outline" : "repeat"} size={22} color={loopMode !== 'OFF' ? activeIconColor : '#fff'} />
                   {loopMode === 'ONE' && (
-                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
+                    <Text style={{ color: activeIconColor, fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
                   )}
                 </View>
               </BounceButton>
@@ -702,7 +659,7 @@ export const FullScreenPlayer = ({
                   justifyContent: 'center', alignItems: 'center'
                 }}
               >
-                <Ionicons name="musical-notes-outline" size={24} color="#fff" />
+                <Ionicons name="musical-notes-outline" size={24} color={showLyrics ? activeIconColor : '#fff'} />
               </BounceButton>
             </View>
 
@@ -717,7 +674,7 @@ export const FullScreenPlayer = ({
                   justifyContent: 'center', alignItems: 'center'
                 }}
               >
-                <Ionicons name="list" size={24} color="#fff" />
+                <Ionicons name="list" size={24} color={showQueue ? activeIconColor : '#fff'} />
               </BounceButton>
             </View>
 
@@ -728,23 +685,20 @@ export const FullScreenPlayer = ({
     );
   }
 
-  // ノッチ・Dynamic Island (上部・左右) および Home Indicator (下部) の保護設定
   const containerStyle = isLandscape
     ? { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const }
     : [
         styles.fullPlayerContainer,
-        { top: Math.max(insets.top, 44) } // 上部ノッチ/Dynamic Islandの直下から開始
+        { top: Math.max(insets.top, 44) }
       ];
 
-  const contentStyle = isLandscape
-    ? { 
-        flex: 1, 
-        paddingLeft: Math.max(insets.left, 16), 
-        paddingRight: Math.max(insets.right, 16), 
-        paddingTop: Math.max(insets.top, 12), 
-        paddingBottom: Math.max(insets.bottom, 16) 
-      }
-    : styles.fullPlayerContent;
+  const contentStyle = { 
+    flex: 1, 
+    paddingLeft: Math.max(insets.left, 16), 
+    paddingRight: Math.max(insets.right, 16), 
+    paddingTop: isLandscape ? Math.max(insets.top, 12) : 12, 
+    paddingBottom: Math.max(insets.bottom, 16) 
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

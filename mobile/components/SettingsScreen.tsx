@@ -12,22 +12,26 @@ const PRESET_COLORS =[
   {r: 255, g: 167, b: 255}, {r: 255, g: 204, b: 0}, {r: 90, g: 200, b: 250},
 ];
 
-export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, themeR, themeG, themeB, recentColors, setThemeR, setThemeG, setThemeB, showRGBModal, setShowRGBModal, saveColor, applyCustomColor, insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab }: any) => {
+export const SettingsScreen = ({ dynamicStyles, themeColor, themeTextColor, isCustomTheme, themeR, themeG, themeB, recentColors, setThemeR, setThemeG, setThemeB, showRGBModal, setShowRGBModal, saveColor, applyCustomColor, insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   
   const bottomPadding = (isLandscape ? 100 : 120) + (insets?.bottom || 0);
   const modalContentWidth = isLandscape ? Math.min(width * 0.9, 600) : width * 0.85;
+  const textColor = themeTextColor || '#ffffff';
 
   return (
     <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
-      {/* ★ 修正: ノッチを無視するため paddingTop: insets.top 等を削除 */}
-      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', height: 44}]}>
+      <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}>
         <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>設定・情報</Text>
       </View>
       <ScrollView 
-        style={{ padding: 25 }}
-        contentContainerStyle={{ paddingBottom: bottomPadding }} 
+        style={{
+          flex: 1,
+          paddingLeft: Math.max(insets?.left || 0, 20),
+          paddingRight: Math.max(insets?.right || 0, 20),
+        }}
+        contentContainerStyle={{ paddingTop: 20, paddingBottom: bottomPadding }} 
       >
         <Text style={[styles.recentHeader, {color: dynamicStyles.text, marginLeft: 0}]}>テーマカラーを選択</Text>
         <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 15}}>
@@ -37,17 +41,18 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
 
         <Text style={[styles.recentHeader, {color: dynamicStyles.text, marginLeft: 0, marginTop: 40}]}>再生エンジン (再起動推奨)</Text>
         <View style={{flexDirection: 'row', backgroundColor: dynamicStyles.card, borderRadius: 25, overflow: 'hidden', marginTop: 15, borderWidth: 1, borderColor: dynamicStyles.border}}>
+          {/* ★ ボタン選択時の文字色を textColor に連動 */}
           <TouchableOpacity 
             style={{flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'rntp' ? themeColor : 'transparent'}}
             onPress={() => changeAudioEngine('rntp')}
           >
-            <Text style={{color: audioEngine === 'rntp' ? '#fff' : dynamicStyles.text, fontWeight: 'bold'}}>RNTP (標準)</Text>
+            <Text style={{color: audioEngine === 'rntp' ? textColor : dynamicStyles.text, fontWeight: 'bold'}}>RNTP (標準)</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={{flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'expo-av' ? themeColor : 'transparent'}}
             onPress={() => changeAudioEngine('expo-av')}
           >
-            <Text style={{color: audioEngine === 'expo-av' ? '#fff' : dynamicStyles.text, fontWeight: 'bold'}}>Expo-Audio (BGM用)</Text>
+            <Text style={{color: audioEngine === 'expo-av' ? textColor : dynamicStyles.text, fontWeight: 'bold'}}>Expo-Audio (BGM用)</Text>
           </TouchableOpacity>
         </View>
         <Text style={{color: dynamicStyles.subText, fontSize: 12, marginTop: 10, lineHeight: 18}}>
@@ -75,7 +80,7 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
         <View style={{ marginTop: 40, alignItems: 'center' }}>
           <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card }]}>
             <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-            <Text style={styles.appVersionLabel}>v5.1.0</Text>
+            <Text style={styles.appVersionLabel}>v5.0.0-beta3</Text>
             <View style={[styles.divider, { backgroundColor: dynamicStyles.bg, marginTop: 25 }]} />
             <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
 
@@ -129,7 +134,10 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, isCustomTheme, theme
                 </View>
                 <View style={[styles.modalBtnRow, { marginTop: isLandscape ? 15 : 25 }]}>
                     <TouchableOpacity onPress={() => setShowRGBModal(false)} style={styles.modalBtnCancel}><Text style={{color: '#8e8e93'}}>キャンセル</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={applyCustomColor} style={[styles.modalBtnApply, {backgroundColor: themeColor}]}><Text style={{color: '#fff', fontWeight:'bold'}}>設定</Text></TouchableOpacity>
+                    {/* ★ 「設定」ボタンの文字色を textColor に連動 */}
+                    <TouchableOpacity onPress={applyCustomColor} style={[styles.modalBtnApply, {backgroundColor: themeColor}]}>
+                      <Text style={{color: textColor, fontWeight:'bold'}}>設定</Text>
+                    </TouchableOpacity>
                 </View>
             </BlurView>
         </View>

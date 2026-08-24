@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy'; // ★ 追加
+import * as FileSystem from 'expo-file-system/legacy';
 
 export const useLibraryData = () => {
   const colorScheme = useColorScheme();
@@ -18,6 +18,9 @@ export const useLibraryData = () => {
   const [showFocusTab, setShowFocusTab] = useState(true);
 
   const themeColor = `rgb(${themeR}, ${themeG}, ${themeB})`;
+  // ★ 輝度計算による最適なコントラスト文字色 (#000000 または #ffffff)
+  const themeTextColor = (themeR * 299 + themeG * 587 + themeB * 114) / 1000 >= 150 ? '#000000' : '#ffffff';
+
   const dynamicStyles = {
     bg: isDark ? '#000000' : '#f2f2f7',
     card: isDark ? '#1c1c1e' : '#ffffff',
@@ -39,8 +42,7 @@ export const useLibraryData = () => {
         const recent = await AsyncStorage.getItem('recent_colors');
         const focusState = await AsyncStorage.getItem('show_focus_tab');
         
-        // ★ 修正: 保存されている古いパスからファイル名を抽出し、現在の最新の絶対パスに再構築する関数
-        const baseDir = FileSystem.documentDirectory + 'chordia/';
+        const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         const fixUri = (uri: string | null | undefined) => {
             if (!uri) return uri;
             const fname = uri.split(/[\\/]/).pop();
@@ -101,7 +103,7 @@ export const useLibraryData = () => {
   };
 
   return { 
-    isDark, dynamicStyles, themeColor, themeR, themeG, themeB, isCustomTheme, 
+    isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme, 
     recentColors, showRGBModal, setShowRGBModal, setThemeR, setThemeG, setThemeB, 
     setIsCustomTheme, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists, 
     saveColor, applyCustomColor, showFocusTab, toggleFocusTab 

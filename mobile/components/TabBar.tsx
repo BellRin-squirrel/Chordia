@@ -6,11 +6,13 @@ import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/style
 
 const INDICATOR_MARGIN = 6;
 
-export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBackground, showFocusTab, insets }: any) => {
+export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, isDark, isBlurBackground, showFocusTab }: any) => {
   const tabIndicatorAnim = useRef(new Animated.Value(1)).current;
   const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+
+  const textColor = themeTextColor || '#ffffff';
 
   const tabs = [
     { key: 'SYNC', label: '同期', icon: 'cloud-download' },
@@ -79,12 +81,16 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, isDark, isBlurBack
               }} 
           />
       )}
-      {tabs.map((tab) => (
-        <TouchableOpacity key={tab.key} style={isLandscape ? styles.tabItemLandscape : styles.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.7}>
-          <Ionicons name={tab.icon as any} size={20} color={activeTab === tab.key ? '#fff' : '#8e8e93'} />
-          <Text style={[isLandscape ? styles.tabTextLandscape : styles.tabText, {color: activeTab === tab.key ? '#fff' : '#8e8e93', fontSize: 10}]}>{tab.label}</Text>
-        </TouchableOpacity>
-      ))}
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.key;
+        return (
+          <TouchableOpacity key={tab.key} style={isLandscape ? styles.tabItemLandscape : styles.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.7}>
+            {/* ★ アイコンと文字色をコントラストカラーに自動連動 */}
+            <Ionicons name={tab.icon as any} size={20} color={isActive ? textColor : '#8e8e93'} />
+            <Text style={[isLandscape ? styles.tabTextLandscape : styles.tabText, { color: isActive ? textColor : '#8e8e93', fontSize: 10 }]}>{tab.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
     </BlurView>
   );
 };

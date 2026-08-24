@@ -124,7 +124,8 @@ export const styles = StyleSheet.create({
   
   miniPlayerBlur: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
   miniArt: { width: 38, height: 38, borderRadius: 5 },
-  miniInfo: { flex: 1, marginLeft: 12 },
+  // ★ 修正: miniInfo に minWidth: 0, overflow: 'hidden' を設定
+  miniInfo: { flex: 1, marginLeft: 12, minWidth: 0, overflow: 'hidden' },
   miniTitle: { fontSize: 14, fontWeight: 'bold' },
   miniArtist: { fontSize: 12 },
   miniControls: { flexDirection: 'row', alignItems: 'center' },
@@ -139,7 +140,7 @@ export const styles = StyleSheet.create({
   fullPlayerHandle: { width: 40, height: 5, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 3 },
   fullHeaderContainer: { flexDirection: 'row', alignItems: 'center', width: '100%', minHeight: 60, marginBottom: 10 },
   fullArtBase: { backgroundColor: '#333' },
-  sideTitleArea: { marginLeft: 15, flex: 1 },
+  sideTitleArea: { marginLeft: 15, flex: 1, minWidth: 0, overflow: 'hidden' },
   queueTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   queueArtist: { color: '#aaa', fontSize: 14, marginTop: 2 },
   fullMainContentArea: { flex: 1, width: '100%' },

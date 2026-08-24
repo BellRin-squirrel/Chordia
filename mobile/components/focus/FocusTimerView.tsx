@@ -184,7 +184,6 @@ export const FocusTimerView = ({
       }
   }, [showQuote]);
 
-  // ★ 修正: ダブルクォーテーションを削除し、純粋に改行のみを行う
   const formatQuoteText = (rawQuote: string) => {
       if (!rawQuote) return "";
       const parts = rawQuote.split('（');
@@ -205,6 +204,9 @@ export const FocusTimerView = ({
   return (
     <TouchableWithoutFeedback onPress={handleTouchPress} onLongPress={handleLongPress} delayLongPress={600}>
       <View style={{ flex: 1, backgroundColor: '#000' }} {...panHandlers}>
+        {/* ★ 背景を画面外(-100px)まで全面拡張してノッチやホームバー裏まで完全黒化 */}
+        <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: '#000', zIndex: -1 }} />
+
         <View style={{ flex: 1, padding: 40, paddingTop: insets.top + (isLandscape ? 40 : 60), opacity: isPaused ? 0.3 : 1 }}>
           <View style={{ 
             flex: 1, 
