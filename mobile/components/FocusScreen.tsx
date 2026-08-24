@@ -27,8 +27,10 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [showQuote, setShowQuote] = useState(true);
   
   const [pomoEnabled, setPomoEnabled] = useState(false);
-  const [workTime, setWorkTime] = useState(25);
-  const [breakTime, setBreakTime] = useState(5);
+  
+  // ★ 修正: 管理単位を分数から秒数へ変更 (初期値: 25分 = 1500秒, 5分 = 300秒)
+  const [workTime, setWorkTime] = useState(25 * 60);
+  const [breakTime, setBreakTime] = useState(5 * 60);
   
   const [customTimerType, setCustomTimerType] = useState<'WORK' | 'BREAK' | null>(null);
   const [customH, setCustomH] = useState(0);
@@ -45,7 +47,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   const [now, setNow] = useState(new Date());
   const [totalWorkSeconds, setTotalWorkSeconds] = useState(0);
   const [pomoState, setPomoState] = useState<'WORK' | 'BREAK'>('WORK');
-  const [pomoRemaining, setPomoRemaining] = useState(Math.floor(workTime * 60));
+  const [pomoRemaining, setPomoRemaining] = useState(workTime);
   const [pausedSeconds, setPausedSeconds] = useState(0);
   
   const [isPaused, setIsPaused] = useState(false);
@@ -98,12 +100,11 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
   }, [mainPlaylist, workPlaylist, breakPlaylist, mainShuffle, workShuffle, breakShuffle]);
 
   useEffect(() => { 
-      if (stage !== 'FOCUS') setPomoRemaining(Math.floor(workTime * 60)); 
+      if (stage !== 'FOCUS') setPomoRemaining(workTime); 
   }, [workTime, stage]);
 
   const iconBgColor = `rgba(${themeR || 79}, ${themeG || 70}, ${themeB || 229}, 0.15)`;
 
-  // ★ 修正: 日またぎが発生した際に、実際の経過時間から割合（按分）を出して自動分割保存する
   const saveSessionToHistory = async (seconds: number) => {
     if (seconds <= 0) return;
     try {
@@ -127,7 +128,6 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
         while (currentStartMs < endTime) {
           const currentDateObj = new Date(currentStartMs);
           
-          // その日の終わり (23:59:59.999) を求める
           const endOfDay = new Date(currentDateObj);
           endOfDay.setHours(23, 59, 59, 999);
           
@@ -136,13 +136,11 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
             chunkEndMs = endTime;
           }
           
-          // 該当日の経過時間と、それに基づく作業時間の按分
           const chunkElapsedMs = chunkEndMs - currentStartMs;
           const ratio = chunkElapsedMs / totalElapsedMs;
           const chunkDurationSeconds = Math.round(seconds * ratio);
           
           if (chunkDurationSeconds > 0) {
-            // chunkEndMs（その日の遅い時間）を記録日とする
             newEntries.push({
               id: Date.now().toString() + '_' + currentStartMs,
               date: new Date(chunkEndMs).toISOString(),
@@ -150,12 +148,10 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
             });
           }
           
-          // 次の日の始まり (00:00:00.000) へ進める
           currentStartMs = chunkEndMs + 1;
         }
       }
 
-      // 新しく分割されたエントリ（最新順）を既存履歴の先頭に追加
       history = [...newEntries.reverse(), ...history].slice(0, 100);
       
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
@@ -182,8 +178,17 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
           if (s.clockMode) setClockMode(s.clockMode);
           if (s.showQuote !== undefined) setShowQuote(s.showQuote);
           if (s.pomoEnabled !== undefined) setPomoEnabled(s.pomoEnabled);
-          if (s.workTime) setWorkTime(s.workTime);
-          if (s.breakTime) setBreakTime(s.breakTime);
+          
+          // ★ 修正: 旧データの互換性 (120以下の小さな値は分数として保存されていた可能性があるため秒換算)
+          if (s.workTime !== undefined) {
+            const wt = Number(s.workTime);
+            setWorkTime(wt <= 120 ? wt * 60 : wt);
+          }
+          if (s.breakTime !== undefined) {
+            const bt = Number(s.breakTime);
+            setBreakTime(bt <= 60 ? bt * 60 : bt);
+          }
+
           if (s.mainPlaylist) setMainPlaylist(s.mainPlaylist);
           if (s.mainShuffle !== undefined) setMainShuffle(s.mainShuffle);
           if (s.workPlaylist) setWorkPlaylist(s.workPlaylist);
@@ -285,7 +290,8 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       const nextState = pomoStateRef.current === 'WORK' ? 'BREAK' : 'WORK';
       setPomoState(nextState);
       
-      const nextSeconds = Math.floor((nextState === 'WORK' ? workTimeRef.current : breakTimeRef.current) * 60);
+      // ★ 修正: 秒数をそのまま設定
+      const nextSeconds = nextState === 'WORK' ? workTimeRef.current : breakTimeRef.current;
       setPomoRemaining(nextSeconds);
       phaseStartTimeRef.current = Date.now();
       totalPhasePausedMsRef.current = 0; 
@@ -350,7 +356,8 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
         }
 
         if (pomoEnabledRef.current && phaseStartTimeRef.current) {
-            const phaseTotalMs = Math.floor((pomoStateRef.current === 'WORK' ? workTimeRef.current : breakTimeRef.current) * 60 * 1000);
+            // ★ 修正: 秒数からダイレクトにミリ秒を算出
+            const phaseTotalMs = (pomoStateRef.current === 'WORK' ? workTimeRef.current : breakTimeRef.current) * 1000;
             const elapsedMs = currentTime - phaseStartTimeRef.current - totalPhasePausedMsRef.current;
             const remainingSec = Math.ceil((phaseTotalMs - elapsedMs) / 1000);
 
@@ -401,7 +408,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
     setTotalWorkSeconds(0);
     setPausedSeconds(0);
     setPomoState('WORK');
-    setPomoRemaining(Math.floor(workTime * 60));
+    setPomoRemaining(workTime);
     setIsPaused(false);
     setShowHelp(false);
     setStage('FOCUS');
@@ -417,7 +424,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
       if (!albumsMap.has(ak)) albumsMap.set(ak, { id: ak, type: 'ALBUM', title: s.album, sub: s.artist, art: s.localImageUri, songs: [] });
       albumsMap.get(ak).songs.push(s);
       if (!artistsMap.has(s.artist)) artistsMap.set(s.artist, { id: s.artist, type: 'ARTIST', title: s.artist, sub: 'アーティスト', art: s.localImageUri, songs: [] });
-      artistsMap.get(s.artist).songs.push(s);
+      artistsMap.get(s.artist).push(s);
     });
     const playlists = localPlaylists.map((p: any) => ({ id: p.id, type: 'PLAYLIST', title: p.playlistName, sub: 'プレイリスト', art: null, data: p }));
     const res: any[] = [];
@@ -517,9 +524,10 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
         {...{ 
           dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, musicCollections, expanded, toggleSection, onSelectCollection, pickerVisible, setPickerVisible, setPickingTarget, isReady, 
           handleFinishSetup,
+          // ★ 修正: 秒数から時間・分・秒を直接抽出
           openCustomTimerModal: (type: 'WORK' | 'BREAK') => {
               setCustomTimerType(type);
-              const currentSecs = Math.floor((type === 'WORK' ? workTime : breakTime) * 60);
+              const currentSecs = type === 'WORK' ? workTime : breakTime;
               setCustomH(Math.floor(currentSecs / 3600));
               setCustomM(Math.floor((currentSecs % 3600) / 60));
               setCustomS(currentSecs % 60);
@@ -578,8 +586,9 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
                                   Alert.alert("エラー", "1秒以上の時間を設定してください");
                                   return;
                               }
-                              if (customTimerType === 'WORK') setWorkTime(totalSecs / 60);
-                              else setBreakTime(totalSecs / 60);
+                              // ★ 修正: 秒数をそのままセット
+                              if (customTimerType === 'WORK') setWorkTime(totalSecs);
+                              else setBreakTime(totalSecs);
                               setCustomTimerType(null);
                           }}
                       >

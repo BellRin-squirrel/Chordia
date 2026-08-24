@@ -223,9 +223,11 @@ const AppContent = () => {
   };
 
   const formatSecToHMS = (sec: number) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
+    const total = Math.round(sec);
+    if (total <= 0) return '0秒';
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
     if (h > 0) return `${h}時間${m}分${s}秒`;
     if (m > 0) return `${m}分${s}秒`;
     return `${s}秒`;
@@ -296,17 +298,17 @@ const AppContent = () => {
                   {selectedDayData && (
                     <View style={{ backgroundColor: isAppDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: isAppDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
                       <Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold' }}>
-                        {selectedDayData.fullDateLabel}: {formatSecToHM(selectedDayData.totalSec)}
+                        {selectedDayData.fullDateLabel}: {formatSecToHMS(selectedDayData.totalSec)}
                       </Text>
                     </View>
                   )}
                 </View>
                 
                 <View style={{ flexDirection: 'row', height: GRAPH_HEIGHT }}>
-                  <View style={{ justifyContent: 'space-between', paddingRight: 15, alignItems: 'flex-end', width: 65 }}>
-                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 11, fontWeight: '600' }}>{formatSecToHM(maxSec)}</Text>
-                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 11, fontWeight: '600' }}>{formatSecToHM(maxSec / 2)}</Text>
-                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 11, fontWeight: '600' }}>0分</Text>
+                  <View style={{ justifyContent: 'space-between', paddingRight: 15, alignItems: 'flex-end', width: 75 }}>
+                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 10, fontWeight: '600' }}>{formatSecToHMS(maxSec)}</Text>
+                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 10, fontWeight: '600' }}>{formatSecToHMS(Math.round(maxSec / 2))}</Text>
+                    <Text style={{ color: actualDynamicStyles.subText, fontSize: 10, fontWeight: '600' }}>0秒</Text>
                   </View>
                   
                   <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: actualDynamicStyles.border, paddingBottom: 5 }}>
@@ -339,7 +341,7 @@ const AppContent = () => {
                   </View>
                 </View>
                 
-                <View style={{ flexDirection: 'row', marginLeft: 65, marginTop: 10 }}>
+                <View style={{ flexDirection: 'row', marginLeft: 75, marginTop: 10 }}>
                   {graphData.map((d, i) => {
                     const isSelected = selectedDayIndex === i;
                     return (
@@ -382,7 +384,7 @@ const AppContent = () => {
               {/* 3. 週間合計時間 */}
               <View style={{ alignItems: 'center', paddingVertical: 10 }}>
                 <Text style={{ color: actualDynamicStyles.subText, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>この1週間の合計集中時間</Text>
-                <Text style={{ color: themeColor, fontSize: 40, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatSecToHM(weekTotalSec)}</Text>
+                <Text style={{ color: themeColor, fontSize: 36, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatSecToHMS(weekTotalSec)}</Text>
               </View>
 
             </ScrollView>
@@ -393,7 +395,7 @@ const AppContent = () => {
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
           {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
-            <Animated.View style={[isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], { bottom: isLandscape ? (15 + insets.bottom) : (TAB_BAR_MARGIN + TAB_BAR_HEIGHT + MINI_PLAYER_GAP + insets.bottom), left: isLandscape ? miniPlayerLeft : 16, right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, shadowOpacity: 0.1, elevation: 10 }]}>
+            <Animated.View style={[isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], { bottom: isLandscape ? (15 + insets.bottom) : (TAB_BAR_MARGIN + TAB_BAR_HEIGHT + MINI_PLAYER_GAP + insets.bottom), left: isLandscape ? miniPlayerLeft : 16, right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, shadowOpacity: isBlurBackground ? 0 : 0.1, elevation: isBlurBackground ? 0 : 10 }]}>
               <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={() => { setIsFullPlayer(true); Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start(); }} togglePlayPause={togglePlayPause} handleNext={handleNext} />
             </Animated.View>
           )}
@@ -435,12 +437,20 @@ const AppContent = () => {
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
-      {/* ★ 修正: Modalの直下を SafeAreaProvider で包み、初回マウント時から正確なノッチ高さを適用 */}
+      {/* ★ 修正: 横画面では左右パディングのみ、縦画面では paddingTop に insets.top を手動付与して完璧な挙動を保証 */}
       <Modal visible={showAllHistory} animationType="fade" transparent={false} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <SafeAreaProvider>
-          <SafeAreaView style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }} edges={['top', 'left', 'right', 'bottom']}>
+          <SafeAreaView 
+            style={{ flex: 1, backgroundColor: actualDynamicStyles.bg }} 
+            edges={isLandscape ? ['top', 'left', 'right', 'bottom'] : ['left', 'right', 'bottom']}
+          >
             
-            <View style={[styles.navHeader, { height: 44, borderBottomWidth: 1, borderBottomColor: actualDynamicStyles.border }]}>
+            <View style={[styles.navHeader, { 
+              paddingTop: isLandscape ? 0 : (insets?.top || 0), 
+              height: 44 + (isLandscape ? 0 : (insets?.top || 0)), 
+              borderBottomWidth: 1, 
+              borderBottomColor: actualDynamicStyles.border 
+            }]}>
               <View style={styles.navHeaderLeft}>
                 <TouchableWithoutFeedback onPressIn={handleHistoryPressIn} onPressOut={handleHistoryPressOut} onPress={() => setShowAllHistory(false)}>
                     <Animated.View style={{ transform:[{ scale: historyBackButtonScale }] }}>

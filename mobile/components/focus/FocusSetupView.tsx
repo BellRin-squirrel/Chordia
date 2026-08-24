@@ -18,11 +18,38 @@ export const FocusSetupView = ({
     openCustomTimerModal
 }: any) => {
 
+  // ★ オプション文字列（「25分」「30秒」等）を秒数に変換するヘルパー
+  const parseOptToSeconds = (opt: string) => {
+    const valOnly = opt.replace('(推奨)', '').trim();
+    let secs = 0;
+    if (valOnly.includes('分')) {
+      const m = parseInt(valOnly, 10) || 0;
+      secs += m * 60;
+    } else if (valOnly.includes('秒')) {
+      const s = parseInt(valOnly, 10) || 0;
+      secs += s;
+    } else {
+      secs = (parseInt(valOnly, 10) || 0) * 60;
+    }
+    return secs;
+  };
+
+  // ★ カスタム設定された秒数をコンパクトにラベル化
+  const formatCustomSec = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `ｶｽﾀﾑ(${h}h${m}m${s > 0 ? s + 's' : ''})`;
+    if (s > 0 && m > 0) return `ｶｽﾀﾑ(${m}分${s}秒)`;
+    if (s > 0) return `ｶｽﾀﾑ(${s}秒)`;
+    return `ｶｽﾀﾑ(${m}分)`;
+  };
+
   const renderTileOption = (label: string, options: string[], current: any, setter: (v: any) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
+    // 現在値（秒数）がプリセット選択肢のいずれとも一致しない場合はカスタム扱い
     const isCustomValue = !options.some(opt => {
-        const valOnly = opt.replace('(推奨)', '');
-        const internalVal = parseInt(valOnly);
-        return String(current) === String(internalVal);
+      const sec = parseOptToSeconds(opt);
+      return Number(current) === sec;
     });
 
     return (
@@ -34,14 +61,13 @@ export const FocusSetupView = ({
         <View style={s.tileContainer}>
           {options.map(opt => {
             const valOnly = opt.replace('(推奨)', '');
-            const isTime = valOnly.includes('分') || valOnly.includes('秒');
-            const internalVal = isTime ? parseInt(valOnly) : valOnly;
-            const isSelected = String(current) === String(internalVal) && !isCustomValue;
+            const internalSec = parseOptToSeconds(opt);
+            const isSelected = Number(current) === internalSec && !isCustomValue;
             
             return (
               <TouchableOpacity 
                 key={opt} 
-                onPress={() => setter(internalVal)} 
+                onPress={() => setter(internalSec)} 
                 style={[
                   s.tileBtn, 
                   { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
@@ -66,7 +92,7 @@ export const FocusSetupView = ({
             ]}
           >
             <Text style={[s.tileText, { color: isCustomValue ? (buttonTextColor || '#fff') : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                {isCustomValue ? `ｶｽﾀﾑ(${Math.floor(current)}分${Math.round((current % 1) * 60)}秒)` : 'カスタム'}
+                {isCustomValue ? formatCustomSec(Number(current)) : 'カスタム'}
             </Text>
             {isCustomValue && <Ionicons name="checkmark-circle" size={14} color={buttonTextColor || "#fff"} style={s.checkIcon} />}
           </TouchableOpacity>
@@ -156,7 +182,6 @@ export const FocusSetupView = ({
             )}
         </View>
 
-        {/* ★ 修正: 下部「設定完了」ボタンもシャドウと強い配色でくっきり強調 */}
         <TouchableOpacity 
           style={[
             s.primaryBtn, 
