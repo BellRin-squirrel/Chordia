@@ -1,8 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { Animated, Dimensions, Alert } from 'react-native';
-import TrackPlayer, { State as RNTPState, usePlaybackState, useProgress, RepeatMode, Capability, Event } from 'react-native-track-player';
+import TrackPlayer, { 
+  State as RNTPState, 
+  usePlaybackState, 
+  useProgress, 
+  RepeatMode, 
+  Capability, 
+  Event 
+} from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { 
+  createAudioPlayer, 
+  setAudioModeAsync 
+} from 'expo-audio';
 
 const { height } = Dimensions.get('window');
 
@@ -40,10 +50,13 @@ export const useAudioPlayer = () => {
   
   const expoAudioPlayerRef = useRef<any>(null);
   const expoPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const expoStatusSubscriptionRef = useRef<any>(null);
+  const isSkippingRef = useRef<boolean>(false);
 
   const [playbackStatusExpo, setPlaybackStatusExpo] = useState<any>({
     positionMillis: 0,
     durationMillis: 0,
+    isPlaying: false,
   });
 
   useEffect(() => { currentSongRef.current = currentSong; },[currentSong]);
@@ -56,66 +69,67 @@ export const useAudioPlayer = () => {
     AsyncStorage.getItem('audioEngine').then(val => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
-    return () => clearExpoPolling();
+    return () => clearExpoResources();
   },[]);
 
-  const clearExpoPolling = () => {
-    if (expoPollingRef.current) {
-      clearInterval(expoPollingRef.current);
-      expoPollingRef.current = null;
+  // ExpoAudio用バックグラウンドセッション設定
+  const configureExpoAudioMode = async () => {
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        playsInSilentModeIOS: true,
+        shouldPlayInBackground: true,
+        staysActiveInBackground: true,
+        interruptionMode: 'mixWithOthers',
+        interruptionModeIOS: 'mixWithOthers',
+        interruptionModeAndroid: 'duckOthers',
+        allowsRecording: false,
+        allowsRecordingIOS: false,
+      } as any);
+    } catch (e) {
+      console.warn("Expo-Audio mode configuration failed", e);
     }
   };
 
-  const startExpoPolling = (player: any) => {
-    clearExpoPolling();
-    expoPollingRef.current = setInterval(() => {
-      if (!player) return;
-      
-      const cTime = player.currentTime || 0;
-      const dTime = player.duration || 0;
-      const pState = player.playing || false;
-      
-      setPlaybackStatusExpo({
-        positionMillis: cTime * 1000,
-        durationMillis: dTime * 1000,
+  useEffect(() => {
+    configureExpoAudioMode();
+  },[]);
+
+  // RNTPのロック画面通知とプレイヤーを完全にクリア
+  const clearRNTPNotification = async () => {
+    try {
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+      await TrackPlayer.updateOptions({
+        capabilities: [],
+        compactCapabilities: [],
       });
-
-      setIsPlaying(pState);
-
-      if (dTime > 0 && cTime >= dTime - 0.2 && !pState) {
-        if (!player.isLooping) {
-           handleNextInternal();
-        }
-      }
-    }, 250);
+    } catch(e) {}
   };
 
-  useEffect(() => {
-    const initExpoAudio = async () => {
-      try {
-        await setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          interruptionModeIOS: 'mixWithOthers', 
-          interruptionModeAndroid: 'duckOthers',
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-      } catch (e) { console.warn("Expo-Audio init failed", e); }
-    };
-    initExpoAudio();
-  },[]);
+  // RNTPのロック画面通知機能を復元
+  const restoreRNTPNotification = async () => {
+    try {
+      await TrackPlayer.updateOptions({
+        android: { appKilledBehavior: 'StopPlaybackAndRemoveNotification' as any },
+        capabilities:[ 
+          Capability.Play, 
+          Capability.Pause, 
+          Capability.SkipToNext, 
+          Capability.SkipToPrevious, 
+          Capability.SeekTo 
+        ],
+        compactCapabilities:[Capability.Play, Capability.Pause, Capability.SkipToNext],
+      });
+    } catch(e) {}
+  };
 
   useEffect(() => {
     const initRNTP = async () => {
       if (isRNTPInitialized) return;
       try {
         await TrackPlayer.setupPlayer();
-        await TrackPlayer.updateOptions({
-          android: { appKilledBehavior: 'StopPlaybackAndRemoveNotification' as any },
-          capabilities:[ Capability.Play, Capability.Pause, Capability.SkipToNext, Capability.SkipToPrevious, Capability.SeekTo ],
-          compactCapabilities:[Capability.Play, Capability.Pause, Capability.SkipToNext],
-        });
+        await restoreRNTPNotification();
         isRNTPInitialized = true;
       } catch (e) { console.log("RNTP setup error:", e); }
     };
@@ -128,6 +142,7 @@ export const useAudioPlayer = () => {
   const playbackStatus = audioEngine === 'rntp' ? {
     positionMillis: rntpProgress.position * 1000,
     durationMillis: rntpProgress.duration * 1000,
+    isPlaying: rntpState.state === RNTPState.Playing,
   } : playbackStatusExpo;
 
   useEffect(() => {
@@ -159,24 +174,141 @@ export const useAudioPlayer = () => {
     } catch(e){}
   };
 
-  const initExpoAudioPlayer = (uri: string, isLoopOne: boolean, autoPlay: boolean = true) => {
-    clearExpoPolling();
-    let player = expoAudioPlayerRef.current;
-    if (player) {
-      player.replace({ uri });
-      player.isLooping = isLoopOne;
-      if (autoPlay) player.play();
-      else player.pause();
-    } else {
-      player = createAudioPlayer({ uri });
-      player.isLooping = isLoopOne;
-      expoAudioPlayerRef.current = player;
-      if (autoPlay) player.play();
+  const clearExpoResources = () => {
+    if (expoStatusSubscriptionRef.current) {
+      try {
+        if (typeof expoStatusSubscriptionRef.current.remove === 'function') {
+          expoStatusSubscriptionRef.current.remove();
+        } else if (typeof expoStatusSubscriptionRef.current === 'function') {
+          expoStatusSubscriptionRef.current();
+        }
+      } catch (e) {}
+      expoStatusSubscriptionRef.current = null;
     }
-    startExpoPolling(player);
+    if (expoPollingRef.current) {
+      clearInterval(expoPollingRef.current);
+      expoPollingRef.current = null;
+    }
+    if (expoAudioPlayerRef.current) {
+      try {
+        expoAudioPlayerRef.current.pause?.();
+        expoAudioPlayerRef.current.remove?.();
+      } catch (e) {}
+      expoAudioPlayerRef.current = null;
+    }
   };
 
-  // ★ 修正: targetEngine パラメータを追加し、非同期なState更新を待たずに強制的にエンジンを決定する
+  const startExpoPolling = (player: any) => {
+    if (expoPollingRef.current) clearInterval(expoPollingRef.current);
+    expoPollingRef.current = setInterval(() => {
+      if (!player) return;
+      
+      const cTime = player.currentTime || 0;
+      const dTime = player.duration || 0;
+      const pState = player.playing ?? player.isPlaying ?? false;
+      
+      setPlaybackStatusExpo((prev: any) => ({
+        ...prev,
+        positionMillis: cTime * 1000,
+        durationMillis: dTime * 1000,
+        isPlaying: pState,
+      }));
+
+      setIsPlaying(pState);
+    }, 250);
+  };
+
+  const handleNextRef = useRef<() => void>(() => {});
+
+  // リスナー登録
+  const attachExpoAudioListeners = (player: any) => {
+    try {
+      if (expoStatusSubscriptionRef.current) {
+        if (typeof expoStatusSubscriptionRef.current.remove === 'function') {
+          expoStatusSubscriptionRef.current.remove();
+        } else if (typeof expoStatusSubscriptionRef.current === 'function') {
+          expoStatusSubscriptionRef.current();
+        }
+        expoStatusSubscriptionRef.current = null;
+      }
+
+      const onStatusUpdate = (status: any) => {
+        if (!status) return;
+
+        if (status.currentTime !== undefined && status.duration !== undefined) {
+          setPlaybackStatusExpo((prev: any) => ({
+            ...prev,
+            positionMillis: (status.currentTime || 0) * 1000,
+            durationMillis: (status.duration || 0) * 1000,
+          }));
+        }
+
+        const activePlaying = status.isPlaying ?? status.playing;
+        if (activePlaying !== undefined) {
+          setPlaybackStatusExpo((prev: any) => ({
+            ...prev,
+            isPlaying: activePlaying,
+          }));
+          setIsPlaying(activePlaying);
+        }
+
+        const isLooping = player.loop ?? player.isLooping ?? false;
+        if (status.didJustFinish === true && !isLooping) {
+          handleNextRef.current();
+        }
+      };
+
+      if (typeof player.addListener === 'function') {
+        expoStatusSubscriptionRef.current = player.addListener('playbackStatusUpdate', onStatusUpdate);
+      } else if (typeof player.addEventListener === 'function') {
+        expoStatusSubscriptionRef.current = player.addEventListener('playbackStatusUpdate', onStatusUpdate);
+      }
+    } catch (e) {
+      console.warn('Expo-audio attachExpoAudioListeners error:', e);
+    }
+  };
+
+  // ★ 既存プレイヤーをクリーンに破棄して新規プレイヤーで確実に再生開始する処理
+  const initExpoAudioPlayer = async (song: any, isLoopOne: boolean, autoPlay: boolean = true) => {
+    clearExpoResources();
+    await configureExpoAudioMode();
+
+    const uri = song.localMusicUri;
+    let player: any = null;
+
+    try {
+      player = createAudioPlayer({ uri });
+      expoAudioPlayerRef.current = player;
+
+      if (player) {
+        player.loop = isLoopOne;
+        player.isLooping = isLoopOne;
+
+        attachExpoAudioListeners(player);
+
+        if (autoPlay) {
+          player.play();
+          setIsPlaying(true);
+          // ロード遅延に備えて短時間後に再キック
+          setTimeout(() => {
+            try {
+              if (autoPlay && expoAudioPlayerRef.current === player) {
+                player.play();
+              }
+            } catch (e) {}
+          }, 80);
+        } else {
+          player.pause();
+          setIsPlaying(false);
+        }
+
+        startExpoPolling(player);
+      }
+    } catch (e) {
+      console.warn('[Expo-Audio] createAudioPlayer error:', e);
+    }
+  };
+
   const loadAndPlayInternal = async (
     song: any, 
     activeQueue: any[] = [], 
@@ -189,10 +321,17 @@ export const useAudioPlayer = () => {
 
     try {
       if (engineToUse === 'rntp') {
+        clearExpoResources();
+
+        await restoreRNTPNotification();
         await TrackPlayer.reset();
         const tracks = activeQueue.map(s => ({
-          id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
-          artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s
+          id: s.localMusicUri, 
+          url: s.localMusicUri, 
+          title: s.title || 'Unknown', 
+          artist: s.artist || 'Unknown',
+          artwork: s.localImageUri || require('../assets/images/icon.png'), 
+          originalData: s
         }));
         await TrackPlayer.add(tracks);
         await TrackPlayer.skip(startIndex);
@@ -201,7 +340,6 @@ export const useAudioPlayer = () => {
         else if (loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
         else await TrackPlayer.setRepeatMode(RepeatMode.Off);
 
-        // ★ 修正: トラックのロード完了を安全に待つため遅延を挟み、シークと再生を適用する
         setTimeout(async () => {
           try {
             if (startPositionMs > 0) {
@@ -216,22 +354,19 @@ export const useAudioPlayer = () => {
         }, 400);
 
       } else {
+        await clearRNTPNotification();
+
         const isLoopOne = loopRef.current === 'ONE';
-        // ★ 修正: 最初は Pause 状態でロードする
-        initExpoAudioPlayer(song.localMusicUri, isLoopOne, false); 
+        await initExpoAudioPlayer(song, isLoopOne, shouldPlay); 
         
-        // ★ 修正: ExpoAudio の準備を待ってからシークと再生を実行
-        setTimeout(() => {
-          if (startPositionMs > 0) {
-            expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
-            setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
-          }
-          if (shouldPlay) {
-            expoAudioPlayerRef.current?.play();
-          } else {
-            setIsPlaying(false);
-          }
-        }, 200);
+        if (startPositionMs > 0) {
+          setTimeout(() => {
+            try {
+              expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
+              setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
+            } catch(e) {}
+          }, 150);
+        }
       }
 
       setCurrentSong(song);
@@ -257,26 +392,23 @@ export const useAudioPlayer = () => {
     const currentSongToRestore = currentSongRef.current;
     let currentPosition = 0;
     
-    // ★ 修正: エンジン切り替え時は stop() ではなく pause() を用いて安全に位置を取得する
     if (audioEngine === 'rntp') {
       try { 
         currentPosition = (await TrackPlayer.getPosition()) * 1000;
-        await TrackPlayer.pause(); 
+        await clearRNTPNotification();
       } catch(e){}
     } else {
       currentPosition = playbackStatusExpo.positionMillis || 0;
-      try { 
-        expoAudioPlayerRef.current?.pause(); 
-        clearExpoPolling();
-      } catch(e){}
+      clearExpoResources();
     }
     
     setAudioEngine(engine);
     await AsyncStorage.setItem('audioEngine', engine);
     
-    // ★ 修正: 切り替え先のエンジン名を第6引数（engine）として渡し、State更新ラグによるバグを回避
     if (currentSongToRestore && activeQueueRef.current.length > 0) {
-      loadAndPlayInternal(currentSongToRestore, activeQueueRef.current, indexRef.current, currentPosition, wasPlaying, engine);
+      setTimeout(() => {
+        loadAndPlayInternal(currentSongToRestore, activeQueueRef.current, indexRef.current, currentPosition, wasPlaying, engine);
+      }, 400);
     } else {
       setPlayQueue([]);
       setCurrentSong(null);
@@ -383,12 +515,18 @@ export const useAudioPlayer = () => {
       else await TrackPlayer.setRepeatMode(RepeatMode.Off);
     } else {
       if (expoAudioPlayerRef.current) {
+        expoAudioPlayerRef.current.loop = (nextLoop === 'ONE');
         expoAudioPlayerRef.current.isLooping = (nextLoop === 'ONE');
       }
     }
   };
 
+  // ★ 多重発火・連打を防止する安全なスキップ関数
   const handleNextInternal = async () => {
+    if (isSkippingRef.current) return;
+    isSkippingRef.current = true;
+    setTimeout(() => { isSkippingRef.current = false; }, 600);
+
     if (audioEngine === 'rntp') {
       await TrackPlayer.skipToNext();
     } else {
@@ -423,6 +561,8 @@ export const useAudioPlayer = () => {
     }
   };
 
+  handleNextRef.current = handleNextInternal;
+
   const handleNext = () => handleNextInternal();
   
   const handlePrev = async () => {
@@ -436,8 +576,10 @@ export const useAudioPlayer = () => {
       
       const currentPos = playbackStatusExpo?.positionMillis || 0;
       if (currentPos > 3000) {
-        expoAudioPlayerRef.current?.seekTo(0);
-        setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: 0 }));
+        try {
+          expoAudioPlayerRef.current?.seekTo(0);
+          setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: 0 }));
+        } catch(e) {}
         return;
       }
 
@@ -460,9 +602,14 @@ export const useAudioPlayer = () => {
     } else {
       const player = expoAudioPlayerRef.current;
       if (!player) return;
-      if (isPlaying) player.pause();
-      else player.play();
-      setIsPlaying(!isPlaying);
+      if (isPlaying) {
+        player.pause();
+        setIsPlaying(false);
+      } else {
+        await configureExpoAudioMode();
+        player.play();
+        setIsPlaying(true);
+      }
     }
   };
 
@@ -470,8 +617,10 @@ export const useAudioPlayer = () => {
     if (audioEngine === 'rntp') {
       await TrackPlayer.seekTo(v / 1000);
     } else {
-      expoAudioPlayerRef.current?.seekTo(v / 1000);
-      setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: v }));
+      try {
+        expoAudioPlayerRef.current?.seekTo(v / 1000);
+        setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: v }));
+      } catch(e) {}
     }
   };
 

@@ -14,6 +14,3 @@ package.json
 ExpoAudioで再生できるか
 RNTPで再生できるか
 ExpoAudio -> RNTP -> ExpoAudioで再生に問題がないか（フルスクリーンプレイヤーとAirPlay要チェック）
-
-pushしてビルドした。v5.1.0-beta1
-色々テストして問題なければv5.1.0をリリースする

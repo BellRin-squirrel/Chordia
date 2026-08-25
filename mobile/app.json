@@ -28,14 +28,16 @@
         "NSCameraUsageDescription": "Desktop版Chordiaとの自動接続用QRコードをスキャンするためにカメラを使用します。",
         "NSBonjourServices": [
           "_http._tcp."
-        ]
+        ],
+        "AVAudioDefaultSpeakerAmbient": false
       }
     },
     "android": {
       "package": "com.bellrin.chordia",
       "permissions": [
         "WAKE_LOCK",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
@@ -63,7 +65,13 @@
           }
         }
       ],
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
