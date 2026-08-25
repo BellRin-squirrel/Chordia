@@ -25,7 +25,7 @@ const INFO_MENU_ITEMS = [
 ];
 
 const AnimatedMenuButton = ({ onPress, isDark, textStyle, disabled = false }: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated1Value(1)).current;
   const handlePressIn = () => { if (!disabled) Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start(); };
   const handlePressOut = () => { if (!disabled) Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start(); };
 
@@ -238,12 +238,15 @@ export const InfoScreen = ({
     paddingRight: isLandscape ? (Math.max(insets?.right || 0, 20) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 20,
   };
 
+  const modalContentWidth = isLandscape ? Math.min(width * 0.9, 600) : width * 0.85;
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
 
       <PanGestureHandler activeOffsetX={[-500, 10]} failOffsetY={[-15, 15]} enabled={navStack.length > 1} onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
         <View style={{ flex: 1 }}>
+          {/* Layer 1: メインメニュー */}
           <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
             <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 }]}>
               <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>情報</Text>
@@ -266,6 +269,7 @@ export const InfoScreen = ({
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
 
+          {/* Layer 2: 各設定・統計・データ管理・ライセンス */}
           {navStack.length > 1 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
               {navStack[1] === 'SETTINGS' && (
@@ -302,6 +306,7 @@ export const InfoScreen = ({
             </Animated.View>
           )}
 
+          {/* Layer 3: 統計全履歴 / 楽曲編集 */}
           {navStack.length > 2 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
               {navStack[2] === 'STATS_ALL' && (
@@ -319,6 +324,53 @@ export const InfoScreen = ({
           )}
         </View>
       </PanGestureHandler>
+
+      {/* カスタムRGBモーダル */}
+      <Modal visible={showRGBModal} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
+        <View style={{ 
+          flex: 1, 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          paddingHorizontal: 20,
+          paddingTop: Math.max(insets?.top || 0, 20) + 40,
+          paddingBottom: Math.max(insets?.bottom || 0, 20) + 40
+        }}>
+          <BlurView intensity={100} tint={dynamicStyles.blur} style={{ width: modalContentWidth, flexShrink: 1, borderRadius: 25, padding: 20, overflow: 'hidden' }}>
+            <Text style={[styles.modalTitle, { color: dynamicStyles.text, marginBottom: isLandscape ? 10 : 20, fontSize: isLandscape ? 16 : 18 }]}>カスタムカラー設定</Text>
+            <View style={{ flexDirection: isLandscape ? 'row' : 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ alignItems: 'center', marginRight: isLandscape ? 25 : 0, marginBottom: isLandscape ? 0 : 20 }}>
+                <View style={[styles.colorBoxBig, { backgroundColor: themeColor, width: isLandscape ? 100 : 120, height: isLandscape ? 100 : 120 }]} />
+                <Text style={[styles.rgbText, { color: dynamicStyles.text, marginTop: 8, fontSize: 14 }]}>{themeColor}</Text>
+              </View>
+              <View style={{ flex: isLandscape ? 1 : 0, width: '100%' }}>
+                {[{ l: 'R', v: themeR, s: setThemeR, c: '#ef4444' }, { l: 'G', v: themeG, s: setThemeG, c: '#10b981' }, { l: 'B', v: themeB, s: setThemeB, c: '#3b82f6' }].map((item, i) => (
+                  <View key={i} style={[styles.sliderRow, { marginBottom: isLandscape ? 5 : 10 }]}>
+                    <Text style={[styles.sliderLabel, { color: item.c, width: 20 }]}>{item.l}</Text>
+                    <Slider style={{ flex: 1 }} minimumValue={0} maximumValue={255} step={1} value={item.v} onValueChange={item.s} />
+                  </View>
+                ))}
+                {recentColors.length > 0 && (
+                  <View style={{ marginTop: isLandscape ? 10 : 15 }}>
+                    <Text style={[styles.subLabel, { color: dynamicStyles.subText, fontSize: 12 }]}>最近の設定</Text>
+                    <View style={styles.recentRow}>
+                      {recentColors.map((rc: any, idx: number) => (
+                        <TouchableOpacity key={idx} onPress={() => { setThemeR(rc.r); setThemeG(rc.g); setThemeB(rc.b); }} style={[styles.recentCircle, { backgroundColor: `rgb(${rc.r},${rc.g},${rc.b})`, width: 24, height: 24 }]} />
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+            <View style={[styles.modalBtnRow, { marginTop: isLandscape ? 15 : 25 }]}>
+              <TouchableOpacity onPress={() => setShowRGBModal(false)} style={styles.modalBtnCancel}><Text style={{ color: '#8e8e93' }}>キャンセル</Text></TouchableOpacity>
+              <TouchableOpacity onPress={applyCustomColor} style={[styles.modalBtnApply, { backgroundColor: themeColor }]}>
+                <Text style={{ color: textColor, fontWeight: 'bold' }}>設定</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
     </GestureHandlerRootView>
   );
 };
