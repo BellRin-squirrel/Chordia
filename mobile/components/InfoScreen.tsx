@@ -1,17 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Animated, StyleSheet, 
   TouchableWithoutFeedback, useWindowDimensions, ScrollView, Switch, 
-  Modal, Linking, Easing 
+  Modal, Linking, Easing, TextInput, Alert, Image, KeyboardAvoidingView, Platform 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { MarqueeText } from './MarqueeText';
 
+const DEFAULT_ICON = require('../assets/images/icon.png');
 const HISTORY_KEY = 'chordia_focus_history';
 const GRAPH_HEIGHT = 180;
 
@@ -24,6 +27,7 @@ const PRESET_COLORS = [
 const INFO_MENU_ITEMS = [
   { title: '設定', icon: 'options-outline' as const, view: 'SETTINGS', sub: 'テーマカラー・再生エンジン・動作設定' },
   { title: '統計', icon: 'stats-chart-outline' as const, view: 'STATISTICS', sub: '集中セッションと活動履歴の分析' },
+  { title: 'データを管理', icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: '保存済み楽曲の確認・編集・一括削除' },
   { title: 'ライセンス・バージョン', icon: 'document-text-outline' as const, view: 'LICENSE', sub: 'Chordia について・開発情報' },
 ];
 
@@ -33,6 +37,7 @@ export const InfoScreen = ({
   showRGBModal, setShowRGBModal, saveColor, applyCustomColor, 
   insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab, 
   showSyncTab, toggleSyncTab,
+  localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
   isDark, isLandscape 
 }: any) => {
   const { width } = useWindowDimensions();
@@ -48,6 +53,21 @@ export const InfoScreen = ({
   // 統計用 State
   const [focusHistory, setFocusHistory] = useState<any[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(6);
+
+  // データ管理用 State
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSongUris, setSelectedSongUris] = useState<Set<string>>(new Set());
+  const [searchSongQuery, setSearchSongQuery] = useState('');
+
+  // 楽曲編集用 State
+  const [editingSong, setEditingSong] = useState<any>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editAlbum, setEditAlbum] = useState('');
+  const [editTrack, setEditTrack] = useState('');
+  const [editDisc, setEditDisc] = useState('');
+  const [editYear, setEditYear] = useState('');
+  const [editLyric, setEditLyric] = useState('');
 
   useEffect(() => {
     loadHistory();
@@ -105,6 +125,153 @@ export const InfoScreen = ({
   const maxSec = Math.max(...graphData.map(d => d.totalSec));
   const weekTotalSec = graphData.reduce((sum, d) => sum + d.totalSec, 0);
   const selectedDayData = selectedDayIndex !== null ? graphData[selectedDayIndex] : null;
+
+  // 検索フィルタ後の楽曲リスト
+  const filteredLibrary = useMemo(() => {
+    if (!searchSongQuery.trim()) return localLibrary;
+    const q = searchSongQuery.toLowerCase();
+    return localLibrary.filter((s: any) => 
+      s.title?.toLowerCase().includes(q) || 
+      s.artist?.toLowerCase().includes(q) || 
+      s.album?.toLowerCase().includes(q)
+    );
+  }, [localLibrary, searchSongQuery]);
+
+  // 楽曲編集画面を開く処理
+  const openEditSong = (song: any) => {
+    setEditingSong(song);
+    setEditTitle(song.title || '');
+    setEditArtist(song.artist || '');
+    setEditAlbum(song.album || '');
+    setEditTrack(song.track ? String(song.track) : '');
+    setEditDisc(song.disc ? String(song.disc) : '');
+    setEditYear(song.year ? String(song.year) : '');
+    setEditLyric(song.lyric || '');
+    pushView('EDIT_SONG');
+  };
+
+  // 楽曲編集保存処理
+  const saveEditedSong = async () => {
+    if (!editingSong) return;
+
+    const updatedLibrary = localLibrary.map((s: any) => {
+      if (s.localMusicUri === editingSong.localMusicUri) {
+        return {
+          ...s,
+          title: editTitle.trim() || 'Untitled',
+          artist: editArtist.trim() || 'Unknown Artist',
+          album: editAlbum.trim() || 'Unknown Album',
+          track: editTrack.trim() ? parseInt(editTrack.trim(), 10) : undefined,
+          disc: editDisc.trim() ? parseInt(editDisc.trim(), 10) : undefined,
+          year: editYear.trim() ? parseInt(editYear.trim(), 10) : undefined,
+          lyric: editLyric,
+        };
+      }
+      return s;
+    });
+
+    try {
+      await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
+      if (setLocalLibrary) setLocalLibrary(updatedLibrary);
+      Alert.alert('保存完了', '楽曲情報を更新しました。');
+      popView();
+    } catch (e: any) {
+      Alert.alert('エラー', '保存に失敗しました: ' + e.message);
+    }
+  };
+
+  // 楽曲削除実行処理
+  const executeDeleteSongs = async (urisToDelete: string[]) => {
+    if (urisToDelete.length === 0) return;
+
+    try {
+      const uriSet = new Set(urisToDelete);
+      const remainingLibrary = localLibrary.filter((s: any) => !uriSet.has(s.localMusicUri));
+
+      // 1. ローカルファイルの削除
+      for (const uri of urisToDelete) {
+        try {
+          const info = await FileSystem.getInfoAsync(uri);
+          if (info.exists) {
+            await FileSystem.deleteAsync(uri, { idempotent: true });
+          }
+        } catch (e) {}
+      }
+
+      // 2. プレイリスト内の楽曲リスト更新
+      const deletedFilenames = new Set(
+        localLibrary
+          .filter((s: any) => uriSet.has(s.localMusicUri))
+          .map((s: any) => s.musicFilename?.split(/[\\/]/).pop())
+          .filter(Boolean)
+      );
+
+      const updatedPlaylists = localPlaylists.map((pl: any) => {
+        if (pl.isAll || !pl.music) return pl;
+        return {
+          ...pl,
+          music: pl.music.filter((m: string) => !deletedFilenames.has(m.split(/[\\/]/).pop()))
+        };
+      });
+
+      // 3. ストレージとStateの反映
+      await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
+      await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+      if (setLocalLibrary) setLocalLibrary(remainingLibrary);
+      if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+
+      setSelectedSongUris(new Set());
+      setIsSelectionMode(false);
+
+      Alert.alert('削除完了', `${urisToDelete.length}曲の楽曲データを削除しました。`);
+    } catch (e: any) {
+      Alert.alert('エラー', '削除処理中にエラーが発生しました: ' + e.message);
+    }
+  };
+
+  const confirmDeleteSelected = () => {
+    const count = selectedSongUris.size;
+    if (count === 0) {
+      Alert.alert('選択されていません', '削除する楽曲を選択してください。');
+      return;
+    }
+
+    Alert.alert(
+      '楽曲の一括削除',
+      `選択した ${count} 曲を端末から完全に削除しますか？\n(この操作は取り消せません)`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { 
+          text: '削除する', 
+          style: 'destructive', 
+          onPress: () => executeDeleteSongs(Array.from(selectedSongUris)) 
+        }
+      ]
+    );
+  };
+
+  const confirmDeleteSingle = (song: any) => {
+    Alert.alert(
+      '楽曲の削除',
+      `「${song.title || 'Untitled'}」を端末から削除しますか？`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { 
+          text: '削除する', 
+          style: 'destructive', 
+          onPress: () => executeDeleteSongs([song.localMusicUri]) 
+        }
+      ]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSongUris.size === filteredLibrary.length) {
+      setSelectedSongUris(new Set());
+    } else {
+      setSelectedSongUris(new Set(filteredLibrary.map((s: any) => s.localMusicUri)));
+    }
+  };
 
   // ナビゲーションアニメーション補間
   const currentProgress = Animated.subtract(navAnim, Animated.divide(panX, width));
@@ -164,6 +331,12 @@ export const InfoScreen = ({
     isNavAnimating.current = true;
     panX.setValue(0); 
 
+    if (navStack.length === 2) {
+      setIsSelectionMode(false);
+      setSelectedSongUris(new Set());
+      setSearchSongQuery('');
+    }
+
     const prev = navStack.length - 2;
     Animated.spring(navAnim, { 
       toValue: prev, 
@@ -189,6 +362,12 @@ export const InfoScreen = ({
       if (translationX > width / 4 || velocityX > 300) {
         if (isNavAnimating.current) return;
         isNavAnimating.current = true;
+
+        if (navStack.length === 2) {
+          setIsSelectionMode(false);
+          setSelectedSongUris(new Set());
+          setSearchSongQuery('');
+        }
 
         Animated.timing(panX, {
           toValue: width,
@@ -218,7 +397,7 @@ export const InfoScreen = ({
   const handlePressIn = () => { Animated.spring(backButtonScale, { toValue: 1.85, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
 
-  const renderHeader = (title: string) => (
+  const renderHeader = (title: string, rightElement?: React.ReactNode) => (
     <View style={[
       styles.navHeader, 
       { 
@@ -244,7 +423,9 @@ export const InfoScreen = ({
         )}
       </View>
       <Text style={[styles.navHeaderTitle, { color: dynamicStyles.text }]} numberOfLines={1}>{title}</Text>
-      <View style={styles.navHeaderRight} />
+      <View style={[styles.navHeaderRight, { width: undefined, minWidth: 60, alignItems: 'flex-end', justifyContent: 'center' }]}>
+        {rightElement}
+      </View>
     </View>
   );
 
@@ -340,7 +521,6 @@ export const InfoScreen = ({
 
         <Text style={[styles.recentHeader, { color: dynamicStyles.text, marginLeft: 0, marginTop: 40 }]}>機能設定</Text>
         <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 15, marginTop: 15, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
-          {/* 同期タブ切り替え */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
             <View style={{ flex: 1, marginRight: 10 }}>
               <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>同期タブ</Text>
@@ -356,7 +536,6 @@ export const InfoScreen = ({
 
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
 
-          {/* 作業(Focus)モード切り替え */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
             <View style={{ flex: 1, marginRight: 10 }}>
               <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>作業(Focus)モード</Text>
@@ -474,7 +653,457 @@ export const InfoScreen = ({
     </View>
   );
 
-  // 4. ライセンス・バージョン画面
+  // 4. データ管理画面
+  const renderManageData = () => {
+    // ★ 削除ボタンを「完了」ボタンの左隣（ヘッダー右上）に配置
+    const selectionHeaderBtn = (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {isSelectionMode && (
+          <TouchableOpacity
+            onPress={confirmDeleteSelected}
+            disabled={selectedSongUris.size === 0}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 14,
+              backgroundColor: selectedSongUris.size > 0 ? '#ef4444' : (isDark ? '#2c2c2e' : '#e5e7eb'),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              opacity: selectedSongUris.size > 0 ? 1 : 0.5,
+            }}
+          >
+            <Ionicons name="trash-outline" size={14} color={selectedSongUris.size > 0 ? '#fff' : dynamicStyles.subText} />
+            <Text style={{
+              color: selectedSongUris.size > 0 ? '#fff' : dynamicStyles.subText,
+              fontWeight: 'bold',
+              fontSize: 13,
+            }}>
+              削除{selectedSongUris.size > 0 ? `(${selectedSongUris.size})` : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity 
+          onPress={() => {
+            setIsSelectionMode(!isSelectionMode);
+            if (isSelectionMode) setSelectedSongUris(new Set());
+          }}
+          style={{
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 14,
+            backgroundColor: isSelectionMode ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb'),
+          }}
+        >
+          <Text style={{ 
+            color: isSelectionMode ? textColor : dynamicStyles.text, 
+            fontWeight: 'bold', 
+            fontSize: 13 
+          }}>
+            {isSelectionMode ? '完了' : '選択'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+
+    return (
+      <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
+        <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+        {renderHeader('データを管理', selectionHeaderBtn)}
+
+        {/* 検索バー */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            height: 40,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            backgroundColor: dynamicStyles.card,
+            borderWidth: 1,
+            borderColor: dynamicStyles.border
+          }}>
+            <Ionicons name="search" size={16} color={dynamicStyles.subText} style={{ marginRight: 8 }} />
+            <TextInput
+              style={{ flex: 1, color: dynamicStyles.text, fontSize: 14 }}
+              placeholder="楽曲名やアーティスト名で検索..."
+              placeholderTextColor={dynamicStyles.subText}
+              value={searchSongQuery}
+              onChangeText={setSearchSongQuery}
+              clearButtonMode="while-editing"
+            />
+            {searchSongQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchSongQuery('')}>
+                <Ionicons name="close-circle-sharp" size={16} color={dynamicStyles.subText} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* 選択モード時のコントロールバー */}
+        {isSelectionMode && (
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+            borderBottomWidth: 1,
+            borderBottomColor: dynamicStyles.border
+          }}>
+            <TouchableOpacity onPress={toggleSelectAll}>
+              <Text style={{ color: themeColor, fontWeight: 'bold', fontSize: 13 }}>
+                {selectedSongUris.size === filteredLibrary.length ? 'すべて解除' : 'すべて選択'}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>
+              選択中: <Text style={{ color: themeColor, fontWeight: 'bold' }}>{selectedSongUris.size}</Text> / {filteredLibrary.length}曲
+            </Text>
+          </View>
+        )}
+
+        {/* 楽曲一覧リスト */}
+        <FlatList
+          data={filteredLibrary}
+          keyExtractor={(item) => item.localMusicUri}
+          contentContainerStyle={safePadding}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 80 }}>
+              <Ionicons name="musical-notes-outline" size={70} color={dynamicStyles.border} />
+              <Text style={{ color: dynamicStyles.subText, marginTop: 15, fontSize: 15, fontWeight: 'bold' }}>
+                {searchSongQuery ? '該当する楽曲が見つかりません' : '保存されている楽曲がありません'}
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const isSelected = selectedSongUris.has(item.localMusicUri);
+
+            return (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: 12,
+                  borderRadius: 16,
+                  backgroundColor: dynamicStyles.card,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: isSelected ? themeColor : dynamicStyles.border,
+                }}
+                onPress={() => {
+                  if (isSelectionMode) {
+                    const next = new Set(selectedSongUris);
+                    if (next.has(item.localMusicUri)) next.delete(item.localMusicUri);
+                    else next.add(item.localMusicUri);
+                    setSelectedSongUris(next);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                {/* 選択チェックボックス */}
+                {isSelectionMode && (
+                  <View style={{ marginRight: 12 }}>
+                    <Ionicons 
+                      name={isSelected ? "checkbox" : "square-outline"} 
+                      size={22} 
+                      color={isSelected ? themeColor : dynamicStyles.subText} 
+                    />
+                  </View>
+                )}
+
+                <Image 
+                  source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
+                  style={{ width: 44, height: 44, borderRadius: 8, marginRight: 12 }} 
+                />
+
+                <View style={{ flex: 1, minWidth: 0, marginRight: 10, overflow: 'hidden' }}>
+                  <MarqueeText 
+                    text={item.title || 'Untitled'} 
+                    style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }} 
+                  />
+                  <View style={{ height: 2 }} />
+                  <MarqueeText 
+                    text={`${item.artist || 'Unknown'} • ${item.album || 'Unknown Album'}`} 
+                    style={{ color: dynamicStyles.subText, fontSize: 12 }} 
+                  />
+                </View>
+
+                {/* 編集ボタン ＆ 削除ボタン（非選択モード時のみ表示） */}
+                {!isSelectionMode && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity 
+                      onPress={() => openEditSong(item)}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="create-outline" size={18} color={themeColor} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      onPress={() => confirmDeleteSingle(item)}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+    );
+  };
+
+  // 5. 楽曲情報編集画面 (Layer 3)
+  const renderEditSong = () => {
+    const saveHeaderBtn = (
+      <TouchableOpacity 
+        onPress={saveEditedSong}
+        style={{
+          paddingHorizontal: 14,
+          paddingVertical: 6,
+          borderRadius: 14,
+          backgroundColor: themeColor,
+        }}
+      >
+        <Text style={{ color: textColor, fontWeight: 'bold', fontSize: 13 }}>
+          保存
+        </Text>
+      </TouchableOpacity>
+    );
+
+    return (
+      <KeyboardAvoidingView 
+        style={{ flex: 1, backgroundColor: dynamicStyles.bg }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+        {renderHeader('楽曲情報を編集', saveHeaderBtn)}
+
+        <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
+          {/* ジャケット画像とプレビュー */}
+          <View style={{ alignItems: 'center', marginBottom: 25 }}>
+            <Image 
+              source={editingSong?.localImageUri ? { uri: editingSong.localImageUri } : DEFAULT_ICON} 
+              style={{ width: 110, height: 110, borderRadius: 16, shadowOpacity: 0.15, shadowRadius: 8, marginBottom: 10 }} 
+            />
+            <Text style={{ color: dynamicStyles.subText, fontSize: 11 }}>
+              {editingSong?.musicFilename?.split(/[\\/]/).pop() || 'File'}
+            </Text>
+          </View>
+
+          {/* 入力フォーム */}
+          <View style={{ gap: 15 }}>
+            <View>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                曲名
+              </Text>
+              <TextInput
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  backgroundColor: dynamicStyles.card,
+                  color: dynamicStyles.text,
+                  fontSize: 15,
+                  fontWeight: '600',
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                }}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="曲名を入力"
+                placeholderTextColor={dynamicStyles.subText}
+              />
+            </View>
+
+            <View>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                アーティスト
+              </Text>
+              <TextInput
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  backgroundColor: dynamicStyles.card,
+                  color: dynamicStyles.text,
+                  fontSize: 15,
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                }}
+                value={editArtist}
+                onChangeText={setEditArtist}
+                placeholder="アーティスト名を入力"
+                placeholderTextColor={dynamicStyles.subText}
+              />
+            </View>
+
+            <View>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                アルバム
+              </Text>
+              <TextInput
+                style={{
+                  height: 48,
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  backgroundColor: dynamicStyles.card,
+                  color: dynamicStyles.text,
+                  fontSize: 15,
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                }}
+                value={editAlbum}
+                onChangeText={setEditAlbum}
+                placeholder="アルバム名を入力"
+                placeholderTextColor={dynamicStyles.subText}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                  トラック番号
+                </Text>
+                <TextInput
+                  style={{
+                    height: 48,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    backgroundColor: dynamicStyles.card,
+                    color: dynamicStyles.text,
+                    fontSize: 15,
+                    borderWidth: 1,
+                    borderColor: dynamicStyles.border,
+                  }}
+                  value={editTrack}
+                  onChangeText={setEditTrack}
+                  placeholder="1"
+                  placeholderTextColor={dynamicStyles.subText}
+                  keyboardType="number-pad"
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                  ディスク番号
+                </Text>
+                <TextInput
+                  style={{
+                    height: 48,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    backgroundColor: dynamicStyles.card,
+                    color: dynamicStyles.text,
+                    fontSize: 15,
+                    borderWidth: 1,
+                    borderColor: dynamicStyles.border,
+                  }}
+                  value={editDisc}
+                  onChangeText={setEditDisc}
+                  placeholder="1"
+                  placeholderTextColor={dynamicStyles.subText}
+                  keyboardType="number-pad"
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                  リリース年
+                </Text>
+                <TextInput
+                  style={{
+                    height: 48,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    backgroundColor: dynamicStyles.card,
+                    color: dynamicStyles.text,
+                    fontSize: 15,
+                    borderWidth: 1,
+                    borderColor: dynamicStyles.border,
+                  }}
+                  value={editYear}
+                  onChangeText={setEditYear}
+                  placeholder="2026"
+                  placeholderTextColor={dynamicStyles.subText}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+
+            <View style={{ marginTop: 5 }}>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
+                歌詞 (Lyrics)
+              </Text>
+              <TextInput
+                style={{
+                  minHeight: 120,
+                  maxHeight: 200,
+                  borderRadius: 14,
+                  padding: 14,
+                  backgroundColor: dynamicStyles.card,
+                  color: dynamicStyles.text,
+                  fontSize: 14,
+                  lineHeight: 20,
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                  textAlignVertical: 'top',
+                }}
+                value={editLyric}
+                onChangeText={setEditLyric}
+                placeholder="歌詞を入力..."
+                placeholderTextColor={dynamicStyles.subText}
+                multiline
+              />
+            </View>
+
+            <TouchableOpacity
+              style={{
+                height: 52,
+                borderRadius: 26,
+                backgroundColor: themeColor,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: 15,
+                shadowColor: themeColor,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 6,
+                elevation: 3,
+              }}
+              onPress={saveEditedSong}
+            >
+              <Text style={{ color: textColor, fontSize: 16, fontWeight: 'bold' }}>
+                変更を保存
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  };
+
+  // 6. ライセンス・バージョン画面
   const renderLicense = () => (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
@@ -516,7 +1145,7 @@ export const InfoScreen = ({
     </View>
   );
 
-  // 5. 集中履歴全件画面 (Layer 3)
+  // 7. 集中履歴全件画面 (Layer 3)
   const renderAllHistory = () => (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
@@ -584,7 +1213,7 @@ export const InfoScreen = ({
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
           
-          {/* Layer 2: 設定 / 統計 / ライセンス */}
+          {/* Layer 2: 設定 / 統計 / データを管理 / ライセンス */}
           {navStack.length > 1 && (
             <Animated.View 
               style={[StyleSheet.absoluteFill, layerBorderStyle, { 
@@ -595,12 +1224,13 @@ export const InfoScreen = ({
             >
               {navStack[1] === 'SETTINGS' && renderSettings()}
               {navStack[1] === 'STATISTICS' && renderStatistics()}
+              {navStack[1] === 'MANAGE_DATA' && renderManageData()}
               {navStack[1] === 'LICENSE' && renderLicense()}
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>
           )}
 
-          {/* Layer 3: 統計の全履歴 */}
+          {/* Layer 3: 統計の全履歴 / 楽曲情報編集 */}
           {navStack.length > 2 && (
             <Animated.View 
               style={[StyleSheet.absoluteFill, layerBorderStyle, { 
@@ -609,7 +1239,8 @@ export const InfoScreen = ({
                 transform: [{ translateX: layer3Translate }] 
               }]}
             >
-              {renderAllHistory()}
+              {navStack[2] === 'STATS_ALL' && renderAllHistory()}
+              {navStack[2] === 'EDIT_SONG' && renderEditSong()}
             </Animated.View>
           )}
 

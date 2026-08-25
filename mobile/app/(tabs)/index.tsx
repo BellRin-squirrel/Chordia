@@ -223,6 +223,10 @@ const AppContent = () => {
             toggleFocusTab={toggleFocusTab} 
             showSyncTab={showSyncTab}
             toggleSyncTab={toggleSyncTab}
+            localLibrary={localLibrary}
+            setLocalLibrary={setLocalLibrary}
+            localPlaylists={localPlaylists}
+            setLocalPlaylists={setLocalPlaylists}
             isDark={isAppDark} 
             isLandscape={isLandscape} 
           />
