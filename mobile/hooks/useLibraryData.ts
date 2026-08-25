@@ -17,6 +17,7 @@ export const useLibraryData = () => {
   
   const [showFocusTab, setShowFocusTab] = useState(true);
   const [showSyncTab, setShowSyncTab] = useState(true);
+  const [showPlaylistTypeIcon, setShowPlaylistTypeIcon] = useState(true);
 
   const themeColor = `rgb(${themeR}, ${themeG}, ${themeB})`;
   const themeTextColor = (themeR * 299 + themeG * 587 + themeB * 114) / 1000 >= 150 ? '#000000' : '#ffffff';
@@ -42,6 +43,7 @@ export const useLibraryData = () => {
         const recent = await AsyncStorage.getItem('recent_colors');
         const focusState = await AsyncStorage.getItem('show_focus_tab');
         const syncState = await AsyncStorage.getItem('show_sync_tab');
+        const iconState = await AsyncStorage.getItem('show_playlist_type_icon');
         
         const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         const fixUri = (uri: string | null | undefined) => {
@@ -79,6 +81,9 @@ export const useLibraryData = () => {
         if (syncState !== null) {
           setShowSyncTab(syncState === 'true');
         }
+        if (iconState !== null) {
+          setShowPlaylistTypeIcon(iconState === 'true');
+        }
       } catch (e) {
         console.error("Storage Load Error:", e);
       }
@@ -111,10 +116,16 @@ export const useLibraryData = () => {
     await AsyncStorage.setItem('show_sync_tab', newValue ? 'true' : 'false');
   };
 
+  const toggleShowPlaylistTypeIcon = async (newValue: boolean) => {
+    setShowPlaylistTypeIcon(newValue);
+    await AsyncStorage.setItem('show_playlist_type_icon', newValue ? 'true' : 'false');
+  };
+
   return { 
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme, 
     recentColors, showRGBModal, setShowRGBModal, setThemeR, setThemeG, setThemeB, 
     setIsCustomTheme, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists, 
-    saveColor, applyCustomColor, showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab 
+    saveColor, applyCustomColor, showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,
+    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon
   };
 };

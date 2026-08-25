@@ -48,7 +48,6 @@ export const RecentSection = ({
                     source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
                     style={styles.recentSongImage} 
                   />
-                  {/* ★ 自動スクロール */}
                   <MarqueeText 
                     text={item.title} 
                     style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 
@@ -92,7 +91,6 @@ export const RecentSection = ({
                       item.type === 'ARTIST' && { borderRadius: 60 }
                     ]} 
                   />
-                  {/* ★ 自動スクロール */}
                   <MarqueeText 
                     text={title} 
                     style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 

@@ -6,6 +6,7 @@ import { Camera } from 'expo-camera';
 import * as Device from 'expo-device';
 import * as Network from 'expo-network';
 import DeviceInfo from 'react-native-device-info';
+import { getPlaylistSongs } from '../utils/playlistEvaluator';
 
 type QrData = {
   ip?: string;
@@ -50,14 +51,12 @@ const buildUrl = (ip: string, port: string) => {
   return `http://${cleanIp}:${cleanPort}`;
 };
 
-// ★ 修正: どんな型が渡されても文字列化して安全に処理
 const cleanStr = (str: any): string => {
   if (str === null || str === undefined) return '';
   const s = String(str);
   return s.normalize('NFC').toLowerCase().trim();
 };
 
-// ★ 修正: どんな型が渡されても safe にファイル名抽出
 const getFileName = (pathStr: any): string => {
   if (pathStr === null || pathStr === undefined) return '';
   const s = String(pathStr);
@@ -90,7 +89,6 @@ const safeFetchJson = async (url: string, options: any = {}) => {
   }
 };
 
-// ★ 修正: Promise.race による安全なタイムアウトダウンロード処理
 const downloadWithTimeout = async (url: string, fileUri: string, headers: any, timeoutMs: number) => {
   let timer: NodeJS.Timeout | null = null;
 
@@ -289,7 +287,6 @@ export const useSync = ({
     const baseUrl = buildUrl(ip, port);
     
     try {
-      console.log(`[Sync] Requesting auth to PC: ${baseUrl}/api/auth/request`);
       const data = await safeFetchJson(`${baseUrl}/api/auth/request`, {
         method: 'POST',
         body: JSON.stringify({ ip: clientInfo.ip, device: clientInfo.deviceName, os: clientInfo.osVersion })
@@ -314,7 +311,6 @@ export const useSync = ({
     setIsSyncing(true);
     const baseUrl = buildUrl(ip, port);
     try {
-      console.log(`[Sync] Verifying auth code with PC: ${baseUrl}`);
       const data = await safeFetchJson(`${baseUrl}/api/auth/verify`, {
         method: 'POST',
         body: JSON.stringify({ code, ip: clientInfo.ip, device: clientInfo.deviceName, os: clientInfo.osVersion })
@@ -432,17 +428,26 @@ export const useSync = ({
         setSyncProgress('同期対象を計算中...');
         await yieldToUI();
 
+        // ★ 通常プレイリストおよびスマートプレイリストの評価による対象楽曲の正確な抽出
         let targets: any[] = [];
         if (selectedPls.size > 0) {
-            let targetPlaylists = currentPcPlaylists.filter((_, i) => selectedPls.has(i));
-            const musicSet = new Set(
-              targetPlaylists.flatMap(pl => (pl.music || []).map((m: any) => getFileName(typeof m === 'string' ? m : (m?.musicFilename || m?.path || ''))))
-            );
+            const targetPlaylists = currentPcPlaylists.filter((_, i) => selectedPls.has(i));
+            const targetFilenameSet = new Set<string>();
+
+            for (const pl of targetPlaylists) {
+              const songs = getPlaylistSongs(pl, allSongs);
+              songs.forEach((s: any) => {
+                if (s.musicFilename) {
+                  const fname = getFileName(s.musicFilename);
+                  if (fname) targetFilenameSet.add(fname);
+                }
+              });
+            }
 
             targets = allSongs.filter((s: any) => {
               if (!s || !s.musicFilename) return false;
               const fname = getFileName(s.musicFilename);
-              return fname ? musicSet.has(fname) : false;
+              return fname ? targetFilenameSet.has(fname) : false;
             });
         } else {
             targets = allSongs;

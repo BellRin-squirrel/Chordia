@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::utils::{get_base_dir, load_db, load_playlists_master, evaluate_smart_rules};
+use crate::utils::{get_base_dir, load_db, load_playlists_master};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PendingRequest {
@@ -207,7 +207,6 @@ async fn api_library(AxumState(state): AxumState<ServerState>, headers: HeaderMa
     let db = load_db();
     let mut response_data = Vec::new();
     for mut item in db {
-        // ★ 修正: Mac/Windows問わず、スラッシュとバックスラッシュの両方で完全にファイル名を切り出す
         let m_name = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").to_string();
         let i_name = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").to_string();
         item.insert("url_music".into(), Value::String(if m_name.is_empty() { "".into() } else { format!("/mobile_music/{}", m_name) }));
@@ -219,25 +218,15 @@ async fn api_library(AxumState(state): AxumState<ServerState>, headers: HeaderMa
     (StatusCode::OK, Json(json!({"library": response_data})))
 }
 
+// ★ 修正：スマートプレイリストは固定の楽曲リストではなく conditions (条件) をそのまま同期
 async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: HeaderMap) -> impl IntoResponse {
     if !verify_request(&headers, &state.auth).await { return (StatusCode::FORBIDDEN, Json(json!({"error": "Unauthorized"}))); }
     let master = load_playlists_master();
-    let db = load_db();
-    
     let base = get_base_dir();
-    let cover_json_path1 = base.join("userfiles/playlist_cover.json");
-    let cover_json_path2 = base.join("userfiles/playlist_covers.json");
     
-    let cover_path_to_read = if cover_json_path1.exists() {
-        Some(cover_json_path1)
-    } else if cover_json_path2.exists() {
-        Some(cover_json_path2)
-    } else {
-        None
-    };
-
-    let covers: HashMap<String, String> = if let Some(path) = cover_path_to_read {
-        fs::read_to_string(&path)
+    let cover_json_path = base.join("userfiles/playlist_covers.json");
+    let covers: HashMap<String, String> = if cover_json_path.exists() {
+        fs::read_to_string(&cover_json_path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
             .unwrap_or_default()
@@ -249,41 +238,7 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
     for mut pl in master {
         let pl_id = pl.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let is_smart = pl.get("type").and_then(|v| v.as_str()) == Some("smart");
-        let mut music = Vec::new();
-        if is_smart {
-            if let Some(conds) = pl.get("conditions") {
-                for song in db.iter() {
-                    if evaluate_smart_rules(song, conds) {
-                        if let Some(fname) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                            // ★ 修正: 確実なファイル名抽出
-                            let clean_fname = fname.split(&['/', '\\'][..]).last().unwrap_or("").to_string();
-                            music.push(Value::String(clean_fname));
-                        }
-                    }
-                }
-            }
-        } else {
-            let path1 = base.join(format!("userfiles/playlist/{}.json", pl_id));
-            let path2 = base.join(format!("userfiles/playlists/{}.json", pl_id));
-            let path_to_use = if path1.exists() { Some(path1) } else if path2.exists() { Some(path2) } else { None };
-
-            if let Some(p) = path_to_use {
-                if let Ok(data) = fs::read_to_string(&p) {
-                    if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { 
-                        music = list.into_iter().map(|v| {
-                            if let Some(s) = v.as_str() {
-                                // ★ 修正: Mac上の不具合を防止するため、絶対パスからファイル名のみを強制抽出
-                                let fname = s.split(&['/', '\\'][..]).last().unwrap_or("");
-                                Value::String(fname.to_string())
-                            } else {
-                                v
-                            }
-                        }).collect();
-                    }
-                }
-            }
-        }
-
+        
         let mut url_cover = Value::Null;
         if let Some(cover_path) = covers.get(&pl_id) {
             let c_fname = std::path::Path::new(cover_path)
@@ -302,8 +257,35 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
         }
 
         if let Some(obj) = pl.as_object_mut() { 
-            obj.insert("music".into(), Value::Array(music)); 
             obj.insert("url_cover".into(), url_cover);
+
+            if is_smart {
+                // スマートプレイリストの場合：固定の楽曲リストは渡さず、ルール条件(conditions)を同期
+                if !obj.contains_key("conditions") {
+                    obj.insert("conditions".into(), Value::Array(Vec::new()));
+                }
+                obj.remove("music");
+            } else {
+                // 通常プレイリストの場合：登録されている楽曲ファイル名リスト(music)を読み込んで同期
+                let mut music = Vec::new();
+                let path = base.join(format!("userfiles/playlist/{}.json", pl_id));
+                if path.exists() {
+                    if let Ok(data) = fs::read_to_string(&path) {
+                        if let Ok(list) = serde_json::from_str::<Vec<Value>>(&data) { 
+                            music = list.into_iter().map(|v| {
+                                if let Some(s) = v.as_str() {
+                                    let fname = s.split(&['/', '\\'][..]).last().unwrap_or("");
+                                    Value::String(fname.to_string())
+                                } else {
+                                    v
+                                }
+                            }).collect();
+                        }
+                    }
+                }
+                obj.insert("music".into(), Value::Array(music));
+                obj.remove("conditions");
+            }
         }
         playlists_list.push(pl);
     }

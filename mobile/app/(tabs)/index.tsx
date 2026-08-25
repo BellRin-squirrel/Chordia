@@ -54,7 +54,8 @@ const AppContent = () => {
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
     saveColor, applyCustomColor, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists,
-    showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab
+    showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,
+    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon
   } = useLibraryData();
 
   const {
@@ -147,7 +148,6 @@ const AppContent = () => {
   const heroWidth = availableWidth * 0.4;
   const miniPlayerLeft = miniPlayerShiftAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 16 + heroWidth] });
 
-  // タブが非表示になったら再生タブに切り替える
   useEffect(() => {
     if (!showFocusTab && activeTab === 'FOCUS') {
       setActiveTab('PLAYER');
@@ -181,7 +181,20 @@ const AppContent = () => {
           <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
         )}
         {activeTab === 'PLAYER' && (
-          <Library dynamicStyles={actualDynamicStyles} themeColor={themeColor} startQueue={startQueue} currentSong={currentSong} localLibrary={localLibrary} localPlaylists={localPlaylists} setNavStackLength={setNavStackLength} insets={insets} isDark={isAppDark} />
+          <Library 
+            dynamicStyles={actualDynamicStyles} 
+            themeColor={themeColor} 
+            startQueue={startQueue} 
+            currentSong={currentSong} 
+            localLibrary={localLibrary} 
+            setLocalLibrary={setLocalLibrary}
+            localPlaylists={localPlaylists} 
+            setLocalPlaylists={setLocalPlaylists}
+            setNavStackLength={setNavStackLength} 
+            insets={insets} 
+            isDark={isAppDark} 
+            showPlaylistTypeIcon={showPlaylistTypeIcon}
+          />
         )}
         {showFocusTab && activeTab === 'FOCUS' && (
           <FocusScreen 
@@ -221,12 +234,14 @@ const AppContent = () => {
             changeAudioEngine={changeAudioEngine} 
             showFocusTab={showFocusTab} 
             toggleFocusTab={toggleFocusTab} 
-            showSyncTab={showSyncTab}
-            toggleSyncTab={toggleSyncTab}
-            localLibrary={localLibrary}
-            setLocalLibrary={setLocalLibrary}
-            localPlaylists={localPlaylists}
-            setLocalPlaylists={setLocalPlaylists}
+            showSyncTab={showSyncTab} 
+            toggleSyncTab={toggleSyncTab} 
+            showPlaylistTypeIcon={showPlaylistTypeIcon}
+            toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
+            localLibrary={localLibrary} 
+            setLocalLibrary={setLocalLibrary} 
+            localPlaylists={localPlaylists} 
+            setLocalPlaylists={setLocalPlaylists} 
             isDark={isAppDark} 
             isLandscape={isLandscape} 
           />

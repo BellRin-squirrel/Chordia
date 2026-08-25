@@ -5,6 +5,7 @@ import {
   Dimensions, FlatList, Image, Modal, ScrollView, StyleSheet, 
   Switch, Text, TextInput, TouchableOpacity, View, useWindowDimensions 
 } from 'react-native';
+import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -87,12 +88,6 @@ export const FocusSetupView = ({
       artistsMap.get(s.artist).songs.push(s);
     });
 
-    const getPlaylistArt = (pl: any) => {
-      if (pl.localCoverImageUri) return pl.localCoverImageUri.split('?')[0];
-      const songs = pl.isAll ? localLibrary : localLibrary.filter((s: any) => pl.music?.includes(s.musicFilename?.split(/[\\/]/).pop()));
-      return songs.length > 0 && songs[0].localImageUri ? songs[0].localImageUri : null;
-    };
-
     const pls = [
       {
         id: 'all_songs',
@@ -103,13 +98,14 @@ export const FocusSetupView = ({
         data: { playlistName: 'すべての楽曲', isAll: true, id: 'all_songs' }
       },
       ...localPlaylists.map((p: any) => {
-        const count = p.isAll ? localLibrary.length : (p.music?.length || 0);
+        const count = getPlaylistSongs(p, localLibrary).length;
+        const artSource = getPlaylistFirstArt(p, localLibrary);
         return {
           id: p.id,
           type: 'PLAYLIST',
           title: p.playlistName,
           sub: `${count}曲`,
-          art: getPlaylistArt(p),
+          art: artSource?.uri || null,
           data: p
         };
       })
@@ -147,7 +143,6 @@ export const FocusSetupView = ({
     );
   }, [modalTab, searchQuery, playlistsData, albumsData, artistsData]);
 
-  // 現在選択されているコレクション
   const currentSelected = pickingTarget === 'MAIN' ? mainPlaylist : (pickingTarget === 'WORK' ? workPlaylist : breakPlaylist);
 
   const renderTileOption = (label: string, options: string[], current: any, setter: (v: any) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
@@ -326,7 +321,6 @@ export const FocusSetupView = ({
               height: isLandscape ? Math.min(height * 0.9, 560) : '85%',
             }
           ]}>
-            {/* モーダルヘッダー */}
             <View style={s.popupHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="musical-notes" size={22} color={themeColor} />
@@ -337,7 +331,6 @@ export const FocusSetupView = ({
               </TouchableOpacity>
             </View>
 
-            {/* ★ 再生タブと同じアイコン（musical-notes-outline, disc-outline, mic-outline）の切り替えタブ */}
             <View style={[s.tabSwitchContainer, { backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#e5e7eb', borderColor: dynamicStyles.border }]}>
               {(['PLAYLIST', 'ALBUM', 'ARTIST'] as CategoryTab[]).map((t) => {
                 const isSelected = modalTab === t;
@@ -358,7 +351,6 @@ export const FocusSetupView = ({
               })}
             </View>
 
-            {/* 検索バー */}
             <View style={[s.searchBarBox, { backgroundColor: dynamicStyles.bg === '#000000' ? '#1c1c1e' : '#f2f2f7', borderColor: dynamicStyles.border }]}>
               <Ionicons name="search" size={16} color={dynamicStyles.subText} style={{ marginRight: 8 }} />
               <TextInput
@@ -376,7 +368,6 @@ export const FocusSetupView = ({
               )}
             </View>
 
-            {/* コレクション一覧 */}
             <FlatList 
               data={currentList} 
               keyExtractor={(item, i) => `${item.type}-${item.id || i}`} 
@@ -453,8 +444,6 @@ const s = StyleSheet.create({
   shuffleToggle: { width: 48, height: 48, borderRadius: 14, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   primaryBtn: { height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
   primaryBtnText: { fontSize: 18, fontWeight: '900' },
-
-  // モーダル用スタイル
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)' },
   fullPopupCard: { borderRadius: 28, padding: 20, borderWidth: 1.5, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
   popupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },

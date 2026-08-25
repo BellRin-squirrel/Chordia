@@ -13,6 +13,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { MarqueeText } from './MarqueeText';
+import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 const HISTORY_KEY = 'chordia_focus_history';
@@ -31,35 +32,91 @@ const INFO_MENU_ITEMS = [
   { title: 'ライセンス・バージョン', icon: 'document-text-outline' as const, view: 'LICENSE', sub: 'Chordia について・開発情報' },
 ];
 
+const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+  };
+
+  return (
+    <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+      <Animated.View style={{
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+        transform: [{ scale }]
+      }}>
+        <Ionicons name="ellipsis-horizontal" size={18} color={textStyle} />
+      </Animated.View>
+    </TouchableWithoutFeedback>
+  );
+};
+
+const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
+  };
+  const handlePressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+  };
+
+  return (
+    <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
+      <Animated.View style={{
+        backgroundColor: dynamicStyles.card,
+        borderRadius: 16,
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: dynamicStyles.border,
+        transform: [{ scale }]
+      }}>
+        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>キャンセル</Text>
+      </Animated.View>
+    </TouchableWithoutFeedback>
+  );
+};
+
 export const InfoScreen = ({ 
   dynamicStyles, themeColor, themeTextColor, isCustomTheme, 
   themeR, themeG, themeB, recentColors, setThemeR, setThemeG, setThemeB, 
   showRGBModal, setShowRGBModal, saveColor, applyCustomColor, 
   insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab, 
-  showSyncTab, toggleSyncTab,
+  showSyncTab, toggleSyncTab, showPlaylistTypeIcon = true, toggleShowPlaylistTypeIcon,
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
   isDark, isLandscape 
 }: any) => {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const textColor = themeTextColor || '#ffffff';
 
-  // ナビゲーション管理
   const [navStack, setNavStack] = useState<string[]>(['MENU']);
   const navAnim = useRef(new Animated.Value(0)).current;
   const isNavAnimating = useRef(false);
   const backButtonScale = useRef(new Animated.Value(1)).current;
   const panX = useRef(new Animated.Value(0)).current;
 
-  // 統計用 State
   const [focusHistory, setFocusHistory] = useState<any[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(6);
 
-  // データ管理用 State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSongUris, setSelectedSongUris] = useState<Set<string>>(new Set());
   const [searchSongQuery, setSearchSongQuery] = useState('');
 
-  // 楽曲編集用 State
+  const [actionSheetSong, setActionSheetSong] = useState<any>(null);
+  const [songInfoModalTarget, setSongInfoModalTarget] = useState<any>(null);
+  const [addToPlaylistSong, setAddToPlaylistSong] = useState<any>(null);
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+
   const [editingSong, setEditingSong] = useState<any>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
@@ -68,6 +125,30 @@ export const InfoScreen = ({
   const [editDisc, setEditDisc] = useState('');
   const [editYear, setEditYear] = useState('');
   const [editLyric, setEditLyric] = useState('');
+
+  const openActionSheet = (song: any) => {
+    setActionSheetSong(song);
+    sheetAnim.setValue(0);
+    Animated.spring(sheetAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 24,
+      mass: 0.8,
+      stiffness: 300,
+    }).start();
+  };
+
+  const closeActionSheet = (callback?: () => void) => {
+    Animated.timing(sheetAnim, {
+      toValue: 0,
+      duration: 180,
+      easing: Easing.in(Easing.ease),
+      useNativeDriver: true,
+    }).start(() => {
+      setActionSheetSong(null);
+      if (callback) callback();
+    });
+  };
 
   useEffect(() => {
     loadHistory();
@@ -126,7 +207,6 @@ export const InfoScreen = ({
   const weekTotalSec = graphData.reduce((sum, d) => sum + d.totalSec, 0);
   const selectedDayData = selectedDayIndex !== null ? graphData[selectedDayIndex] : null;
 
-  // 検索フィルタ後の楽曲リスト
   const filteredLibrary = useMemo(() => {
     if (!searchSongQuery.trim()) return localLibrary;
     const q = searchSongQuery.toLowerCase();
@@ -137,7 +217,101 @@ export const InfoScreen = ({
     );
   }, [localLibrary, searchSongQuery]);
 
-  // 楽曲編集画面を開く処理
+  const availablePlaylistsForSong = useMemo(() => {
+    if (!addToPlaylistSong || !localPlaylists) return [];
+    const targetFname = addToPlaylistSong.musicFilename?.split(/[\\/]/).pop()?.toLowerCase();
+    if (!targetFname) return [];
+
+    return localPlaylists.filter((pl: any) => {
+      if (pl.isAll || pl.id === 'all_songs') return false;
+
+      if (pl.type === 'smart') {
+        const currentSongs = getPlaylistSongs(pl, localLibrary);
+        return !currentSongs.some((s: any) => {
+          const f = s.musicFilename?.split(/[\\/]/).pop()?.toLowerCase();
+          return f === targetFname;
+        });
+      } else {
+        const musicList = Array.isArray(pl.music) ? pl.music : [];
+        return !musicList.some((m: any) => {
+          const pathStr = typeof m === 'string' ? m : (m?.musicFilename || m?.path || '');
+          const f = pathStr.split(/[\\/]/).pop()?.toLowerCase();
+          return f === targetFname;
+        });
+      }
+    });
+  }, [addToPlaylistSong, localPlaylists, localLibrary]);
+
+  const handleAddSongToPlaylist = async (playlist: any, song: any) => {
+    const songFname = song.musicFilename?.split(/[\\/]/).pop();
+    if (!songFname) return;
+
+    if (playlist.type === 'smart') {
+      Alert.alert(
+        'プレイリストの変換',
+        `「${playlist.playlistName}」はスマートプレイリストです。\n手動で曲を追加すると通常のプレイリストに変換され、自動更新が行われなくなります。続行しますか？`,
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { 
+            text: '変換して追加', 
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const currentSongs = getPlaylistSongs(playlist, localLibrary);
+                const currentFilenames = currentSongs
+                  .map((s: any) => s.musicFilename?.split(/[\\/]/).pop())
+                  .filter(Boolean);
+
+                const newMusicList = Array.from(new Set([...currentFilenames, songFname]));
+
+                const updatedPlaylists = localPlaylists.map((p: any) => {
+                  if (p.id === playlist.id) {
+                    const { conditions, ...rest } = p;
+                    return {
+                      ...rest,
+                      type: 'normal',
+                      music: newMusicList,
+                    };
+                  }
+                  return p;
+                });
+
+                await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+                if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+                setAddToPlaylistSong(null);
+                Alert.alert('完了', `「${playlist.playlistName}」を通常プレイリストに変換し、曲を追加しました。`);
+              } catch (e: any) {
+                Alert.alert('エラー', '追加に失敗しました: ' + e.message);
+              }
+            }
+          }
+        ]
+      );
+    } else {
+      try {
+        const currentMusicList = Array.isArray(playlist.music) ? playlist.music : [];
+        const newMusicList = Array.from(new Set([...currentMusicList, songFname]));
+
+        const updatedPlaylists = localPlaylists.map((p: any) => {
+          if (p.id === playlist.id) {
+            return {
+              ...p,
+              music: newMusicList,
+            };
+          }
+          return p;
+        });
+
+        await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+        if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+        setAddToPlaylistSong(null);
+        Alert.alert('追加完了', `「${playlist.playlistName}」に曲を追加しました。`);
+      } catch (e: any) {
+        Alert.alert('エラー', '追加に失敗しました: ' + e.message);
+      }
+    }
+  };
+
   const openEditSong = (song: any) => {
     setEditingSong(song);
     setEditTitle(song.title || '');
@@ -150,7 +324,6 @@ export const InfoScreen = ({
     pushView('EDIT_SONG');
   };
 
-  // 楽曲編集保存処理
   const saveEditedSong = async () => {
     if (!editingSong) return;
 
@@ -180,7 +353,6 @@ export const InfoScreen = ({
     }
   };
 
-  // 楽曲削除実行処理
   const executeDeleteSongs = async (urisToDelete: string[]) => {
     if (urisToDelete.length === 0) return;
 
@@ -188,7 +360,6 @@ export const InfoScreen = ({
       const uriSet = new Set(urisToDelete);
       const remainingLibrary = localLibrary.filter((s: any) => !uriSet.has(s.localMusicUri));
 
-      // 1. ローカルファイルの削除
       for (const uri of urisToDelete) {
         try {
           const info = await FileSystem.getInfoAsync(uri);
@@ -198,7 +369,6 @@ export const InfoScreen = ({
         } catch (e) {}
       }
 
-      // 2. プレイリスト内の楽曲リスト更新
       const deletedFilenames = new Set(
         localLibrary
           .filter((s: any) => uriSet.has(s.localMusicUri))
@@ -214,7 +384,6 @@ export const InfoScreen = ({
         };
       });
 
-      // 3. ストレージとStateの反映
       await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
       if (setLocalLibrary) setLocalLibrary(remainingLibrary);
@@ -237,8 +406,8 @@ export const InfoScreen = ({
     }
 
     Alert.alert(
-      '楽曲の一括削除',
-      `選択した ${count} 曲を端末から完全に削除しますか？\n(この操作は取り消せません)`,
+      'ライブラリから楽曲を一括削除',
+      `選択した ${count} 曲をライブラリおよび端末から完全に削除しますか？\n(この操作は取り消せません)`,
       [
         { text: 'キャンセル', style: 'cancel' },
         { 
@@ -250,10 +419,11 @@ export const InfoScreen = ({
     );
   };
 
+  // ★ 単曲削除の文言も統一
   const confirmDeleteSingle = (song: any) => {
     Alert.alert(
-      '楽曲の削除',
-      `「${song.title || 'Untitled'}」を端末から削除しますか？`,
+      'ライブラリから楽曲を削除',
+      `「${song.title || 'Untitled'}」をライブラリおよび端末から完全に削除しますか？\n(この操作は取り消せません)`,
       [
         { text: 'キャンセル', style: 'cancel' },
         { 
@@ -273,7 +443,6 @@ export const InfoScreen = ({
     }
   };
 
-  // ナビゲーションアニメーション補間
   const currentProgress = Animated.subtract(navAnim, Animated.divide(panX, width));
 
   const layerBorderStyle = {
@@ -548,6 +717,21 @@ export const InfoScreen = ({
               thumbColor={"#f4f3f4"}
             />
           </View>
+
+          <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>プレイリストの種類を明記</Text>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>通常(🎵)とスマートプレイリスト(⚡)の識別アイコンを表示します</Text>
+            </View>
+            <Switch 
+              value={showPlaylistTypeIcon} 
+              onValueChange={(val) => toggleShowPlaylistTypeIcon(val)} 
+              trackColor={{ false: "#767577", true: themeColor }}
+              thumbColor={"#f4f3f4"}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -655,7 +839,6 @@ export const InfoScreen = ({
 
   // 4. データ管理画面
   const renderManageData = () => {
-    // ★ 削除ボタンを「完了」ボタンの左隣（ヘッダー右上）に配置
     const selectionHeaderBtn = (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         {isSelectionMode && (
@@ -712,7 +895,6 @@ export const InfoScreen = ({
         <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
         {renderHeader('データを管理', selectionHeaderBtn)}
 
-        {/* 検索バー */}
         <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 }}>
           <View style={{
             flexDirection: 'row',
@@ -741,7 +923,6 @@ export const InfoScreen = ({
           </View>
         </View>
 
-        {/* 選択モード時のコントロールバー */}
         {isSelectionMode && (
           <View style={{
             flexDirection: 'row',
@@ -765,7 +946,6 @@ export const InfoScreen = ({
           </View>
         )}
 
-        {/* 楽曲一覧リスト */}
         <FlatList
           data={filteredLibrary}
           keyExtractor={(item) => item.localMusicUri}
@@ -803,7 +983,6 @@ export const InfoScreen = ({
                 }}
                 activeOpacity={0.7}
               >
-                {/* 選択チェックボックス */}
                 {isSelectionMode && (
                   <View style={{ marginRight: 12 }}>
                     <Ionicons 
@@ -831,44 +1010,244 @@ export const InfoScreen = ({
                   />
                 </View>
 
-                {/* 編集ボタン ＆ 削除ボタン（非選択モード時のみ表示） */}
                 {!isSelectionMode && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <TouchableOpacity 
-                      onPress={() => openEditSong(item)}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="create-outline" size={18} color={themeColor} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity 
-                      onPress={() => confirmDeleteSingle(item)}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                    </TouchableOpacity>
-                  </View>
+                  <AnimatedMenuButton 
+                    onPress={() => openActionSheet(item)}
+                    isDark={isDark}
+                    textStyle={dynamicStyles.text}
+                  />
                 )}
               </TouchableOpacity>
             );
           }}
         />
+
+        {/* アクションメニュー */}
+        <Modal visible={!!actionSheetSong} transparent animationType="none">
+          <TouchableWithoutFeedback onPress={() => closeActionSheet()}>
+            <Animated.View style={{ 
+              flex: 1, 
+              backgroundColor: 'rgba(0,0,0,0.6)', 
+              opacity: sheetAnim, 
+              justifyContent: 'flex-end', 
+              padding: 15, 
+              paddingBottom: 25 + (insets?.bottom || 0) 
+            }}>
+              <TouchableWithoutFeedback>
+                <Animated.View style={{ 
+                  gap: 10,
+                  transform: [{
+                    translateY: sheetAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [300, 0]
+                    })
+                  }]
+                }}>
+                  <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}>
+                      <Image source={actionSheetSong?.localImageUri ? { uri: actionSheetSong.localImageUri } : DEFAULT_ICON} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{actionSheetSong?.title || 'Untitled'}</Text>
+                        <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{actionSheetSong?.artist || 'Unknown Artist'}</Text>
+                      </View>
+                    </View>
+
+                    {/* 1. プレイリストに追加 */}
+                    <TouchableOpacity 
+                      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                      onPress={() => {
+                        const target = actionSheetSong;
+                        closeActionSheet(() => setAddToPlaylistSong(target));
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="add-circle-outline" size={22} color={themeColor} />
+                      <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>プレイリストに追加</Text>
+                    </TouchableOpacity>
+
+                    {/* 2. 編集 */}
+                    <TouchableOpacity 
+                      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                      onPress={() => {
+                        const target = actionSheetSong;
+                        closeActionSheet(() => openEditSong(target));
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="create-outline" size={22} color={themeColor} />
+                      <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>楽曲情報を編集</Text>
+                    </TouchableOpacity>
+
+                    {/* 3. 情報を見る */}
+                    <TouchableOpacity 
+                      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                      onPress={() => {
+                        const target = actionSheetSong;
+                        closeActionSheet(() => setSongInfoModalTarget(target));
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="information-circle-outline" size={22} color={themeColor} />
+                      <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>情報を見る</Text>
+                    </TouchableOpacity>
+
+                    {/* ★ 4. ライブラリから楽曲を削除 */}
+                    <TouchableOpacity 
+                      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+                      onPress={() => {
+                        const target = actionSheetSong;
+                        closeActionSheet(() => confirmDeleteSingle(target));
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                      <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>ライブラリから楽曲を削除</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <AnimatedCancelButton 
+                    onPress={() => closeActionSheet()}
+                    dynamicStyles={dynamicStyles}
+                  />
+                </Animated.View>
+              </TouchableWithoutFeedback>
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+        {/* 簡易MP3タグ情報ポップアップモーダル */}
+        <Modal visible={!!songInfoModalTarget} transparent animationType="none">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <View style={{ width: '100%', maxWidth: 440, maxHeight: '80%', backgroundColor: dynamicStyles.card, borderRadius: 24, padding: 22, borderWidth: 1.5, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="information-circle" size={22} color={themeColor} />
+                  <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold' }}>タグ情報</Text>
+                </View>
+                <TouchableOpacity onPress={() => setSongInfoModalTarget(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Ionicons name="close-circle" size={26} color={dynamicStyles.subText} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 15 }}>
+                <View style={{ alignItems: 'center', marginBottom: 18 }}>
+                  <Image source={songInfoModalTarget?.localImageUri ? { uri: songInfoModalTarget.localImageUri } : DEFAULT_ICON} style={{ width: 90, height: 90, borderRadius: 14, marginBottom: 8 }} />
+                  <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>{songInfoModalTarget?.title || 'Unknown'}</Text>
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 2, textAlign: 'center' }}>{songInfoModalTarget?.artist || 'Unknown'}</Text>
+                </View>
+
+                <View style={{ gap: 10, backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7', padding: 14, borderRadius: 16 }}>
+                  {[
+                    { l: 'アルバム', v: songInfoModalTarget?.album },
+                    { l: 'アルバムアーティスト', v: songInfoModalTarget?.album_artist || songInfoModalTarget?.albumArtist },
+                    { l: '作曲者', v: songInfoModalTarget?.composer },
+                    { l: 'ジャンル', v: songInfoModalTarget?.genre },
+                    { l: 'トラック番号', v: songInfoModalTarget?.track },
+                    { l: 'ディスク番号', v: songInfoModalTarget?.disc },
+                    { l: 'リリース年', v: songInfoModalTarget?.year },
+                    { l: 'BPM', v: songInfoModalTarget?.bpm },
+                    { l: 'コメント', v: songInfoModalTarget?.comment },
+                    { l: 'ファイル名', v: songInfoModalTarget?.musicFilename?.split(/[\\/]/).pop() },
+                    { l: '歌詞', v: songInfoModalTarget?.lyric ? '登録あり' : 'なし' },
+                  ].map((item, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                          <Text style={{ color: dynamicStyles.subText, fontSize: 13, width: 110 }}>{item.l}</Text>
+                      <Text style={{ color: dynamicStyles.text, fontSize: 13, fontWeight: '600', flex: 1, textAlign: 'right' }} numberOfLines={2}>
+                        {item.v !== undefined && item.v !== null && item.v !== '' ? String(item.v) : '—'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* プレイリスト選択モーダル */}
+        <Modal visible={!!addToPlaylistSong} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={[
+              styles.modalOverlay,
+              { 
+                backgroundColor: 'transparent',
+                width: isLandscape ? Math.min(width * 0.9, 600) : '90%',
+                height: isLandscape ? Math.min(height * 0.9, 520) : '80%',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }
+            ]}>
+              <View style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: dynamicStyles.card,
+                borderRadius: 24,
+                padding: 22,
+                borderWidth: 1.5,
+                borderColor: dynamicStyles.border,
+                overflow: 'hidden'
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }} numberOfLines={1}>プレイリストに追加</Text>
+                    <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 3 }} numberOfLines={1}>「{addToPlaylistSong?.title || '曲'}」を追加するリストを選択</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setAddToPlaylistSong(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} activeOpacity={0.6}>
+                    <Ionicons name="close-circle" size={28} color={dynamicStyles.subText} />
+                  </TouchableOpacity>
+                </View>
+
+                <FlatList
+                  data={availablePlaylistsForSong}
+                  keyExtractor={(item) => item.id}
+                  style={{ marginVertical: 8, flex: 1 }}
+                  contentContainerStyle={{ paddingVertical: 8, paddingBottom: 20 }}
+                  ListEmptyComponent={
+                    <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 50 }}>
+                      <Ionicons name="information-circle-outline" size={48} color={dynamicStyles.subText} />
+                      <Text style={{ color: dynamicStyles.subText, marginTop: 12, fontSize: 14, fontWeight: 'bold', textAlign: 'center', lineHeight: 20 }}>
+                        追加可能なプレイリストがありません{'\n'}(すでに全リストに追加済みです)
+                      </Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => {
+                    const isSmart = item.type === 'smart';
+                    const artSource = getPlaylistFirstArt(item, localLibrary);
+                    const count = getPlaylistSongs(item, localLibrary).length;
+
+                    return (
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          padding: 12,
+                          borderRadius: 14,
+                          backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7',
+                          marginBottom: 10,
+                          borderWidth: 1,
+                          borderColor: dynamicStyles.border
+                        }}
+                        onPress={() => handleAddSongToPlaylist(item, addToPlaylistSong)}
+                        activeOpacity={0.6}
+                      >
+                        <Image source={artSource?.uri ? { uri: artSource.uri } : DEFAULT_ICON} style={{ width: 46, height: 46, borderRadius: 8, marginRight: 12 }} />
+                        <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            {showPlaylistTypeIcon && (
+                              <Ionicons name={isSmart ? "flash" : "musical-notes"} size={14} color={themeColor} style={{ marginRight: 5 }} />
+                            )}
+                            <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>{item.playlistName}</Text>
+                          </View>
+                          <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 3 }}>{count}曲 {isSmart ? '• スマート' : ''}</Text>
+                        </View>
+                        <Ionicons name="add" size={22} color={themeColor} />
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   };
@@ -900,7 +1279,6 @@ export const InfoScreen = ({
         {renderHeader('楽曲情報を編集', saveHeaderBtn)}
 
         <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-          {/* ジャケット画像とプレビュー */}
           <View style={{ alignItems: 'center', marginBottom: 25 }}>
             <Image 
               source={editingSong?.localImageUri ? { uri: editingSong.localImageUri } : DEFAULT_ICON} 
@@ -911,191 +1289,44 @@ export const InfoScreen = ({
             </Text>
           </View>
 
-          {/* 入力フォーム */}
           <View style={{ gap: 15 }}>
             <View>
-              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                曲名
-              </Text>
-              <TextInput
-                style={{
-                  height: 48,
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  backgroundColor: dynamicStyles.card,
-                  color: dynamicStyles.text,
-                  fontSize: 15,
-                  fontWeight: '600',
-                  borderWidth: 1,
-                  borderColor: dynamicStyles.border,
-                }}
-                value={editTitle}
-                onChangeText={setEditTitle}
-                placeholder="曲名を入力"
-                placeholderTextColor={dynamicStyles.subText}
-              />
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>曲名</Text>
+              <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, fontWeight: '600', borderWidth: 1, borderColor: dynamicStyles.border }} value={editTitle} onChangeText={setEditTitle} placeholder="曲名を入力" placeholderTextColor={dynamicStyles.subText} />
             </View>
 
             <View>
-              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                アーティスト
-              </Text>
-              <TextInput
-                style={{
-                  height: 48,
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  backgroundColor: dynamicStyles.card,
-                  color: dynamicStyles.text,
-                  fontSize: 15,
-                  borderWidth: 1,
-                  borderColor: dynamicStyles.border,
-                }}
-                value={editArtist}
-                onChangeText={setEditArtist}
-                placeholder="アーティスト名を入力"
-                placeholderTextColor={dynamicStyles.subText}
-              />
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>アーティスト</Text>
+              <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, borderWidth: 1, borderColor: dynamicStyles.border }} value={editArtist} onChangeText={setEditArtist} placeholder="アーティスト名を入力" placeholderTextColor={dynamicStyles.subText} />
             </View>
 
             <View>
-              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                アルバム
-              </Text>
-              <TextInput
-                style={{
-                  height: 48,
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  backgroundColor: dynamicStyles.card,
-                  color: dynamicStyles.text,
-                  fontSize: 15,
-                  borderWidth: 1,
-                  borderColor: dynamicStyles.border,
-                }}
-                value={editAlbum}
-                onChangeText={setEditAlbum}
-                placeholder="アルバム名を入力"
-                placeholderTextColor={dynamicStyles.subText}
-              />
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>アルバム</Text>
+              <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, borderWidth: 1, borderColor: dynamicStyles.border }} value={editAlbum} onChangeText={setEditAlbum} placeholder="アルバム名を入力" placeholderTextColor={dynamicStyles.subText} />
             </View>
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                  トラック番号
-                </Text>
-                <TextInput
-                  style={{
-                    height: 48,
-                    borderRadius: 14,
-                    paddingHorizontal: 14,
-                    backgroundColor: dynamicStyles.card,
-                    color: dynamicStyles.text,
-                    fontSize: 15,
-                    borderWidth: 1,
-                    borderColor: dynamicStyles.border,
-                  }}
-                  value={editTrack}
-                  onChangeText={setEditTrack}
-                  placeholder="1"
-                  placeholderTextColor={dynamicStyles.subText}
-                  keyboardType="number-pad"
-                />
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>トラック番号</Text>
+                <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, borderWidth: 1, borderColor: dynamicStyles.border }} value={editTrack} onChangeText={setEditTrack} placeholder="1" placeholderTextColor={dynamicStyles.subText} keyboardType="number-pad" />
               </View>
-
               <View style={{ flex: 1 }}>
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                  ディスク番号
-                </Text>
-                <TextInput
-                  style={{
-                    height: 48,
-                    borderRadius: 14,
-                    paddingHorizontal: 14,
-                    backgroundColor: dynamicStyles.card,
-                    color: dynamicStyles.text,
-                    fontSize: 15,
-                    borderWidth: 1,
-                    borderColor: dynamicStyles.border,
-                  }}
-                  value={editDisc}
-                  onChangeText={setEditDisc}
-                  placeholder="1"
-                  placeholderTextColor={dynamicStyles.subText}
-                  keyboardType="number-pad"
-                />
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>ディスク番号</Text>
+                <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, borderWidth: 1, borderColor: dynamicStyles.border }} value={editDisc} onChangeText={setEditDisc} placeholder="1" placeholderTextColor={dynamicStyles.subText} keyboardType="number-pad" />
               </View>
-
               <View style={{ flex: 1 }}>
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                  リリース年
-                </Text>
-                <TextInput
-                  style={{
-                    height: 48,
-                    borderRadius: 14,
-                    paddingHorizontal: 14,
-                    backgroundColor: dynamicStyles.card,
-                    color: dynamicStyles.text,
-                    fontSize: 15,
-                    borderWidth: 1,
-                    borderColor: dynamicStyles.border,
-                  }}
-                  value={editYear}
-                  onChangeText={setEditYear}
-                  placeholder="2026"
-                  placeholderTextColor={dynamicStyles.subText}
-                  keyboardType="number-pad"
-                />
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>リリース年</Text>
+                <TextInput style={{ height: 48, borderRadius: 14, paddingHorizontal: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 15, borderWidth: 1, borderColor: dynamicStyles.border }} value={editYear} onChangeText={setEditYear} placeholder="2026" placeholderTextColor={dynamicStyles.subText} keyboardType="number-pad" />
               </View>
             </View>
 
             <View style={{ marginTop: 5 }}>
-              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>
-                歌詞 (Lyrics)
-              </Text>
-              <TextInput
-                style={{
-                  minHeight: 120,
-                  maxHeight: 200,
-                  borderRadius: 14,
-                  padding: 14,
-                  backgroundColor: dynamicStyles.card,
-                  color: dynamicStyles.text,
-                  fontSize: 14,
-                  lineHeight: 20,
-                  borderWidth: 1,
-                  borderColor: dynamicStyles.border,
-                  textAlignVertical: 'top',
-                }}
-                value={editLyric}
-                onChangeText={setEditLyric}
-                placeholder="歌詞を入力..."
-                placeholderTextColor={dynamicStyles.subText}
-                multiline
-              />
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 6, marginLeft: 4 }}>歌詞 (Lyrics)</Text>
+              <TextInput style={{ minHeight: 120, maxHeight: 200, borderRadius: 14, padding: 14, backgroundColor: dynamicStyles.card, color: dynamicStyles.text, fontSize: 14, lineHeight: 20, borderWidth: 1, borderColor: dynamicStyles.border, textAlignVertical: 'top' }} value={editLyric} onChangeText={setEditLyric} placeholder="歌詞を入力..." placeholderTextColor={dynamicStyles.subText} multiline />
             </View>
 
-            <TouchableOpacity
-              style={{
-                height: 52,
-                borderRadius: 26,
-                backgroundColor: themeColor,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 15,
-                shadowColor: themeColor,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 6,
-                elevation: 3,
-              }}
-              onPress={saveEditedSong}
-            >
-              <Text style={{ color: textColor, fontSize: 16, fontWeight: 'bold' }}>
-                変更を保存
-              </Text>
+            <TouchableOpacity style={{ height: 52, borderRadius: 26, backgroundColor: themeColor, justifyContent: 'center', alignItems: 'center', marginTop: 15, shadowColor: themeColor, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3 }} onPress={saveEditedSong}>
+              <Text style={{ color: textColor, fontSize: 16, fontWeight: 'bold' }}>変更を保存</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -1113,33 +1344,14 @@ export const InfoScreen = ({
           <Ionicons name="musical-notes" size={48} color={themeColor} style={{ marginBottom: 12 }} />
           <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
           <Text style={styles.appVersionLabel}>v5.1.0</Text>
-          
           <View style={[styles.divider, { backgroundColor: dynamicStyles.border, marginVertical: 20 }]} />
-          
-          <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>
-            Chordia は PC 版ライブラリとのシームレスな同期と没入感のある音楽再生・作業集中環境を提供する音楽プレイヤーアプリです。
-          </Text>
-
+          <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>Chordia は PC 版ライブラリとのシームレスな同期と没入感のある音楽再生・作業集中環境を提供する音楽プレイヤーアプリです。</Text>
           <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
-
-          <TouchableOpacity 
-            activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}
-            onPress={() => Linking.openURL('https://github.com/BellRin-squirrel/Chordia')}
-          >
+          <TouchableOpacity activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 20, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }} onPress={() => Linking.openURL('https://github.com/BellRin-squirrel/Chordia')}>
             <Ionicons name="logo-github" size={18} color="#8957e5" />
-            <Text style={{ color: '#8957e5', fontSize: 13, fontWeight: 'bold', textDecorationLine: 'underline' }}>
-              GitHub Repository
-            </Text>
+            <Text style={{ color: '#8957e5', fontSize: 13, fontWeight: 'bold', textDecorationLine: 'underline' }}>GitHub Repository</Text>
             <Ionicons name="open-outline" size={12} color="#8957e5" />
           </TouchableOpacity>
-        </View>
-
-        <View style={{ width: '100%', maxWidth: 400, marginTop: 25, backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border }}>
-          <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 10 }}>オープンソースライセンス</Text>
-          <Text style={{ color: dynamicStyles.subText, fontSize: 12, lineHeight: 18 }}>
-            本アプリケーションは、React Native, Expo, React Native Track Player, Expo Audio をはじめとするオープンソースソフトウェアを利用して開発されています。
-          </Text>
         </View>
       </ScrollView>
     </View>
@@ -1164,23 +1376,14 @@ export const InfoScreen = ({
           const d = new Date(item.date);
           const dateStr = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
           return (
-            <View style={{ 
-              flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-              backgroundColor: dynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12,
-              borderWidth: 1, borderColor: dynamicStyles.border,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2
-            }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: dynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: dynamicStyles.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(79, 70, 229, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
                   <Ionicons name="checkmark-done-circle" size={26} color={themeColor} />
                 </View>
                 <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', flex: 1 }}>{dateStr}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: themeColor, fontSize: 17, fontWeight: '900', fontVariant: ['tabular-nums'] }}>
-                  {formatSecToHMS(item.duration)}
-                </Text>
-              </View>
+              <Text style={{ color: themeColor, fontSize: 17, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatSecToHMS(item.duration)}</Text>
             </View>
           );
         }}
@@ -1250,11 +1453,7 @@ export const InfoScreen = ({
       {/* カスタムRGBモーダル */}
       <Modal visible={showRGBModal} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.modalOverlay}>
-          <BlurView 
-            intensity={100} 
-            tint={dynamicStyles.blur} 
-            style={[styles.rgbModalContent, { width: modalContentWidth, padding: 20 }]}
-          >
+          <BlurView intensity={100} tint={dynamicStyles.blur} style={[styles.rgbModalContent, { width: modalContentWidth, padding: 20 }]}>
             <Text style={[styles.modalTitle, { color: dynamicStyles.text, marginBottom: isLandscape ? 10 : 20, fontSize: isLandscape ? 16 : 18 }]}>カスタムカラー設定</Text>
             <View style={{ flexDirection: isLandscape ? 'row' : 'column', alignItems: 'center', justifyContent: 'center' }}>
               <View style={{ alignItems: 'center', marginRight: isLandscape ? 25 : 0, marginBottom: isLandscape ? 0 : 20 }}>

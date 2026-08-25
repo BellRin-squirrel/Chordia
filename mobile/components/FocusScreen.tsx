@@ -8,6 +8,7 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
+import { getPlaylistSongs } from '../utils/playlistEvaluator';
 
 const STORAGE_KEY = 'chordia_focus_settings';
 const HISTORY_KEY = 'chordia_focus_history';
@@ -17,7 +18,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, localPlaylists, currentSong, startQueue, stage, setStage, audioEngine, changeAudioEngine, themeR, themeG, themeB }: any) => {
+export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = [], localPlaylists = [], currentSong, startQueue, stage, setStage, audioEngine, changeAudioEngine, themeR, themeG, themeB }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
@@ -246,7 +247,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary, l
     const shuffle = phase === 'WORK' ? (pomoEnabledRef.current ? playlistRefs.current.workShuffle : playlistRefs.current.mainShuffle) : playlistRefs.current.breakShuffle;
     if (target) {
       const songs = target.type === 'PLAYLIST' 
-        ? (target.data.isAll ? localLibrary : localLibrary.filter((s:any) => target.data.music?.includes(s.musicFilename.split(/[\\/]/).pop())))
+        ? getPlaylistSongs(target.data, localLibrary)
         : target.songs;
       await startQueue(songs, null, shuffle);
     }
