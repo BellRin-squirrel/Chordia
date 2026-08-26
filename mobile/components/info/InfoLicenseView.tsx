@@ -15,7 +15,7 @@ export const InfoLicenseView = ({
         <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border }]}>
           <Ionicons name="musical-notes" size={48} color={themeColor} style={{ marginBottom: 12 }} />
           <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-          <Text style={styles.appVersionLabel}>v5.3.0</Text>
+          <Text style={styles.appVersionLabel}>v5.4.0</Text>
           <View style={[styles.divider, { backgroundColor: dynamicStyles.border, marginVertical: 20 }]} />
           <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>
             Chordia は PC 版ライブラリとのシームレスな同期と没入感のある音楽再生・作業集中環境を提供する音楽プレイヤーアプリです。
