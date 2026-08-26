@@ -271,7 +271,6 @@ export const Library = ({
   const layer1Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -width * 0.25, -width * 0.25], extrapolate: 'clamp' });
   const layer1Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0.4, 0.4], extrapolate: 'clamp' });
   const layer2Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.25], extrapolate: 'clamp' });
-  // ★ 修正: outputRange の要素数を [0, 0, 0.4] に修正
   const layer2Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0, 0.4], extrapolate: 'clamp' });
   const layer3Translate = currentProgress.interpolate({ inputRange: [1, 2], outputRange: [width, 0], extrapolate: 'clamp' });
 
@@ -316,7 +315,7 @@ export const Library = ({
   const handlePressIn = () => { Animated.spring(backButtonScale, { toValue: 1.85, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
 
-  const renderHeader = (title: string) => (
+  const renderHeader = (title: string, rightElement?: React.ReactNode) => (
     <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 }]}>
       <View style={styles.navHeaderLeft}>
         {navStack.length > 1 && (
@@ -331,7 +330,9 @@ export const Library = ({
         )}
       </View>
       <Text style={[styles.navHeaderTitle, { color: dynamicStyles.text }]} numberOfLines={1}>{title}</Text>
-      <View style={styles.navHeaderRight} />
+      <View style={[styles.navHeaderRight, { width: undefined, minWidth: 60, alignItems: 'flex-end', justifyContent: 'center' }]}>
+        {rightElement}
+      </View>
     </View>
   );
 
@@ -389,10 +390,10 @@ export const Library = ({
           {navStack.length > 1 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
               <LibraryCategoryView 
-                category={navStack[1]} dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding}
-                localPlaylists={localPlaylists} albumsList={albumsList} artistsList={artistsList} localLibrary={localLibrary}
+                category={navStack[1]} dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} insets={insets}
+                localPlaylists={localPlaylists} setLocalPlaylists={setLocalPlaylists} albumsList={albumsList} artistsList={artistsList} localLibrary={localLibrary}
                 showPlaylistTypeIcon={showPlaylistTypeIcon} setCurrentSelectionType={setCurrentSelectionType} setCurrentPlaylist={setCurrentPlaylist}
-                setCurrentAlbum={setCurrentAlbum} setCurrentArtist={setCurrentArtist} pushView={pushView} renderHeader={renderHeader}
+                setCurrentAlbum={setCurrentAlbum} setCurrentArtist={setCurrentArtist} pushView={pushView} renderHeader={renderHeader} isDark={isDark}
               />
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>

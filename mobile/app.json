@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chordia",
     "slug": "Chordia",
-    "version": "v5.3.0",
+    "version": "v5.1.0",
     "backgroundColor": "#ffffff",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -25,7 +25,8 @@
           "NSAllowsArbitraryLoads": true
         },
         "NSLocalNetworkUsageDescription": "Desktop版の音楽ライブラリと同期するためにローカルネットワークを使用します。",
-        "NSCameraUsageDescription": "Desktop版Chordiaとの自動接続用QRコードをスキャンするためにカメラを使用します。",
+        "NSCameraUsageDescription": "カバー写真の撮影やDesktop版Chordiaとの接続用QRコードスキャンに使用します。",
+        "NSPhotoLibraryUsageDescription": "プレイリストのカバー画像を選択するために写真ライブラリを使用します。",
         "NSBonjourServices": [
           "_http._tcp."
         ],
@@ -37,7 +38,10 @@
       "permissions": [
         "WAKE_LOCK",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
@@ -70,6 +74,13 @@
         {
           "enableBackgroundPlayback": true,
           "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "プレイリストのカバー画像を選択するために写真へのアクセスを許可してください。",
+          "cameraPermission": "カバー写真を撮影するためにカメラへのアクセスを許可してください。"
         }
       ]
     ],
