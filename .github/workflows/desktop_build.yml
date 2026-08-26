@@ -1,4 +1,4 @@
-name: Build Chordia Artifacts by BellRin
+name: Build Chordia Desktop
 
 on:
   workflow_dispatch: # 手動実行用
