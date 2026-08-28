@@ -2,23 +2,26 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../../styles/styles';
+import { t } from '../../utils/i18n';
 
 export const InfoLicenseView = ({
-  dynamicStyles, themeColor, isDark, safePadding, renderHeader
+  dynamicStyles, themeColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
-      {renderHeader('ライセンス・バージョン')}
+      {renderHeader(t('license_title', language))}
       
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 20, alignItems: 'center' }]}>
         <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border }]}>
           <Ionicons name="musical-notes" size={48} color={themeColor} style={{ marginBottom: 12 }} />
-          <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-          <Text style={styles.appVersionLabel}>v5.4.0</Text>
+          <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>
+            {t('app_name', language)}
+          </Text>
+          <Text style={styles.appVersionLabel}>v5.5.0</Text>
           <View style={[styles.divider, { backgroundColor: dynamicStyles.border, marginVertical: 20 }]} />
           <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>
-            Chordia は PC 版ライブラリとのシームレスな同期と没入感のある音楽再生・作業集中環境を提供する音楽プレイヤーアプリです。
+            {t('app_desc', language)}
           </Text>
           <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
           <TouchableOpacity 
@@ -33,9 +36,11 @@ export const InfoLicenseView = ({
         </View>
 
         <View style={{ width: '100%', maxWidth: 400, marginTop: 25, backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border }}>
-          <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 10 }}>オープンソースライセンス</Text>
+          <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 10 }}>
+            {t('oss_license_title', language)}
+          </Text>
           <Text style={{ color: dynamicStyles.subText, fontSize: 12, lineHeight: 18 }}>
-            本アプリケーションは、React Native, Expo, React Native Track Player, Expo Audio をはじめとするオープンソースソフトウェアを利用して開発されています。
+            {t('oss_license_desc', language)}
           </Text>
         </View>
       </ScrollView>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { LanguageCode } from '../utils/i18n';
 
 export const useLibraryData = () => {
   const colorScheme = useColorScheme();
@@ -18,6 +19,10 @@ export const useLibraryData = () => {
   const [showFocusTab, setShowFocusTab] = useState(true);
   const [showSyncTab, setShowSyncTab] = useState(true);
   const [showPlaylistTypeIcon, setShowPlaylistTypeIcon] = useState(true);
+
+  // ★ 言語設定用 State
+  const [language, setLanguage] = useState<LanguageCode>('ja');
+  const [isLanguageSelected, setIsLanguageSelected] = useState<boolean | null>(null);
 
   const themeColor = `rgb(${themeR}, ${themeG}, ${themeB})`;
   const themeTextColor = (themeR * 299 + themeG * 587 + themeB * 114) / 1000 >= 150 ? '#000000' : '#ffffff';
@@ -44,6 +49,7 @@ export const useLibraryData = () => {
         const focusState = await AsyncStorage.getItem('show_focus_tab');
         const syncState = await AsyncStorage.getItem('show_sync_tab');
         const iconState = await AsyncStorage.getItem('show_playlist_type_icon');
+        const savedLang = await AsyncStorage.getItem('app_language');
         
         const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         const fixUri = (uri: string | null | undefined) => {
@@ -75,17 +81,20 @@ export const useLibraryData = () => {
         if (custom === 'true') setIsCustomTheme(true);
         if (recent) setRecentColors(JSON.parse(recent));
         
-        if (focusState !== null) {
-          setShowFocusTab(focusState === 'true');
-        }
-        if (syncState !== null) {
-          setShowSyncTab(syncState === 'true');
-        }
-        if (iconState !== null) {
-          setShowPlaylistTypeIcon(iconState === 'true');
+        if (focusState !== null) setShowFocusTab(focusState === 'true');
+        if (syncState !== null) setShowSyncTab(syncState === 'true');
+        if (iconState !== null) setShowPlaylistTypeIcon(iconState === 'true');
+
+        // 言語設定の確認
+        if (savedLang) {
+          setLanguage(savedLang as LanguageCode);
+          setIsLanguageSelected(true);
+        } else {
+          setIsLanguageSelected(false);
         }
       } catch (e) {
         console.error("Storage Load Error:", e);
+        setIsLanguageSelected(false);
       }
     })();
   }, []);
@@ -121,11 +130,19 @@ export const useLibraryData = () => {
     await AsyncStorage.setItem('show_playlist_type_icon', newValue ? 'true' : 'false');
   };
 
+  // ★ 言語変更・保存処理
+  const changeLanguage = async (newLang: LanguageCode) => {
+    setLanguage(newLang);
+    setIsLanguageSelected(true);
+    await AsyncStorage.setItem('app_language', newLang);
+  };
+
   return { 
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme, 
     recentColors, showRGBModal, setShowRGBModal, setThemeR, setThemeG, setThemeB, 
     setIsCustomTheme, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists, 
     saveColor, applyCustomColor, showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,
-    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon
+    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon,
+    language, isLanguageSelected, changeLanguage
   };
 };

@@ -3,10 +3,11 @@ import { View, Text, TouchableOpacity, Animated, useWindowDimensions } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { t } from '../utils/i18n';
 
 const INDICATOR_MARGIN = 6;
 
-export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, isDark, isBlurBackground, showFocusTab, showSyncTab }: any) => {
+export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, isDark, isBlurBackground, showFocusTab, showSyncTab, language = 'ja' }: any) => {
   const tabIndicatorAnim = useRef(new Animated.Value(1)).current;
   const [containerLayout, setContainerLayout] = useState({ width: 0, height: 0 });
   const { width, height } = useWindowDimensions();
@@ -15,10 +16,10 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, is
   const textColor = themeTextColor || '#ffffff';
 
   const tabs = [
-    ...(showSyncTab !== false ? [{ key: 'SYNC', label: '同期', icon: 'cloud-download' }] : []),
-    { key: 'PLAYER', label: '再生', icon: 'play-circle' },
-    ...(showFocusTab ? [{ key: 'FOCUS', label: '作業', icon: 'timer' }] : []),
-    { key: 'INFO', label: '情報', icon: 'information-circle' }
+    ...(showSyncTab !== false ? [{ key: 'SYNC', label: t('tab_sync', language), icon: 'cloud-download' }] : []),
+    { key: 'PLAYER', label: t('tab_player', language), icon: 'play-circle' },
+    ...(showFocusTab ? [{ key: 'FOCUS', label: t('tab_focus', language), icon: 'timer' }] : []),
+    { key: 'INFO', label: t('tab_info', language), icon: 'information-circle' }
   ];
 
   const tabCount = tabs.length;
@@ -28,7 +29,7 @@ export const TabBar = ({ activeTab, setActiveTab, themeColor, themeTextColor, is
     if (index !== -1) {
         Animated.spring(tabIndicatorAnim, { toValue: index, useNativeDriver: true, bounciness: 8 }).start();
     }
-  }, [activeTab, showFocusTab, showSyncTab]);
+  }, [activeTab, showFocusTab, showSyncTab, language]);
 
   const onLayout = (event: any) => {
     setContainerLayout({

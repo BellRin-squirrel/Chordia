@@ -3,8 +3,15 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, M
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import { styles } from '../styles/styles';
+import { t } from '../utils/i18n';
 
-export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStage, setSyncStage, serverIp, setServerIp, serverPort, setServerPort, authCodeInput, setAuthCodeInput, showCamera, setShowCamera, requestCameraPermission, pcPlaylists, selectedPls, setSelectedPls, isSyncing, isDark, requestAuthToPC, verifyAuthCode, startSyncDownload, cancelSync, disconnect, setScannedQrData, clientInfo, insets, currentSong }: any) => {
+export const SyncScreen = ({ 
+  dynamicStyles, themeColor, themeTextColor, syncStage, setSyncStage, 
+  serverIp, setServerIp, serverPort, setServerPort, authCodeInput, setAuthCodeInput, 
+  showCamera, setShowCamera, requestCameraPermission, pcPlaylists, selectedPls, setSelectedPls, 
+  isSyncing, isDark, requestAuthToPC, verifyAuthCode, startSyncDownload, cancelSync, disconnect, 
+  setScannedQrData, clientInfo, insets, currentSong, language = 'ja' 
+}: any) => {
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -16,7 +23,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
   const [wanUrlInput, setWanUrlInput] = useState('');
 
   const selectAll = () => {
-    const allIndices = new Set(pcPlaylists.map((_, i: number) => i));
+    const allIndices = new Set(pcPlaylists.map((_: any, i: number) => i));
     setSelectedPls(allIndices);
   };
 
@@ -27,7 +34,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
   return (
     <View style={{flex:1, backgroundColor: dynamicStyles.bg}}>
       <View style={[styles.headerBar, {backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0)}]}>
-        <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>同期</Text>
+        <Text style={[styles.headerTitle, {color: dynamicStyles.text}]}>{t('tab_sync', language)}</Text>
       </View>
       
       {syncStage === 'INPUT_IP' && (
@@ -47,20 +54,20 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
                     style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: syncMode === 'LAN' ? themeColor : 'transparent' }}
                     onPress={() => setSyncMode('LAN')}
                   >
-                    <Text style={{ color: syncMode === 'LAN' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>LAN (同じWi-Fi)</Text>
+                    <Text style={{ color: syncMode === 'LAN' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>{t('sync_mode_lan', language)}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: syncMode === 'WAN' ? themeColor : 'transparent' }}
                     onPress={() => setSyncMode('WAN')}
                   >
-                    <Text style={{ color: syncMode === 'WAN' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>WAN (外出先/HTTPS)</Text>
+                    <Text style={{ color: syncMode === 'WAN' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>{t('sync_mode_wan', language)}</Text>
                   </TouchableOpacity>
                 </View>
 
                 <View style={[styles.syncCard, {backgroundColor: dynamicStyles.card, margin: 0}]}>
                     <View style={{alignItems: 'center', marginBottom: 15}}>
                       <Text style={{color: dynamicStyles.subText, fontSize: 12}}>
-                        このデバイス: {clientInfo?.deviceName || '取得中...'} ({clientInfo?.osVersion || '取得中...'})
+                        {t('this_device', language)}: {clientInfo?.deviceName || t('getting_info', language)} ({clientInfo?.osVersion || t('getting_info', language)})
                       </Text>
                     </View>
 
@@ -74,7 +81,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
                       }}>
                       <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
                         <Ionicons name="qr-code-outline" size={20} color="#fff" />
-                        <Text style={styles.btnText}>QRコードで自動接続</Text>
+                        <Text style={styles.btnText}>{t('qr_auto_connect', language)}</Text>
                       </View>
                     </TouchableOpacity>
                     
@@ -82,41 +89,39 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
                     
                     {syncMode === 'LAN' ? (
                       <>
-                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>手動で接続する (LAN)</Text>
+                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>{t('manual_connect_lan', language)}</Text>
                         <View style={{flexDirection: 'row', gap: 10, marginBottom: 10}}>
                             <View style={{flex: 3}}>
-                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>IPアドレス</Text>
+                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>{t('ip_address', language)}</Text>
                                 <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="192.168.0.x" placeholderTextColor="#888" value={serverIp} onChangeText={setServerIp} keyboardType="decimal-pad" />
                             </View>
                             <View style={{flex: 1.2}}>
-                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>ポート</Text>
+                                <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>{t('port', language)}</Text>
                                 <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="5000" placeholderTextColor="#888" value={serverPort} onChangeText={setServerPort} keyboardType="number-pad" maxLength={5} />
                             </View>
                         </View>
-                        {/* ★ ボタン文字色をコントラスト連動 */}
                         <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor}]} onPress={() => { Keyboard.dismiss(); requestAuthToPC(serverIp, serverPort); }}>
-                          <Text style={[styles.btnText, { color: textColor }]}>PCに接続要求</Text>
+                          <Text style={[styles.btnText, { color: textColor }]}>{t('request_connect_pc', language)}</Text>
                         </TouchableOpacity>
                       </>
                     ) : (
                       <>
-                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>手動で接続する (WAN / HTTPSトンネル)</Text>
+                        <Text style={{color: dynamicStyles.text, marginBottom: 10, fontWeight: 'bold'}}>{t('manual_connect_wan', language)}</Text>
                         <View style={{marginBottom: 10}}>
-                            <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>PC画面の WAN パブリック URL</Text>
+                            <Text style={{color: dynamicStyles.subText, fontSize: 11, marginBottom: 4}}>{t('wan_public_url_label', language)}</Text>
                             <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0}]} placeholder="https://xxxx.lhr.life" placeholderTextColor="#888" value={wanUrlInput} onChangeText={setWanUrlInput} autoCapitalize="none" keyboardType="url" />
                         </View>
-                        {/* ★ ボタン文字色をコントラスト連動 */}
                         <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor}]} onPress={() => { 
                           Keyboard.dismiss(); 
                           if (!wanUrlInput.trim() || (!wanUrlInput.startsWith('http://') && !wanUrlInput.startsWith('https://'))) {
-                            Alert.alert("エラー", "正しい WAN パブリック URL (https://...) を入力してください");
+                            Alert.alert(t('alert_timer_error_title', language), t('invalid_wan_url', language));
                             return;
                           }
                           setServerIp(wanUrlInput.trim());
                           setServerPort('');
                           requestAuthToPC(wanUrlInput.trim(), ''); 
                         }}>
-                          <Text style={[styles.btnText, { color: textColor }]}>WAN 接続要求</Text>
+                          <Text style={[styles.btnText, { color: textColor }]}>{t('wan_connect_btn', language)}</Text>
                         </TouchableOpacity>
                       </>
                     )}
@@ -131,8 +136,8 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
       {syncStage === 'AWAITING_APPROVAL' && (
         <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40}}>
             <ActivityIndicator size="large" color={themeColor} />
-            <Text style={{color: dynamicStyles.text, marginTop: 20, textAlign: 'center', fontSize: 16, fontWeight: 'bold'}}>PC側で接続を許可してください...</Text>
-            <TouchableOpacity style={{marginTop: 40}} onPress={cancelSync}><Text style={{color: themeColor, fontSize: 16}}>キャンセル</Text></TouchableOpacity>
+            <Text style={{color: dynamicStyles.text, marginTop: 20, textAlign: 'center', fontSize: 16, fontWeight: 'bold'}}>{t('awaiting_approval_msg', language)}</Text>
+            <TouchableOpacity style={{marginTop: 40}} onPress={cancelSync}><Text style={{color: themeColor, fontSize: 16}}>{t('cancel', language)}</Text></TouchableOpacity>
         </View>
       )}
 
@@ -148,13 +153,12 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
                 <View style={[styles.syncCard, {backgroundColor: dynamicStyles.card, margin: 0}]}>
-                    <Text style={{color: dynamicStyles.text, marginBottom: 15, fontSize: 16, fontWeight: 'bold'}}>PCに表示された6桁のコードを入力してください。</Text>
+                    <Text style={{color: dynamicStyles.text, marginBottom: 15, fontSize: 16, fontWeight: 'bold'}}>{t('awaiting_code_msg', language)}</Text>
                     <TextInput style={[styles.input, {backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, fontSize: 32, textAlign: 'center', letterSpacing: 8, fontWeight: '800'}]} placeholder="000000" placeholderTextColor="#888" maxLength={6} value={authCodeInput} onChangeText={setAuthCodeInput} keyboardType="number-pad" />
-                    {/* ★ ボタン文字色をコントラスト連動 */}
                     <TouchableOpacity style={[styles.smallBtn, {backgroundColor: themeColor, marginBottom: 10}]} onPress={() => { Keyboard.dismiss(); verifyAuthCode(serverIp, serverPort, authCodeInput); }}>
-                      <Text style={[styles.btnText, { color: textColor }]}>認証する</Text>
+                      <Text style={[styles.btnText, { color: textColor }]}>{t('verify_code_btn', language)}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={{marginTop: 15, alignItems: 'center'}} onPress={cancelSync}><Text style={{color: themeColor}}>やり直す</Text></TouchableOpacity>
+                    <TouchableOpacity style={{marginTop: 15, alignItems: 'center'}} onPress={cancelSync}><Text style={{color: themeColor}}>{t('retry_btn', language)}</Text></TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
@@ -176,10 +180,10 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
             }} 
             ListHeaderComponent={
                 <View style={{paddingHorizontal: 20, paddingBottom: 10, gap: 10}}>
-                   <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#6b7280' }]} onPress={disconnect}><Text style={styles.btnText}>接続を解除</Text></TouchableOpacity>
+                   <TouchableOpacity style={[styles.smallBtn, { backgroundColor: '#6b7280' }]} onPress={disconnect}><Text style={styles.btnText}>{t('disconnect_btn', language)}</Text></TouchableOpacity>
                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', flex: 1, height: 40 }]} onPress={selectAll}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>すべて選択</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', flex: 1, height: 40 }]} onPress={deselectAll}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>選択解除</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', flex: 1, height: 40 }]} onPress={selectAll}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('select_all', language)}</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', flex: 1, height: 40 }]} onPress={deselectAll}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('deselect_all', language)}</Text></TouchableOpacity>
                    </View>
                 </View>
             }
@@ -191,13 +195,12 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
             )}
             ListFooterComponent={pcPlaylists.length > 0 ? (
                     <View style={[styles.syncFooterContainer, isLandscape && { flexDirection: 'row', justifyContent: 'center', gap: 15 }]}>
-                        {/* ★ ボタン文字色をコントラスト連動 */}
                         <TouchableOpacity 
                           style={[styles.syncActionBtn, {backgroundColor: themeColor, flex: isLandscape ? 1 : 0, paddingHorizontal: 15}]} 
                           onPress={() => startSyncDownload('KEEP_DUPLICATES')}
                         >
                           <Text style={[styles.syncActionBtnText, { color: textColor, fontSize: 13, textAlign: 'center' }]} numberOfLines={2}>
-                            重複した所持している楽曲をそのままにして同期
+                            {t('sync_keep_duplicates', language)}
                           </Text>
                         </TouchableOpacity>
 
@@ -205,7 +208,7 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
                           style={[styles.syncActionBtn, {backgroundColor: '#ef4444', flex: isLandscape ? 1 : 0, paddingHorizontal: 15}]} 
                           onPress={() => startSyncDownload('DELETE_ALL')}
                         >
-                          <Text style={styles.syncActionBtnText}>削除して同期</Text>
+                          <Text style={styles.syncActionBtnText}>{t('sync_delete_all', language)}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : null
@@ -234,15 +237,15 @@ export const SyncScreen = ({ dynamicStyles, themeColor, themeTextColor, syncStag
                                 }
                               } catch(e) { 
                                 Alert.alert(
-                                  "エラー", 
-                                  "無効なQRコードです",
-                                  [{ text: "OK", onPress: () => { isProcessingQr.current = false; } }]
+                                  t('alert_timer_error_title', language), 
+                                  t('invalid_qr_code', language),
+                                  [{ text: t('confirm', language), onPress: () => { isProcessingQr.current = false; } }]
                                 ); 
                               }
                           }} 
                       />
                   </View>
-                  <TouchableOpacity style={{padding: 20, alignItems: 'center'}} onPress={() => setShowCamera(false)}><Text style={{color: '#fff', fontSize: 18}}>キャンセル</Text></TouchableOpacity>
+                  <TouchableOpacity style={{padding: 20, alignItems: 'center'}} onPress={() => setShowCamera(false)}><Text style={{color: '#fff', fontSize: 18}}>{t('cancel', language)}</Text></TouchableOpacity>
               </SafeAreaView>
           </Modal>
       )}

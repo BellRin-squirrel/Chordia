@@ -11,12 +11,12 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { styles } from '../../styles/styles';
 import { MarqueeText } from '../MarqueeText';
-import { getPlaylistFirstArt } from '../../utils/playlistEvaluator';
+import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { SmartPlaylistEditorModal } from './SmartPlaylistEditorModal';
+import { t } from '../../utils/i18n';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
-// アニメーション付き三点ボタン
 const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
@@ -39,8 +39,7 @@ const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
   );
 };
 
-// アニメーション付きキャンセルボタン
-const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
+const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
@@ -57,7 +56,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
         borderColor: dynamicStyles.border,
         transform: [{ scale }]
       }}>
-        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>キャンセル</Text>
+        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{label || 'キャンセル'}</Text>
       </Animated.View>
     </TouchableWithoutFeedback>
   );
@@ -67,12 +66,11 @@ export const LibraryCategoryView = ({
   category, dynamicStyles, themeColor, safePadding, insets,
   localPlaylists = [], setLocalPlaylists, albumsList, artistsList, localLibrary = [],
   showPlaylistTypeIcon, setCurrentSelectionType, setCurrentPlaylist,
-  setCurrentAlbum, setCurrentArtist, pushView, renderHeader, isDark
+  setCurrentAlbum, setCurrentArtist, pushView, renderHeader, isDark, language = 'ja'
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
-  // モーダル・アクションメニュー管理用 State
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [rowActionTarget, setRowActionTarget] = useState<any>(null);
   const [coverPickerTarget, setCoverPickerTarget] = useState<any>(null);
@@ -80,23 +78,19 @@ export const LibraryCategoryView = ({
   const sheetAnimRow = useRef(new Animated.Value(0)).current;
   const sheetAnimCover = useRef(new Animated.Value(0)).current;
 
-  // 新規通常プレイリスト作成用 State
   const [createNameModalVisible, setCreateNameModalVisible] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [selectSongsModalVisible, setSelectSongsModalVisible] = useState(false);
   const [selectedSongFilenames, setSelectedSongFilenames] = useState<Set<string>>(new Set());
   const [songSearchQuery, setSongSearchQuery] = useState('');
 
-  // プレイリストの曲編集用 State
   const [editSongsTargetPl, setEditSongsTargetPl] = useState<any>(null);
   const [editSongsSelectedFilenames, setEditSongsSelectedFilenames] = useState<Set<string>>(new Set());
   const [editSongsSearchQuery, setEditSongsSearchQuery] = useState('');
 
-  // 名前変更用 State
   const [renameTarget, setRenameTarget] = useState<any>(null);
   const [renameInput, setRenameInput] = useState('');
 
-  // スマートプレイリスト作成・編集モーダル用 State
   const [smartEditorConfig, setSmartEditorConfig] = useState<{
     visible: boolean;
     mode: 'CREATE' | 'EDIT';
@@ -106,10 +100,9 @@ export const LibraryCategoryView = ({
   const isPlaylistsTab = category === 'PLAYLISTS';
 
   const data = isPlaylistsTab 
-    ? [{ playlistName: 'すべての楽曲', isAll: true, id: 'all_songs', type: 'normal' }, ...localPlaylists] 
+    ? [{ playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs', type: 'normal' }, ...localPlaylists] 
     : category === 'ALBUMS' ? albumsList : artistsList;
 
-  // ヘッダー3点メニューの開閉
   const openHeaderMenu = () => {
     setHeaderMenuVisible(true);
     sheetAnimHeader.setValue(0);
@@ -123,7 +116,6 @@ export const LibraryCategoryView = ({
     });
   };
 
-  // 各行3点メニューの開閉
   const openRowActionSheet = (item: any) => {
     setRowActionTarget(item);
     sheetAnimRow.setValue(0);
@@ -137,7 +129,6 @@ export const LibraryCategoryView = ({
     });
   };
 
-  // カバー画像選択メニューの開閉
   const openCoverPickerSheet = (target: any) => {
     setCoverPickerTarget(target);
     sheetAnimCover.setValue(0);
@@ -151,7 +142,6 @@ export const LibraryCategoryView = ({
     });
   };
 
-  // ★ カバー画像の永続化と更新保存処理
   const applyCoverImage = async (targetPl: any, sourceUri: string | null) => {
     if (!targetPl) return;
 
@@ -181,18 +171,17 @@ export const LibraryCategoryView = ({
       const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
       if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
-      Alert.alert('完了', sourceUri ? 'カバー画像を変更しました。' : 'カバー画像をデフォルトに戻しました。');
+      Alert.alert(t('confirm', language), sourceUri ? t('cover_updated', language) : t('cover_reset', language));
     } catch (e: any) {
-      Alert.alert('エラー', '画像の保存に失敗しました: ' + e.message);
+      Alert.alert(t('alert_timer_error_title', language), e.message);
     }
   };
 
-  // 1. 写真ライブラリから選択
   const pickFromLibrary = async (targetPl: any) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('権限が必要です', '写真へのアクセスを許可してください。');
+        Alert.alert(t('permission_required', language), t('permission_photos_desc', language));
         return;
       }
 
@@ -207,16 +196,15 @@ export const LibraryCategoryView = ({
         await applyCoverImage(targetPl, result.assets[0].uri);
       }
     } catch (e: any) {
-      Alert.alert('エラー', '写真の読み込みに失敗しました: ' + e.message);
+      Alert.alert(t('alert_timer_error_title', language), e.message);
     }
   };
 
-  // 2. カメラで撮影
   const pickFromCamera = async (targetPl: any) => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('権限が必要です', 'カメラへのアクセスを許可してください。');
+        Alert.alert(t('permission_required', language), t('permission_camera_desc', language));
         return;
       }
 
@@ -230,11 +218,10 @@ export const LibraryCategoryView = ({
         await applyCoverImage(targetPl, result.assets[0].uri);
       }
     } catch (e: any) {
-      Alert.alert('エラー', 'カメラの起動に失敗しました: ' + e.message);
+      Alert.alert(t('alert_timer_error_title', language), e.message);
     }
   };
 
-  // 3. ファイルアプリから選択
   const pickFromDocuments = async (targetPl: any) => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -246,14 +233,13 @@ export const LibraryCategoryView = ({
         await applyCoverImage(targetPl, result.assets[0].uri);
       }
     } catch (e: any) {
-      Alert.alert('エラー', 'ファイルの取得に失敗しました: ' + e.message);
+      Alert.alert(t('alert_timer_error_title', language), e.message);
     }
   };
 
-  // 通常プレイリスト新規作成
   const handleProceedToSongSelection = () => {
     if (!newPlaylistName.trim()) {
-      Alert.alert('エラー', 'プレイリスト名を入力してください。');
+      Alert.alert(t('alert_timer_error_title', language), t('new_playlist_modal_desc', language));
       return;
     }
     setCreateNameModalVisible(false);
@@ -282,10 +268,9 @@ export const LibraryCategoryView = ({
     setSelectSongsModalVisible(false);
     setNewPlaylistName('');
     setSelectedSongFilenames(new Set());
-    Alert.alert('作成完了', `プレイリスト「${name}」を作成しました。`);
+    Alert.alert(t('confirm', language), t('playlist_created_alert', language).replace('{name}', name));
   };
 
-  // スマートプレイリストの作成・編集保存ハンドラー
   const handleSaveSmartPlaylist = async (name: string, conditions: any) => {
     if (smartEditorConfig.mode === 'CREATE') {
       const newSmartPl = {
@@ -300,7 +285,7 @@ export const LibraryCategoryView = ({
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
       if (setLocalPlaylists) setLocalPlaylists(updated);
       setSmartEditorConfig({ visible: false, mode: 'CREATE', targetPlaylist: null });
-      Alert.alert('作成完了', `スマートプレイリスト「${name}」を作成しました。`);
+      Alert.alert(t('confirm', language), t('smart_playlist_created_alert', language).replace('{name}', name));
     } else {
       const target = smartEditorConfig.targetPlaylist;
       if (!target) return;
@@ -318,25 +303,24 @@ export const LibraryCategoryView = ({
       if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
       setSmartEditorConfig({ visible: false, mode: 'EDIT', targetPlaylist: null });
-      Alert.alert('保存完了', `「${target.playlistName}」のルールを更新しました。`);
+      Alert.alert(t('confirm', language), t('rules_saved_alert', language).replace('{name}', target.playlistName));
     }
   };
 
-  // スマートプレイリストを通常のプレイリストに手動変換する処理
   const handleConvertToNormalPlaylist = (targetPl: any) => {
     Alert.alert(
-      '通常のプレイリストに変換',
-      `「${targetPl.playlistName}」を通常のプレイリストに変換しますか？\n\n現在ルールで自動収集されている曲一覧が固定のプレイリストとして保持され、自動更新は停止します。\n(※端末内の楽曲ファイルは削除されません)`,
+      t('convert_smart_confirm_title', language),
+      t('convert_smart_confirm_desc', language).replace('{name}', targetPl.playlistName),
       [
-        { text: 'キャンセル', style: 'cancel' },
+        { text: t('cancel', language), style: 'cancel' },
         {
-          text: '変換する',
+          text: t('convert_confirm_btn', language),
           style: 'destructive',
           onPress: async () => {
             try {
               const currentSongs = getPlaylistSongs(targetPl, localLibrary);
               const currentFilenames = currentSongs
-                .map((s: any) => s.musicFilename?.split(/[\\/]/).pop())
+                .map((sVal: any) => sVal.musicFilename?.split(/[\\/]/).pop())
                 .filter(Boolean);
 
               const updated = localPlaylists.map((pl: any) => {
@@ -357,9 +341,9 @@ export const LibraryCategoryView = ({
               const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
               if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
-              Alert.alert('変換完了', `「${targetPl.playlistName}」を通常のプレイリストに変換しました。`);
+              Alert.alert(t('confirm', language), t('convert_smart_done', language).replace('{name}', targetPl.playlistName));
             } catch (e: any) {
-              Alert.alert('エラー', '変換に失敗しました: ' + e.message);
+              Alert.alert(t('alert_timer_error_title', language), e.message);
             }
           }
         }
@@ -367,7 +351,6 @@ export const LibraryCategoryView = ({
     );
   };
 
-  // プレイリストの曲編集
   const openEditPlaylistSongsModal = (targetPl: any) => {
     const musicList = Array.isArray(targetPl.music) ? targetPl.music : [];
     const fnames = musicList.map((m: any) => {
@@ -400,25 +383,23 @@ export const LibraryCategoryView = ({
     if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
     setEditSongsTargetPl(null);
-    Alert.alert('保存完了', `「${editSongsTargetPl.playlistName}」の収録曲を更新しました。`);
+    Alert.alert(t('confirm', language), t('tracks_updated_alert', language).replace('{name}', editSongsTargetPl.playlistName));
   };
 
-  // プレイリスト複製
   const handleDuplicatePlaylist = async (targetPl: any) => {
     const newPl = {
       ...targetPl,
       id: 'pl_' + Date.now(),
-      playlistName: `${targetPl.playlistName} のコピー`,
+      playlistName: `${targetPl.playlistName} (${t('keep_label', language).replace(/[<>]/g, '')})`,
     };
 
     const updated = [...localPlaylists, newPl];
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
     if (setLocalPlaylists) setLocalPlaylists(updated);
 
-    Alert.alert('複製完了', `「${newPl.playlistName}」を作成しました。`);
+    Alert.alert(t('confirm', language), t('playlist_duplicated_alert', language).replace('{name}', newPl.playlistName));
   };
 
-  // 名前変更保存
   const handleSaveRename = async () => {
     if (!renameTarget || !renameInput.trim()) return;
 
@@ -436,15 +417,14 @@ export const LibraryCategoryView = ({
     setRenameInput('');
   };
 
-  // プレイリスト削除
   const handleDeletePlaylist = (targetPl: any) => {
     Alert.alert(
-      'プレイリストの削除',
-      `プレイリスト「${targetPl.playlistName}」を削除しますか？\n(端末内の楽曲ファイルは削除されません)`,
+      t('delete_playlist_confirm_title', language),
+      t('delete_playlist_confirm_desc', language).replace('{name}', targetPl.playlistName),
       [
-        { text: 'キャンセル', style: 'cancel' },
+        { text: t('cancel', language), style: 'cancel' },
         {
-          text: '削除する',
+          text: t('delete_confirm_btn', language),
           style: 'destructive',
           onPress: async () => {
             const updated = localPlaylists.filter((pl: any) => pl.id !== targetPl.id);
@@ -459,16 +439,16 @@ export const LibraryCategoryView = ({
   const filteredSongsForCreate = useMemo(() => {
     if (!songSearchQuery.trim()) return localLibrary;
     const q = songSearchQuery.toLowerCase();
-    return localLibrary.filter((s: any) => 
-      s.title?.toLowerCase().includes(q) || s.artist?.toLowerCase().includes(q) || s.album?.toLowerCase().includes(q)
+    return localLibrary.filter((sVal: any) => 
+      sVal.title?.toLowerCase().includes(q) || sVal.artist?.toLowerCase().includes(q) || sVal.album?.toLowerCase().includes(q)
     );
   }, [localLibrary, songSearchQuery]);
 
   const filteredSongsForEdit = useMemo(() => {
     if (!editSongsSearchQuery.trim()) return localLibrary;
     const q = editSongsSearchQuery.toLowerCase();
-    return localLibrary.filter((s: any) => 
-      s.title?.toLowerCase().includes(q) || s.artist?.toLowerCase().includes(q) || s.album?.toLowerCase().includes(q)
+    return localLibrary.filter((sVal: any) => 
+      sVal.title?.toLowerCase().includes(q) || sVal.artist?.toLowerCase().includes(q) || sVal.album?.toLowerCase().includes(q)
     );
   }, [localLibrary, editSongsSearchQuery]);
 
@@ -480,11 +460,17 @@ export const LibraryCategoryView = ({
     />
   ) : undefined;
 
+  const getHeaderTitle = () => {
+    if (category === 'PLAYLISTS') return t('cat_playlists', language);
+    if (category === 'ALBUMS') return t('cat_albums', language);
+    return t('cat_artists', language);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
 
-      {renderHeader(category === 'PLAYLISTS' ? 'プレイリスト' : category === 'ALBUMS' ? 'アルバム' : 'アーティスト', headerRightButton)}
+      {renderHeader(getHeaderTitle(), headerRightButton)}
 
       <FlatList
         key={category}
@@ -586,7 +572,7 @@ export const LibraryCategoryView = ({
                     activeOpacity={0.6}
                   >
                     <Ionicons name="add-circle-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>プレイリストを新規作成</Text>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('create_new_playlist', language)}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity 
@@ -599,11 +585,11 @@ export const LibraryCategoryView = ({
                     activeOpacity={0.6}
                   >
                     <Ionicons name="flash-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>スマートプレイリストを新規作成</Text>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('create_smart_playlist', language)}</Text>
                   </TouchableOpacity>
                 </View>
 
-                <AnimatedCancelButton onPress={() => closeHeaderMenu()} dynamicStyles={dynamicStyles} />
+                <AnimatedCancelButton onPress={() => closeHeaderMenu()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
               </Animated.View>
             </TouchableWithoutFeedback>
           </Animated.View>
@@ -626,42 +612,41 @@ export const LibraryCategoryView = ({
                     <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{rowActionTarget?.playlistName}</Text>
-                      <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>{rowActionTarget?.type === 'smart' ? 'スマートプレイリスト' : '通常プレイリスト'}</Text>
+                      <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>{rowActionTarget?.type === 'smart' ? t('smart_playlist_label', language) : t('normal_playlist_label', language)}</Text>
                     </View>
                   </View>
 
-                  {/* スマートプレイリストメニュー */}
+                  {/* 1. 名前を変更 */}
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                    onPress={() => {
+                      const target = rowActionTarget;
+                      closeRowActionSheet(() => {
+                        setRenameTarget(target);
+                        setRenameInput(target.playlistName);
+                      });
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="create-outline" size={22} color={themeColor} />
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
+                  </TouchableOpacity>
+
+                  {/* 2. カバー画像を変更 */}
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                    onPress={() => {
+                      const target = rowActionTarget;
+                      closeRowActionSheet(() => openCoverPickerSheet(target));
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="image-outline" size={22} color={themeColor} />
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
+                  </TouchableOpacity>
+
                   {rowActionTarget?.type === 'smart' ? (
                     <>
-                      {/* 1. 名前を変更 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => {
-                            setRenameTarget(target);
-                            setRenameInput(target.playlistName);
-                          });
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="create-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>名前を変更</Text>
-                      </TouchableOpacity>
-
-                      {/* ★ 2. カバー画像を変更 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => openCoverPickerSheet(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="image-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>カバー画像を変更</Text>
-                      </TouchableOpacity>
-
                       {/* 3. ルールを編集 */}
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
@@ -674,7 +659,7 @@ export const LibraryCategoryView = ({
                         activeOpacity={0.6}
                       >
                         <Ionicons name="options-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>ルールを編集</Text>
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_rules', language)}</Text>
                       </TouchableOpacity>
 
                       {/* 4. 通常のプレイリストに変更 */}
@@ -687,67 +672,11 @@ export const LibraryCategoryView = ({
                         activeOpacity={0.6}
                       >
                         <Ionicons name="swap-horizontal-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>通常のプレイリストに変更</Text>
-                      </TouchableOpacity>
-
-                      {/* 5. プレイリストを複製 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => handleDuplicatePlaylist(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="copy-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>プレイリストを複製</Text>
-                      </TouchableOpacity>
-
-                      {/* 6. 削除 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => handleDeletePlaylist(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>プレイリストを削除</Text>
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('convert_to_normal_playlist', language)}</Text>
                       </TouchableOpacity>
                     </>
                   ) : (
-                    /* 通常プレイリストメニュー */
                     <>
-                      {/* 1. 名前を変更 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => {
-                            setRenameTarget(target);
-                            setRenameInput(target.playlistName);
-                          });
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="create-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>名前を変更</Text>
-                      </TouchableOpacity>
-
-                      {/* ★ 2. カバー画像を変更 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => openCoverPickerSheet(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="image-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>カバー画像を変更</Text>
-                      </TouchableOpacity>
-
                       {/* 3. プレイリストの曲を編集 */}
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
@@ -758,46 +687,46 @@ export const LibraryCategoryView = ({
                         activeOpacity={0.6}
                       >
                         <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>プレイリストの曲を編集</Text>
-                      </TouchableOpacity>
-
-                      {/* 4. プレイリストを複製 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => handleDuplicatePlaylist(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="copy-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>プレイリストを複製</Text>
-                      </TouchableOpacity>
-
-                      {/* 5. 削除 */}
-                      <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
-                        onPress={() => {
-                          const target = rowActionTarget;
-                          closeRowActionSheet(() => handleDeletePlaylist(target));
-                        }}
-                        activeOpacity={0.6}
-                      >
-                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>プレイリストを削除</Text>
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_playlist_songs', language)}</Text>
                       </TouchableOpacity>
                     </>
                   )}
+
+                  {/* 5. プレイリストを複製 */}
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                    onPress={() => {
+                      const target = rowActionTarget;
+                      closeRowActionSheet(() => handleDuplicatePlaylist(target));
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="copy-outline" size={22} color={themeColor} />
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
+                  </TouchableOpacity>
+
+                  {/* 6. 削除 */}
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+                    onPress={() => {
+                      const target = rowActionTarget;
+                      closeRowActionSheet(() => handleDeletePlaylist(target));
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                    <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('delete_playlist', language)}</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <AnimatedCancelButton onPress={() => closeRowActionSheet()} dynamicStyles={dynamicStyles} />
+                <AnimatedCancelButton onPress={() => closeRowActionSheet()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
               </Animated.View>
             </TouchableWithoutFeedback>
           </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ★ カバー画像選択ポップアップ（写真・カメラ・ファイル） */}
+      {/* 3. カバー画像選択ポップアップ */}
       <Modal visible={!!coverPickerTarget} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeCoverPickerSheet()}>
           <Animated.View style={{ 
@@ -810,11 +739,10 @@ export const LibraryCategoryView = ({
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimCover.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
                 <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
                   <View style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border, alignItems: 'center' }}>
-                    <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>カバー画像を設定</Text>
+                    <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>{t('set_cover_image_title', language)}</Text>
                     <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>{coverPickerTarget?.playlistName}</Text>
                   </View>
 
-                  {/* 1. 写真ライブラリから選択 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -824,10 +752,9 @@ export const LibraryCategoryView = ({
                     activeOpacity={0.6}
                   >
                     <Ionicons name="images-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>写真ライブラリから選択</Text>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_photos', language)}</Text>
                   </TouchableOpacity>
 
-                  {/* 2. 写真を撮る */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -837,10 +764,9 @@ export const LibraryCategoryView = ({
                     activeOpacity={0.6}
                   >
                     <Ionicons name="camera-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>カメラで撮影</Text>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('take_photo', language)}</Text>
                   </TouchableOpacity>
 
-                  {/* 3. ファイルアプリから選択 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: coverPickerTarget?.localCoverImageUri ? 1 : 0, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -850,10 +776,9 @@ export const LibraryCategoryView = ({
                     activeOpacity={0.6}
                   >
                     <Ionicons name="folder-open-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>ファイルアプリから選択</Text>
+                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_files', language)}</Text>
                   </TouchableOpacity>
 
-                  {/* 4. デフォルトに戻す（カスタム画像設定時のみ） */}
                   {coverPickerTarget?.localCoverImageUri && (
                     <TouchableOpacity 
                       style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
@@ -864,19 +789,19 @@ export const LibraryCategoryView = ({
                       activeOpacity={0.6}
                     >
                       <Ionicons name="refresh-outline" size={22} color="#ef4444" />
-                      <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>カバー画像をデフォルトに戻す</Text>
+                      <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('reset_cover_image', language)}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
 
-                <AnimatedCancelButton onPress={() => closeCoverPickerSheet()} dynamicStyles={dynamicStyles} />
+                <AnimatedCancelButton onPress={() => closeCoverPickerSheet()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
               </Animated.View>
             </TouchableWithoutFeedback>
           </Animated.View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 3. 新規プレイリスト名 入力モーダル */}
+      {/* 4. 新規プレイリスト名 入力モーダル */}
       <Modal visible={createNameModalVisible} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -884,10 +809,10 @@ export const LibraryCategoryView = ({
         >
           <View style={{ width: '100%', maxWidth: 400, backgroundColor: dynamicStyles.card, borderRadius: 24, padding: 22, borderWidth: 1.5, borderColor: dynamicStyles.border }}>
             <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
-              新規プレイリスト
+              {t('new_playlist_modal_title', language)}
             </Text>
             <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginBottom: 18, textAlign: 'center' }}>
-              プレイリストの名前を入力してください
+              {t('new_playlist_modal_desc', language)}
             </Text>
 
             <TextInput 
@@ -897,7 +822,7 @@ export const LibraryCategoryView = ({
               }}
               value={newPlaylistName}
               onChangeText={setNewPlaylistName}
-              placeholder="プレイリスト名"
+              placeholder={t('playlist_name_placeholder', language)}
               placeholderTextColor={dynamicStyles.subText}
               autoFocus
             />
@@ -907,20 +832,20 @@ export const LibraryCategoryView = ({
                 style={{ flex: 1, height: 48, borderRadius: 24, backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setCreateNameModalVisible(false)}
               >
-                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>キャンセル</Text>
+                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>{t('cancel', language)}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={{ flex: 1.2, height: 48, borderRadius: 24, backgroundColor: themeColor, justifyContent: 'center', alignItems: 'center' }}
                 onPress={handleProceedToSongSelection}
               >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>次へ (曲を選択)</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>{t('next_select_songs', language)}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 4. 新規プレイリストの楽曲選択モーダル */}
+      {/* 5. 新規プレイリストの楽曲選択モーダル */}
       <Modal visible={selectSongsModalVisible} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -934,8 +859,8 @@ export const LibraryCategoryView = ({
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View style={{ flex: 1, marginRight: 10 }}>
-                <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }} numberOfLines={1}>楽曲を追加</Text>
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>「{newPlaylistName}」に追加する曲を選択</Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }} numberOfLines={1}>{t('add_songs_title', language)}</Text>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{t('add_songs_desc', language).replace('{name}', newPlaylistName)}</Text>
               </View>
               <TouchableOpacity onPress={() => setSelectSongsModalVisible(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Ionicons name="close-circle" size={28} color={dynamicStyles.subText} />
@@ -949,7 +874,7 @@ export const LibraryCategoryView = ({
               <Ionicons name="search" size={15} color={dynamicStyles.subText} style={{ marginRight: 6 }} />
               <TextInput 
                 style={{ flex: 1, color: dynamicStyles.text, fontSize: 13 }}
-                placeholder="曲名やアーティスト名で検索..."
+                placeholder={t('search_song_placeholder', language)}
                 placeholderTextColor={dynamicStyles.subText}
                 value={songSearchQuery}
                 onChangeText={setSongSearchQuery}
@@ -999,14 +924,14 @@ export const LibraryCategoryView = ({
               onPress={handleCreatePlaylistSave}
             >
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>
-                プレイリストを作成 ({selectedSongFilenames.size}曲)
+                {t('create_playlist_with_count', language).replace('{count}', String(selectedSongFilenames.size))}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* 5. プレイリストの収録曲編集モーダル */}
+      {/* 6. プレイリストの収録曲編集モーダル */}
       <Modal visible={!!editSongsTargetPl} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -1020,8 +945,8 @@ export const LibraryCategoryView = ({
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <View style={{ flex: 1, marginRight: 10 }}>
-                <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }} numberOfLines={1}>収録曲を編集</Text>
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>「{editSongsTargetPl?.playlistName}」の曲を選択・解除</Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }} numberOfLines={1}>{t('edit_playlist_songs_title', language)}</Text>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{t('edit_playlist_songs_desc', language).replace('{name}', editSongsTargetPl?.playlistName)}</Text>
               </View>
               <TouchableOpacity onPress={() => setEditSongsTargetPl(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Ionicons name="close-circle" size={28} color={dynamicStyles.subText} />
@@ -1035,7 +960,7 @@ export const LibraryCategoryView = ({
               <Ionicons name="search" size={15} color={dynamicStyles.subText} style={{ marginRight: 6 }} />
               <TextInput 
                 style={{ flex: 1, color: dynamicStyles.text, fontSize: 13 }}
-                placeholder="曲名やアーティスト名で検索..."
+                placeholder={t('search_song_placeholder', language)}
                 placeholderTextColor={dynamicStyles.subText}
                 value={editSongsSearchQuery}
                 onChangeText={setEditSongsSearchQuery}
@@ -1085,14 +1010,14 @@ export const LibraryCategoryView = ({
               onPress={handleSaveEditPlaylistSongs}
             >
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold' }}>
-                変更を保存 ({editSongsSelectedFilenames.size}曲)
+                {t('save_changes_with_count', language).replace('{count}', String(editSongsSelectedFilenames.size))}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* 6. プレイリスト名 変更モーダル */}
+      {/* 7. プレイリスト名 変更モーダル */}
       <Modal visible={!!renameTarget} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -1100,7 +1025,7 @@ export const LibraryCategoryView = ({
         >
           <View style={{ width: '100%', maxWidth: 400, backgroundColor: dynamicStyles.card, borderRadius: 24, padding: 22, borderWidth: 1.5, borderColor: dynamicStyles.border }}>
             <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' }}>
-              プレイリスト名の変更
+              {t('rename_playlist_modal_title', language)}
             </Text>
 
             <TextInput 
@@ -1110,7 +1035,7 @@ export const LibraryCategoryView = ({
               }}
               value={renameInput}
               onChangeText={setRenameInput}
-              placeholder="新しい名前"
+              placeholder={t('new_name_placeholder', language)}
               placeholderTextColor={dynamicStyles.subText}
               autoFocus
             />
@@ -1120,20 +1045,20 @@ export const LibraryCategoryView = ({
                 style={{ flex: 1, height: 48, borderRadius: 24, backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb', justifyContent: 'center', alignItems: 'center' }}
                 onPress={() => setRenameTarget(null)}
               >
-                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>キャンセル</Text>
+                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>{t('cancel', language)}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={{ flex: 1.2, height: 48, borderRadius: 24, backgroundColor: themeColor, justifyContent: 'center', alignItems: 'center' }}
                 onPress={handleSaveRename}
               >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>変更を保存</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 15 }}>{t('save_changes_btn', language)}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 7. スマートプレイリスト作成・編集モーダル */}
+      {/* 8. スマートプレイリスト作成・編集モーダル */}
       <SmartPlaylistEditorModal 
         visible={smartEditorConfig.visible}
         mode={smartEditorConfig.mode}
@@ -1144,6 +1069,7 @@ export const LibraryCategoryView = ({
         themeColor={themeColor}
         isDark={isDark}
         insets={insets}
+        language={language}
       />
     </View>
   );

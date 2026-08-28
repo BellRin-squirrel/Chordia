@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../../styles/styles';
 import { MarqueeText } from '../MarqueeText';
+import { t } from '../../utils/i18n';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -17,7 +18,7 @@ export const LibrarySongListView = ({
   searchQuery, setSearchQuery, isSearching, setIsSearching,
   startQueue, onPlayCollectionPress, openActionSheet,
   renderFloatingBackButton, flatListRefPortrait, flatListRefLandscape,
-  AnimatedMenuButton
+  AnimatedMenuButton, language = 'ja'
 }: any) => {
 
   const isPlaylist = currentSelectionType === 'PLAYLIST';
@@ -35,7 +36,7 @@ export const LibrarySongListView = ({
         <Ionicons name="search" size={18} color={dynamicStyles.subText} style={{ marginRight: 10 }} />
         <TextInput
           style={{ flex: 1, color: dynamicStyles.text, fontSize: 16 }}
-          placeholder="曲名、アーティスト..."
+          placeholder={t('search_song_artist_placeholder', language)}
           placeholderTextColor={dynamicStyles.subText}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -78,7 +79,7 @@ export const LibrarySongListView = ({
         >
           {hasBlurBackground && <BlurView intensity={isDark ? 30 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
           <Ionicons name="play" size={20} color={isDark ? '#fff' : '#000'} />
-          <Text style={[styles.plMainBtnText, { color: isDark ? '#fff' : '#000', fontSize: 14 }]}>再生</Text>
+          <Text style={[styles.plMainBtnText, { color: isDark ? '#fff' : '#000', fontSize: 14 }]}>{t('play_btn', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.plMainBtn, { backgroundColor: hasBlurBackground ? 'transparent' : dynamicStyles.card, overflow: 'hidden' }, hasBlurBackground && { shadowOpacity: 0, elevation: 0, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }]} 
@@ -86,7 +87,7 @@ export const LibrarySongListView = ({
         >
           {hasBlurBackground && <BlurView intensity={isDark ? 30 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
           <Ionicons name="shuffle" size={20} color={isDark ? '#fff' : '#000'} />
-          <Text style={[styles.plMainBtnText, { color: isDark ? '#fff' : '#000', fontSize: 14 }]}>シャッフル</Text>
+          <Text style={[styles.plMainBtnText, { color: isDark ? '#fff' : '#000', fontSize: 14 }]}>{t('shuffle_btn', language)}</Text>
         </TouchableOpacity>
       </View>
     </View>

@@ -21,7 +21,9 @@ import { MiniPlayer } from '../../components/MiniPlayer';
 import { InfoScreen } from '../../components/InfoScreen';
 import { SyncScreen } from '../../components/SyncScreen';
 import { TabBar } from '../../components/TabBar';
+import { LanguageSelectModal } from '../../components/LanguageSelectModal';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
+import { LanguageCode, t } from '../../utils/i18n';
 
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
@@ -55,7 +57,8 @@ const AppContent = () => {
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
     saveColor, applyCustomColor, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists,
     showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,
-    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon
+    showPlaylistTypeIcon, toggleShowPlaylistTypeIcon,
+    language, isLanguageSelected, changeLanguage
   } = useLibraryData();
 
   const {
@@ -77,7 +80,8 @@ const AppContent = () => {
   } = useSync({ 
     closeFullPlayer, 
     stopAndUnloadPlayer: async () => { await TrackPlayer.stop(); },
-    localLibrary, setLocalLibrary, setLocalPlaylists
+    localLibrary, setLocalLibrary, setLocalPlaylists,
+    language
   });
 
   useEffect(() => {
@@ -130,7 +134,7 @@ const AppContent = () => {
     text: isAppDark ? '#ffffff' : '#000000',
     subText: '#8e8e93',
     border: isAppDark ? '#38383a' : '#d1d1d6',
-    blur: isAppDark ? 'dark' : 'light',
+    blur: isAppDark ? 'dark' as const : 'light' as const,
   };
 
   const miniPlayerShiftAnim = useRef(new Animated.Value(0)).current;
@@ -161,11 +165,11 @@ const AppContent = () => {
   }, [showSyncTab]);
 
   const getAlertIcon = (title: string) => {
-    const t = title.toLowerCase();
-    if (t.includes('完了') || t.includes('成功') || t.includes('設定変更') || t.includes('承認')) {
+    const tStr = title.toLowerCase();
+    if (tStr.includes('完了') || tStr.includes('成功') || tStr.includes('設定変更') || tStr.includes('承認') || tStr.includes('success') || tStr.includes('done') || tStr.includes('complete')) {
       return <Ionicons name="checkmark-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
     }
-    if (t.includes('エラー') || t.includes('失敗') || t.includes('拒否') || t.includes('切断') || t.includes('停止')) {
+    if (tStr.includes('エラー') || tStr.includes('失敗') || tStr.includes('拒否') || tStr.includes('切断') || tStr.includes('停止') || tStr.includes('error') || tStr.includes('fail') || tStr.includes('stopped') || tStr.includes('disconnected') || tStr.includes('rejected')) {
       return <Ionicons name="alert-circle-outline" size={38} color="#ef4444" style={{ marginBottom: 12 }} />;
     }
     return <Ionicons name="information-circle-outline" size={38} color={themeColor} style={{ marginBottom: 12 }} />;
@@ -178,7 +182,37 @@ const AppContent = () => {
       
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
         {showSyncTab && activeTab === 'SYNC' && (
-          <SyncScreen dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} syncStage={syncStage} setSyncStage={setSyncStage} serverIp={serverIp} setServerIp={setServerIp} serverPort={serverPort} setServerPort={setServerPort} authCodeInput={authCodeInput} setAuthCodeInput={setAuthCodeInput} showCamera={showCamera} setShowCamera={setShowCamera} requestCameraPermission={requestCameraPermission} pcPlaylists={pcPlaylists} selectedPls={selectedPls} setSelectedPls={setSelectedPls} isSyncing={isSyncing} isDark={isAppDark} requestAuthToPC={requestAuthToPC} verifyAuthCode={verifyAuthCode} startSyncDownload={startSyncDownload} cancelSync={cancelSync} disconnect={disconnect} setScannedQrData={setScannedQrData} clientInfo={clientInfo} insets={insets} currentSong={currentSong} />
+          <SyncScreen 
+            dynamicStyles={actualDynamicStyles} 
+            themeColor={themeColor} 
+            themeTextColor={themeTextColor} 
+            syncStage={syncStage} 
+            setSyncStage={setSyncStage} 
+            serverIp={serverIp} 
+            setServerIp={setServerIp} 
+            serverPort={serverPort} 
+            setServerPort={setServerPort} 
+            authCodeInput={authCodeInput} 
+            setAuthCodeInput={setAuthCodeInput} 
+            showCamera={showCamera} 
+            setShowCamera={setShowCamera} 
+            requestCameraPermission={requestCameraPermission} 
+            pcPlaylists={pcPlaylists} 
+            selectedPls={selectedPls} 
+            setSelectedPls={setSelectedPls} 
+            isSyncing={isSyncing} 
+            isDark={isAppDark} 
+            requestAuthToPC={requestAuthToPC} 
+            verifyAuthCode={verifyAuthCode} 
+            startSyncDownload={startSyncDownload} 
+            cancelSync={cancelSync} 
+            disconnect={disconnect} 
+            setScannedQrData={setScannedQrData} 
+            clientInfo={clientInfo} 
+            insets={insets} 
+            currentSong={currentSong}
+            language={language}
+          />
         )}
         {activeTab === 'PLAYER' && (
           <Library 
@@ -187,13 +221,14 @@ const AppContent = () => {
             startQueue={startQueue} 
             currentSong={currentSong} 
             localLibrary={localLibrary} 
-            setLocalLibrary={setLocalLibrary}
+            setLocalLibrary={setLocalLibrary} 
             localPlaylists={localPlaylists} 
-            setLocalPlaylists={setLocalPlaylists}
+            setLocalPlaylists={setLocalPlaylists} 
             setNavStackLength={setNavStackLength} 
             insets={insets} 
             isDark={isAppDark} 
             showPlaylistTypeIcon={showPlaylistTypeIcon}
+            language={language}
           />
         )}
         {showFocusTab && activeTab === 'FOCUS' && (
@@ -210,6 +245,7 @@ const AppContent = () => {
             audioEngine={audioEngine}           
             changeAudioEngine={changeAudioEngine}
             themeR={themeR} themeG={themeG} themeB={themeB}
+            language={language}
           />
         )}
         {activeTab === 'INFO' && (
@@ -238,6 +274,8 @@ const AppContent = () => {
             toggleSyncTab={toggleSyncTab} 
             showPlaylistTypeIcon={showPlaylistTypeIcon}
             toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
+            language={language}
+            changeLanguage={changeLanguage}
             localLibrary={localLibrary} 
             setLocalLibrary={setLocalLibrary} 
             localPlaylists={localPlaylists} 
@@ -256,7 +294,17 @@ const AppContent = () => {
             </Animated.View>
           )}
           <View style={isLandscape ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] : [styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
-              <TabBar activeTab={activeTab} setActiveTab={setActiveTab} themeColor={themeColor} themeTextColor={themeTextColor} isDark={isAppDark} isBlurBackground={false} showFocusTab={showFocusTab} showSyncTab={showSyncTab} />
+              <TabBar 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab} 
+                themeColor={themeColor} 
+                themeTextColor={themeTextColor} 
+                isDark={isAppDark} 
+                isBlurBackground={false} 
+                showFocusTab={showFocusTab} 
+                showSyncTab={showSyncTab} 
+                language={language}
+              />
           </View>
         </View>
       )}
@@ -282,7 +330,7 @@ const AppContent = () => {
               }}
               onPress={cancelSync}
             >
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>キャンセル</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>{t('cancel', language)}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -323,7 +371,7 @@ const AppContent = () => {
                       styles.liquidAlertButtonText, 
                       { color: themeColor }, 
                       btn.style === 'destructive' && { color: '#ef4444' }, 
-                      (btn.style === 'cancel' || btn.text === 'キャンセル') && { color: actualDynamicStyles.subText, fontWeight: 'normal' }
+                      (btn.style === 'cancel' || btn.text === 'キャンセル' || btn.text === t('cancel', language)) && { color: actualDynamicStyles.subText, fontWeight: 'normal' }
                     ]}>{btn.text || 'OK'}</Text>
                   </TouchableOpacity>
                 ))
@@ -336,6 +384,21 @@ const AppContent = () => {
           </BlurView>
         </View>
       </Modal>
+
+      {/* 初回起動時の言語選択モーダル */}
+      <LanguageSelectModal 
+        visible={isLanguageSelected === false}
+        currentLanguage={language}
+        onSelectLanguage={(newLang: LanguageCode) => {
+          changeLanguage(newLang);
+        }}
+        onClose={() => {}}
+        dynamicStyles={actualDynamicStyles}
+        themeColor={themeColor}
+        textColor={themeTextColor}
+        isDark={isAppDark}
+        canClose={false}
+      />
 
       {toastVisible && !isFullPlayer && (
           <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>

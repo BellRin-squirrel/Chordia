@@ -1,41 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, Modal, 
   TouchableWithoutFeedback, StyleSheet, useWindowDimensions, KeyboardAvoidingView, Platform 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-const TAG_OPTIONS = [
-  { key: 'title', label: 'タイトル', type: 'string' },
-  { key: 'artist', label: 'アーティスト', type: 'string' },
-  { key: 'album', label: 'アルバム', type: 'string' },
-  { key: 'genre', label: 'ジャンル', type: 'string' },
-  { key: 'album_artist', label: 'アルバムアーティスト', type: 'string' },
-  { key: 'composer', label: '作曲者', type: 'string' },
-  { key: 'year', label: '年/日付', type: 'number' },
-  { key: 'track', label: 'トラック番号', type: 'number' },
-  { key: 'disc', label: 'ディスク番号', type: 'number' },
-  { key: 'bpm', label: 'BPM', type: 'number' },
-  { key: 'lyric', label: '歌詞', type: 'string' },
-  { key: 'comment', label: 'コメント', type: 'string' },
-];
-
-const STRING_OPERATORS = [
-  { key: 'contains', label: 'を含む' },
-  { key: 'not_contains', label: 'を含まない' },
-  { key: 'equals', label: 'である' },
-  { key: 'not_equals', label: 'ではない' },
-  { key: 'startswith', label: 'で始まる' },
-  { key: 'endswith', label: 'で終わる' },
-];
-
-const NUMBER_OPERATORS = [
-  { key: 'equals', label: 'である' },
-  { key: 'not_equals', label: 'ではない' },
-  { key: 'greater', label: 'より大きい' },
-  { key: 'less', label: 'より小さい' },
-  { key: 'range', label: 'の範囲内' },
-];
+import { t } from '../../utils/i18n';
 
 const createDefaultFilter = (tag: string = 'artist'): any => {
   const isNum = ['year', 'track', 'disc', 'bpm'].includes(tag);
@@ -55,7 +24,7 @@ const createDefaultGroup = (): any => ({
 
 export const SmartPlaylistEditorModal = ({
   visible, mode = 'CREATE', initialPlaylist = null,
-  onClose, onSave, dynamicStyles, themeColor, isDark, insets
+  onClose, onSave, dynamicStyles, themeColor, isDark, insets, language = 'ja'
 }: any) => {
   const { width } = useWindowDimensions();
   const isLandscape = width > 500;
@@ -63,7 +32,38 @@ export const SmartPlaylistEditorModal = ({
   const [playlistName, setPlaylistName] = useState('');
   const [rootGroup, setRootGroup] = useState<any>(createDefaultGroup());
 
-  // ドロップダウン選択用ポップアップ
+  const tagOptions = useMemo(() => [
+    { key: 'title', label: t('smart_title_rule', language), type: 'string' },
+    { key: 'artist', label: t('smart_artist_rule', language), type: 'string' },
+    { key: 'album', label: t('smart_album_rule', language), type: 'string' },
+    { key: 'genre', label: t('smart_genre_rule', language), type: 'string' },
+    { key: 'album_artist', label: t('smart_album_artist_rule', language), type: 'string' },
+    { key: 'composer', label: t('smart_composer_rule', language), type: 'string' },
+    { key: 'year', label: t('smart_year_rule', language), type: 'number' },
+    { key: 'track', label: t('smart_track_rule', language), type: 'number' },
+    { key: 'disc', label: t('smart_disc_rule', language), type: 'number' },
+    { key: 'bpm', label: t('smart_bpm_rule', language), type: 'number' },
+    { key: 'lyric', label: t('smart_lyric_rule', language), type: 'string' },
+    { key: 'comment', label: t('smart_comment_rule', language), type: 'string' },
+  ], [language]);
+
+  const stringOperators = useMemo(() => [
+    { key: 'contains', label: t('op_contains', language) },
+    { key: 'not_contains', label: t('op_not_contains', language) },
+    { key: 'equals', label: t('op_equals', language) },
+    { key: 'not_equals', label: t('op_not_equals', language) },
+    { key: 'startswith', label: t('op_startswith', language) },
+    { key: 'endswith', label: t('op_endswith', language) },
+  ], [language]);
+
+  const numberOperators = useMemo(() => [
+    { key: 'equals', label: t('op_equals', language) },
+    { key: 'not_equals', label: t('op_not_equals', language) },
+    { key: 'greater', label: t('op_greater', language) },
+    { key: 'less', label: t('op_less', language) },
+    { key: 'range', label: t('op_range', language) },
+  ], [language]);
+
   const [pickerConfig, setPickerConfig] = useState<{
     visible: boolean;
     title: string;
@@ -93,13 +93,11 @@ export const SmartPlaylistEditorModal = ({
 
   const handleSave = () => {
     if (mode === 'CREATE' && !playlistName.trim()) {
-      alert('プレイリスト名を入力してください。');
+      alert(t('new_playlist_modal_desc', language));
       return;
     }
     onSave(playlistName.trim(), rootGroup);
   };
-
-  // --- 再帰的なグループ・フィルター操作 ---
 
   const updateItemInGroup = (group: any, path: number[], updater: (item: any) => any): any => {
     if (path.length === 0) return group;
@@ -181,7 +179,6 @@ export const SmartPlaylistEditorModal = ({
   const handleFilterChange = (path: number[], key: string, value: any) => {
     setRootGroup((prev: any) => updateItemInGroup(prev, path, (filter) => {
       const updated = { ...filter, [key]: value };
-      // タグが変わったら適切な演算子と初期値にリセット
       if (key === 'tag') {
         const isNum = ['year', 'track', 'disc', 'bpm'].includes(value);
         updated.op = isNum ? 'equals' : 'contains';
@@ -204,53 +201,51 @@ export const SmartPlaylistEditorModal = ({
     setRootGroup((prev: any) => updateItemInGroup(prev, path, (group) => ({ ...group, match })));
   };
 
-  // --- レンダリング部 ---
-
   const renderFilterRow = (filter: any, path: number[], canDelete: boolean) => {
-    const tagObj = TAG_OPTIONS.find(t => t.key === filter.tag) || TAG_OPTIONS[0];
+    const tagObj = tagOptions.find(tObj => tObj.key === filter.tag) || tagOptions[0];
     const isNum = tagObj.type === 'number';
-    const ops = isNum ? NUMBER_OPERATORS : STRING_OPERATORS;
+    const ops = isNum ? numberOperators : stringOperators;
     const currentOp = ops.find(o => o.key === filter.op) || ops[0];
     const isRange = filter.op === 'range';
 
     return (
       <View key={path.join('-')} style={[s.filterRow, { borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.card }]}>
-        {/* ① 対象タグ */}
         <TouchableOpacity 
           style={[s.selectBtn, { borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg }]}
-          onPress={() => openPicker('項目を選択', TAG_OPTIONS, (k) => handleFilterChange(path, 'tag', k))}
+          onPress={() => openPicker(t('smart_select_field', language), tagOptions, (k) => handleFilterChange(path, 'tag', k))}
         >
           <Text style={[s.selectBtnText, { color: dynamicStyles.text }]} numberOfLines={1}>{tagObj.label}</Text>
           <Ionicons name="chevron-down" size={12} color={dynamicStyles.subText} />
         </TouchableOpacity>
 
-        <Text style={[s.particleText, { color: dynamicStyles.subText }]}>が</Text>
+        {t('smart_particle_ga', language).trim() !== '' && (
+          <Text style={[s.particleText, { color: dynamicStyles.subText }]}>{t('smart_particle_ga', language)}</Text>
+        )}
 
-        {/* ② 入力枠（通常または範囲） */}
         {isRange ? (
           <View style={s.rangeInputGroup}>
             <TextInput 
               style={[s.textInputSmall, { color: dynamicStyles.text, borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg }]}
               value={Array.isArray(filter.val) ? String(filter.val[0] ?? '') : ''}
-              onChangeText={(t) => {
+              onChangeText={(textVal) => {
                 const current = Array.isArray(filter.val) ? [...filter.val] : ['', ''];
-                current[0] = t;
+                current[0] = textVal;
                 handleFilterChange(path, 'val', current);
               }}
-              placeholder="最小"
+              placeholder={t('smart_placeholder_min', language)}
               placeholderTextColor={dynamicStyles.subText}
               keyboardType={isNum ? 'number-pad' : 'default'}
             />
-            <Text style={{ color: dynamicStyles.subText, fontSize: 11 }}>と</Text>
+            <Text style={{ color: dynamicStyles.subText, fontSize: 11 }}>{t('smart_particle_to', language)}</Text>
             <TextInput 
               style={[s.textInputSmall, { color: dynamicStyles.text, borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg }]}
               value={Array.isArray(filter.val) ? String(filter.val[1] ?? '') : ''}
-              onChangeText={(t) => {
+              onChangeText={(textVal) => {
                 const current = Array.isArray(filter.val) ? [...filter.val] : ['', ''];
-                current[1] = t;
+                current[1] = textVal;
                 handleFilterChange(path, 'val', current);
               }}
-              placeholder="最大"
+              placeholder={t('smart_placeholder_max', language)}
               placeholderTextColor={dynamicStyles.subText}
               keyboardType={isNum ? 'number-pad' : 'default'}
             />
@@ -259,23 +254,21 @@ export const SmartPlaylistEditorModal = ({
           <TextInput 
             style={[s.textInput, { color: dynamicStyles.text, borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg }]}
             value={filter.val !== undefined && filter.val !== null ? String(filter.val) : ''}
-            onChangeText={(t) => handleFilterChange(path, 'val', t)}
-            placeholder="値・文字を入力"
+            onChangeText={(textVal) => handleFilterChange(path, 'val', textVal)}
+            placeholder={t('smart_placeholder_val', language)}
             placeholderTextColor={dynamicStyles.subText}
             keyboardType={isNum ? 'number-pad' : 'default'}
           />
         )}
 
-        {/* ③ 条件（演算子） */}
         <TouchableOpacity 
           style={[s.selectBtn, { borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg, minWidth: 85 }]}
-          onPress={() => openPicker('条件を選択', ops, (k) => handleFilterChange(path, 'op', k))}
+          onPress={() => openPicker(t('smart_select_condition', language), ops, (k) => handleFilterChange(path, 'op', k))}
         >
           <Text style={[s.selectBtnText, { color: dynamicStyles.text }]} numberOfLines={1}>{currentOp.label}</Text>
           <Ionicons name="chevron-down" size={12} color={dynamicStyles.subText} />
         </TouchableOpacity>
 
-        {/* ④ 操作ボタン（− / ＋ / ●●●） */}
         <View style={s.actionBtnGroup}>
           <TouchableOpacity 
             style={[s.iconBtn, !canDelete && { opacity: 0.3 }]}
@@ -299,11 +292,9 @@ export const SmartPlaylistEditorModal = ({
 
   const renderGroup = (group: any, path: number[] = [], isRoot: boolean = true) => {
     const isAll = group.match === 'all';
-    const canDeleteSelf = !isRoot;
 
     return (
       <View key={path.join('-') || 'root'} style={[s.groupBox, { borderColor: isRoot ? themeColor : dynamicStyles.border, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
-        {/* グループヘッダー: すべて / いずれか */}
         <View style={s.groupHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <TouchableOpacity 
@@ -311,10 +302,10 @@ export const SmartPlaylistEditorModal = ({
               onPress={() => handleGroupMatchChange(path, isAll ? 'any' : 'all')}
             >
               <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
-                {isAll ? 'すべての' : 'いずれかの'}
+                {isAll ? t('smart_all_rules', language) : t('smart_any_rules', language)}
               </Text>
             </TouchableOpacity>
-            <Text style={[s.groupLabel, { color: dynamicStyles.text }]}>ルールに一致</Text>
+            <Text style={[s.groupLabel, { color: dynamicStyles.text }]}>{t('smart_match_suffix', language)}</Text>
           </View>
 
           {!isRoot && (
@@ -324,7 +315,6 @@ export const SmartPlaylistEditorModal = ({
           )}
         </View>
 
-        {/* グループ内のルール・小グループ一覧 */}
         <View style={{ gap: 8, marginTop: 10 }}>
           {group.items.map((item: any, idx: number) => {
             const currentPath = [...path, idx];
@@ -346,12 +336,11 @@ export const SmartPlaylistEditorModal = ({
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={[s.modalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
-            {/* ヘッダー */}
             <View style={s.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="flash" size={20} color={themeColor} />
                 <Text style={[s.modalTitle, { color: dynamicStyles.text }]}>
-                  {mode === 'CREATE' ? 'スマートプレイリストを新規作成' : 'スマートプレイリストを編集'}
+                  {mode === 'CREATE' ? t('smart_create_title', language) : t('smart_edit_title', language)}
                 </Text>
               </View>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -359,35 +348,32 @@ export const SmartPlaylistEditorModal = ({
               </TouchableOpacity>
             </View>
 
-            {/* 新規作成時のみプレイリスト名入力欄 */}
             {mode === 'CREATE' && (
               <View style={{ marginBottom: 14 }}>
                 <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>
-                  プレイリスト名
+                  {t('smart_name_label', language)}
                 </Text>
                 <TextInput 
                   style={[s.nameInput, { color: dynamicStyles.text, borderColor: dynamicStyles.border, backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7' }]}
                   value={playlistName}
                   onChangeText={setPlaylistName}
-                  placeholder="例: 2024年のJ-POP"
+                  placeholder={t('smart_name_placeholder', language)}
                   placeholderTextColor={dynamicStyles.subText}
                   autoFocus={mode === 'CREATE'}
                 />
               </View>
             )}
 
-            {/* ルール組み立てスクロールエリア */}
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexShrink: 1, marginVertical: 4 }}>
               {renderGroup(rootGroup, [], true)}
             </ScrollView>
 
-            {/* フッターアクション */}
             <View style={s.modalFooter}>
               <TouchableOpacity 
                 style={[s.footerBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb' }]}
                 onPress={onClose}
               >
-                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }}>キャンセル</Text>
+                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }}>{t('cancel', language)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -395,7 +381,7 @@ export const SmartPlaylistEditorModal = ({
                 onPress={handleSave}
               >
                 <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>
-                  {mode === 'CREATE' ? '作成' : '保存'}
+                  {mode === 'CREATE' ? t('create_btn', language) : t('save', language)}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -403,7 +389,6 @@ export const SmartPlaylistEditorModal = ({
         </KeyboardAvoidingView>
       </View>
 
-      {/* 選択肢ピッカーモーダル */}
       <Modal visible={pickerConfig.visible} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => setPickerConfig(prev => ({ ...prev, visible: false }))}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 25 }}>

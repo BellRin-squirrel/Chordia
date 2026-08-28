@@ -4,18 +4,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../../styles/styles';
 import { RecentSection } from '../RecentSection';
 import { getPlaylistSongs } from '../../utils/playlistEvaluator';
-
-const LIBRARY_MENU_ITEMS = [
-  { title: 'プレイリスト', icon: 'musical-notes-outline' as const, view: 'PLAYLISTS' },
-  { title: 'アルバム', icon: 'disc-outline' as const, view: 'ALBUMS' },
-  { title: 'アーティスト', icon: 'mic-outline' as const, view: 'ARTISTS' },
-];
+import { t } from '../../utils/i18n';
 
 export const LibraryMenuView = ({
   dynamicStyles, themeColor, insets, isLandscape, safePadding,
   pushView, recentlyPlayedSongs, recentlyPlayedCollections,
-  localLibrary, startQueue, saveCollectionToHistory
+  localLibrary, startQueue, saveCollectionToHistory, language = 'ja'
 }: any) => {
+  const menuItems = [
+    { title: t('menu_playlists', language), icon: 'musical-notes-outline' as const, view: 'PLAYLISTS' },
+    { title: t('menu_albums', language), icon: 'disc-outline' as const, view: 'ALBUMS' },
+    { title: t('menu_artists', language), icon: 'mic-outline' as const, view: 'ARTISTS' },
+  ];
+
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
@@ -30,12 +31,12 @@ export const LibraryMenuView = ({
           paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
         }
       ]}>
-        <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>ライブラリ</Text>
+        <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_player', language)}</Text>
       </View>
 
       <FlatList
-        data={LIBRARY_MENU_ITEMS}
-        keyExtractor={item => item.title}
+        data={menuItems}
+        keyExtractor={item => item.view}
         renderItem={({ item, index }) => (
           <TouchableOpacity 
             style={[styles.menuRow, index !== 2 && { borderBottomWidth: 0.5, borderBottomColor: dynamicStyles.border }]} 
@@ -65,6 +66,7 @@ export const LibraryMenuView = ({
               startQueue(songs, undefined, false);
               saveCollectionToHistory(item);
             }}
+            language={language}
           />
         }
         contentContainerStyle={safePadding}

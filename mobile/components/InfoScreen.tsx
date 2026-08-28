@@ -1,28 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Animated, StyleSheet, 
-  TouchableWithoutFeedback, useWindowDimensions, Easing, Modal
+  TouchableWithoutFeedback, useWindowDimensions, Easing 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { t } from '../utils/i18n';
 
 import { InfoSettingsView } from './info/InfoSettingsView';
-import { InfoStatisticsView, InfoAllHistoryView } from './info/InfoStatisticsView';
+import { InfoStatisticsView, InfoAllHistoryView, InfoPlaybackHistoryView } from './info/InfoStatisticsView';
 import { InfoManageDataView } from './info/InfoManageDataView';
 import { InfoEditSongView } from './info/InfoEditSongView';
 import { InfoLicenseView } from './info/InfoLicenseView';
 
 const HISTORY_KEY = 'chordia_focus_history';
-
-const INFO_MENU_ITEMS = [
-  { title: '設定', icon: 'options-outline' as const, view: 'SETTINGS', sub: 'テーマカラー・再生エンジン・動作設定' },
-  { title: '統計', icon: 'stats-chart-outline' as const, view: 'STATISTICS', sub: '集中セッションと活動履歴の分析' },
-  { title: 'データを管理', icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: '保存済み楽曲の確認・編集・一括削除' },
-  { title: 'ライセンス・バージョン', icon: 'document-text-outline' as const, view: 'LICENSE', sub: 'Chordia について・開発情報' },
-];
 
 const AnimatedMenuButton = ({ onPress, isDark, textStyle, disabled = false }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
@@ -38,7 +32,7 @@ const AnimatedMenuButton = ({ onPress, isDark, textStyle, disabled = false }: an
   );
 };
 
-const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
+const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
@@ -46,7 +40,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
       <Animated.View style={{ backgroundColor: dynamicStyles.card, borderRadius: 16, height: 52, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: dynamicStyles.border, transform: [{ scale }] }}>
-        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>キャンセル</Text>
+        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{label || 'キャンセル'}</Text>
       </Animated.View>
     </TouchableWithoutFeedback>
   );
@@ -58,6 +52,7 @@ export const InfoScreen = ({
   showRGBModal, setShowRGBModal, saveColor, applyCustomColor, 
   insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab, 
   showSyncTab, toggleSyncTab, showPlaylistTypeIcon = true, toggleShowPlaylistTypeIcon,
+  language = 'ja', changeLanguage,
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
   isDark, isLandscape 
 }: any) => {
@@ -72,13 +67,11 @@ export const InfoScreen = ({
 
   const [focusHistory, setFocusHistory] = useState<any[]>([]);
 
-  // データ管理関連 State
   const [actionSheetTargetSongs, setActionSheetTargetSongs] = useState<any[] | null>(null);
   const [songInfoModalTargetSongs, setSongInfoModalTargetSongs] = useState<any[] | null>(null);
   const [addToPlaylistTargetSongs, setAddToPlaylistTargetSongs] = useState<any[] | null>(null);
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
-  // 編集用 State
   const [editingTargetSongs, setEditingTargetSongs] = useState<any[]>([]);
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
@@ -87,6 +80,13 @@ export const InfoScreen = ({
   const [editDisc, setEditDisc] = useState('');
   const [editYear, setEditYear] = useState('');
   const [editLyric, setEditLyric] = useState('');
+
+  const menuItems = [
+    { title: t('menu_settings', language), icon: 'options-outline' as const, view: 'SETTINGS', sub: t('menu_settings_sub', language) },
+    { title: t('menu_statistics', language), icon: 'stats-chart-outline' as const, view: 'STATISTICS', sub: t('menu_statistics_sub', language) },
+    { title: t('menu_manage_data', language), icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: t('menu_manage_data_sub', language) },
+    { title: t('menu_license', language), icon: 'document-text-outline' as const, view: 'LICENSE', sub: t('menu_license_sub', language) },
+  ];
 
   const openActionSheet = (songs: any[]) => {
     if (!songs || songs.length === 0) return;
@@ -125,30 +125,32 @@ export const InfoScreen = ({
   const openEditSongs = (songs: any[]) => {
     setEditingTargetSongs(songs);
     const isMulti = songs.length > 1;
-    setEditTitle(getCommonValue(songs, 'title', isMulti ? '<維持>' : ''));
-    setEditArtist(getCommonValue(songs, 'artist', isMulti ? '<維持>' : ''));
-    setEditAlbum(getCommonValue(songs, 'album', isMulti ? '<維持>' : ''));
-    setEditTrack(getCommonValue(songs, 'track', isMulti ? '<維持>' : ''));
-    setEditDisc(getCommonValue(songs, 'disc', isMulti ? '<維持>' : ''));
-    setEditYear(getCommonValue(songs, 'year', isMulti ? '<維持>' : ''));
-    setEditLyric(getCommonValue(songs, 'lyric', isMulti ? '<維持>' : ''));
+    const keepStr = t('keep_label', language);
+    setEditTitle(getCommonValue(songs, 'title', isMulti ? keepStr : ''));
+    setEditArtist(getCommonValue(songs, 'artist', isMulti ? keepStr : ''));
+    setEditAlbum(getCommonValue(songs, 'album', isMulti ? keepStr : ''));
+    setEditTrack(getCommonValue(songs, 'track', isMulti ? keepStr : ''));
+    setEditDisc(getCommonValue(songs, 'disc', isMulti ? keepStr : ''));
+    setEditYear(getCommonValue(songs, 'year', isMulti ? keepStr : ''));
+    setEditLyric(getCommonValue(songs, 'lyric', isMulti ? keepStr : ''));
     pushView('EDIT_SONG');
   };
 
   const saveEditedSongs = async () => {
     if (!editingTargetSongs || editingTargetSongs.length === 0) return;
     const targetUriSet = new Set(editingTargetSongs.map(s => s.localMusicUri));
+    const keepStr = t('keep_label', language);
 
     const updatedLibrary = localLibrary.map((s: any) => {
       if (targetUriSet.has(s.localMusicUri)) {
         const updated = { ...s };
-        if (editTitle !== '<維持>') updated.title = editTitle.trim() || 'Untitled';
-        if (editArtist !== '<維持>') updated.artist = editArtist.trim() || 'Unknown Artist';
-        if (editAlbum !== '<維持>') updated.album = editAlbum.trim() || 'Unknown Album';
-        if (editTrack !== '<維持>') updated.track = editTrack.trim() ? parseInt(editTrack.trim(), 10) : undefined;
-        if (editDisc !== '<維持>') updated.disc = editDisc.trim() ? parseInt(editDisc.trim(), 10) : undefined;
-        if (editYear !== '<維持>') updated.year = editYear.trim() ? parseInt(editYear.trim(), 10) : undefined;
-        if (editLyric !== '<維持>') updated.lyric = editLyric;
+        if (editTitle !== keepStr) updated.title = editTitle.trim() || 'Untitled';
+        if (editArtist !== keepStr) updated.artist = editArtist.trim() || 'Unknown Artist';
+        if (editAlbum !== keepStr) updated.album = editAlbum.trim() || 'Unknown Album';
+        if (editTrack !== keepStr) updated.track = editTrack.trim() ? parseInt(editTrack.trim(), 10) : undefined;
+        if (editDisc !== keepStr) updated.disc = editDisc.trim() ? parseInt(editDisc.trim(), 10) : undefined;
+        if (editYear !== keepStr) updated.year = editYear.trim() ? parseInt(editYear.trim(), 10) : undefined;
+        if (editLyric !== keepStr) updated.lyric = editLyric;
         return updated;
       }
       return s;
@@ -244,15 +246,16 @@ export const InfoScreen = ({
 
       <PanGestureHandler activeOffsetX={[-500, 10]} failOffsetY={[-15, 15]} enabled={navStack.length > 1} onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
         <View style={{ flex: 1 }}>
+          {/* Layer 1: メインメニュー */}
           <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
             <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 }]}>
-              <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>情報</Text>
+              <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_info', language)}</Text>
             </View>
             <FlatList
-              data={INFO_MENU_ITEMS}
+              data={menuItems}
               keyExtractor={item => item.view}
               renderItem={({ item, index }) => (
-                <TouchableOpacity style={[styles.menuRow, index !== INFO_MENU_ITEMS.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: dynamicStyles.border }]} onPress={() => pushView(item.view)}>
+                <TouchableOpacity style={[styles.menuRow, index !== menuItems.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: dynamicStyles.border }]} onPress={() => pushView(item.view)}>
                   <Ionicons name={item.icon} size={26} color={themeColor} style={styles.menuIcon} />
                   <View style={{ flex: 1, marginRight: 10 }}>
                     <Text style={[styles.menuRowTitle, { color: dynamicStyles.text }]}>{item.title}</Text>
@@ -266,15 +269,17 @@ export const InfoScreen = ({
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
 
+          {/* Layer 2: 設定 / 統計 / データを管理 / ライセンス */}
           {navStack.length > 1 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
               {navStack[1] === 'SETTINGS' && (
                 <InfoSettingsView 
-                  dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isCustomTheme={isCustomTheme}
+                  dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isCustomTheme={isCustomTheme} isDark={isDark}
                   themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB}
                   showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor}
                   audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab}
                   showSyncTab={showSyncTab} toggleSyncTab={toggleSyncTab} showPlaylistTypeIcon={showPlaylistTypeIcon} toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
+                  language={language} changeLanguage={changeLanguage}
                   renderHeader={renderHeader} safePadding={safePadding} isLandscape={isLandscape}
                 />
               )}
@@ -282,6 +287,7 @@ export const InfoScreen = ({
                 <InfoStatisticsView 
                   dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} isLandscape={isLandscape} safePadding={safePadding}
                   focusHistory={focusHistory} pushView={pushView} renderHeader={renderHeader}
+                  language={language}
                 />
               )}
               {navStack[1] === 'MANAGE_DATA' && (
@@ -293,19 +299,24 @@ export const InfoScreen = ({
                   sheetAnim={sheetAnim} openActionSheet={openActionSheet} closeActionSheet={closeActionSheet}
                   actionSheetTargetSongs={actionSheetTargetSongs} songInfoModalTargetSongs={songInfoModalTargetSongs} setSongInfoModalTargetSongs={setSongInfoModalTargetSongs}
                   addToPlaylistTargetSongs={addToPlaylistTargetSongs} setAddToPlaylistTargetSongs={setAddToPlaylistTargetSongs} getCommonValue={getCommonValue}
+                  language={language}
                 />
               )}
               {navStack[1] === 'LICENSE' && (
-                <InfoLicenseView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} />
+                <InfoLicenseView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>
           )}
 
+          {/* Layer 3: 集中全履歴 / 楽曲再生履歴 / 楽曲情報編集 */}
           {navStack.length > 2 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
               {navStack[2] === 'STATS_ALL' && (
-                <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} focusHistory={focusHistory} safePadding={safePadding} renderHeader={renderHeader} />
+                <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} focusHistory={focusHistory} safePadding={safePadding} renderHeader={renderHeader} language={language} />
+              )}
+              {navStack[2] === 'PLAY_HISTORY' && (
+                <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}
               {navStack[2] === 'EDIT_SONG' && (
                 <InfoEditSongView 
@@ -313,6 +324,7 @@ export const InfoScreen = ({
                   editingTargetSongs={editingTargetSongs} editTitle={editTitle} setEditTitle={setEditTitle} editArtist={editArtist} setEditArtist={setEditArtist}
                   editAlbum={editAlbum} setEditAlbum={setEditAlbum} editTrack={editTrack} setEditTrack={setEditTrack} editDisc={editDisc} setEditDisc={setEditDisc}
                   editYear={editYear} setEditYear={setEditYear} editLyric={editLyric} setEditLyric={setEditLyric} saveEditedSongs={saveEditedSongs} renderHeader={renderHeader}
+                  language={language}
                 />
               )}
             </Animated.View>

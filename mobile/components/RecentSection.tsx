@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { styles } from '../styles/styles';
 import { MarqueeText } from './MarqueeText';
+import { t } from '../utils/i18n';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -11,7 +12,8 @@ export const RecentSection = ({
   dynamicStyles, 
   themeColor, 
   onPlaySong, 
-  onPlayCollection 
+  onPlayCollection,
+  language = 'ja'
 }: any) => {
 
   if (
@@ -34,7 +36,7 @@ export const RecentSection = ({
       {/* 最近再生した楽曲 */}
       {uniqueSongs.length > 0 && (
         <View style={{ marginBottom: 25 }}>
-          <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>最近再生した楽曲</Text>
+          <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>{t('recent_played_songs', language)}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
             {uniqueSongs.map((item: any, index: number) => {
               const itemKey = `recent-song-${item.localMusicUri || index}-${index}`;
@@ -66,12 +68,12 @@ export const RecentSection = ({
       {/* 最近再生したコレクション */}
       {uniqueCollections.length > 0 && (
         <View style={{ marginBottom: 25 }}>
-          <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>最近再生したコレクション</Text>
+          <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>{t('recent_played_collections', language)}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
             {uniqueCollections.map((item: any, index: number) => {
               const itemKey = `recent-col-${item.id || index}-${index}`;
-              const title = item.data?.playlistName || item.data?.album || item.data?.artistName || item.title || 'コレクション';
-              const subtitle = item.type === 'PLAYLIST' ? 'プレイリスト' : item.type === 'ALBUM' ? 'アルバム' : 'アーティスト';
+              const title = item.data?.playlistName || item.data?.album || item.data?.artistName || item.title || t('collection_label', language);
+              const subtitle = item.type === 'PLAYLIST' ? t('playlist_label', language) : item.type === 'ALBUM' ? t('album_label', language) : t('artist_label', language);
               
               let imageSource = DEFAULT_ICON;
               if (item.art) {

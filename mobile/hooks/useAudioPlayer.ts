@@ -72,7 +72,6 @@ export const useAudioPlayer = () => {
     return () => clearExpoResources();
   },[]);
 
-  // ExpoAudio用バックグラウンドセッション設定
   const configureExpoAudioMode = async () => {
     try {
       await setAudioModeAsync({
@@ -95,7 +94,6 @@ export const useAudioPlayer = () => {
     configureExpoAudioMode();
   },[]);
 
-  // RNTPのロック画面通知とプレイヤーを完全にクリア
   const clearRNTPNotification = async () => {
     try {
       await TrackPlayer.stop();
@@ -107,7 +105,6 @@ export const useAudioPlayer = () => {
     } catch(e) {}
   };
 
-  // RNTPのロック画面通知機能を復元
   const restoreRNTPNotification = async () => {
     try {
       await TrackPlayer.updateOptions({
@@ -165,12 +162,29 @@ export const useAudioPlayer = () => {
     });
   };
 
+  // ★ 最近再生した曲 ＆ 統計用再生ログの二重保存
   const saveHistory = async (song: any) => {
     try {
+      // 1. 最近再生した曲（最大10件）
       const rs = await AsyncStorage.getItem('recently_played_songs');
       let list = rs ? JSON.parse(rs) : [];
-      list =[song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
+      list = [song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
       await AsyncStorage.setItem('recently_played_songs', JSON.stringify(list));
+
+      // 2. 統計・ランキング用再生ログ（日時付き、最大500件）
+      const ph = await AsyncStorage.getItem('chordia_playback_history');
+      let playHistory = ph ? JSON.parse(ph) : [];
+      const newEntry = {
+        id: `${song.localMusicUri || 'song'}_${Date.now()}`,
+        title: song.title || 'Untitled',
+        artist: song.artist || 'Unknown Artist',
+        album: song.album || 'Unknown Album',
+        localMusicUri: song.localMusicUri,
+        localImageUri: song.localImageUri,
+        playedAt: new Date().toISOString(),
+      };
+      playHistory = [newEntry, ...playHistory].slice(0, 500);
+      await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(playHistory));
     } catch(e){}
   };
 
@@ -220,7 +234,6 @@ export const useAudioPlayer = () => {
 
   const handleNextRef = useRef<() => void>(() => {});
 
-  // リスナー登録
   const attachExpoAudioListeners = (player: any) => {
     try {
       if (expoStatusSubscriptionRef.current) {
@@ -268,7 +281,6 @@ export const useAudioPlayer = () => {
     }
   };
 
-  // ★ 既存プレイヤーをクリーンに破棄して新規プレイヤーで確実に再生開始する処理
   const initExpoAudioPlayer = async (song: any, isLoopOne: boolean, autoPlay: boolean = true) => {
     clearExpoResources();
     await configureExpoAudioMode();
@@ -289,7 +301,6 @@ export const useAudioPlayer = () => {
         if (autoPlay) {
           player.play();
           setIsPlaying(true);
-          // ロード遅延に備えて短時間後に再キック
           setTimeout(() => {
             try {
               if (autoPlay && expoAudioPlayerRef.current === player) {
@@ -521,7 +532,6 @@ export const useAudioPlayer = () => {
     }
   };
 
-  // ★ 多重発火・連打を防止する安全なスキップ関数
   const handleNextInternal = async () => {
     if (isSkippingRef.current) return;
     isSkippingRef.current = true;

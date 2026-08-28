@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import React, { useState, useMemo } from 'react';
 import { 
-  Dimensions, FlatList, Image, Modal, ScrollView, StyleSheet, 
+  FlatList, Image, Modal, ScrollView, StyleSheet, 
   Switch, Text, TextInput, TouchableOpacity, View, useWindowDimensions 
 } from 'react-native';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
+import { t } from '../../utils/i18n';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -21,7 +21,7 @@ export const FocusSetupView = ({
     onSelectCollection,
     pickerVisible, setPickerVisible, pickingTarget, setPickingTarget,
     isReady, handleFinishSetup, mainShuffle, setMainShuffle, workShuffle, setWorkShuffle, breakShuffle, setBreakShuffle,
-    openCustomTimerModal
+    openCustomTimerModal, language = 'ja'
 }: any) => {
 
   const { width, height } = useWindowDimensions();
@@ -31,71 +31,56 @@ export const FocusSetupView = ({
   const [modalTab, setModalTab] = useState<CategoryTab>('PLAYLIST');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const parseOptToSeconds = (opt: string) => {
-    const valOnly = opt.replace('(推奨)', '').trim();
-    let secs = 0;
-    if (valOnly.includes('分')) {
-      const m = parseInt(valOnly, 10) || 0;
-      secs += m * 60;
-    } else if (valOnly.includes('秒')) {
-      const s = parseInt(valOnly, 10) || 0;
-      secs += s;
-    } else {
-      secs = (parseInt(valOnly, 10) || 0) * 60;
-    }
-    return secs;
-  };
-
   const formatCustomSec = (sec: number) => {
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
     const s = sec % 60;
-    if (h > 0) return `ｶｽﾀﾑ(${h}h${m}m${s > 0 ? s + 's' : ''})`;
-    if (s > 0 && m > 0) return `ｶｽﾀﾑ(${m}分${s}秒)`;
-    if (s > 0) return `ｶｽﾀﾑ(${s}秒)`;
-    return `ｶｽﾀﾑ(${m}分)`;
+    const customPrefix = `${t('custom_timer_btn', language)}:`;
+    if (h > 0) return `${customPrefix}${h}h${m}m${s > 0 ? s + 's' : ''}`;
+    if (s > 0 && m > 0) return `${customPrefix}${m}m${s}s`;
+    if (s > 0) return `${customPrefix}${s}s`;
+    return `${customPrefix}${m}m`;
   };
 
-  // タブ別コレクションデータの生成
   const { playlistsData, albumsData, artistsData } = useMemo(() => {
     const albumsMap = new Map<string, any>();
     const artistsMap = new Map<string, any>();
 
-    localLibrary.forEach((s: any) => {
-      const ak = `${s.album}:::${s.artist}`;
+    localLibrary.forEach((sVal: any) => {
+      const ak = `${sVal.album}:::${sVal.artist}`;
       if (!albumsMap.has(ak)) {
         albumsMap.set(ak, {
           id: ak,
           type: 'ALBUM',
-          title: s.album || '不明なアルバム',
-          sub: s.artist || '不明なアーティスト',
-          art: s.localImageUri,
+          title: sVal.album || 'Unknown Album',
+          sub: sVal.artist || 'Unknown Artist',
+          art: sVal.localImageUri,
           songs: []
         });
       }
-      albumsMap.get(ak).songs.push(s);
+      albumsMap.get(ak).songs.push(sVal);
 
-      if (!artistsMap.has(s.artist)) {
-        artistsMap.set(s.artist, {
-          id: s.artist,
+      if (!artistsMap.has(sVal.artist)) {
+        artistsMap.set(sVal.artist, {
+          id: sVal.artist,
           type: 'ARTIST',
-          title: s.artist || '不明なアーティスト',
-          sub: 'アーティスト',
-          art: s.localImageUri,
+          title: sVal.artist || 'Unknown Artist',
+          sub: t('artist_label', language),
+          art: sVal.localImageUri,
           songs: []
         });
       }
-      artistsMap.get(s.artist).songs.push(s);
+      artistsMap.get(sVal.artist).songs.push(sVal);
     });
 
     const pls = [
       {
         id: 'all_songs',
         type: 'PLAYLIST',
-        title: 'すべての楽曲',
-        sub: `${localLibrary.length}曲`,
+        title: t('all_songs_item', language),
+        sub: `${localLibrary.length} ${t('songs_count', language)}`,
         art: localLibrary.length > 0 ? localLibrary[0].localImageUri : null,
-        data: { playlistName: 'すべての楽曲', isAll: true, id: 'all_songs' }
+        data: { playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs' }
       },
       ...localPlaylists.map((p: any) => {
         const count = getPlaylistSongs(p, localLibrary).length;
@@ -104,7 +89,7 @@ export const FocusSetupView = ({
           id: p.id,
           type: 'PLAYLIST',
           title: p.playlistName,
-          sub: `${count}曲`,
+          sub: `${count} ${t('songs_count', language)}`,
           art: artSource?.uri || null,
           data: p
         };
@@ -113,12 +98,12 @@ export const FocusSetupView = ({
 
     const albs = Array.from(albumsMap.values()).map(a => ({
       ...a,
-      sub: `${a.sub} (${a.songs.length}曲)`
+      sub: `${a.sub} (${a.songs.length} ${t('songs_count', language)})`
     }));
 
     const arts = Array.from(artistsMap.values()).map(a => ({
       ...a,
-      sub: `${a.songs.length}曲`
+      sub: `${a.songs.length} ${t('songs_count', language)}`
     }));
 
     return {
@@ -126,9 +111,8 @@ export const FocusSetupView = ({
       albumsData: albs,
       artistsData: arts
     };
-  }, [localLibrary, localPlaylists]);
+  }, [localLibrary, localPlaylists, language]);
 
-  // 表示中タブと検索クエリに応じた現在リスト
   const currentList = useMemo(() => {
     let list: any[] = [];
     if (modalTab === 'PLAYLIST') list = playlistsData;
@@ -145,11 +129,30 @@ export const FocusSetupView = ({
 
   const currentSelected = pickingTarget === 'MAIN' ? mainPlaylist : (pickingTarget === 'WORK' ? workPlaylist : breakPlaylist);
 
-  const renderTileOption = (label: string, options: string[], current: any, setter: (v: any) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
-    const isCustomValue = !options.some(opt => {
-      const sec = parseOptToSeconds(opt);
-      return Number(current) === sec;
-    });
+  const workPresetOptions = [
+    { sec: 15 * 60, label: `15${t('minutes_unit', language)}`, isRec: false },
+    { sec: 20 * 60, label: `20${t('minutes_unit', language)}`, isRec: false },
+    { sec: 25 * 60, label: `25${t('minutes_unit', language)}`, isRec: true },
+    { sec: 30 * 60, label: `30${t('minutes_unit', language)}`, isRec: false },
+    { sec: 40 * 60, label: `40${t('minutes_unit', language)}`, isRec: false },
+    { sec: 50 * 60, label: `50${t('minutes_unit', language)}`, isRec: false },
+    { sec: 60 * 60, label: `60${t('minutes_unit', language)}`, isRec: false },
+    { sec: 120 * 60, label: `120${t('minutes_unit', language)}`, isRec: false },
+  ];
+
+  const breakPresetOptions = [
+    { sec: 1 * 60, label: `1${t('minutes_unit', language)}`, isRec: false },
+    { sec: 3 * 60, label: `3${t('minutes_unit', language)}`, isRec: false },
+    { sec: 5 * 60, label: `5${t('minutes_unit', language)}`, isRec: true },
+    { sec: 10 * 60, label: `10${t('minutes_unit', language)}`, isRec: false },
+    { sec: 15 * 60, label: `15${t('minutes_unit', language)}`, isRec: false },
+    { sec: 20 * 60, label: `20${t('minutes_unit', language)}`, isRec: false },
+    { sec: 25 * 60, label: `25${t('minutes_unit', language)}`, isRec: false },
+    { sec: 30 * 60, label: `30${t('minutes_unit', language)}`, isRec: false },
+  ];
+
+  const renderPresetTiles = (label: string, presetList: typeof workPresetOptions, current: number, setter: (v: number) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
+    const isCustomValue = !presetList.some(opt => opt.sec === current);
 
     return (
       <View style={[s.settingSection, isLast && { marginBottom: 0 }]}>
@@ -158,15 +161,13 @@ export const FocusSetupView = ({
             <Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text>
         </View>
         <View style={s.tileContainer}>
-          {options.map(opt => {
-            const valOnly = opt.replace('(推奨)', '');
-            const internalSec = parseOptToSeconds(opt);
-            const isSelected = Number(current) === internalSec && !isCustomValue;
+          {presetList.map(opt => {
+            const isSelected = current === opt.sec && !isCustomValue;
             
             return (
               <TouchableOpacity 
-                key={opt} 
-                onPress={() => setter(internalSec)} 
+                key={opt.sec} 
+                onPress={() => setter(opt.sec)} 
                 style={[
                   s.tileBtn, 
                   { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
@@ -174,8 +175,12 @@ export const FocusSetupView = ({
                   isSelected && s.tileBtnSelected
                 ]}
               >
-                <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{valOnly}</Text>
-                {opt.includes('推奨') && <View style={[s.recommendBadge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}><Text style={{ color: isSelected ? textColor : themeColor, fontSize: 8, fontWeight: 'bold' }}>推奨</Text></View>}
+                <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt.label}</Text>
+                {opt.isRec && (
+                  <View style={[s.recommendBadge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Text style={{ color: isSelected ? textColor : themeColor, fontSize: 8, fontWeight: 'bold' }}>{t('recommended_badge', language)}</Text>
+                  </View>
+                )}
                 {isSelected && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
               </TouchableOpacity>
             );
@@ -191,7 +196,7 @@ export const FocusSetupView = ({
             ]}
           >
             <Text style={[s.tileText, { color: isCustomValue ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                {isCustomValue ? formatCustomSec(Number(current)) : 'カスタム'}
+                {isCustomValue ? formatCustomSec(Number(current)) : t('custom_timer_btn', language)}
             </Text>
             {isCustomValue && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
           </TouchableOpacity>
@@ -200,16 +205,16 @@ export const FocusSetupView = ({
     );
   };
 
-  const renderDisplayOption = (label: string, options: string[], current: any, setter: (v: any) => void, icon: string) => (
+  const renderDisplayOption = (label: string, options: { key: string; label: string }[], current: string, setter: (v: string) => void, icon: string) => (
     <View style={s.settingSection}>
       <View style={s.sectionHeaderRow}><Ionicons name={icon as any} size={18} color={themeColor} /><Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text></View>
       <View style={s.displayTileContainer}>
         {options.map(opt => {
-          const isSelected = String(current) === String(opt);
+          const isSelected = String(current) === opt.key;
           return (
             <TouchableOpacity 
-              key={opt} 
-              onPress={() => setter(opt)} 
+              key={opt.key} 
+              onPress={() => setter(opt.key)} 
               style={[
                 s.tileBtn, 
                 { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
@@ -217,7 +222,7 @@ export const FocusSetupView = ({
                 isSelected && s.tileBtnSelected
               ]}
             >
-              <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt}</Text>
+              <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt.label}</Text>
               {isSelected && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
             </TouchableOpacity>
           );
@@ -232,7 +237,7 @@ export const FocusSetupView = ({
         <Text style={[s.playlistLabel, { color: dynamicStyles.subText }]}>{label}</Text>
         <TouchableOpacity style={[s.pickerBox, { backgroundColor: dynamicStyles.bg, borderColor: dynamicStyles.border }]} onPress={() => { setPickingTarget(target); setSearchQuery(''); setPickerVisible(true); }}>
             <Text style={{ color: selected ? dynamicStyles.text : dynamicStyles.subText, fontWeight: selected ? 'bold' : 'normal' }} numberOfLines={1}>
-              {selected ? `${selected.title} (${selected.type === 'PLAYLIST' ? 'プレイリスト' : selected.type === 'ALBUM' ? 'アルバム' : 'アーティスト'})` : '選択してください'}
+              {selected ? `${selected.title} (${selected.type === 'PLAYLIST' ? t('playlist_label', language) : selected.type === 'ALBUM' ? t('album_label', language) : t('artist_label', language)})` : t('select_playlist_placeholder', language)}
             </Text>
             <Ionicons name="chevron-down" size={16} color={dynamicStyles.subText} />
         </TouchableOpacity>
@@ -245,45 +250,74 @@ export const FocusSetupView = ({
   );
 
   const getTargetTitle = () => {
-    if (pickingTarget === 'WORK') return '作業用リストを選択';
-    if (pickingTarget === 'BREAK') return '休憩用リストを選択';
-    return '再生リストを選択';
+    if (pickingTarget === 'WORK') return t('select_work_list_title', language);
+    if (pickingTarget === 'BREAK') return t('select_break_list_title', language);
+    return t('select_list_title', language);
   };
+
+  const dateOptions = [
+    { key: '表示しない', label: t('opt_hide', language) },
+    { key: '年月日', label: t('opt_date_ymd', language) },
+    { key: '月日', label: t('opt_date_md', language) },
+    { key: '日', label: t('opt_date_d', language) },
+  ];
+
+  const dayOptions = [
+    { key: '表示しない', label: t('opt_hide', language) },
+    { key: '(日)', label: t('opt_day_short_paren', language) },
+    { key: '日曜', label: t('opt_day_short', language) },
+    { key: '日曜日', label: t('opt_day_full', language) },
+  ];
+
+  const clockOptions = [
+    { key: '表示しない', label: t('opt_hide', language) },
+    { key: '8:19', label: t('opt_clock_12', language) },
+    { key: '22:19', label: t('opt_clock_24', language) },
+  ];
 
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 250 }}>
         
         <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
-            {renderDisplayOption('日付表示', ['表示しない', '年月日', '月日', '日'], dateMode, setDateMode, 'calendar')}
-            {renderDisplayOption('曜日表示', ['表示しない', '(日)', '日曜', '日曜日'], dayMode, setDayMode, 'today')}
-            {renderDisplayOption('時計表示', ['表示しない', '8:19', '22:19'], clockMode, setClockMode, 'time')}
+            {renderDisplayOption(t('date_display', language), dateOptions, dateMode, setDateMode, 'calendar')}
+            {renderDisplayOption(t('day_display', language), dayOptions, dayMode, setDayMode, 'today')}
+            {renderDisplayOption(t('clock_display', language), clockOptions, clockMode, setClockMode, 'time')}
             
             <View style={[s.switchRow, { marginTop: 10 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="chatbubble-ellipses" size={22} color={themeColor} />
-                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>名言表示</Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('quote_display', language)}</Text>
               </View>
               <Switch value={showQuote} onValueChange={setShowQuote} trackColor={{ false: "#767577", true: themeColor }} />
             </View>
         </View>
 
         <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20 }]}>
-            <View style={s.switchRow}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Ionicons name="timer" size={22} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>ポモドーロモード</Text></View><Switch value={pomoEnabled} onValueChange={setPomoEnabled} trackColor={{ false: "#767577", true: themeColor }} /></View>
+            <View style={s.switchRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Ionicons name="timer" size={22} color={themeColor} />
+                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('pomodoro_mode', language)}</Text>
+              </View>
+              <Switch value={pomoEnabled} onValueChange={setPomoEnabled} trackColor={{ false: "#767577", true: themeColor }} />
+            </View>
             {pomoEnabled && (
                 <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: dynamicStyles.border, paddingTop: 15 }}>
-                    {renderTileOption('作業時間', ['15分', '20分', '25分(推奨)', '30分', '40分', '50分', '60分', '120分'], workTime, setWorkTime, 'briefcase', 'WORK', false)}
-                    {renderTileOption('休憩時間', ['1分', '3分', '5分(推奨)', '10分', '15分', '20分', '25分', '30分'], breakTime, setBreakTime, 'cafe', 'BREAK', true)}
+                    {renderPresetTiles(t('work_time', language), workPresetOptions, workTime, setWorkTime, 'briefcase', 'WORK', false)}
+                    {renderPresetTiles(t('break_time', language), breakPresetOptions, breakTime, setBreakTime, 'cafe', 'BREAK', true)}
                 </View>
             )}
         </View>
 
         <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20 }]}>
-            <View style={s.sectionHeaderRow}><Ionicons name="musical-notes" size={20} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>再生設定</Text></View>
-            {!pomoEnabled ? renderPlaylistSelector('使用するリスト', mainPlaylist, mainShuffle, setMainShuffle, 'MAIN') : (
+            <View style={s.sectionHeaderRow}>
+              <Ionicons name="musical-notes" size={20} color={themeColor} />
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('playback_settings', language)}</Text>
+            </View>
+            {!pomoEnabled ? renderPlaylistSelector(t('main_playlist_label', language), mainPlaylist, mainShuffle, setMainShuffle, 'MAIN') : (
                 <View style={{ gap: 15 }}>
-                   {renderPlaylistSelector('作業用', workPlaylist, workShuffle, setWorkShuffle, 'WORK')}
-                   {renderPlaylistSelector('休憩用', breakPlaylist, breakShuffle, setBreakShuffle, 'BREAK')}
+                   {renderPlaylistSelector(t('work_playlist_label', language), workPlaylist, workShuffle, setWorkShuffle, 'WORK')}
+                   {renderPlaylistSelector(t('break_playlist_label', language), breakPlaylist, breakShuffle, setBreakShuffle, 'BREAK')}
                 </View>
             )}
         </View>
@@ -304,7 +338,7 @@ export const FocusSetupView = ({
           ]} 
           onPress={handleFinishSetup}
         >
-          <Text style={[s.primaryBtnText, { color: textColor }]}>設定完了</Text>
+          <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
         </TouchableOpacity>
 
       </ScrollView>
@@ -332,15 +366,15 @@ export const FocusSetupView = ({
             </View>
 
             <View style={[s.tabSwitchContainer, { backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#e5e7eb', borderColor: dynamicStyles.border }]}>
-              {(['PLAYLIST', 'ALBUM', 'ARTIST'] as CategoryTab[]).map((t) => {
-                const isSelected = modalTab === t;
-                const label = t === 'PLAYLIST' ? 'プレイリスト' : t === 'ALBUM' ? 'アルバム' : 'アーティスト';
-                const icon = t === 'PLAYLIST' ? 'musical-notes-outline' : t === 'ALBUM' ? 'disc-outline' : 'mic-outline';
+              {(['PLAYLIST', 'ALBUM', 'ARTIST'] as CategoryTab[]).map((tabKey) => {
+                const isSelected = modalTab === tabKey;
+                const label = tabKey === 'PLAYLIST' ? t('playlist_label', language) : tabKey === 'ALBUM' ? t('album_label', language) : t('artist_label', language);
+                const icon = tabKey === 'PLAYLIST' ? 'musical-notes-outline' : tabKey === 'ALBUM' ? 'disc-outline' : 'mic-outline';
                 return (
                   <TouchableOpacity
-                    key={t}
+                    key={tabKey}
                     style={[s.tabSwitchBtn, isSelected && { backgroundColor: themeColor }]}
-                    onPress={() => setModalTab(t)}
+                    onPress={() => setModalTab(tabKey)}
                   >
                     <Ionicons name={icon as any} size={16} color={isSelected ? textColor : dynamicStyles.subText} style={{ marginRight: 6 }} />
                     <Text style={{ color: isSelected ? textColor : dynamicStyles.text, fontWeight: 'bold', fontSize: 13 }}>
@@ -355,7 +389,7 @@ export const FocusSetupView = ({
               <Ionicons name="search" size={16} color={dynamicStyles.subText} style={{ marginRight: 8 }} />
               <TextInput
                 style={[s.searchInput, { color: dynamicStyles.text }]}
-                placeholder="タイトルやアーティスト名で検索..."
+                placeholder={t('search_collection_placeholder', language)}
                 placeholderTextColor={dynamicStyles.subText}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -376,7 +410,7 @@ export const FocusSetupView = ({
                 <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
                   <Ionicons name="alert-circle-outline" size={48} color={dynamicStyles.subText} />
                   <Text style={{ color: dynamicStyles.subText, marginTop: 10, fontSize: 14, fontWeight: 'bold' }}>
-                    該当する項目が見つかりません
+                    {t('no_items_found', language)}
                   </Text>
                 </View>
               }

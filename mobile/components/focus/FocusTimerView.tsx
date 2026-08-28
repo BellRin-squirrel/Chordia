@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableWithoutFeedback, StyleSheet as RNStyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { t } from '../../utils/i18n';
 
 const QUOTES_LIST = [
   "学ぶことをやめた時、成長も止まる（ベンジャミン・フランクリン）",
@@ -100,6 +101,39 @@ const QUOTES_LIST = [
   "努力することが未来を作る（フランクリン）"
 ];
 
+const WEEKDAY_NAMES: Record<string, { shortParen: string[]; short: string[]; full: string[] }> = {
+  ja: {
+    shortParen: ['(日)', '(月)', '(火)', '(水)', '(木)', '(金)', '(土)'],
+    short: ['日曜', '月曜', '火曜', '水曜', '木曜', '金曜', '土曜'],
+    full: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+  },
+  en: {
+    shortParen: ['(Sun)', '(Mon)', '(Tue)', '(Wed)', '(Thu)', '(Fri)', '(Sat)'],
+    short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    full: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  },
+  ko: {
+    shortParen: ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'],
+    short: ['일', '월', '화', '수', '목', '금', '토'],
+    full: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  },
+  es: {
+    shortParen: ['(Dom)', '(Lun)', '(Mar)', '(Mié)', '(Jue)', '(Vie)', '(Sáb)'],
+    short: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+    full: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  },
+  fr: {
+    shortParen: ['(Dim)', '(Lun)', '(Mar)', '(Mer)', '(Jeu)', '(Ven)', '(Sam)'],
+    short: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+    full: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+  },
+  de: {
+    shortParen: ['(So)', '(Mo)', '(Di)', '(Mi)', '(Do)', '(Fr)', '(Sa)'],
+    short: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+    full: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
+  },
+};
+
 const FadeText = ({ text, style }: { text: string, style: any }) => {
   const [displayText, setDisplayText] = useState(text);
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -159,12 +193,52 @@ const AnimatedGradient = ({ children, isAppDark }: any) => {
 
 export const FocusTimerView = ({ 
     isLandscape, insets, themeColor, isAppDark, 
-    dateStr, dayStr, clockStr, dayMode, 
+    now, dateMode, dayMode, clockMode,
     totalWorkSeconds, pomoEnabled, pomoState, pomoRemaining, 
     currentSong, isPaused, showHelp, pausedSeconds, formatTime,
     handleTouchPress, handleLongPress, panHandlers, introToastAnim,
-    showQuote
+    showQuote, language = 'ja'
 }: any) => {
+
+  const langWeekdays = WEEKDAY_NAMES[language] || WEEKDAY_NAMES['ja'];
+  const dayIdx = now.getDay();
+
+  const getDateString = () => {
+    if (dateMode === '表示しない') return "";
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    if (dateMode === '年月日') {
+      if (language === 'ja' || language === 'ko') return `${y}年${m}月${d}日`;
+      return `${y}/${m}/${d}`;
+    }
+    if (dateMode === '月日') {
+      if (language === 'ja' || language === 'ko') return `${m}月${d}日`;
+      return `${m}/${d}`;
+    }
+    if (language === 'ja' || language === 'ko') return `${d}日`;
+    return `${d}`;
+  };
+
+  const getDayString = () => {
+    if (dayMode === '表示しない') return "";
+    if (dayMode === '(日)') return langWeekdays.shortParen[dayIdx];
+    if (dayMode === '日曜') return langWeekdays.short[dayIdx];
+    return langWeekdays.full[dayIdx];
+  };
+
+  const getClockString = () => {
+    if (clockMode === '表示しない') return "";
+    const h24 = now.getHours();
+    const m = String(now.getMinutes()).padStart(2, '0');
+    if (clockMode === '22:19') return `${String(h24).padStart(2, '0')}:${m}`;
+    return `${h24 % 12 || 12}:${m}`;
+  };
+
+  const dateStr = getDateString();
+  const dayStr = getDayString();
+  const clockStr = getClockString();
+
   const isLeftAreaHidden = dateStr === "" && dayStr === "" && clockStr === "";
 
   const [randomQuote, setRandomQuote] = useState("");
@@ -204,7 +278,6 @@ export const FocusTimerView = ({
   return (
     <TouchableWithoutFeedback onPress={handleTouchPress} onLongPress={handleLongPress} delayLongPress={600}>
       <View style={{ flex: 1, backgroundColor: '#000' }} {...panHandlers}>
-        {/* ★ 背景を画面外(-100px)まで全面拡張してノッチやホームバー裏まで完全黒化 */}
         <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: '#000', zIndex: -1 }} />
 
         <View style={{ flex: 1, padding: 40, paddingTop: insets.top + (isLandscape ? 40 : 60), opacity: isPaused ? 0.3 : 1 }}>
@@ -236,7 +309,7 @@ export const FocusTimerView = ({
             )}
 
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 'bold' }}>TOTAL WORK</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 'bold' }}>{t('timer_total_work', language)}</Text>
               <Text style={{ color: themeColor, fontSize: isLandscape ? 36 : 48, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatTime(totalWorkSeconds)}</Text>
               
               {!isLandscape && showQuote && !pomoEnabled && <QuoteElement />}
@@ -244,7 +317,7 @@ export const FocusTimerView = ({
               {pomoEnabled && (
                 <View style={{ marginTop: isLandscape ? 30 : 60, alignItems: 'center' }}>
                   <AnimatedGradient isAppDark={isAppDark}>
-                    <FadeText text={pomoState === 'WORK' ? 'FOCUSING' : 'BREAK TIME'} style={{ color: themeColor, fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'], letterSpacing: 2 }} />
+                    <FadeText text={pomoState === 'WORK' ? t('timer_focusing', language) : t('timer_break_time', language)} style={{ color: themeColor, fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'], letterSpacing: 2 }} />
                   </AnimatedGradient>
                   <Text style={{ color: '#fff', fontSize: isLandscape ? 52 : 72, fontWeight: '200', fontVariant: ['tabular-nums'] }}>{formatTime(pomoRemaining)}</Text>
                   
@@ -262,23 +335,23 @@ export const FocusTimerView = ({
                     </Text>
                 </View>
             )}
-            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontVariant: ['tabular-nums'] }}>{currentSong ? `♪ ${currentSong.title}` : 'No Music'}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14, fontVariant: ['tabular-nums'] }}>{currentSong ? `♪ ${currentSong.title}` : t('timer_no_music', language)}</Text>
           </View>
         </View>
 
         <Animated.View style={{ position: 'absolute', top: insets.top + 20, left: 0, right: 0, alignItems: 'center', opacity: introToastAnim }}>
             <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }}>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>画面を長押しするとヘルプが表示されます</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{t('timer_toast_longpress', language)}</Text>
             </View>
         </Animated.View>
 
         {isPaused && !showHelp && (
           <View style={[RNStyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center', pointerEvents: 'none' }]}>
             <Ionicons name="pause-circle" size={80} color="#fff" style={{ opacity: 0.8 }} />
-            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 10, letterSpacing: 5 }}>PAUSED</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 15 }}>画面をタップして再開</Text>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 10, letterSpacing: 5 }}>{t('timer_paused', language)}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 15 }}>{t('timer_tap_to_resume', language)}</Text>
             <View style={{ position: 'absolute', bottom: insets.bottom + 80, alignItems: 'center' }}>
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 'bold', marginBottom: 5 }}>PAUSED TIME</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: 'bold', marginBottom: 5 }}>{t('timer_paused_time', language)}</Text>
               <Text style={{ color: '#ef4444', fontSize: 24, fontWeight: 'bold', fontVariant: ['tabular-nums'] }}>{formatTime(pausedSeconds)}</Text>
             </View>
           </View>

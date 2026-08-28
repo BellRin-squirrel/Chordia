@@ -10,6 +10,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { t } from '../utils/i18n';
 
 import { LibraryMenuView } from './library/LibraryMenuView';
 import { LibraryCategoryView } from './library/LibraryCategoryView';
@@ -32,7 +33,7 @@ const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
   );
 };
 
-const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
+const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
@@ -40,7 +41,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
       <Animated.View style={{ backgroundColor: dynamicStyles.card, borderRadius: 16, height: 52, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: dynamicStyles.border, transform: [{ scale }] }}>
-        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>キャンセル</Text>
+        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{label || 'キャンセル'}</Text>
       </Animated.View>
     </TouchableWithoutFeedback>
   );
@@ -49,7 +50,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles }: any) => {
 export const Library = ({ 
   dynamicStyles, themeColor, startQueue, currentSong, 
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
-  setNavStackLength, insets, isDark, showPlaylistTypeIcon = true 
+  setNavStackLength, insets, isDark, showPlaylistTypeIcon = true, language = 'ja'
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -73,7 +74,6 @@ export const Library = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  // モーダル用 State
   const [actionSheetSong, setActionSheetSong] = useState<any>(null);
   const [songInfoModalTarget, setSongInfoModalTarget] = useState<any>(null);
   const [addToPlaylistSong, setAddToPlaylistSong] = useState<any>(null);
@@ -190,12 +190,16 @@ export const Library = ({
         if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
         setAddToPlaylistSong(null);
         setSelectedPlaylistsForAdd(new Set());
-        Alert.alert('完了', '選択したプレイリストに楽曲を追加しました。');
-      } catch (e: any) { Alert.alert('エラー', '追加に失敗しました: ' + e.message); }
+        Alert.alert(t('confirm', language), t('added_to_playlists_done', language));
+      } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
     };
 
     if (hasSmart) {
-      Alert.alert('プレイリストの変換', 'スマートプレイリストが含まれています。曲を追加すると通常プレイリストに変換されますが続行しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '変換して追加', style: 'destructive', onPress: processAdd }]);
+      Alert.alert(
+        t('smart_convert_confirm_title', language), 
+        t('smart_convert_confirm_desc', language), 
+        [{ text: t('cancel', language), style: 'cancel' }, { text: t('convert_and_add', language), style: 'destructive', onPress: processAdd }]
+      );
     } else { await processAdd(); }
   };
 
@@ -205,46 +209,58 @@ export const Library = ({
     if (!songFname) return;
 
     if (currentPlaylist.type === 'smart') {
-      Alert.alert('プレイリストの変換と削除', `「${currentPlaylist.playlistName}」はスマートプレイリストです。\n曲を個別削除すると通常のプレイリストに変換されます。\n(端末内の楽曲ファイルは削除されません)\n続行しますか？`, [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '変換して削除', style: 'destructive', onPress: async () => {
-          const remainingFilenames = getPlaylistSongs(currentPlaylist, localLibrary).filter((s: any) => s.musicFilename?.split(/[\\/]/).pop()?.toLowerCase() !== songFname).map((s: any) => s.musicFilename?.split(/[\\/]/).pop()).filter(Boolean);
-          const updatedPlaylists = localPlaylists.map((p: any) => p.id === currentPlaylist.id ? { ...p, conditions: undefined, type: 'normal', music: remainingFilenames } : p);
-          await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
-          if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
-          setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
-        }}
-      ]);
+      Alert.alert(
+        t('remove_from_smart_pl_title', language), 
+        t('remove_from_smart_pl_desc', language).replace('{playlist}', currentPlaylist.playlistName), 
+        [
+          { text: t('cancel', language), style: 'cancel' },
+          { text: t('convert_confirm_btn', language), style: 'destructive', onPress: async () => {
+            const remainingFilenames = getPlaylistSongs(currentPlaylist, localLibrary).filter((s: any) => s.musicFilename?.split(/[\\/]/).pop()?.toLowerCase() !== songFname).map((s: any) => s.musicFilename?.split(/[\\/]/).pop()).filter(Boolean);
+            const updatedPlaylists = localPlaylists.map((p: any) => p.id === currentPlaylist.id ? { ...p, conditions: undefined, type: 'normal', music: remainingFilenames } : p);
+            await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+            if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+            setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
+          }}
+        ]
+      );
     } else {
-      Alert.alert('プレイリストから削除', `「${currentPlaylist.playlistName}」から「${song.title || 'この曲'}」を削除しますか？\n(端末内の楽曲ファイルは削除されません)`, [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '削除', style: 'destructive', onPress: async () => {
-          const remainingFilenames = (Array.isArray(currentPlaylist.music) ? currentPlaylist.music : []).filter((m: any) => (typeof m === 'string' ? m : (m?.musicFilename || m?.path || '')).split(/[\\/]/).pop()?.toLowerCase() !== songFname);
-          const updatedPlaylists = localPlaylists.map((p: any) => p.id === currentPlaylist.id ? { ...p, music: remainingFilenames } : p);
-          await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
-          if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
-          setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
-        }}
-      ]);
+      Alert.alert(
+        t('remove_from_pl_title', language), 
+        t('remove_from_pl_desc', language).replace('{playlist}', currentPlaylist.playlistName).replace('{song}', song.title || 'Track'), 
+        [
+          { text: t('cancel', language), style: 'cancel' },
+          { text: t('delete_confirm_btn', language), style: 'destructive', onPress: async () => {
+            const remainingFilenames = (Array.isArray(currentPlaylist.music) ? currentPlaylist.music : []).filter((m: any) => (typeof m === 'string' ? m : (m?.musicFilename || m?.path || '')).split(/[\\/]/).pop()?.toLowerCase() !== songFname);
+            const updatedPlaylists = localPlaylists.map((p: any) => p.id === currentPlaylist.id ? { ...p, music: remainingFilenames } : p);
+            await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+            if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+            setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
+          }}
+        ]
+      );
     }
   };
 
   const handleDeleteSongPermanently = (song: any) => {
-    Alert.alert('ライブラリから楽曲を削除', `「${song.title || 'この曲'}」をライブラリおよび端末から完全に削除しますか？\n(この操作は取り消せません)`, [
-      { text: 'キャンセル', style: 'cancel' },
-      { text: '削除する', style: 'destructive', onPress: async () => {
-        try {
-          if (song.localMusicUri && (await FileSystem.getInfoAsync(song.localMusicUri)).exists) await FileSystem.deleteAsync(song.localMusicUri, { idempotent: true });
-          const remainingLibrary = localLibrary.filter((s: any) => s.localMusicUri !== song.localMusicUri);
-          const targetFname = song.musicFilename?.split(/[\\/]/).pop();
-          const updatedPlaylists = localPlaylists.map((pl: any) => pl.isAll || !pl.music ? pl : { ...pl, music: pl.music.filter((m: string) => m.split(/[\\/]/).pop() !== targetFname) });
-          await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
-          await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
-          if (setLocalLibrary) setLocalLibrary(remainingLibrary);
-          if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
-        } catch (e: any) { Alert.alert('エラー', '削除に失敗しました: ' + e.message); }
-      }}
-    ]);
+    Alert.alert(
+      t('delete_song_permanently_title', language), 
+      t('delete_song_permanently_desc', language).replace('{name}', song.title || 'Track'), 
+      [
+        { text: t('cancel', language), style: 'cancel' },
+        { text: t('delete_confirm_btn', language), style: 'destructive', onPress: async () => {
+          try {
+            if (song.localMusicUri && (await FileSystem.getInfoAsync(song.localMusicUri)).exists) await FileSystem.deleteAsync(song.localMusicUri, { idempotent: true });
+            const remainingLibrary = localLibrary.filter((s: any) => s.localMusicUri !== song.localMusicUri);
+            const targetFname = song.musicFilename?.split(/[\\/]/).pop();
+            const updatedPlaylists = localPlaylists.map((pl: any) => pl.isAll || !pl.music ? pl : { ...pl, music: pl.music.filter((m: string) => m.split(/[\\/]/).pop() !== targetFname) });
+            await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
+            await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+            if (setLocalLibrary) setLocalLibrary(remainingLibrary);
+            if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+          } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
+        }}
+      ]
+    );
   };
 
   const openEditSongModal = (song: any) => {
@@ -383,6 +399,7 @@ export const Library = ({
               dynamicStyles={dynamicStyles} themeColor={themeColor} insets={insets} isLandscape={isLandscape} safePadding={safePadding}
               pushView={pushView} recentlyPlayedSongs={recentlyPlayedSongs} recentlyPlayedCollections={recentlyPlayedCollections}
               localLibrary={localLibrary} startQueue={startQueue} saveCollectionToHistory={saveCollectionToHistory}
+              language={language}
             />
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
@@ -394,6 +411,7 @@ export const Library = ({
                 localPlaylists={localPlaylists} setLocalPlaylists={setLocalPlaylists} albumsList={albumsList} artistsList={artistsList} localLibrary={localLibrary}
                 showPlaylistTypeIcon={showPlaylistTypeIcon} setCurrentSelectionType={setCurrentSelectionType} setCurrentPlaylist={setCurrentPlaylist}
                 setCurrentAlbum={setCurrentAlbum} setCurrentArtist={setCurrentArtist} pushView={pushView} renderHeader={renderHeader} isDark={isDark}
+                language={language}
               />
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>
@@ -417,6 +435,7 @@ export const Library = ({
                 openActionSheet={openActionSheet} renderFloatingBackButton={renderFloatingBackButton}
                 flatListRefPortrait={flatListRefPortrait} flatListRefLandscape={flatListRefLandscape}
                 AnimatedMenuButton={AnimatedMenuButton}
+                language={language}
               />
             </Animated.View>
           )}
@@ -435,6 +454,7 @@ export const Library = ({
         editYear={editYear} setEditYear={setEditYear} editLyric={editLyric} setEditLyric={setEditLyric} saveEditedSong={saveEditedSong}
         openEditSongModal={openEditSongModal} setAddToPlaylistSong={setAddToPlaylistSong} setSongInfoModalTargetSongs={setSongInfoModalTarget}
         showPlaylistTypeIcon={showPlaylistTypeIcon} localLibrary={localLibrary} AnimatedCancelButton={AnimatedCancelButton}
+        language={language}
       />
     </GestureHandlerRootView>
   );

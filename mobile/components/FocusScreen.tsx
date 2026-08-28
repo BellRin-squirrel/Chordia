@@ -9,6 +9,7 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
+import { t } from '../utils/i18n';
 
 const STORAGE_KEY = 'chordia_focus_settings';
 const HISTORY_KEY = 'chordia_focus_history';
@@ -18,7 +19,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = [], localPlaylists = [], currentSong, startQueue, stage, setStage, audioEngine, changeAudioEngine, themeR, themeG, themeB }: any) => {
+export const FocusScreen = ({ 
+  dynamicStyles, insets, themeColor, localLibrary = [], localPlaylists = [], 
+  currentSong, startQueue, stage, setStage, audioEngine, changeAudioEngine, 
+  themeR, themeG, themeB, language = 'ja' 
+}: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
@@ -171,28 +176,28 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
 
         const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
         if (jsonValue != null) {
-          const s = JSON.parse(jsonValue);
-          if (s.dateMode) setDateMode(s.dateMode);
-          if (s.dayMode) setDayMode(s.dayMode);
-          if (s.clockMode) setClockMode(s.clockMode);
-          if (s.showQuote !== undefined) setShowQuote(s.showQuote);
-          if (s.pomoEnabled !== undefined) setPomoEnabled(s.pomoEnabled);
+          const sVal = JSON.parse(jsonValue);
+          if (sVal.dateMode) setDateMode(sVal.dateMode);
+          if (sVal.dayMode) setDayMode(sVal.dayMode);
+          if (sVal.clockMode) setClockMode(sVal.clockMode);
+          if (sVal.showQuote !== undefined) setShowQuote(sVal.showQuote);
+          if (sVal.pomoEnabled !== undefined) setPomoEnabled(sVal.pomoEnabled);
           
-          if (s.workTime !== undefined) {
-            const wt = Number(s.workTime);
+          if (sVal.workTime !== undefined) {
+            const wt = Number(sVal.workTime);
             setWorkTime(wt <= 120 ? wt * 60 : wt);
           }
-          if (s.breakTime !== undefined) {
-            const bt = Number(s.breakTime);
+          if (sVal.breakTime !== undefined) {
+            const bt = Number(sVal.breakTime);
             setBreakTime(bt <= 60 ? bt * 60 : bt);
           }
 
-          if (s.mainPlaylist) setMainPlaylist(s.mainPlaylist);
-          if (s.mainShuffle !== undefined) setMainShuffle(s.mainShuffle);
-          if (s.workPlaylist) setWorkPlaylist(s.workPlaylist);
-          if (s.workShuffle !== undefined) setWorkShuffle(s.workShuffle);
-          if (s.breakPlaylist) setBreakPlaylist(s.breakPlaylist);
-          if (s.breakShuffle !== undefined) setBreakShuffle(s.breakShuffle);
+          if (sVal.mainPlaylist) setMainPlaylist(sVal.mainPlaylist);
+          if (sVal.mainShuffle !== undefined) setMainShuffle(sVal.mainShuffle);
+          if (sVal.workPlaylist) setWorkPlaylist(sVal.workPlaylist);
+          if (sVal.workShuffle !== undefined) setWorkShuffle(sVal.workShuffle);
+          if (sVal.breakPlaylist) setBreakPlaylist(sVal.breakPlaylist);
+          if (sVal.breakShuffle !== undefined) setBreakShuffle(sVal.breakShuffle);
         }
       } catch (e) {}
     };
@@ -414,29 +419,61 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <FocusTimerView 
               isLandscape={isLandscape} insets={insets} themeColor={themeColor} isAppDark={dynamicStyles.bg === '#000000'}
-              dateStr={dateMode==='表示しない'?"": (dateMode==='年月日'?`${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`: dateMode==='月日'?`${now.getMonth()+1}月${now.getDate()}日`:`${now.getDate()}日`)}
-              dayStr={dayMode==='表示しない'?"": dayMode==='(日)'?`(${['日','月','火','水','木','金','土'][now.getDay()]})`: dayMode==='日曜'?['日','月','火','水','木','金','土'][now.getDay()]+'曜':['日','月','火','水','木','金','土'][now.getDay()]+'曜日'}
-              clockStr={clockMode==='表示しない'?"": clockMode==='22:19'?`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`:`${now.getHours()%12||12}:${String(now.getMinutes()).padStart(2,'0')}`}
-              dayMode={dayMode} totalWorkSeconds={totalWorkSeconds} pomoEnabled={pomoEnabled} pomoState={pomoState} pomoRemaining={pomoRemaining}
+              now={now} dateMode={dateMode} dayMode={dayMode} clockMode={clockMode}
+              totalWorkSeconds={totalWorkSeconds} pomoEnabled={pomoEnabled} pomoState={pomoState} pomoRemaining={pomoRemaining}
               currentSong={currentSong} isPaused={isPaused} showHelp={showHelp} pausedSeconds={pausedSeconds}
-              formatTime={(s:number)=>{const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); const sc=Math.floor(s%60); return h>0? `${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`}}
+              formatTime={(sVal:number)=>{const h=Math.floor(sVal/3600); const m=Math.floor((sVal%3600)/60); const sc=Math.floor(sVal%60); return h>0? `${h}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`}}
               handleTouchPress={() => { if (!showHelpRef.current) togglePause(); }} handleLongPress={() => { if (!showHelpRef.current) { togglePause(true); setShowHelp(true); } }}
               panHandlers={panResponder.panHandlers} introToastAnim={introToastAnim}
               showQuote={showQuote}
+              language={language}
           />
           <Modal visible={showHelp} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
               <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: isLandscape ? 15 : 30 }}>
                   <View style={{ backgroundColor: dynamicStyles.card, padding: isLandscape ? 20 : 30, borderRadius: 25, width: '100%', maxWidth: isLandscape ? 600 : 400, maxHeight: '90%', borderWidth: 1, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
                       <ScrollView showsVerticalScrollIndicator={false}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: isLandscape ? 15 : 20 }}><Ionicons name="information-circle" size={28} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 20, fontWeight: 'bold' }}>操作ヘルプ</Text></View>
-                          <Text style={{ color: dynamicStyles.subText, marginBottom: isLandscape ? 15 : 25, lineHeight: 22 }}>この画面では、通常のタップ操作は制限されています。{"\n"}(現在、一時停止中です)</Text>
-                          <View style={{ gap: isLandscape ? 12 : 20, marginBottom: 30 }}><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="pause" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>一時停止 / 再開</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「タップ」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}><Ionicons name="menu" size={22} color={themeColor} /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>ヘルプ表示</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を「長押し」</Text></View></View><View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.15)', justifyContent: 'center', alignItems: 'center' }}><Ionicons name="exit-outline" size={22} color="#ef4444" /></View><View style={{ flex: 1 }}><Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>集中を終了する</Text><Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>画面を大きくスワイプ</Text></View></View></View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: isLandscape ? 15 : 20 }}>
+                            <Ionicons name="information-circle" size={28} color={themeColor} />
+                            <Text style={{ color: dynamicStyles.text, fontSize: 20, fontWeight: 'bold' }}>{t('focus_help_title', language)}</Text>
+                          </View>
+                          <Text style={{ color: dynamicStyles.subText, marginBottom: isLandscape ? 15 : 25, lineHeight: 22 }}>{t('focus_help_desc', language)}</Text>
+                          <View style={{ gap: isLandscape ? 12 : 20, marginBottom: 30 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="pause" size={22} color={themeColor} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('focus_help_pause_title', language)}</Text>
+                                <Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>{t('focus_help_pause_desc', language)}</Text>
+                              </View>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: iconBgColor, justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="menu" size={22} color={themeColor} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('focus_help_menu_title', language)}</Text>
+                                <Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>{t('focus_help_menu_desc', language)}</Text>
+                              </View>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}>
+                              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.15)', justifyContent: 'center', alignItems: 'center' }}>
+                                <Ionicons name="exit-outline" size={22} color="#ef4444" />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('focus_help_exit_title', language)}</Text>
+                                <Text style={{ color: dynamicStyles.subText, fontSize: 12 }}>{t('focus_help_exit_desc', language)}</Text>
+                              </View>
+                            </View>
+                          </View>
                           
                           <TouchableOpacity style={{ backgroundColor: themeColor, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' }} onPress={() => { setShowHelp(false); togglePause(false); }}>
-                            <Text style={{ color: buttonTextColor, fontWeight: 'bold', fontSize: 16 }}>理解して再開する</Text>
+                            <Text style={{ color: buttonTextColor, fontWeight: 'bold', fontSize: 16 }}>{t('focus_help_resume_btn', language)}</Text>
                           </TouchableOpacity>
                           
-                          <TouchableOpacity style={{ marginTop: 20, paddingBottom: 10, alignItems: 'center' }} onPress={exitFocusMode}><Text style={{ color: '#ef4444', fontWeight: 'bold' }}>今すぐ終了する</Text></TouchableOpacity>
+                          <TouchableOpacity style={{ marginTop: 20, paddingBottom: 10, alignItems: 'center' }} onPress={exitFocusMode}>
+                            <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>{t('focus_help_exit_now_btn', language)}</Text>
+                          </TouchableOpacity>
                       </ScrollView>
                   </View>
               </View>
@@ -448,26 +485,55 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
   if (stage === 'GUIDE') {
     return (
         <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: dynamicStyles.bg, justifyContent: 'center', alignItems: 'center', padding: 30, paddingBottom: 200 }}>
-            <Ionicons name="sparkles" size={60} color={themeColor} /><Text style={{ color: dynamicStyles.text, fontSize: 26, fontWeight: '900', marginTop: 20 }}>準備完了！</Text>
+            <Ionicons name="sparkles" size={60} color={themeColor} />
+            <Text style={{ color: dynamicStyles.text, fontSize: 26, fontWeight: '900', marginTop: 20 }}>{t('guide_ready_title', language)}</Text>
             <View style={[s.guideCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 30 }]}>
-                <View style={s.guideStep}><Ionicons name="shield-checkmark" size={24} color={themeColor} /><Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>アクセスガイドを有効にしましたか？</Text></View>
-                <View style={{ paddingLeft: 39, marginBottom: 15 }}><Text style={{ color: dynamicStyles.subText, fontSize: 13, lineHeight: 20 }}>・通知が一切表示されなくなります{"\n"}・他のアプリを容易に開けなくなります</Text><TouchableOpacity style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => Linking.openURL('https://support.apple.com/ja-jp/111795')}><Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>アクセスガイドの使い方はこちら</Text><Ionicons name="open-outline" size={12} color={themeColor} /></TouchableOpacity></View>
-                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="headset" size={24} color={themeColor} /><Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>イヤホンを使用していますか？</Text></View>
-                <View style={{ paddingLeft: 39, marginBottom: 15 }}><Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>音楽の世界に没入し、目の前の作業に集中しましょう。</Text></View>
-                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="volume-mute" size={24} color={themeColor} /><Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>ノイズキャンセリングは有効ですか？</Text></View><View style={{ paddingLeft: 39, marginBottom: 15 }}><Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>周囲の雑音を遮断することで、圧倒的に集中力が高まります。</Text></View>
-                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} /><View style={s.guideStep}><Ionicons name="warning" size={20} color="#f59e0b" /><Text style={{ color: '#f59e0b', fontSize: 12, flex: 1, fontWeight: 'bold' }}>※作業中は他のアプリからの通知音等を防ぐため、強制的に標準プレイヤーが使用されます。</Text></View>
+                <View style={s.guideStep}>
+                  <Ionicons name="shield-checkmark" size={24} color={themeColor} />
+                  <Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>{t('guide_guided_access_title', language)}</Text>
+                </View>
+                <View style={{ paddingLeft: 39, marginBottom: 15 }}>
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 13, lineHeight: 20 }}>{t('guide_guided_access_desc', language)}</Text>
+                  <TouchableOpacity style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => Linking.openURL('https://support.apple.com/ja-jp/111795')}>
+                    <Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold', textDecorationLine: 'underline' }}>{t('guide_guided_access_link', language)}</Text>
+                    <Ionicons name="open-outline" size={12} color={themeColor} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} />
+                <View style={s.guideStep}>
+                  <Ionicons name="headset" size={24} color={themeColor} />
+                  <Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>{t('guide_earphones_title', language)}</Text>
+                </View>
+                <View style={{ paddingLeft: 39, marginBottom: 15 }}>
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>{t('guide_earphones_desc', language)}</Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} />
+                <View style={s.guideStep}>
+                  <Ionicons name="volume-mute" size={24} color={themeColor} />
+                  <Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>{t('guide_anc_title', language)}</Text>
+                </View>
+                <View style={{ paddingLeft: 39, marginBottom: 15 }}>
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>{t('guide_anc_desc', language)}</Text>
+                </View>
+                <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 15 }} />
+                <View style={s.guideStep}>
+                  <Ionicons name="warning" size={20} color="#f59e0b" />
+                  <Text style={{ color: '#f59e0b', fontSize: 12, flex: 1, fontWeight: 'bold' }}>{t('guide_engine_warning', language)}</Text>
+                </View>
             </View>
             
             <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, marginTop: 40, width: '100%' }]} onPress={startFocusSession}>
-              <Text style={[s.primaryBtnText, { color: buttonTextColor }]}>集中を楽しむ！</Text>
+              <Text style={[s.primaryBtnText, { color: buttonTextColor }]}>{t('guide_start_btn', language)}</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={{ marginTop: 25 }} onPress={() => setStage('SETUP')}><Text style={{ color: dynamicStyles.subText, fontWeight: 'bold' }}>設定をやり直す</Text></TouchableOpacity>
+            <TouchableOpacity style={{ marginTop: 25 }} onPress={() => setStage('SETUP')}>
+              <Text style={{ color: dynamicStyles.subText, fontWeight: 'bold' }}>{t('guide_redo_setup', language)}</Text>
+            </TouchableOpacity>
         </ScrollView>
     );
   }
 
-  const handleFinishSetup = () => isReady ? setStage('GUIDE') : Alert.alert("リスト未選択", "再生リストを選択してください。");
+  const handleFinishSetup = () => isReady ? setStage('GUIDE') : Alert.alert(t('alert_no_list_title', language), t('alert_no_list_desc', language));
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
@@ -493,9 +559,9 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
           }}
           onPress={handleFinishSetup}
         >
-          <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>設定完了</Text>
+          <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>{t('finish_setup_btn', language)}</Text>
         </TouchableOpacity>
-        <Text style={[s.headerTitle, { color: dynamicStyles.text }]}>作業設定</Text>
+        <Text style={[s.headerTitle, { color: dynamicStyles.text }]}>{t('focus_setup_title', language)}</Text>
       </View>
       
       <FocusSetupView 
@@ -503,7 +569,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
           dynamicStyles, themeColor, buttonTextColor, dateMode, setDateMode, dayMode, setDayMode, clockMode, setClockMode, showQuote, setShowQuote, pomoEnabled, setPomoEnabled, workTime, setWorkTime, breakTime, setBreakTime, mainPlaylist, setMainPlaylist, mainShuffle, setMainShuffle, workPlaylist, setWorkPlaylist, workShuffle, setWorkShuffle, breakPlaylist, setBreakPlaylist, breakShuffle, setBreakShuffle, 
           localLibrary, localPlaylists, insets,
           onSelectCollection, pickerVisible, setPickerVisible, pickingTarget, setPickingTarget, isReady, 
-          handleFinishSetup,
+          handleFinishSetup, language,
           openCustomTimerModal: (type: 'WORK' | 'BREAK') => {
               setCustomTimerType(type);
               const currentSecs = type === 'WORK' ? workTime : breakTime;
@@ -518,7 +584,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
               <View style={{ backgroundColor: dynamicStyles.card, padding: 25, borderRadius: 25, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: dynamicStyles.border }}>
                   <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' }}>
-                      カスタム{customTimerType === 'WORK' ? '作業' : '休憩'}時間
+                      {customTimerType === 'WORK' ? t('custom_timer_title_work', language) : t('custom_timer_title_break', language)}
                   </Text>
                   
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
@@ -526,27 +592,27 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
                           <TextInput 
                               style={{ backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, fontSize: 24, fontWeight: 'bold', textAlign: 'center', borderRadius: 12, width: 70, height: 60 }} 
                               keyboardType="number-pad" maxLength={2} 
-                              value={String(customH)} onChangeText={(t) => setCustomH(Number(t.replace(/[^0-9]/g, '')))}
+                              value={String(customH)} onChangeText={(text) => setCustomH(Number(text.replace(/[^0-9]/g, '')))}
                           />
-                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>時間</Text>
+                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>{t('hours_unit', language)}</Text>
                       </View>
                       <Text style={{ fontSize: 24, color: dynamicStyles.text, fontWeight: 'bold', marginBottom: 25 }}>:</Text>
                       <View style={{ alignItems: 'center', flex: 1 }}>
                           <TextInput 
                               style={{ backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, fontSize: 24, fontWeight: 'bold', textAlign: 'center', borderRadius: 12, width: 70, height: 60 }} 
                               keyboardType="number-pad" maxLength={2} 
-                              value={String(customM)} onChangeText={(t) => setCustomM(Number(t.replace(/[^0-9]/g, '')))}
+                              value={String(customM)} onChangeText={(text) => setCustomM(Number(text.replace(/[^0-9]/g, '')))}
                           />
-                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>分</Text>
+                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>{t('minutes_unit', language)}</Text>
                       </View>
                       <Text style={{ fontSize: 24, color: dynamicStyles.text, fontWeight: 'bold', marginBottom: 25 }}>:</Text>
                       <View style={{ alignItems: 'center', flex: 1 }}>
                           <TextInput 
                               style={{ backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, fontSize: 24, fontWeight: 'bold', textAlign: 'center', borderRadius: 12, width: 70, height: 60 }} 
                               keyboardType="number-pad" maxLength={2} 
-                              value={String(customS)} onChangeText={(t) => setCustomS(Number(t.replace(/[^0-9]/g, '')))}
+                              value={String(customS)} onChangeText={(text) => setCustomS(Number(text.replace(/[^0-9]/g, '')))}
                           />
-                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>秒</Text>
+                          <Text style={{ color: dynamicStyles.subText, marginTop: 8 }}>{t('seconds_unit', language)}</Text>
                       </View>
                   </View>
 
@@ -555,14 +621,14 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
                           style={{ flex: 1, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#e5e7eb' }} 
                           onPress={() => setCustomTimerType(null)}
                       >
-                          <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>キャンセル</Text>
+                          <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('cancel', language)}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity 
                           style={{ flex: 1, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', backgroundColor: themeColor }} 
                           onPress={() => {
                               const totalSecs = (customH * 3600) + (customM * 60) + customS;
                               if (totalSecs <= 0) {
-                                  Alert.alert("エラー", "1秒以上の時間を設定してください");
+                                  Alert.alert(t('alert_timer_error_title', language), t('alert_timer_error_desc', language));
                                   return;
                               }
                               if (customTimerType === 'WORK') setWorkTime(totalSecs);
@@ -570,7 +636,7 @@ export const FocusScreen = ({ dynamicStyles, insets, themeColor, localLibrary = 
                               setCustomTimerType(null);
                           }}
                       >
-                          <Text style={{ color: buttonTextColor, fontWeight: 'bold' }}>決定</Text>
+                          <Text style={{ color: buttonTextColor, fontWeight: 'bold' }}>{t('confirm', language)}</Text>
                       </TouchableOpacity>
                   </View>
               </View>

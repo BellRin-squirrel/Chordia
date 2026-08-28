@@ -7,6 +7,7 @@ import * as Device from 'expo-device';
 import * as Network from 'expo-network';
 import DeviceInfo from 'react-native-device-info';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
+import { LanguageCode, t } from '../utils/i18n';
 
 type QrData = {
   ip?: string;
@@ -21,6 +22,7 @@ type UseSyncProps = {
   localLibrary: any[];
   setLocalLibrary: (library: any[]) => void;
   setLocalPlaylists: (playlists: any[]) => void;
+  language?: LanguageCode;
 };
 
 type ClientInfo = {
@@ -79,13 +81,13 @@ const safeFetchJson = async (url: string, options: any = {}) => {
   const text = await res.text();
 
   if (text.trim().startsWith('<')) {
-    throw new Error(`PCサーバーからHTMLエラー画面が返されました (HTTP ${res.status})`);
+    throw new Error(`HTTP ${res.status}`);
   }
 
   try {
     return JSON.parse(text);
   } catch (e) {
-    throw new Error(`応答データの解析失敗 (HTTP ${res.status}): ${text.substring(0, 60)}`);
+    throw new Error(`HTTP ${res.status}: ${text.substring(0, 60)}`);
   }
 };
 
@@ -94,7 +96,7 @@ const downloadWithTimeout = async (url: string, fileUri: string, headers: any, t
 
   const timeoutPromise = new Promise((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error(`通信がタイムアウトしました (${Math.floor(timeoutMs / 1000)}秒)`));
+      reject(new Error(`Timeout (${Math.floor(timeoutMs / 1000)}s)`));
     }, timeoutMs);
   });
 
@@ -125,7 +127,7 @@ const yieldToUI = () =>
 const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
   return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-          console.warn(`[Sync Debug] ⚠️ ${label} timed out after ${ms}ms — 続行します`);
+          console.warn(`[Sync Debug] ⚠️ ${label} timed out after ${ms}ms`);
           resolve(undefined as any);
       }, ms);
       promise.then(v => { clearTimeout(timer); resolve(v); })
@@ -136,7 +138,8 @@ const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promis
 export const useSync = ({ 
   closeFullPlayer, 
   stopAndUnloadPlayer,
-  localLibrary, setLocalLibrary, setLocalPlaylists
+  localLibrary, setLocalLibrary, setLocalPlaylists,
+  language = 'ja'
 }: UseSyncProps) => {
 
   const [syncStage, setSyncStage] = useState<'INPUT_IP' | 'AWAITING_APPROVAL' | 'AWAITING_CODE' | 'READY'>('INPUT_IP');
@@ -227,7 +230,7 @@ export const useSync = ({
               else setSyncStage('AWAITING_CODE');
             } else if (data.status === 'rejected') {
               setIsAutoConnecting(false);
-              Alert.alert('拒否されました', 'PC側で接続が拒否されました。');
+              Alert.alert(t('sync_rejected_title', language), t('sync_rejected_desc', language));
               cancelSync();
             } else {
               setIsAutoConnecting(false);
@@ -240,7 +243,7 @@ export const useSync = ({
       timeoutHandler = setTimeout(() => {
         if (pollInterval) clearInterval(pollInterval);
         setIsAutoConnecting(false);
-        Alert.alert("応答がありません", "PCからの応答がタイムアウトしました。");
+        Alert.alert(t('sync_timeout_title', language), t('sync_timeout_desc', language));
         cancelSync();
       }, 30000);
     }
@@ -249,7 +252,7 @@ export const useSync = ({
       if (pollInterval) clearInterval(pollInterval);
       if (timeoutHandler) clearTimeout(timeoutHandler);
     };
-  }, [syncStage, serverIp, serverPort, clientInfo, isAutoConnecting]);
+  }, [syncStage, serverIp, serverPort, clientInfo, isAutoConnecting, language]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -275,7 +278,7 @@ export const useSync = ({
   const requestCameraPermission = async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('権限が必要です', 'QRコードをスキャンするにはカメラへのアクセスを許可してください。');
+      Alert.alert(t('permission_required', language), t('sync_qr_permission_desc', language));
       return false;
     }
     return true;
@@ -297,12 +300,12 @@ export const useSync = ({
         setServerPort(port);
         setSyncStage('AWAITING_APPROVAL');
       } else { 
-        const detail = data?.message || data?.error || (data?.status ? `ステータス: ${data.status}` : JSON.stringify(data));
+        const detail = data?.message || data?.error || (data?.status ? `status: ${data.status}` : JSON.stringify(data));
         throw new Error(detail); 
       }
     } catch (e: any) { 
       setIsAutoConnecting(false);
-      Alert.alert('接続エラー', `PCに接続できませんでした。\n理由: ${e.message || '通信失敗'}`); 
+      Alert.alert(t('sync_connect_error_title', language), `${t('sync_connect_error_prefix', language)}${e.message || 'Network Error'}`); 
     }
     finally { setIsSyncing(false); }
   };
@@ -321,10 +324,10 @@ export const useSync = ({
         setIsAutoConnecting(false);
         await fetchPlaylists(ip, port, data.api_key);
         setSyncStage('READY');
-      } else { throw new Error(data.message || '認証に失敗しました'); }
+      } else { throw new Error(data.message || 'Auth failed'); }
     } catch (e: any) { 
       setIsAutoConnecting(false);
-      Alert.alert('認証エラー', e.message); 
+      Alert.alert(t('sync_auth_error_title', language), e.message); 
     }
     finally { setIsSyncing(false); }
   };
@@ -336,8 +339,8 @@ export const useSync = ({
         headers: { 'X-API-KEY': key, 'X-DEVICE-IP': clientInfo.ip, 'X-DEVICE-NAME': clientInfo.deviceName, 'X-DEVICE-OS': clientInfo.osVersion }
       });
       if (data.playlists) setPcPlaylists(data.playlists);
-      else throw new Error(data.error || 'プレイリストの取得に失敗しました');
-    } catch (e: any) { Alert.alert('エラー', e.message); }
+      else throw new Error(data.error || 'Failed to fetch playlists');
+    } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
   };
 
   const clearAllLocalData = async () => {
@@ -359,8 +362,10 @@ export const useSync = ({
         setIsFullScreenSyncing(false);
         setSyncProgress('');
         await clearAllLocalData();
-        Alert.alert("切断されました", "同期中にPCから切断されました。");
-    } else { Alert.alert("切断されました", "PCから接続が解除されました。"); }
+        Alert.alert(t('sync_disconnected_title', language), t('sync_disconnected_during_sync', language));
+    } else { 
+        Alert.alert(t('sync_disconnected_title', language), t('sync_disconnected_idle', language)); 
+    }
     setSyncStage('INPUT_IP');
     setApiKey(null);
     setPcPlaylists([]);
@@ -384,11 +389,11 @@ export const useSync = ({
   };
   
   const startSyncDownload = async (mode: 'KEEP_DUPLICATES' | 'DELETE_ALL') => {
-    if (!serverIp || !apiKey) { Alert.alert('エラー', '接続が確立されていません。'); return; }
+    if (!serverIp || !apiKey) { Alert.alert(t('alert_timer_error_title', language), t('sync_not_connected', language)); return; }
     
     didCancelRef.current = false;
     setIsFullScreenSyncing(true);
-    setSyncProgress('プレイヤーを停止中...');
+    setSyncProgress(t('sync_stopping_player', language));
 
     await yieldToUI();
 
@@ -400,7 +405,7 @@ export const useSync = ({
             await withTimeout(stopAndUnloadPlayer(), 3000, 'stopAndUnloadPlayer');
         }
 
-        setSyncProgress('PCからライブラリ情報を取得中...');
+        setSyncProgress(t('sync_fetching_library', language));
         await yieldToUI();
 
         const headers = { 
@@ -413,7 +418,7 @@ export const useSync = ({
         const dataLib = await safeFetchJson(`${baseUrl}/api/library`, { headers });
         const allSongs = dataLib?.library || [];
 
-        setSyncProgress('PCからプレイリスト情報を取得中...');
+        setSyncProgress(t('sync_fetching_playlists', language));
         await yieldToUI();
 
         let currentPcPlaylists = pcPlaylists;
@@ -425,10 +430,9 @@ export const useSync = ({
             }
         } catch(e) {}
 
-        setSyncProgress('同期対象を計算中...');
+        setSyncProgress(t('sync_calculating_targets', language));
         await yieldToUI();
 
-        // ★ 通常プレイリストおよびスマートプレイリストの評価による対象楽曲の正確な抽出
         let targets: any[] = [];
         if (selectedPls.size > 0) {
             const targetPlaylists = currentPcPlaylists.filter((_, i) => selectedPls.has(i));
@@ -458,7 +462,7 @@ export const useSync = ({
             setIsFullScreenSyncing(false);
             setSyncProgress('');
             setTimeout(() => {
-              Alert.alert("通知", "同期対象となる楽曲が見つかりませんでした。\nPC側のライブラリに楽曲が存在するか確認してください。");
+              Alert.alert(t('sync_complete_title', language), t('sync_no_targets', language));
             }, 100);
             return;
         }
@@ -468,14 +472,14 @@ export const useSync = ({
 
         let currentLocal = Array.isArray(localLibrary) ? [...localLibrary] : [];
         const targetTitleArtists = new Set();
-        for (const t of targets) {
-            if (t && t.title && t.artist) {
-                targetTitleArtists.add(`${cleanStr(t.title)}:::${cleanStr(t.artist)}`);
+        for (const tg of targets) {
+            if (tg && tg.title && tg.artist) {
+                targetTitleArtists.add(`${cleanStr(tg.title)}:::${cleanStr(tg.artist)}`);
             }
         }
 
         if (mode === 'DELETE_ALL') {
-            setSyncProgress('ローカルデータをすべて消去してクリーン化中...');
+            setSyncProgress(t('sync_cleaning_local', language));
             await yieldToUI();
 
             try {
@@ -498,14 +502,15 @@ export const useSync = ({
         } else if (mode === 'KEEP_DUPLICATES') {
             await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
             
-            setSyncProgress('同期対象外の楽曲を整理中...');
+            setSyncProgress(t('sync_organizing_local', language));
             await yieldToUI();
 
             const updatedLocalList: any[] = [];
             
             for (let i = 0; i < currentLocal.length; i++) {
                 if (i % 50 === 0) {
-                    setSyncProgress(`ローカル楽曲を整理中... (${i + 1}/${currentLocal.length})`);
+                    const msg = t('sync_organizing_progress', language).replace('{current}', String(i + 1)).replace('{total}', String(currentLocal.length));
+                    setSyncProgress(msg);
                     await yieldToUI();
                 }
                 
@@ -543,7 +548,11 @@ export const useSync = ({
             const musicFname = song.musicFilename ? String(song.musicFilename).split(/[\\/]/).pop() : `song_${i}.mp3`;
             const musicLocalUri = baseDir + musicFname;
 
-            setSyncProgress(`楽曲を同期中... (${i + 1}/${targets.length})\n${song.title || 'Untitled'}`);
+            const progressMsg = t('sync_downloading_progress', language)
+              .replace('{current}', String(i + 1))
+              .replace('{total}', String(targets.length))
+              .replace('{title}', song.title || 'Untitled');
+            setSyncProgress(progressMsg);
             
             const songKey = song.title && song.artist ? `${cleanStr(song.title)}:::${cleanStr(song.artist)}` : "";
             const existingLocal = songKey ? libraryMap.get(songKey) : undefined;
@@ -627,7 +636,10 @@ export const useSync = ({
                 const localCoverUri = baseDir + uniqueFname;
                 
                 try {
-                    const msg = `プレイリストカバーを同期中... (${j + 1}/${targetPlaylistsForPl.length})\n${pl.playlistName || 'Untitled'}`;
+                    const msg = t('sync_cover_progress', language)
+                      .replace('{current}', String(j + 1))
+                      .replace('{total}', String(targetPlaylistsForPl.length))
+                      .replace('{title}', pl.playlistName || 'Untitled');
                     setSyncProgress(msg);
                     await yieldToUI();
                     
@@ -658,10 +670,11 @@ export const useSync = ({
         setSyncProgress('');
 
         setTimeout(() => {
-            Alert.alert("同期完了", `${targets.length}曲の同期処理が完了しました！`, [{ 
-                text: "OK", 
-                onPress: () => disconnect() 
-            }]);
+            Alert.alert(
+              t('sync_complete_title', language), 
+              t('sync_complete_desc', language).replace('{count}', String(targets.length)), 
+              [{ text: t('confirm', language), onPress: () => disconnect() }]
+            );
         }, 100);
 
     } catch (e: any) {
@@ -669,9 +682,9 @@ export const useSync = ({
         setIsFullScreenSyncing(false);
         setSyncProgress('');
         
-        const errMsg = e?.message || String(e) || '不明なエラー';
+        const errMsg = e?.message || String(e) || 'Unknown Error';
         const is403 = errMsg.includes('403');
-        const isTimeout = errMsg.includes('タイムアウト') || errMsg.includes('timeout');
+        const isTimeout = errMsg.includes('Timeout') || errMsg.includes('タイムアウト');
         
         if (didCancelRef.current && !is403 && !isTimeout) {
             return;
@@ -679,11 +692,11 @@ export const useSync = ({
 
         setTimeout(() => {
             Alert.alert(
-              "同期停止", 
+              t('sync_stopped_title', language), 
               isTimeout 
-                ? "通信がタイムアウトしたため、安全のため同期を停止しました。ネットワーク接続を確認して再度お試しください。" 
-                : (is403 ? "セッションが無効になりました（PCから強制切断された可能性があります）。" : `同期が中断されました。\n(${errMsg})`), 
-              [{ text: "OK", onPress: () => disconnect() }]
+                ? t('sync_timeout_error', language)
+                : (is403 ? t('sync_session_invalid', language) : `${t('sync_stopped_title', language)}\n(${errMsg})`), 
+              [{ text: t('confirm', language), onPress: () => disconnect() }]
             );
         }, 100);
     }
