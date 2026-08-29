@@ -63,10 +63,13 @@ export const LibraryMenuView = ({
               } else if (item.type === 'ARTIST') {
                 songs = localLibrary.filter((s: any) => s.artist === item.data.artistName);
               }
-              startQueue(songs, undefined, false);
-              saveCollectionToHistory(item);
+              if (songs.length > 0) {
+                startQueue(songs, undefined, false);
+                saveCollectionToHistory(item);
+              }
             }}
             language={language}
+            localLibrary={localLibrary}
           />
         }
         contentContainerStyle={safePadding}

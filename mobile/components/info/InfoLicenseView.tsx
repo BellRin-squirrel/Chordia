@@ -18,7 +18,7 @@ export const InfoLicenseView = ({
           <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>
             {t('app_name', language)}
           </Text>
-          <Text style={styles.appVersionLabel}>v5.5.0</Text>
+          <Text style={styles.appVersionLabel}>v5.5.1</Text>
           <View style={[styles.divider, { backgroundColor: dynamicStyles.border, marginVertical: 20 }]} />
           <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>
             {t('app_desc', language)}

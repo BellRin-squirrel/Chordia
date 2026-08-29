@@ -424,12 +424,17 @@ export const Library = ({
                 songs={songs} heroArtSource={heroArtSource} heroTitle={heroTitle} hasBlurBackground={heroArtSource !== DEFAULT_ICON}
                 currentSelectionType={currentSelectionType} currentPlaylist={currentPlaylist} showPlaylistTypeIcon={showPlaylistTypeIcon}
                 searchQuery={searchQuery} setSearchQuery={setSearchQuery} isSearching={isSearching} setIsSearching={setIsSearching}
-                startQueue={startQueue} onPlayCollectionPress={(s: any[], sh: boolean) => {
+                startQueue={startQueue} 
+                onPlayCollectionPress={(s: any[], sh: boolean) => {
                   let item: any;
                   if (currentSelectionType === 'PLAYLIST') item = { type: 'PLAYLIST', data: currentPlaylist, id: currentPlaylist.id, art: getPlaylistFirstArt(currentPlaylist, localLibrary) };
                   else if (currentSelectionType === 'ALBUM') item = { type: 'ALBUM', data: currentAlbum, id: `${currentAlbum.album}:::${currentAlbum.artist}`, art: currentAlbum.coverArt ? { uri: currentAlbum.coverArt } : DEFAULT_ICON };
                   else if (currentSelectionType === 'ARTIST') item = { type: 'ARTIST', data: artistsList.find((a: any) => a.artistName === currentArtist), id: currentArtist, art: songs.length > 0 && songs[0].localImageUri ? { uri: songs[0].localImageUri } : DEFAULT_ICON };
-                  if (item) saveCollectionToHistory(item);
+                  
+                  // ★ 曲が 1 曲以上ある場合のみ履歴に保存
+                  if (s && s.length > 0 && item) {
+                    saveCollectionToHistory(item);
+                  }
                   startQueue(s, undefined, sh);
                 }}
                 openActionSheet={openActionSheet} renderFloatingBackButton={renderFloatingBackButton}

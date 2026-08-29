@@ -13,7 +13,8 @@ export const RecentSection = ({
   themeColor, 
   onPlaySong, 
   onPlayCollection,
-  language = 'ja'
+  language = 'ja',
+  localLibrary = []
 }: any) => {
 
   if (
@@ -27,9 +28,22 @@ export const RecentSection = ({
     index === self.findIndex((s: any) => s.localMusicUri === song.localMusicUri)
   ) : [];
 
-  const uniqueCollections = recentlyPlayedCollections ? recentlyPlayedCollections.filter((col: any, index: number, self: any[]) =>
-    index === self.findIndex((c: any) => c.id === col.id)
-  ) : [];
+  const uniqueCollections = recentlyPlayedCollections ? recentlyPlayedCollections.filter((col: any, index: number, self: any[]) => {
+    // 重複除外
+    if (index !== self.findIndex((c: any) => c.id === col.id)) return false;
+    
+    // ★ 「すべての楽曲」コレクションは、所持楽曲がある場合のみ表示
+    const isAllSongs = col.id === 'all_songs' || col.data?.id === 'all_songs' || col.data?.isAll;
+    if (isAllSongs && (!localLibrary || localLibrary.length === 0)) {
+      return false;
+    }
+    
+    return true;
+  }) : [];
+
+  if (uniqueSongs.length === 0 && uniqueCollections.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.recentContainer}>
