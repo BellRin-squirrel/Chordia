@@ -21,4 +21,4 @@ Chorida/src-tauri/target/release/bundle/nsis/Chordia_3.2.3_x64-setup.exe など
 msiファイル:
 Chorida/src-tauri/target/release/bundle/msi/Chordia_3.2.3_x64_ja-JP.msi など
 
-ymlのビルドはうまくいきません
+ymlでも実行可能

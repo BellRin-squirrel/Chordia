@@ -129,19 +129,29 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
 
         let binary_path = get_cloudflared_path();
 
-        let mut child = Command::new(&binary_path)
-            .args(&[
-                "tunnel",
-                "--no-autoupdate",
-                "--http-host-header",
-                "localhost",
-                "--url",
-                &format!("http://127.0.0.1:{}", port),
-            ])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
+        // ★ 修正：Windowsでターミナルウィンドウを開かないよう CREATE_NO_WINDOW を指定
+        let mut std_cmd = std::process::Command::new(&binary_path);
+        std_cmd.args(&[
+            "tunnel",
+            "--no-autoupdate",
+            "--http-host-header",
+            "localhost",
+            "--url",
+            &format!("http://127.0.0.1:{}", port),
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            std_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+
+        let mut cmd = Command::from(std_cmd);
+
+        let mut child = cmd.spawn()
             .map_err(|_| format!("ERR_CLOUDFLARED_START:{}", binary_path))?;
 
         let stderr = child.stderr.take().ok_or("ERR_STDERR_PIPE")?;
