@@ -53,7 +53,6 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★変更点: -configuration Debug を指定してDev Clientを作成
       - name: Make archive for iOS Dev Client (Unsigned)
         run: |
           set -o pipefail
@@ -114,35 +113,103 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # キャッシュされた破損ファイルをクリアしてインストール
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -rf node_modules/react-native-track-player
+          npm install
 
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★既存のパッチもそのまま適用
-      - name: Patch react-native-track-player for Kotlin 2.x
+      # ★ Kotlin 2.x & New Architecture (TurboModule) 互換性パッチを適用
+      - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
         run: |
           node -e '
           const fs = require("fs");
           const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
+          
           if (fs.existsSync(file)) {
             let content = fs.readFileSync(file, "utf8");
+            
+            // パッチ1: Arguments.fromBundle を Null-Safe 化
             content = content.split("Arguments.fromBundle(").join("fromBundleSafe(");
-            const helper = `\n
-          private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {
-              return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()
-          }
-          `;
-            content += helper;
+            
+            // パッチ2: fromBundleSafe ヘルパー関数を追加
+            if (!content.includes("fun fromBundleSafe")) {
+              const lastBraceIndex = content.lastIndexOf("}");
+              if (lastBraceIndex !== -1) {
+                const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n`;
+                content = content.slice(0, lastBraceIndex) + helper + content.slice(lastBraceIndex);
+              }
+            }
+
+            // パッチ3: TurboModule の戻り値規約違反 (Job型) を回避するため、関数の式本体を void(Unit) ブロック構文で包む
+            let regex = /@ReactMethod\s+fun\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*=\s*[a-zA-Z0-9_\.]*launch\s*\{/g;
+            let match;
+            while ((match = regex.exec(content)) !== null) {
+                let startIndex = match.index + match[0].length - 1; 
+                let openBraces = 0;
+                let endIndex = -1;
+                
+                for (let i = startIndex; i < content.length; i++) {
+                    if (content[i] === "{") openBraces++;
+                    if (content[i] === "}") openBraces--;
+                    if (openBraces === 0) {
+                        endIndex = i;
+                        break;
+                    }
+                }
+                
+                if (endIndex !== -1) {
+                    let beforeEq = content.slice(0, match.index + match[0].indexOf("="));
+                    let afterEq = content.slice(match.index + match[0].indexOf("=") + 1, endIndex + 1);
+                    let afterBlock = content.slice(endIndex + 1);
+                    
+                    content = beforeEq + "{" + afterEq + "\n    }" + afterBlock;
+                    regex.lastIndex = 0;
+                }
+            }
+
             fs.writeFileSync(file, content);
+            console.log("Successfully patched MusicModule.kt for Kotlin 2.x & New Architecture");
           }
           '
 
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # ★変更点: assembleRelease ではなく assembleDebug でDev Clientを作成
+      # エミュレータ (x86/x86_64) および実機 (ARM) の全アーキテクチャ対応
+      - name: Enable All Architectures for Emulator Support
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "android/app/build.gradle";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            if (!content.includes("abiFilters")) {
+              content = content.replace(/defaultConfig\s*\{/, "defaultConfig {\n        ndk {\n            abiFilters \"armeabi-v7a\", \"arm64-v8a\", \"x86\", \"x86_64\"\n        }");
+              fs.writeFileSync(file, content);
+              console.log("Successfully added abiFilters for x86/x86_64/ARM");
+            }
+          }
+          '
+
+      - name: Increase Gradle Memory Limit
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "android/gradle.properties";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
+            content += "org.gradle.parallel=true\n";
+            fs.writeFileSync(file, content);
+            console.log("Successfully increased Gradle JVM memory limit to 4GB");
+          }
+          '
+
+      # Debug APK のビルド
       - name: Build Android APK (Debug)
         run: |
           cd android
