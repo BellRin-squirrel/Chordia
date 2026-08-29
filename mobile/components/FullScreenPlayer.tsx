@@ -11,7 +11,6 @@ import TrackPlayer from 'react-native-track-player';
 import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { showRoutePicker } from 'react-airplay';
 import { MarqueeText } from './MarqueeText';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
@@ -169,9 +168,11 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
+  // ★ Android で NativeAirplay がスキャンされないよう、iOS 実行時のみ動的 require する
   const handleAirPlayPress = () => {
     if (Platform.OS === 'ios') {
       try {
+        const { showRoutePicker } = require('react-airplay');
         showRoutePicker({ prioritizesVideoDevices: false });
       } catch (e) {
         console.warn('AirPlay showRoutePicker error:', e);
@@ -284,7 +285,6 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
         <View style={{ width: 50, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
-          {/* ★ アクティブ時のアイコン色を activeIconColor に連動 */}
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
@@ -384,7 +384,6 @@ export const FullScreenPlayer = ({
       </View>
     );
   } else {
-    // 縦画面（Portrait）時の画面構成
     const artSizeBig = Math.min(width * 0.83, height * 0.40);
 
     const mainViewStyle = {
