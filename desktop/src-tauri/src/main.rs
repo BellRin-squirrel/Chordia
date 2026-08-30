@@ -29,7 +29,7 @@ use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_di
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
-const APP_VERSION: &str = "v4.1.3";
+const APP_VERSION: &str = "v4.1.4";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
