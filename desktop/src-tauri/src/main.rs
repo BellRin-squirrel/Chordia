@@ -115,6 +115,32 @@ fn main() {
             lufs_cache: std::sync::Mutex::new(HashMap::new()),
         })
         .manage(auth_state.clone()) 
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed = event {
+                let label = window.label().to_string();
+                if label == "sync_window" || label == "main" {
+                    let is_sync_window = label == "sync_window";
+                    let auth_state = window.state::<server::SharedAuthState>();
+                    let auth_clone = auth_state.inner().clone();
+                    tauri::async_runtime::spawn(async move {
+                        let mut state = auth_clone.lock().await;
+                        if is_sync_window {
+                            state.window_open = false;
+                            state.pending_requests.clear();
+                        }
+                        if let Some(child) = state.tunnel_process.take() {
+                            cmd_api::kill_child_process(child).await;
+                        }
+                        if is_sync_window {
+                            if let Some(tx) = state.shutdown_tx.take() {
+                                let _ = tx.send(());
+                            }
+                            state.wan_url = None;
+                        }
+                    });
+                }
+            }
+        })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {

@@ -327,10 +327,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const u = { escapeHtml: (str) => str ? String(str).replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '' };
 
-    window.onbeforeunload = () => { 
+    window.addEventListener('beforeunload', () => { 
         invoke("toggle_wan_mode", { enable: false, port: 0 });
         invoke("stop_sync_server"); 
-    };
+    });
     
     loadSessions();
     setInterval(loadSessions, 5000);

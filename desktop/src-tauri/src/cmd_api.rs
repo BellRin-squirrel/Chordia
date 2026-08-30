@@ -33,6 +33,26 @@ fn get_cloudflared_path() -> String {
     exe_name.to_string()
 }
 
+pub async fn kill_child_process(mut child: tokio::process::Child) {
+    if let Some(pid) = child.id() {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let mut kill_cmd = std::process::Command::new("taskkill");
+            kill_cmd.args(&["/F", "/T", "/PID", &pid.to_string()]);
+            kill_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            let _ = kill_cmd.output();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = std::process::Command::new("kill")
+                .args(&["-9", &pid.to_string()])
+                .output();
+        }
+    }
+    let _ = child.kill().await;
+}
+
 #[tauri::command]
 pub async fn start_sync_server(auth: State<'_, SharedAuthState>, app_handle: tauri::AppHandle) -> Result<Value, String> {
     let mut state = auth.lock().await;
@@ -79,12 +99,13 @@ pub async fn stop_sync_server(auth: State<'_, SharedAuthState>) -> Result<(), St
     let mut state = auth.lock().await;
     state.window_open = false;
     state.pending_requests.clear(); 
-    if let Some(mut child) = state.tunnel_process.take() {
-        let _ = child.kill().await;
+    if let Some(child) = state.tunnel_process.take() {
+        kill_child_process(child).await;
     }
     if let Some(tx) = state.shutdown_tx.take() {
         let _ = tx.send(());
     }
+    state.wan_url = None;
     Ok(())
 }
 
@@ -129,7 +150,6 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
 
         let binary_path = get_cloudflared_path();
 
-        // ★ 修正：Windowsでターミナルウィンドウを開かないよう CREATE_NO_WINDOW を指定
         let mut std_cmd = std::process::Command::new(&binary_path);
         std_cmd.args(&[
             "tunnel",
@@ -150,6 +170,7 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
         }
 
         let mut cmd = Command::from(std_cmd);
+        cmd.kill_on_drop(true);
 
         let mut child = cmd.spawn()
             .map_err(|_| format!("ERR_CLOUDFLARED_START:{}", binary_path))?;
@@ -188,13 +209,13 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
                 Ok(wan_url)
             }
             _ => {
-                let _ = child.kill().await;
+                kill_child_process(child).await;
                 Err("ERR_CLOUDFLARED_TIMEOUT".to_string())
             }
         }
     } else {
-        if let Some(mut child) = state.tunnel_process.take() {
-            let _ = child.kill().await;
+        if let Some(child) = state.tunnel_process.take() {
+            kill_child_process(child).await;
         }
         state.wan_url = None;
         Ok("".to_string())
