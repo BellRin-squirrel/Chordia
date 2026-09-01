@@ -1,4 +1,4 @@
-v4.1.4
+v4.1.4 Now developing
 ・Cloudflaredが完全に終了しないというバグを修正しました。
 
 v4.1.3
