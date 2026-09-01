@@ -6,6 +6,7 @@ import TrackPlayer, {
   useProgress, 
   RepeatMode, 
   Capability, 
+  AppKilledPlaybackBehavior,
   Event 
 } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -108,15 +109,31 @@ export const useAudioPlayer = () => {
   const restoreRNTPNotification = async () => {
     try {
       await TrackPlayer.updateOptions({
-        android: { appKilledBehavior: 'StopPlaybackAndRemoveNotification' as any },
-        capabilities:[ 
+        android: { 
+          // バックグラウンドでの再生維持設定
+          appKilledBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+          alwaysPauseOnInterruption: false,
+        },
+        capabilities: [ 
           Capability.Play, 
           Capability.Pause, 
           Capability.SkipToNext, 
           Capability.SkipToPrevious, 
-          Capability.SeekTo 
+          Capability.SeekTo,
+          Capability.Stop
         ],
-        compactCapabilities:[Capability.Play, Capability.Pause, Capability.SkipToNext],
+        compactCapabilities: [
+          Capability.Play, 
+          Capability.Pause, 
+          Capability.SkipToNext
+        ],
+        notificationCapabilities: [
+          Capability.Play, 
+          Capability.Pause, 
+          Capability.SkipToNext, 
+          Capability.SkipToPrevious, 
+          Capability.SeekTo
+        ],
       });
     } catch(e) {}
   };
@@ -125,7 +142,9 @@ export const useAudioPlayer = () => {
     const initRNTP = async () => {
       if (isRNTPInitialized) return;
       try {
-        await TrackPlayer.setupPlayer();
+        await TrackPlayer.setupPlayer({
+          autoHandleInterruptions: true,
+        });
         await restoreRNTPNotification();
         isRNTPInitialized = true;
       } catch (e) { console.log("RNTP setup error:", e); }
@@ -162,16 +181,13 @@ export const useAudioPlayer = () => {
     });
   };
 
-  // ★ 最近再生した曲 ＆ 統計用再生ログの二重保存
   const saveHistory = async (song: any) => {
     try {
-      // 1. 最近再生した曲（最大10件）
       const rs = await AsyncStorage.getItem('recently_played_songs');
       let list = rs ? JSON.parse(rs) : [];
       list = [song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
       await AsyncStorage.setItem('recently_played_songs', JSON.stringify(list));
 
-      // 2. 統計・ランキング用再生ログ（日時付き、最大500件）
       const ph = await AsyncStorage.getItem('chordia_playback_history');
       let playHistory = ph ? JSON.parse(ph) : [];
       const newEntry = {

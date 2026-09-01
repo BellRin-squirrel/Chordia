@@ -34,7 +34,6 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ネイティブコードの生成
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
@@ -113,7 +112,6 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # キャッシュされた破損ファイルをクリアしてインストール
       - name: Install dependencies
         run: |
           rm -rf node_modules/react-native-track-player
@@ -122,7 +120,6 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ Kotlin 2.x & New Architecture (TurboModule) 互換性パッチを適用
       - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
         run: |
           node -e '
@@ -132,10 +129,8 @@ jobs:
           if (fs.existsSync(file)) {
             let content = fs.readFileSync(file, "utf8");
             
-            // パッチ1: Arguments.fromBundle を Null-Safe 化
             content = content.split("Arguments.fromBundle(").join("fromBundleSafe(");
             
-            // パッチ2: fromBundleSafe ヘルパー関数を追加
             if (!content.includes("fun fromBundleSafe")) {
               const lastBraceIndex = content.lastIndexOf("}");
               if (lastBraceIndex !== -1) {
@@ -144,7 +139,6 @@ jobs:
               }
             }
 
-            // パッチ3: TurboModule の戻り値規約違反 (Job型) を回避するため、関数の式本体を void(Unit) ブロック構文で包む
             let regex = /@ReactMethod\s+fun\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*=\s*[a-zA-Z0-9_\.]*launch\s*\{/g;
             let match;
             while ((match = regex.exec(content)) !== null) {
@@ -179,7 +173,6 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      # エミュレータ (x86/x86_64) および実機 (ARM) の全アーキテクチャ対応
       - name: Enable All Architectures for Emulator Support
         run: |
           node -e '
@@ -195,21 +188,32 @@ jobs:
           }
           '
 
-      - name: Increase Gradle Memory Limit
+      - name: Increase Gradle Memory Limit & Inject Android 14 ForegroundService
         run: |
           node -e '
           const fs = require("fs");
-          const file = "android/gradle.properties";
-          if (fs.existsSync(file)) {
-            let content = fs.readFileSync(file, "utf8");
+          
+          const propFile = "android/gradle.properties";
+          if (fs.existsSync(propFile)) {
+            let content = fs.readFileSync(propFile, "utf8");
             content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
             content += "org.gradle.parallel=true\n";
-            fs.writeFileSync(file, content);
+            fs.writeFileSync(propFile, content);
             console.log("Successfully increased Gradle JVM memory limit to 4GB");
+          }
+
+          const manifestFile = "android/app/src/main/AndroidManifest.xml";
+          if (fs.existsSync(manifestFile)) {
+            let manifest = fs.readFileSync(manifestFile, "utf8");
+            if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
+              const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\" />";
+              manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
+              fs.writeFileSync(manifestFile, manifest);
+              console.log("Successfully injected foregroundServiceType=mediaPlayback");
+            }
           }
           '
 
-      # Debug APK のビルド
       - name: Build Android APK (Debug)
         run: |
           cd android

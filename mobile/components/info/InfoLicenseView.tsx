@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Linking } from 'react-native'
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../../styles/styles';
 import { t } from '../../utils/i18n';
+import { APP_VERSION } from '../../constants/config';
 
 export const InfoLicenseView = ({
   dynamicStyles, themeColor, isDark, safePadding, renderHeader, language = 'ja'
@@ -18,7 +19,7 @@ export const InfoLicenseView = ({
           <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>
             {t('app_name', language)}
           </Text>
-          <Text style={styles.appVersionLabel}>v5.5.1</Text>
+          <Text style={styles.appVersionLabel}>{APP_VERSION}</Text>
           <View style={[styles.divider, { backgroundColor: dynamicStyles.border, marginVertical: 20 }]} />
           <Text style={{ color: dynamicStyles.subText, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 15 }}>
             {t('app_desc', language)}

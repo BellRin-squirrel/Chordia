@@ -11,6 +11,7 @@ import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { t } from '../utils/i18n';
 
 import { InfoSettingsView } from './info/InfoSettingsView';
+import { InfoAccountView } from './info/InfoAccountView';
 import { InfoStatisticsView, InfoAllHistoryView, InfoPlaybackHistoryView } from './info/InfoStatisticsView';
 import { InfoManageDataView } from './info/InfoManageDataView';
 import { InfoEditSongView } from './info/InfoEditSongView';
@@ -83,6 +84,7 @@ export const InfoScreen = ({
 
   const menuItems = [
     { title: t('menu_settings', language), icon: 'options-outline' as const, view: 'SETTINGS', sub: t('menu_settings_sub', language) },
+    { title: t('menu_account', language), icon: 'person-circle-outline' as const, view: 'ACCOUNT', sub: t('menu_account_sub', language) },
     { title: t('menu_statistics', language), icon: 'stats-chart-outline' as const, view: 'STATISTICS', sub: t('menu_statistics_sub', language) },
     { title: t('menu_manage_data', language), icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: t('menu_manage_data_sub', language) },
     { title: t('menu_license', language), icon: 'document-text-outline' as const, view: 'LICENSE', sub: t('menu_license_sub', language) },
@@ -269,7 +271,7 @@ export const InfoScreen = ({
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
 
-          {/* Layer 2: 設定 / 統計 / データを管理 / ライセンス */}
+          {/* Layer 2: 設定 / アカウント設定 / 統計 / データを管理 / ライセンス */}
           {navStack.length > 1 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
               {navStack[1] === 'SETTINGS' && (
@@ -281,6 +283,12 @@ export const InfoScreen = ({
                   showSyncTab={showSyncTab} toggleSyncTab={toggleSyncTab} showPlaylistTypeIcon={showPlaylistTypeIcon} toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
                   language={language} changeLanguage={changeLanguage}
                   renderHeader={renderHeader} safePadding={safePadding} isLandscape={isLandscape}
+                />
+              )}
+              {navStack[1] === 'ACCOUNT' && (
+                <InfoAccountView 
+                  dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isDark={isDark}
+                  safePadding={safePadding} renderHeader={renderHeader} language={language}
                 />
               )}
               {navStack[1] === 'STATISTICS' && (

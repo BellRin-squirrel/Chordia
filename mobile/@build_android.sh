@@ -76,8 +76,8 @@ if (fs.existsSync(file)) {
 echo "🏗️ 3/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform android --clean
 
-# 4. 全CPUアーキテクチャ(x86/x86_64/ARM)対応 ＆ メモリ上限(4GB)拡張パッチの適用
-echo "⚙️ 4/5 ABI パッチ ＆ メモリ上限(4GB)拡張パッチを適用中..."
+# 4. 全CPUアーキテクチャ(x86/x86_64/ARM)対応 ＆ メモリ上限(4GB)拡張 ＆ Android 14 バックグラウンド再生維持パッチ
+echo "⚙️ 4/5 ABI パッチ ＆ メモリ上限パッチ ＆ Android 14 バックグラウンド維持パッチを適用中..."
 node -e '
 const fs = require("fs");
 
@@ -100,6 +100,18 @@ if (fs.existsSync(propFile)) {
     content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m\n";
     fs.writeFileSync(propFile, content);
     console.log("   --> Gradle JVM メモリ上限を 4GB に拡張しました。");
+  }
+}
+
+// Android 14+ Foreground Service (mediaPlayback) の Manifest 注入
+const manifestFile = "android/app/src/main/AndroidManifest.xml";
+if (fs.existsSync(manifestFile)) {
+  let manifest = fs.readFileSync(manifestFile, "utf8");
+  if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
+    const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\" />";
+    manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
+    fs.writeFileSync(manifestFile, manifest);
+    console.log("   --> Android 14 バックグラウンド再生用 ForegroundServiceType を追加しました。");
   }
 }
 '

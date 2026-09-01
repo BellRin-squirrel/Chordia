@@ -1,4 +1,4 @@
-name: Build Release Apps (iOS & Android) v5.5.1
+name: Build Release Apps (iOS & Android) v5.5.0
 on:
   workflow_dispatch: # 手動実行ボタンを有効化
 
@@ -114,7 +114,6 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # ★ キャッシュされた破損ファイルを確実に削除してからインストール
       - name: Install dependencies
         run: |
           rm -rf node_modules/react-native-track-player
@@ -123,7 +122,6 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      # ★ カッコを解析する安全な AST風パッチ
       - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
         run: |
           node -e '
@@ -192,17 +190,29 @@ jobs:
           }
           '
 
-      - name: Increase Gradle Memory Limit
+      - name: Increase Gradle Memory Limit & Inject Android 14 ForegroundService
         run: |
           node -e '
           const fs = require("fs");
-          const file = "android/gradle.properties";
-          if (fs.existsSync(file)) {
-            let content = fs.readFileSync(file, "utf8");
+          
+          const propFile = "android/gradle.properties";
+          if (fs.existsSync(propFile)) {
+            let content = fs.readFileSync(propFile, "utf8");
             content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
             content += "org.gradle.parallel=true\n";
-            fs.writeFileSync(file, content);
+            fs.writeFileSync(propFile, content);
             console.log("Successfully increased Gradle JVM memory limit to 4GB");
+          }
+
+          const manifestFile = "android/app/src/main/AndroidManifest.xml";
+          if (fs.existsSync(manifestFile)) {
+            let manifest = fs.readFileSync(manifestFile, "utf8");
+            if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
+              const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\" />";
+              manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
+              fs.writeFileSync(manifestFile, manifest);
+              console.log("Successfully injected foregroundServiceType=mediaPlayback");
+            }
           }
           '
 
