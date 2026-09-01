@@ -10,10 +10,12 @@ import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
 import { t } from '../utils/i18n';
+import { addWorkHistoryApi, formatWorkSessionEndTime, formatWorkDuration } from '../utils/chordiaSync';
 
 const STORAGE_KEY = 'chordia_focus_settings';
 const HISTORY_KEY = 'chordia_focus_history';
 const TEMP_WORK_KEY = 'chordia_temp_work_seconds';
+const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -160,6 +162,27 @@ export const FocusScreen = ({
       
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       await AsyncStorage.removeItem(TEMP_WORK_KEY);
+
+      // ★ Chordia Sync ログイン中の場合はフォーマット変換してオンラインに送信
+      const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+      if (accountJson) {
+        const account = JSON.parse(accountJson);
+        if (account.sid) {
+          // end: "2026.09.02.01.53", time: "00:25:00"
+          const endFormatted = formatWorkSessionEndTime(new Date(endTime));
+          const timeFormatted = formatWorkDuration(seconds);
+
+          addWorkHistoryApi(account.sid, endFormatted, timeFormatted).then((res) => {
+            if (res.success) {
+              console.log(`[WorkHistory Log] 🚀 作業履歴同期が完了しました (end: ${endFormatted}, time: ${timeFormatted})`);
+            } else {
+              console.warn(`[WorkHistory Log] ⚠️ 作業履歴同期に失敗:`, res.error);
+            }
+          }).catch((err) => {
+            console.error('[WorkHistory Log] ❌ 同期処理中に例外が発生:', err);
+          });
+        }
+      }
     } catch (e) {
       console.error("Failed to save focus history", e);
     }

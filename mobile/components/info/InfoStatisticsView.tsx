@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, FlatList, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, FlatList, Image, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MarqueeText } from '../MarqueeText';
 import { t } from '../../utils/i18n';
+import { loadAllPlayHistoryApi, parseSyncDate, PlayHistoryItem } from '../../utils/chordiaSync';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 const GRAPH_HEIGHT = 180;
+const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 export const formatSecToHMS = (sec: number) => {
   const total = Math.round(sec);
@@ -21,19 +23,54 @@ export const formatSecToHMS = (sec: number) => {
 
 export const InfoStatisticsView = ({
   dynamicStyles, themeColor, isDark, isLandscape, safePadding,
-  focusHistory = [], pushView, renderHeader, language = 'ja'
+  focusHistory = [], pushView, renderHeader, language = 'ja', localLibrary = []
 }: any) => {
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(6);
   const [playbackHistory, setPlaybackHistory] = useState<any[]>([]);
+  const [isSyncAccount, setIsSyncAccount] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 楽曲ジャケット画像の高速マップ作成
+  const libraryArtMap = useMemo(() => {
+    const map = new Map<string, string>();
+    localLibrary.forEach((s: any) => {
+      const key = `${(s.title || '').trim().toLowerCase()}:::${(s.artist || '').trim().toLowerCase()}`;
+      if (s.localImageUri && !map.has(key)) {
+        map.set(key, s.localImageUri);
+      }
+    });
+    return map;
+  }, [localLibrary]);
 
   useEffect(() => {
     (async () => {
       try {
+        setIsLoading(true);
+        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (accountJson) {
+          const account = JSON.parse(accountJson);
+          if (account.sid) {
+            setIsSyncAccount(true);
+            const res = await loadAllPlayHistoryApi(account.sid);
+            if (res.success && res.history) {
+              setPlaybackHistory(res.history);
+              setIsLoading(false);
+              return;
+            } else if (res.error) {
+              Alert.alert(t('alert_timer_error_title', language), res.error);
+            }
+          }
+        }
+
+        // ログインしていない場合・失敗時はローカル履歴を使用
         const ph = await AsyncStorage.getItem('chordia_playback_history');
         if (ph) setPlaybackHistory(JSON.parse(ph));
-      } catch (e) {}
+      } catch (e) {
+      } finally {
+        setIsLoading(false);
+      }
     })();
-  }, []);
+  }, [language]);
 
   const getLast7DaysData = () => {
     const days = [];
@@ -65,6 +102,7 @@ export const InfoStatisticsView = ({
     });
   };
 
+  // 直近7日間の再生回数ランキングTOP5導出
   const topPlayedSongsLast7Days = useMemo(() => {
     if (!playbackHistory || playbackHistory.length === 0) return [];
     
@@ -75,12 +113,19 @@ export const InfoStatisticsView = ({
     const countsMap = new Map<string, { song: any; count: number }>();
 
     for (const item of playbackHistory) {
-      if (!item.playedAt) continue;
-      const playedDate = new Date(item.playedAt);
+      const playedDate = item.date ? parseSyncDate(item.date) : (item.playedAt ? new Date(item.playedAt) : new Date(0));
+      
       if (playedDate >= sevenDaysAgo) {
-        const key = item.localMusicUri || `${item.title}_${item.artist}`;
+        const title = item.title || 'Untitled';
+        const artist = item.artist || 'Unknown Artist';
+        const key = `${title.trim().toLowerCase()}:::${artist.trim().toLowerCase()}`;
+
         if (!countsMap.has(key)) {
-          countsMap.set(key, { song: item, count: 0 });
+          const artUri = item.localImageUri || libraryArtMap.get(key);
+          countsMap.set(key, { 
+            song: { ...item, localImageUri: artUri }, 
+            count: 0 
+          });
         }
         countsMap.get(key)!.count += 1;
       }
@@ -89,7 +134,7 @@ export const InfoStatisticsView = ({
     return Array.from(countsMap.values())
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  }, [playbackHistory]);
+  }, [playbackHistory, libraryArtMap]);
 
   const graphData = getLast7DaysData();
   const maxSec = Math.max(...graphData.map(d => d.totalSec));
@@ -208,18 +253,28 @@ export const InfoStatisticsView = ({
 
         {/* 直近7日間の再生回数ランキング TOP 5 */}
         <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
-            <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
-              {t('ranking_last_7_days', language)}
-            </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
+                {t('ranking_last_7_days', language)}
+              </Text>
+            </View>
+            {isSyncAccount && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `rgba(79, 70, 229, 0.12)`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
+                <Ionicons name="cloud-done" size={13} color={themeColor} />
+                <Text style={{ color: themeColor, fontSize: 11, fontWeight: 'bold' }}>Sync</Text>
+              </View>
+            )}
           </View>
 
-          {topPlayedSongsLast7Days.length > 0 ? (
+          {isLoading ? (
+            <ActivityIndicator color={themeColor} style={{ paddingVertical: 20 }} />
+          ) : topPlayedSongsLast7Days.length > 0 ? (
             <View style={{ gap: 10 }}>
               {topPlayedSongsLast7Days.map((item, idx) => (
                 <View 
-                  key={item.song.id || idx}
+                  key={idx}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -315,7 +370,7 @@ export const InfoAllHistoryView = ({
       {renderHeader(t('focus_history_title', language))}
       <FlatList
         data={focusHistory}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id || index}`}
         contentContainerStyle={safePadding}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 80 }}>
@@ -351,66 +406,117 @@ export const InfoAllHistoryView = ({
 };
 
 export const InfoPlaybackHistoryView = ({
-  dynamicStyles, themeColor, safePadding, renderHeader, language = 'ja'
+  dynamicStyles, themeColor, safePadding, renderHeader, language = 'ja', localLibrary = []
 }: any) => {
   const [playbackList, setPlaybackList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const libraryArtMap = useMemo(() => {
+    const map = new Map<string, string>();
+    localLibrary.forEach((s: any) => {
+      const key = `${(s.title || '').trim().toLowerCase()}:::${(s.artist || '').trim().toLowerCase()}`;
+      if (s.localImageUri && !map.has(key)) {
+        map.set(key, s.localImageUri);
+      }
+    });
+    return map;
+  }, [localLibrary]);
 
   useEffect(() => {
     (async () => {
       try {
+        setIsLoading(true);
+        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (accountJson) {
+          const account = JSON.parse(accountJson);
+          if (account.sid) {
+            const res = await loadAllPlayHistoryApi(account.sid);
+            if (res.success && res.history) {
+              setPlaybackList(res.history);
+              setIsLoading(false);
+              return;
+            } else if (res.error) {
+              Alert.alert(t('alert_timer_error_title', language), res.error);
+            }
+          }
+        }
+
         const ph = await AsyncStorage.getItem('chordia_playback_history');
         if (ph) setPlaybackList(JSON.parse(ph));
-      } catch (e) {}
+      } catch (e) {
+      } finally {
+        setIsLoading(false);
+      }
     })();
-  }, []);
+  }, [language]);
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
       {renderHeader(t('playback_history_title', language))}
-      <FlatList
-        data={playbackList}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={safePadding}
-        ListEmptyComponent={
-          <View style={{ alignItems: 'center', marginTop: 80 }}>
-            <Ionicons name="musical-notes-outline" size={80} color={dynamicStyles.border} />
-            <Text style={{ color: dynamicStyles.subText, marginTop: 15, fontSize: 16, fontWeight: 'bold' }}>
-              {t('no_playback_history', language)}
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => {
-          const d = item.playedAt ? new Date(item.playedAt) : new Date();
-          const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-
-          return (
-            <View style={{ 
-              flexDirection: 'row', alignItems: 'center', 
-              backgroundColor: dynamicStyles.card, padding: 14, borderRadius: 16, marginBottom: 10,
-              borderWidth: 1, borderColor: dynamicStyles.border,
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2
-            }}>
-              <Image 
-                source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
-                style={{ width: 44, height: 44, borderRadius: 8, marginRight: 12 }} 
-              />
-              <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-                <MarqueeText 
-                  text={item.title || 'Untitled'} 
-                  style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }} 
-                />
-                <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
-                  {item.artist || 'Unknown'} • {item.album || 'Unknown Album'}
-                </Text>
-              </View>
-              <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: '600' }}>
-                {dateStr}
+      {isLoading ? (
+        <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={playbackList}
+          keyExtractor={(item, index) => `${item.id || index}-${item.date || item.playedAt}`}
+          contentContainerStyle={safePadding}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 80 }}>
+              <Ionicons name="musical-notes-outline" size={80} color={dynamicStyles.border} />
+              <Text style={{ color: dynamicStyles.subText, marginTop: 15, fontSize: 16, fontWeight: 'bold' }}>
+                {t('no_playback_history', language)}
               </Text>
             </View>
-          );
-        }}
-      />
+          }
+          renderItem={({ item }) => {
+            const d = item.date ? parseSyncDate(item.date) : (item.playedAt ? new Date(item.playedAt) : new Date());
+            const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const key = `${(item.title || '').trim().toLowerCase()}:::${(item.artist || '').trim().toLowerCase()}`;
+            const artUri = item.localImageUri || libraryArtMap.get(key);
+
+            return (
+              <View style={{ 
+                flexDirection: 'row', alignItems: 'center', 
+                backgroundColor: dynamicStyles.card, padding: 14, borderRadius: 16, marginBottom: 10,
+                borderWidth: 1, borderColor: dynamicStyles.border,
+                shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2
+              }}>
+                <Image 
+                  source={artUri ? { uri: artUri } : DEFAULT_ICON} 
+                  style={{ width: 44, height: 44, borderRadius: 8, marginRight: 12 }} 
+                />
+                
+                {/* 左側: 曲名 & アーティスト・アルバム名 */}
+                <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                  <MarqueeText 
+                    text={item.title || 'Untitled'} 
+                    style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }} 
+                  />
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                    {item.artist || 'Unknown'} • {item.album || 'Unknown Album'}
+                  </Text>
+                </View>
+
+                {/* ★ 右側: 日付 ＆ その下に再生デバイス名を表示 */}
+                <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: '600' }}>
+                    {dateStr}
+                  </Text>
+                  {item.device && (
+                    <Text 
+                      style={{ color: dynamicStyles.subText, fontSize: 11, marginTop: 3, opacity: 0.8 }} 
+                      numberOfLines={1}
+                    >
+                      {item.device}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          }}
+        />
+      )}
     </View>
   );
 };

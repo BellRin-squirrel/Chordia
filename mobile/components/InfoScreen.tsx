@@ -295,7 +295,7 @@ export const InfoScreen = ({
                 <InfoStatisticsView 
                   dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} isLandscape={isLandscape} safePadding={safePadding}
                   focusHistory={focusHistory} pushView={pushView} renderHeader={renderHeader}
-                  language={language}
+                  language={language} localLibrary={localLibrary}
                 />
               )}
               {navStack[1] === 'MANAGE_DATA' && (
@@ -324,7 +324,7 @@ export const InfoScreen = ({
                 <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} focusHistory={focusHistory} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}
               {navStack[2] === 'PLAY_HISTORY' && (
-                <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} />
+                <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
               )}
               {navStack[2] === 'EDIT_SONG' && (
                 <InfoEditSongView 
