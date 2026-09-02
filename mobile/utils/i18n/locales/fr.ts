@@ -49,6 +49,19 @@ export const fr: Record<string, string> = {
   no_focus_history: 'Aucun historique disponible',
   no_playback_history: 'Aucun historique de lecture',
 
+  delete_history_menu_title: 'Supprimer l\'historique',
+  delete_history_menu_subtitle: 'Sélectionnez la période à supprimer',
+  delete_keep_1day: 'Supprimer antérieurs à 1 jour',
+  delete_keep_1week: 'Supprimer antérieurs à 1 semaine',
+  delete_keep_1month: 'Supprimer antérieurs à 1 mois',
+  delete_keep_1year: 'Supprimer antérieurs à 1 an',
+  delete_all_history: 'Supprimer tout l\'historique',
+  delete_history_confirm_local_title: 'Supprimer l\'historique',
+  delete_history_confirm_local_desc: 'Supprimer l\'historique antérieur à la période sélectionnée de cet appareil ?\n(Cette action est irréversible)',
+  delete_history_confirm_sync_title: 'Supprimer l\'historique Chordia Sync',
+  delete_history_confirm_sync_desc: 'Supprimer l\'historique antérieur à la période sélectionnée ?\n\n【Attention】\nLes données seront également supprimées de Chordia Sync (Cloud) et de tous vos appareils connectés.\n(Cette action est irréversible)',
+  delete_history_success: 'Données de l\'historique supprimées.',
+
   manage_data_title: 'Gérer les données',
   select_btn: 'Sélectionner',
   done_btn: 'Terminé',
@@ -374,4 +387,5 @@ export const fr: Record<string, string> = {
   account_logout_btn: 'Se déconnecter',
   account_logout_confirm_title: 'Confirmer la déconnexion',
   account_logout_confirm_desc: 'Voulez-vous vraiment vous déconnecter de Chordia Sync ?\n(L\'historique local des sessions de travail et d\'écoute sera également effacé)',
+  account_auth_invalid_warning: 'Échec de l\'authentification Chordia Sync. Veuillez vous reconnecter.',
 };

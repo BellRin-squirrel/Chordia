@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { t } from '../utils/i18n';
+import { verifyChordiaSyncSession } from '../utils/chordiaSync';
 
 import { InfoSettingsView } from './info/InfoSettingsView';
 import { InfoAccountView } from './info/InfoAccountView';
@@ -89,6 +90,14 @@ export const InfoScreen = ({
     { title: t('menu_manage_data', language), icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: t('menu_manage_data_sub', language) },
     { title: t('menu_license', language), icon: 'document-text-outline' as const, view: 'LICENSE', sub: t('menu_license_sub', language) },
   ];
+
+  // ★ 3. 統計画面・アカウント画面・全履歴画面への遷移時および戻り時のセッション検証
+  useEffect(() => {
+    const currentView = navStack[navStack.length - 1];
+    if (['ACCOUNT', 'STATISTICS', 'STATS_ALL', 'PLAY_HISTORY'].includes(currentView)) {
+      verifyChordiaSyncSession(true, language);
+    }
+  }, [navStack, language]);
 
   const openActionSheet = (songs: any[]) => {
     if (!songs || songs.length === 0) return;
@@ -248,9 +257,8 @@ export const InfoScreen = ({
 
       <PanGestureHandler activeOffsetX={[-500, 10]} failOffsetY={[-15, 15]} enabled={navStack.length > 1} onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
         <View style={{ flex: 1 }}>
-          {/* Layer 1: メインメニュー */}
           <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
-            <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 20, 20) : 20 }]}>
+            <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 }]}>
               <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_info', language)}</Text>
             </View>
             <FlatList
@@ -271,7 +279,6 @@ export const InfoScreen = ({
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
           </Animated.View>
 
-          {/* Layer 2: 設定 / アカウント設定 / 統計 / データを管理 / ライセンス */}
           {navStack.length > 1 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
               {navStack[1] === 'SETTINGS' && (
@@ -317,7 +324,6 @@ export const InfoScreen = ({
             </Animated.View>
           )}
 
-          {/* Layer 3: 集中全履歴 / 楽曲再生履歴 / 楽曲情報編集 */}
           {navStack.length > 2 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
               {navStack[2] === 'STATS_ALL' && (

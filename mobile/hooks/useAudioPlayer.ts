@@ -14,10 +14,9 @@ import {
   createAudioPlayer, 
   setAudioModeAsync 
 } from 'expo-audio';
-import { addPlayHistoryApi } from '../utils/chordiaSync';
+import { addPlayHistoryApi, verifyChordiaSyncSession, ACCOUNT_STORAGE_KEY } from '../utils/chordiaSync';
 
 const { height } = Dimensions.get('window');
-const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 let isRNTPInitialized = false;
 
@@ -186,13 +185,11 @@ export const useAudioPlayer = () => {
     if (!song) return;
 
     try {
-      // 1. 最近再生した曲（最大10件）
       const rs = await AsyncStorage.getItem('recently_played_songs');
       let list = rs ? JSON.parse(rs) : [];
       list = [song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
       await AsyncStorage.setItem('recently_played_songs', JSON.stringify(list));
 
-      // 2. ローカルの統計・ランキング用再生ログ（日時付き、最大500件）
       const ph = await AsyncStorage.getItem('chordia_playback_history');
       let playHistory = ph ? JSON.parse(ph) : [];
       const newEntry = {
@@ -207,25 +204,24 @@ export const useAudioPlayer = () => {
       playHistory = [newEntry, ...playHistory].slice(0, 500);
       await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(playHistory));
 
-      // ★ 3. Chordia Sync にログイン中の場合はオンラインに楽曲再生履歴を追加
-      const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-      if (accountJson) {
-        const account = JSON.parse(accountJson);
-        if (account.sid) {
-          addPlayHistoryApi(
-            account.sid,
-            song.title || 'Untitled',
-            song.artist || 'Unknown Artist',
-            song.album || 'Unknown Album'
-          ).then((res) => {
-            if (res.success) {
+      // ★ 7. 楽曲再生開始時のセッション検証 ＆ 履歴追加
+      const isValid = await verifyChordiaSyncSession(true);
+      if (isValid) {
+        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (accountJson) {
+          const account = JSON.parse(accountJson);
+          if (account.sid) {
+            addPlayHistoryApi(
+              account.sid,
+              song.title || 'Untitled',
+              song.artist || 'Unknown Artist',
+              song.album || 'Unknown Album'
+            ).then((res: any) => {
               console.log(`[PlayHistory Log] 🚀 "${song.title}" の再生履歴同期が完了しました`);
-            } else {
-              console.warn(`[PlayHistory Log] ⚠️ "${song.title}" の再生履歴同期に失敗:`, res.error);
-            }
-          }).catch((e) => {
-            console.error('[PlayHistory Log] ❌ 同期処理中に例外が発生:', e);
-          });
+            }).catch((e) => {
+              console.error('[PlayHistory Log] ❌ 同期処理中に例外が発生:', e);
+            });
+          }
         }
       }
     } catch(e){}

@@ -387,4 +387,5 @@ export const ja: Record<string, string> = {
   account_logout_btn: 'ログアウト',
   account_logout_confirm_title: 'ログアウトの確認',
   account_logout_confirm_desc: 'Chordia Sync からログアウトしますか？\n(端末内の作業セッション履歴・楽曲再生履歴も消去されます)',
+  account_auth_invalid_warning: 'Chordia Sync の認証に失敗しました。再度ログインしてください。',
 };

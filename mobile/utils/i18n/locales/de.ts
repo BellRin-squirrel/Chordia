@@ -49,6 +49,19 @@ export const de: Record<string, string> = {
   no_focus_history: 'Kein Verlauf vorhanden',
   no_playback_history: 'Kein Wiedergabeverlauf vorhanden',
 
+  delete_history_menu_title: 'Verlaufsdaten löschen',
+  delete_history_menu_subtitle: 'Wählen Sie den zu löschenden Zeitraum',
+  delete_keep_1day: 'Älter als 1 Tag löschen',
+  delete_keep_1week: 'Älter als 1 Woche löschen',
+  delete_keep_1month: 'Älter als 1 Monat löschen',
+  delete_keep_1year: 'Älter als 1 Jahr löschen',
+  delete_all_history: 'Gesamten Verlauf löschen',
+  delete_history_confirm_local_title: 'Verlauf löschen',
+  delete_history_confirm_local_desc: 'Möchten Sie die Verlaufsdaten vor dem ausgewählten Zeitraum von diesem Gerät löschen?\n(Dieser Vorgang kann nicht rückgängig gemacht werden)',
+  delete_history_confirm_sync_title: 'Chordia Sync Verlauf löschen',
+  delete_history_confirm_sync_desc: 'Möchten Sie die Verlaufsdaten vor dem ausgewählten Zeitraum löschen?\n\n【Warnung】\nDie Daten werden auch aus Chordia Sync (Cloud) und auf allen verknüpften Geräten gelöscht.\n(Dieser Vorgang kann nicht rückgängig gemacht werden)',
+  delete_history_success: 'Verlaufsdaten wurden gelöscht.',
+
   manage_data_title: 'Daten verwalten',
   select_btn: 'Auswählen',
   done_btn: 'Fertig',
@@ -374,4 +387,5 @@ export const de: Record<string, string> = {
   account_logout_btn: 'Abmelden',
   account_logout_confirm_title: 'Abmeldung bestätigen',
   account_logout_confirm_desc: 'Möchten Sie sich wirklich von Chordia Sync abmelden?\n(Der lokale Arbeits- und Wiedergabeverlauf wird ebenfalls von diesem Gerät gelöscht)',
+  account_auth_invalid_warning: 'Chordia Sync-Authentifizierung fehlgeschlagen. Bitte melden Sie sich erneut an.',
 };

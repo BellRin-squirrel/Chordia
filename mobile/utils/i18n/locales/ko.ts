@@ -49,6 +49,19 @@ export const ko: Record<string, string> = {
   no_focus_history: '기록이 없습니다',
   no_playback_history: '재생 기록이 없습니다',
 
+  delete_history_menu_title: '기록 데이터 삭제',
+  delete_history_menu_subtitle: '삭제할 기간을 선택하세요',
+  delete_keep_1day: '최근 1일 데이터 유지하고 삭제',
+  delete_keep_1week: '최근 1주일 데이터 유지하고 삭제',
+  delete_keep_1month: '최근 1개월 데이터 유지하고 삭제',
+  delete_keep_1year: '최근 1년 데이터 유지하고 삭제',
+  delete_all_history: '모든 데이터 삭제',
+  delete_history_confirm_local_title: '기록 삭제',
+  delete_history_confirm_local_desc: '선택한 기간 이전의 기록 데이터를 기기에서 삭제하시겠습니까?\n(이 작업은 취소할 수 없습니다)',
+  delete_history_confirm_sync_title: 'Chordia Sync 기록 삭제',
+  delete_history_confirm_sync_desc: '선택한 기간 이전의 기록 데이터를 삭제하시겠습니까?\n\n【주의】\nChordia Sync(클라우드)의 데이터도 함께 삭제되며, 연동된 모든 기기에서도 삭제됩니다.\n(이 작업은 취소할 수 없습니다)',
+  delete_history_success: '기록 데이터가 삭제되었습니다.',
+
   manage_data_title: '데이터 관리',
   select_btn: '선택',
   done_btn: '완료',
@@ -114,7 +127,7 @@ export const ko: Record<string, string> = {
   app_name: 'Chordia Mobile',
   app_desc: 'Chordia는 PC 라이브러리와의 원활한 동기화 및 몰입감 넘치는 음악 재생·집중 환경을 제공하는 음악 플레이어 앱입니다.',
   oss_license_title: '오픈소스 라이선스',
-  oss_license_desc: '본 애플리케이션은 React Native, Expo, React Native Track Player, Expo Audio 등 오픈소스 소프트웨어를 사용하여 개발되었습니다.',
+  oss_license_desc: '본 애플케이션은 React Native, Expo, React Native Track Player, Expo Audio 등 오픈소스 소프트웨어를 사용하여 개발되었습니다.',
 
   cancel: '취소',
   save: '저장',
@@ -374,4 +387,5 @@ export const ko: Record<string, string> = {
   account_logout_btn: '로그아웃',
   account_logout_confirm_title: '로그아웃 확인',
   account_logout_confirm_desc: 'Chordia Sync에서 로그아웃하시겠습니까?\n(기기 내 작업 세션 기록 및 재생 기록도 삭제됩니다)',
+  account_auth_invalid_warning: 'Chordia Sync 인증에 실패했습니다. 다시 로그인해 주세요.',
 };

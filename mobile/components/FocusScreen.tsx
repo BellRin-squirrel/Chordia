@@ -10,12 +10,17 @@ import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
 import { t } from '../utils/i18n';
-import { addWorkHistoryApi, formatWorkSessionEndTime, formatWorkDuration } from '../utils/chordiaSync';
+import { 
+  addWorkHistoryApi, 
+  formatWorkSessionEndTime, 
+  formatWorkDuration, 
+  verifyChordiaSyncSession, 
+  ACCOUNT_STORAGE_KEY 
+} from '../utils/chordiaSync';
 
 const STORAGE_KEY = 'chordia_focus_settings';
 const HISTORY_KEY = 'chordia_focus_history';
 const TEMP_WORK_KEY = 'chordia_temp_work_seconds';
-const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -163,16 +168,19 @@ export const FocusScreen = ({
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       await AsyncStorage.removeItem(TEMP_WORK_KEY);
 
-      // ★ Chordia Sync ログイン中の場合はフォーマット変換してオンラインに送信（ターミナルログ付き）
-      const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-      if (accountJson) {
-        const account = JSON.parse(accountJson);
-        if (account.sid) {
-          const endFormatted = formatWorkSessionEndTime(new Date(endTime));
-          const timeFormatted = formatWorkDuration(seconds);
+      // ★ 8. 作業セッション終了時のセッション検証 ＆ 作業履歴送信
+      const isValid = await verifyChordiaSyncSession(true, language);
+      if (isValid) {
+        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (accountJson) {
+          const account = JSON.parse(accountJson);
+          if (account.sid) {
+            const endFormatted = formatWorkSessionEndTime(new Date(endTime));
+            const timeFormatted = formatWorkDuration(seconds);
 
-          console.log(`[FocusSession] 🏁 作業セッションが終了しました (${seconds}秒)。Chordia Sync への同期を開始します...`);
-          addWorkHistoryApi(account.sid, endFormatted, timeFormatted);
+            console.log(`[FocusSession] 🏁 作業セッション終了 (${seconds}秒)。Chordia Sync に送信します...`);
+            addWorkHistoryApi(account.sid, endFormatted, timeFormatted);
+          }
         }
       }
     } catch (e) {

@@ -49,6 +49,19 @@ export const en: Record<string, string> = {
   no_focus_history: 'No focus history available',
   no_playback_history: 'No playback history available',
 
+  delete_history_menu_title: 'Delete History Data',
+  delete_history_menu_subtitle: 'Select duration of history to delete',
+  delete_keep_1day: 'Delete older than 1 day',
+  delete_keep_1week: 'Delete older than 1 week',
+  delete_keep_1month: 'Delete older than 1 month',
+  delete_keep_1year: 'Delete older than 1 year',
+  delete_all_history: 'Delete all history data',
+  delete_history_confirm_local_title: 'Delete History',
+  delete_history_confirm_local_desc: 'Delete history data older than the selected period from this device?\n(This action cannot be undone)',
+  delete_history_confirm_sync_title: 'Delete Chordia Sync History',
+  delete_history_confirm_sync_desc: 'Delete history data older than the selected period?\n\n【Warning】\nData will also be deleted from Chordia Sync (Cloud) and removed across all connected devices.\n(This action cannot be undone)',
+  delete_history_success: 'History data deleted.',
+
   manage_data_title: 'Manage Data',
   select_btn: 'Select',
   done_btn: 'Done',
@@ -374,4 +387,5 @@ export const en: Record<string, string> = {
   account_logout_btn: 'Log Out',
   account_logout_confirm_title: 'Confirm Log Out',
   account_logout_confirm_desc: 'Are you sure you want to log out of Chordia Sync?\n(Local work session and playback history will also be cleared from this device)',
+  account_auth_invalid_warning: 'Chordia Sync authentication failed. Please log in again.',
 };

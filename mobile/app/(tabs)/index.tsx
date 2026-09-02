@@ -24,6 +24,7 @@ import { TabBar } from '../../components/TabBar';
 import { LanguageSelectModal } from '../../components/LanguageSelectModal';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 import { LanguageCode, t } from '../../utils/i18n';
+import { verifyChordiaSyncSession } from '../../utils/chordiaSync';
 
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
@@ -83,6 +84,11 @@ const AppContent = () => {
     localLibrary, setLocalLibrary, setLocalPlaylists,
     language
   });
+
+  // ★ 1. アプリ起動時 & 2. タブ切替時のセッション検証
+  useEffect(() => {
+    verifyChordiaSyncSession(true, language);
+  }, [activeTab]);
 
   useEffect(() => {
     const requestInitialPermissions = async () => {
@@ -309,7 +315,6 @@ const AppContent = () => {
         </View>
       )}
 
-      {/* フルスクリーン同期モーダル */}
       <Modal visible={isFullScreenSyncing} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.fullScreenModalOverlay}>
           <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card, paddingBottom: 25 }]}>
@@ -336,12 +341,10 @@ const AppContent = () => {
         </View>
       </Modal>
 
-      {/* フルスクリーンプレイヤー */}
       <Modal visible={isFullPlayer} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
       </Modal>
 
-      {/* アラートモーダル */}
       <Modal visible={!!customAlert} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.modalOverlay}>
           <BlurView 
@@ -385,7 +388,6 @@ const AppContent = () => {
         </View>
       </Modal>
 
-      {/* 初回起動時の言語選択モーダル */}
       <LanguageSelectModal 
         visible={isLanguageSelected === false}
         currentLanguage={language}

@@ -5,15 +5,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Device from 'expo-device';
-import DeviceInfo from 'react-native-device-info';
 import { t } from '../../utils/i18n';
 import { 
   generateAuthCode, 
   registerAuthCodeApi, 
   checkAuthStatusApi, 
   logoutApi,
-  syncInitialLocalHistory 
+  syncInitialLocalHistory,
+  getDeviceModelName 
 } from '../../utils/chordiaSync';
 
 const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
@@ -98,14 +97,7 @@ export const InfoAccountView = ({
   }, [authStage, sid, username, deviceName]);
 
   const handleStartAuth = () => {
-    let defaultDevName = Platform.OS === 'ios' ? 'iPhone' : 'Android Device';
-    try {
-      const rnModel = DeviceInfo.getModel();
-      const expoModel = Device.modelName;
-      if (rnModel && !rnModel.includes(',')) defaultDevName = rnModel;
-      else if (expoModel && !expoModel.includes(',')) defaultDevName = expoModel;
-    } catch (e) {}
-
+    const defaultDevName = getDeviceModelName();
     if (!deviceName) {
       setDeviceName(defaultDevName);
     }
@@ -130,7 +122,8 @@ export const InfoAccountView = ({
     setIsLoading(true);
 
     const code = generateAuthCode(8);
-    const result = await registerAuthCodeApi(username, deviceName, code);
+    const modelName = getDeviceModelName();
+    const result = await registerAuthCodeApi(username, deviceName, code, modelName);
 
     setIsLoading(false);
 
@@ -166,14 +159,9 @@ export const InfoAccountView = ({
               }
             }
 
-            // ★ 1. アカウントセッション情報の削除
             await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
-
-            // ★ 2. ローカルの作業セッション履歴・一時作業時間の削除
             await AsyncStorage.removeItem('chordia_focus_history');
             await AsyncStorage.removeItem('chordia_temp_work_seconds');
-
-            // ★ 3. ローカルの楽曲再生履歴・未送信キューの削除
             await AsyncStorage.removeItem('chordia_playback_history');
             await AsyncStorage.removeItem('chordia_pending_play_history');
             await AsyncStorage.removeItem('chordia_pending_work_history');
