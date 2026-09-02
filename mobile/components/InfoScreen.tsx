@@ -250,7 +250,7 @@ export const InfoScreen = ({
         <View style={{ flex: 1 }}>
           {/* Layer 1: メインメニュー */}
           <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
-            <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 }]}>
+            <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 20, 20) : 20 }]}>
               <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_info', language)}</Text>
             </View>
             <FlatList
@@ -321,10 +321,10 @@ export const InfoScreen = ({
           {navStack.length > 2 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
               {navStack[2] === 'STATS_ALL' && (
-                <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} focusHistory={focusHistory} safePadding={safePadding} renderHeader={renderHeader} language={language} />
+                <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}
               {navStack[2] === 'PLAY_HISTORY' && (
-                <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
+                <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
               )}
               {navStack[2] === 'EDIT_SONG' && (
                 <InfoEditSongView 

@@ -163,24 +163,16 @@ export const FocusScreen = ({
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       await AsyncStorage.removeItem(TEMP_WORK_KEY);
 
-      // ★ Chordia Sync ログイン中の場合はフォーマット変換してオンラインに送信
+      // ★ Chordia Sync ログイン中の場合はフォーマット変換してオンラインに送信（ターミナルログ付き）
       const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
       if (accountJson) {
         const account = JSON.parse(accountJson);
         if (account.sid) {
-          // end: "2026.09.02.01.53", time: "00:25:00"
           const endFormatted = formatWorkSessionEndTime(new Date(endTime));
           const timeFormatted = formatWorkDuration(seconds);
 
-          addWorkHistoryApi(account.sid, endFormatted, timeFormatted).then((res) => {
-            if (res.success) {
-              console.log(`[WorkHistory Log] 🚀 作業履歴同期が完了しました (end: ${endFormatted}, time: ${timeFormatted})`);
-            } else {
-              console.warn(`[WorkHistory Log] ⚠️ 作業履歴同期に失敗:`, res.error);
-            }
-          }).catch((err) => {
-            console.error('[WorkHistory Log] ❌ 同期処理中に例外が発生:', err);
-          });
+          console.log(`[FocusSession] 🏁 作業セッションが終了しました (${seconds}秒)。Chordia Sync への同期を開始します...`);
+          addWorkHistoryApi(account.sid, endFormatted, timeFormatted);
         }
       }
     } catch (e) {

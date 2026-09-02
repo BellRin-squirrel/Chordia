@@ -8,7 +8,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import DeviceInfo from 'react-native-device-info';
 import { t } from '../../utils/i18n';
-import { generateAuthCode, registerAuthCodeApi, checkAuthStatusApi, logoutApi } from '../../utils/chordiaSync';
+import { 
+  generateAuthCode, 
+  registerAuthCodeApi, 
+  checkAuthStatusApi, 
+  logoutApi,
+  syncInitialLocalHistory 
+} from '../../utils/chordiaSync';
 
 const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
@@ -70,6 +76,11 @@ export const InfoAccountView = ({
               sid,
               authenticatedAt: new Date().toISOString(),
             }));
+
+            // ログイン成功時に既存の作業履歴＆再生履歴をサーバーへ一括送信
+            syncInitialLocalHistory(sid).catch((err) => {
+              console.warn('[InitialSync Error]', err);
+            });
           } else if (res.status === 'expired') {
             stopPolling();
             setAuthStage('EXPIRED');
@@ -151,13 +162,28 @@ export const InfoAccountView = ({
             if (sid && username && deviceName) {
               const res = await logoutApi(sid, username, deviceName);
               if (!res.success && res.error) {
-                Alert.alert(t('alert_timer_error_title', language), res.error);
+                console.warn('[Logout Warning]', res.error);
               }
             }
 
+            // ★ 1. アカウントセッション情報の削除
             await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
+
+            // ★ 2. ローカルの作業セッション履歴・一時作業時間の削除
+            await AsyncStorage.removeItem('chordia_focus_history');
+            await AsyncStorage.removeItem('chordia_temp_work_seconds');
+
+            // ★ 3. ローカルの楽曲再生履歴・未送信キューの削除
+            await AsyncStorage.removeItem('chordia_playback_history');
+            await AsyncStorage.removeItem('chordia_pending_play_history');
+            await AsyncStorage.removeItem('chordia_pending_work_history');
+
+            console.log('[Account Logout] 🧹 ローカルの作業セッション履歴および楽曲再生履歴を消去しました');
+
             setSid(null);
             setGeneratedCode(null);
+            setUsername('');
+            setDeviceName('');
             setIsLoggingOut(false);
             setAuthStage('IDLE');
           }
