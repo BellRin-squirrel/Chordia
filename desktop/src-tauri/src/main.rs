@@ -339,6 +339,9 @@ fn main() {
             cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session,
             cmd_api::register_auth_code_to_cloud,
             cmd_api::check_cloud_login_status,
+            cmd_api::fetch_cloud_play_history,
+            cmd_api::fetch_cloud_work_history,
+            cmd_api::get_local_play_statistics,
             cmd_api::get_cloud_auth_info,
             cmd_api::logout_cloud_auth,
             resolve_path, restart_app

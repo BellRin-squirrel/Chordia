@@ -30,7 +30,7 @@ pub const KEY_GAMMA: u32 = 0x67452301;
 pub const AFFINE_INV_MULT: u16 = 0x9A2D;
 pub const AFFINE_ADD: u16      = 0x7E19;
 
-static _0x_AUX_LUT: [u32; 16] = [
+static _0X_AUX_LUT: [u32; 16] = [
     0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE,
     0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
     0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE,
@@ -49,8 +49,8 @@ fn _0x_fnv1a_hash(_0xa0: &[u8]) -> u64 {
 fn _0x_sbox_transform(_0xb0: u16, _0xb1: u32) -> u16 {
     let _0xb2 = ((_0xb0 >> 8) as u8) ^ ((_0xb1 & 0xFF) as u8);
     let _0xb3 = (_0xb0 as u8) ^ (((_0xb1 >> 8) & 0xFF) as u8);
-    let _0xb4 = _0x_AUX_LUT[(_0xb2 & 0x0F) as usize] as u16;
-    let _0xb5 = _0x_AUX_LUT[(_0xb3 >> 4) as usize] as u16;
+    let _0xb4 = _0X_AUX_LUT[(_0xb2 & 0x0F) as usize] as u16;
+    let _0xb5 = _0X_AUX_LUT[(_0xb3 >> 4) as usize] as u16;
     ((_0xb4.rotate_left(3)) ^ _0xb5).wrapping_add(0x5A82)
 }
 
@@ -58,7 +58,7 @@ fn _0x_calc_entropy_vector(_0xc0: &[u16]) -> (u32, u32) {
     let mut _0xc1: u32 = 0x811C9DC5;
     let mut _0xc2: u32 = 0x12345678;
     for (idx, &_0xc3) in _0xc0.iter().enumerate() {
-        let _0xc4 = _0x_AUX_LUT[idx % _0x_AUX_LUT.len()];
+        let _0xc4 = _0X_AUX_LUT[idx % _0X_AUX_LUT.len()];
         _0xc1 = _0xc1.wrapping_add((_0xc3 as u32) ^ _0xc4).rotate_left((idx % 7 + 1) as u32);
         _0xc2 = (_0xc2 ^ (_0xc3 as u32)).wrapping_mul(0x5BD1E995);
     }
@@ -102,7 +102,7 @@ fn _0x_expand_round_keys(_0x100: u32) -> [u32; 8] {
     let mut _0x102 = _0x100;
     for _0x103 in 0..8 {
         _0x102 = _0x102.wrapping_mul(0x6C078965).wrapping_add(1);
-        let _0x104 = _0x_AUX_LUT[_0x103 % _0x_AUX_LUT.len()];
+        let _0x104 = _0X_AUX_LUT[_0x103 % _0X_AUX_LUT.len()];
         _0x101[_0x103] = _0x102 ^ _0x104.rotate_right((_0x103 * 3) as u32);
     }
     _0x101
@@ -262,7 +262,7 @@ pub fn is_language_file_safe(_0x31: &Path) -> bool {
 
 fn _0x_verify_runtime_environment() -> (u32, bool) {
     let mut _0x140 = 0x9E3779B9u32;
-    for (i, &val) in _0x_AUX_LUT.iter().enumerate() {
+    for (i, &val) in _0X_AUX_LUT.iter().enumerate() {
         _0x140 = _0x140.wrapping_add(val ^ (i as u32));
     }
     (_0x140, true)

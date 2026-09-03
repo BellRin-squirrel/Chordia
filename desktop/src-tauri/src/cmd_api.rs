@@ -8,6 +8,7 @@ use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::path::PathBuf;
 use std::fs;
+use std::collections::HashMap;
 use crate::utils::{get_base_dir, safe_write_file};
 
 fn get_cloudflared_path() -> String {
@@ -54,7 +55,6 @@ pub async fn kill_child_process(mut child: tokio::process::Child) {
     let _ = child.kill().await;
 }
 
-// ★ 34文字（0とOを除く英大文字・数字）から暗号論的に安全な8文字の認証コードを生成
 fn generate_34char_auth_code() -> String {
     const CHARSET: &[u8] = b"123456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
     let mut r = rng();
@@ -66,11 +66,9 @@ fn generate_34char_auth_code() -> String {
         .collect()
 }
 
-// ★ OSおよびモデル名の詳細取得
 fn get_system_model_and_os() -> (String, String) {
     #[cfg(target_os = "macos")]
     {
-        // OSバージョン取得 (例: 15.7.7)
         let ver_output = std::process::Command::new("sw_vers")
             .arg("-productVersion")
             .output()
@@ -81,6 +79,7 @@ fn get_system_model_and_os() -> (String, String) {
         let os_name = if !ver_output.is_empty() {
             let major: u32 = ver_output.split('.').next().and_then(|v| v.parse().ok()).unwrap_or(0);
             let code_name = match major {
+                16 => "Tahoe",
                 15 => "Sequoia",
                 14 => "Sonoma",
                 13 => "Ventura",
@@ -97,32 +96,61 @@ fn get_system_model_and_os() -> (String, String) {
             "macOS".to_string()
         };
 
-        // モデル名取得 (例: MacBookAir10,1, Mac14,2 等)
-        let model_output = std::process::Command::new("sysctl")
-            .args(&["-n", "hw.model"])
+        let mut model_name = String::new();
+
+        if let Ok(output) = std::process::Command::new("system_profiler")
+            .arg("SPHardwareDataType")
             .output()
-            .ok()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default();
-
-        let model = if !model_output.is_empty() {
-            model_output
-        } else {
-            if cfg!(target_arch = "aarch64") {
-                "Mac (Apple Silicon)".to_string()
-            } else {
-                "Mac (Intel)".to_string()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                let line_trimmed = line.trim();
+                if line_trimmed.starts_with("Model Name:") {
+                    let name = line_trimmed.trim_start_matches("Model Name:").trim();
+                    if !name.is_empty() {
+                        model_name = name.to_string();
+                        break;
+                    }
+                }
             }
-        };
+        }
 
-        (model, os_name)
+        if model_name.is_empty() {
+            let raw_id = std::process::Command::new("sysctl")
+                .args(&["-n", "hw.model"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+
+            if raw_id.starts_with("MacBookAir") {
+                model_name = "MacBook Air".to_string();
+            } else if raw_id.starts_with("MacBookPro") {
+                model_name = "MacBook Pro".to_string();
+            } else if raw_id.starts_with("MacBook") {
+                model_name = "MacBook".to_string();
+            } else if raw_id.starts_with("Macmini") {
+                model_name = "Mac mini".to_string();
+            } else if raw_id.starts_with("iMac") {
+                model_name = "iMac".to_string();
+            } else if raw_id.starts_with("MacStudio") {
+                model_name = "Mac Studio".to_string();
+            } else if raw_id.starts_with("MacPro") {
+                model_name = "Mac Pro".to_string();
+            } else if !raw_id.is_empty() {
+                model_name = raw_id;
+            } else {
+                model_name = "Mac".to_string();
+            }
+        }
+
+        (model_name, os_name)
     }
 
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
 
-        // Windows OS 詳細取得
         let os_output = std::process::Command::new("powershell")
             .args(&["-NoProfile", "-Command", "(Get-CimInstance Win32_OperatingSystem).Caption"])
             .creation_flags(0x08000000)
@@ -137,7 +165,6 @@ fn get_system_model_and_os() -> (String, String) {
             "Windows".to_string()
         };
 
-        // Windows モデル名取得
         let model_output = std::process::Command::new("powershell")
             .args(&["-NoProfile", "-Command", "(Get-CimInstance Win32_ComputerSystem).Model"])
             .creation_flags(0x08000000)
@@ -161,7 +188,6 @@ fn get_system_model_and_os() -> (String, String) {
     }
 }
 
-// ★ Chordia Sync クラウドAPIに認証コードを登録するコマンド
 #[tauri::command]
 pub async fn register_auth_code_to_cloud(
     username: String, 
@@ -227,7 +253,6 @@ pub async fn register_auth_code_to_cloud(
     Ok(code)
 }
 
-// ★ 認証コード認証済み確認ポーリングAPI
 #[tauri::command]
 pub async fn check_cloud_login_status(
     username: String,
@@ -279,7 +304,6 @@ pub async fn check_cloud_login_status(
 
     match status_val {
         "authenticated" => {
-            // 認証完了: ローカルファイルに保存して永続化
             let save_data = serde_json::json!({
                 "logged_in": true,
                 "username": username,
@@ -305,7 +329,126 @@ pub async fn check_cloud_login_status(
     }
 }
 
-// ★ 現在のChordia Sync認証状態を取得
+// ★ クラウドから楽曲再生履歴を取得
+#[tauri::command]
+pub async fn fetch_cloud_play_history(auth: State<'_, SharedAuthState>) -> Result<Value, String> {
+    let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
+
+    let payload = serde_json::json!({
+        "operation": "loadAllPlayHistory",
+        "SID": sid
+    });
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(12)).build().map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&payload).unwrap_or_default())
+        .send()
+        .await
+        .map_err(|e| format!("通信エラー: {}", e))?;
+
+    let res_text = response.text().await.map_err(|e| e.to_string())?;
+    let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSONレスポンス: {}", res_text))?;
+
+    if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+
+    Ok(json_res.get("history").cloned().unwrap_or(serde_json::json!([])))
+}
+
+// ★ クラウドから作業セッション履歴を取得
+#[tauri::command]
+pub async fn fetch_cloud_work_history(auth: State<'_, SharedAuthState>) -> Result<Value, String> {
+    let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
+
+    let payload = serde_json::json!({
+        "operation": "loadAllWorkHistory",
+        "SID": sid
+    });
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(12)).build().map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&payload).unwrap_or_default())
+        .send()
+        .await
+        .map_err(|e| format!("通信エラー: {}", e))?;
+
+    let res_text = response.text().await.map_err(|e| e.to_string())?;
+    let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSONレスポンス: {}", res_text))?;
+
+    if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+
+    Ok(json_res.get("history").cloned().unwrap_or(serde_json::json!([])))
+}
+
+// ★ ローカルの再生履歴と統計情報を取得
+#[tauri::command]
+pub fn get_local_play_statistics() -> Value {
+    let h_path = get_base_dir().join("userfiles/history.json");
+    let mut history_list = Vec::new();
+    if let Ok(data) = fs::read_to_string(&h_path) {
+        if let Ok(mut h) = serde_json::from_str::<Vec<Value>>(&data) {
+            h.reverse();
+            history_list = h;
+        }
+    }
+
+    let mut play_counts: HashMap<String, (String, String, usize)> = HashMap::new();
+    for item in &history_list {
+        let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+        let artist = item.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+        let key = format!("{}___{}", title, artist);
+        let entry = play_counts.entry(key).or_insert((title, artist, 0));
+        entry.2 += 1;
+    }
+
+    let mut ranking: Vec<(String, String, usize)> = play_counts.into_values().collect();
+    ranking.sort_by(|a, b| b.2.cmp(&a.2));
+    let top5: Vec<Value> = ranking.into_iter().take(5).map(|(t, a, count)| {
+        serde_json::json!({
+            "title": t,
+            "artist": a,
+            "count": count
+        })
+    }).collect();
+
+    serde_json::json!({
+        "ranking": top5,
+        "history": history_list
+    })
+}
+
+async fn get_saved_cloud_sid(auth: &SharedAuthState) -> Option<String> {
+    {
+        let state = auth.lock().await;
+        if let Some(ref s) = state.cloud_sid {
+            if !s.is_empty() { return Some(s.clone()); }
+        }
+    }
+
+    let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
+    if auth_file_path.exists() {
+        if let Ok(content) = fs::read_to_string(&auth_file_path) {
+            if let Ok(json) = serde_json::from_str::<Value>(&content) {
+                if let Some(sid) = json.get("sid").and_then(|v| v.as_str()) {
+                    if !sid.is_empty() { return Some(sid.to_string()); }
+                }
+            }
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub fn get_cloud_auth_info() -> Value {
     let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
@@ -321,7 +464,6 @@ pub fn get_cloud_auth_info() -> Value {
     serde_json::json!({ "logged_in": false })
 }
 
-// ★ Chordia Syncからログアウト（ログアウトAPI連携）
 #[tauri::command]
 pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), String> {
     let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
@@ -347,7 +489,6 @@ pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), S
         }
     }
 
-    // サーバーにログアウトAPIを送信
     if !sid.is_empty() {
         let payload = serde_json::json!({
             "operation": "logout",
@@ -383,7 +524,6 @@ pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), S
         }
     }
 
-    // ローカルファイル・ステートをクリア
     if auth_file_path.exists() {
         let _ = fs::remove_file(auth_file_path);
     }
