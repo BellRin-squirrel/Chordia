@@ -1,0 +1,199 @@
+@charset "UTF-8";
+
+.modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    display: none !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 10000 !important;
+    backdrop-filter: blur(4px) !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.modal-overlay.show {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.playlist-picker-modal {
+    background: var(--card-bg, #ffffff) !important;
+    width: 680px;
+    max-width: 95vw;
+    height: 560px;
+    max-height: 85vh;
+    padding: 24px;
+    box-sizing: border-box;
+    border-radius: 24px !important;
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    animation: modalPop 0.2s ease-out;
+}
+
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main, #1f2937);
+}
+
+.btn-close-circle {
+    background: rgba(128,128,128,0.1);
+    border: none;
+    font-size: 1.4rem;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    color: var(--text-sub);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.btn-close-circle:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.picker-main-layout {
+    flex: 1;
+    display: flex;
+    gap: 16px;
+    min-height: 0;
+    margin-top: 16px;
+}
+
+.picker-tabs {
+    width: 150px;
+    flex-shrink: 0;
+    background: #f1f3f7;
+    padding: 6px;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.picker-tab-btn {
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-sub, #6b7280);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    text-align: left;
+}
+
+.picker-tab-btn svg { width: 16px; height: 16px; }
+
+.picker-tab-btn.active {
+    background: #ffffff;
+    color: var(--primary-color, #4f46e5);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.picker-content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.picker-search-box input {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.25);
+    background: #f1f3f7;
+    color: var(--text-main, #1f2937);
+    font-size: 0.9rem;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.picker-search-box input:focus {
+    border-color: var(--primary-color, #4f46e5);
+    background: #ffffff;
+}
+
+.picker-items-list {
+    flex: 1;
+    overflow-y: auto;
+    border-radius: 12px;
+    background: #f1f3f7;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.picker-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #ffffff;
+    border: 1px solid rgba(128, 128, 128, 0.06);
+}
+
+.picker-item:hover {
+    background: rgba(79, 70, 229, 0.08);
+    border-color: rgba(79, 70, 229, 0.2);
+}
+
+.picker-item svg {
+    width: 20px;
+    height: 20px;
+    color: var(--primary-color, #4f46e5);
+    flex-shrink: 0;
+}
+
+.picker-item span {
+    flex: 1;
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+    .picker-main-layout { flex-direction: column; }
+    .picker-tabs { width: 100%; flex-direction: row; }
+    .picker-tab-btn { flex: 1; justify-content: center; }
+}

@@ -18,7 +18,8 @@ mod cmd_i18n;
 mod i18n_japanese;
 mod i18n_english;
 mod server;
-mod cmd_api;
+mod cmd_mobile_sync;
+mod cmd_cloud_sync;
 
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
@@ -129,7 +130,7 @@ fn main() {
                             state.pending_requests.clear();
                         }
                         if let Some(child) = state.tunnel_process.take() {
-                            cmd_api::kill_child_process(child).await;
+                            cmd_mobile_sync::kill_child_process(child).await;
                         }
                         if is_sync_window {
                             if let Some(tx) = state.shutdown_tx.take() {
@@ -311,6 +312,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             cmd_window::open_new_window, cmd_window::set_mini_player_mode, cmd_window::close_mini_player, cmd_window::close_lufs_calc_window, cmd_window::make_window_square, cmd_window::minimize_mini_player, cmd_window::show_in_explorer,
+            cmd_window::open_url,
             cmd_settings::get_app_settings, cmd_settings::save_app_settings, cmd_settings::get_custom_themes, cmd_settings::save_custom_theme, cmd_settings::delete_custom_theme,
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs, cmd_playlist::convert_smart_to_normal_and_add_songs,
@@ -336,14 +338,16 @@ fn main() {
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
             cmd_integrity::check_system_integrity,
             cmd_i18n::get_available_languages, cmd_i18n::get_language_pack, cmd_i18n::check_language_packs_status,
-            cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session,
-            cmd_api::register_auth_code_to_cloud,
-            cmd_api::check_cloud_login_status,
-            cmd_api::fetch_cloud_play_history,
-            cmd_api::fetch_cloud_work_history,
-            cmd_api::get_local_play_statistics,
-            cmd_api::get_cloud_auth_info,
-            cmd_api::logout_cloud_auth,
+            cmd_mobile_sync::start_sync_server, cmd_mobile_sync::toggle_wan_mode, cmd_mobile_sync::stop_sync_server, cmd_mobile_sync::respond_to_request, cmd_mobile_sync::get_active_sessions, cmd_mobile_sync::force_disconnect_session,
+            cmd_cloud_sync::register_auth_code_to_cloud,
+            cmd_cloud_sync::check_cloud_login_status,
+            cmd_cloud_sync::fetch_cloud_play_history,
+            cmd_cloud_sync::fetch_cloud_work_history,
+            cmd_cloud_sync::get_local_play_statistics,
+            cmd_cloud_sync::get_cloud_auth_info,
+            cmd_cloud_sync::logout_cloud_auth,
+            cmd_cloud_sync::add_play_history_to_cloud,
+            cmd_cloud_sync::sync_all_local_history_to_cloud,
             resolve_path, restart_app
         ])
         .run(tauri::generate_context!())

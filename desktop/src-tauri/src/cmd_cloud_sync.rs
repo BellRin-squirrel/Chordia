@@ -1,59 +1,12 @@
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
-use std::net::UdpSocket;
 use rand::{rng, Rng};
-use tokio::process::Command;
-use tokio::io::{AsyncBufReadExt, BufReader};
-use std::path::PathBuf;
 use std::fs;
 use std::collections::HashMap;
 use crate::utils::{get_base_dir, safe_write_file};
 
-fn get_cloudflared_path() -> String {
-    let exe_name = if cfg!(target_os = "windows") { "cloudflared.exe" } else { "cloudflared" };
-    
-    let userfiles_bin = get_base_dir().join("userfiles/bin").join(exe_name);
-    if userfiles_bin.exists() {
-        if let Some(path_str) = userfiles_bin.to_str() {
-            return path_str.to_string();
-        }
-    }
-
-    let base_bin = get_base_dir().join(exe_name);
-    if base_bin.exists() {
-        if let Some(path_str) = base_bin.to_str() {
-            return path_str.to_string();
-        }
-    }
-
-    if PathBuf::from(exe_name).exists() {
-        return format!("./{}", exe_name);
-    }
-
-    exe_name.to_string()
-}
-
-pub async fn kill_child_process(mut child: tokio::process::Child) {
-    if let Some(pid) = child.id() {
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            let mut kill_cmd = std::process::Command::new("taskkill");
-            kill_cmd.args(&["/F", "/T", "/PID", &pid.to_string()]);
-            kill_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-            let _ = kill_cmd.output();
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            let _ = std::process::Command::new("kill")
-                .args(&["-9", &pid.to_string()])
-                .output();
-        }
-    }
-    let _ = child.kill().await;
-}
-
+// ★ 34文字（0とOを除く英大文字・数字）から暗号論的に安全な8文字の認証コードを生成
 fn generate_34char_auth_code() -> String {
     const CHARSET: &[u8] = b"123456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
     let mut r = rng();
@@ -65,6 +18,7 @@ fn generate_34char_auth_code() -> String {
         .collect()
 }
 
+// ★ OSおよびモデル名の詳細・わかりやすい名称を取得
 fn get_system_model_and_os() -> (String, String) {
     #[cfg(target_os = "macos")]
     {
@@ -187,7 +141,7 @@ fn get_system_model_and_os() -> (String, String) {
     }
 }
 
-// ★ 楽曲再生履歴追記API (addPlayHistory) - JSONボディでPOST送信
+// ★ 楽曲再生履歴追記API (addPlayHistory) - albumキーに修正
 pub async fn send_single_play_history_to_cloud(
     client: &reqwest::Client,
     sid: &str,
@@ -200,7 +154,7 @@ pub async fn send_single_play_history_to_cloud(
         "SID": sid,
         "title": title,
         "artist": artist,
-        "albbum": album
+        "album": album // ★ album に修正
     });
 
     let body_json = serde_json::to_string(&payload)
@@ -217,7 +171,6 @@ pub async fn send_single_play_history_to_cloud(
         .map_err(|e| format!("通信エラー: {}", e))?;
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
-    println!("{}", res_text);
     let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSON: {}", res_text))?;
 
     if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
@@ -243,7 +196,6 @@ pub async fn add_play_history_to_cloud(
     send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album).await
 }
 
-// ★ 全既存履歴のクラウド送信 (addPlayHistory のループ処理)
 #[tauri::command]
 pub async fn sync_all_local_history_to_cloud(
     app: AppHandle,
@@ -286,7 +238,6 @@ pub async fn sync_all_local_history_to_cloud(
     Ok(success_count)
 }
 
-// ★ 認証コード登録API (registerAuthenticationCode) - JSONボディでPOST送信
 #[tauri::command]
 pub async fn register_auth_code_to_cloud(
     username: String, 
@@ -352,7 +303,6 @@ pub async fn register_auth_code_to_cloud(
     Ok(code)
 }
 
-// ★ ログイン確認ポーリングAPI (checkAlreadyLogin) - JSONボディでPOST送信
 #[tauri::command]
 pub async fn check_cloud_login_status(
     username: String,
@@ -429,7 +379,6 @@ pub async fn check_cloud_login_status(
     }
 }
 
-// ★ 楽曲再生履歴取得API (loadAllPlayHistory) - JSONボディでPOST送信
 #[tauri::command]
 pub async fn fetch_cloud_play_history(auth: State<'_, SharedAuthState>) -> Result<Value, String> {
     let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
@@ -463,7 +412,6 @@ pub async fn fetch_cloud_play_history(auth: State<'_, SharedAuthState>) -> Resul
     Ok(json_res.get("history").cloned().unwrap_or(serde_json::json!([])))
 }
 
-// ★ 作業セッション履歴取得API (loadAllWorkHistory) - JSONボディでPOST送信
 #[tauri::command]
 pub async fn fetch_cloud_work_history(auth: State<'_, SharedAuthState>) -> Result<Value, String> {
     let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
@@ -569,7 +517,6 @@ pub fn get_cloud_auth_info() -> Value {
     serde_json::json!({ "logged_in": false })
 }
 
-// ★ ログアウトAPI (logout) - JSONボディでPOST送信
 #[tauri::command]
 pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), String> {
     let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
@@ -638,173 +585,4 @@ pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), S
     state.pending_sid = None;
 
     Ok(())
-}
-
-#[tauri::command]
-pub async fn start_sync_server(auth: State<'_, SharedAuthState>, app_handle: tauri::AppHandle) -> Result<Value, String> {
-    let mut state = auth.lock().await;
-    
-    if let Some(tx) = state.shutdown_tx.take() {
-        let _ = tx.send(());
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.map_err(|e| e.to_string())?;
-    let port = listener.local_addr().unwrap().port();
-    
-    state.port = port;
-    state.window_open = true;
-
-    let new_code: String = (0..6).map(|_| rng().random_range(b'0'..=b'9') as char).collect();
-    state.current_code = Some(new_code.clone());
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
-    state.code_expires_at = now + 30.0;
-    let _ = app_handle.emit("update_auth_code", new_code.clone());
-
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    state.shutdown_tx = Some(tx);
-
-    let auth_clone = auth.inner().clone();
-    let app_clone = app_handle.clone();
-    
-    tauri::async_runtime::spawn(async move {
-        crate::server::start_server(app_clone, auth_clone, listener, rx).await;
-    });
-
-    let mut ip = "127.0.0.1".to_string();
-    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
-        if socket.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = socket.local_addr() { ip = addr.ip().to_string(); }
-        }
-    }
-
-    Ok(serde_json::json!({"ip": ip, "port": port}))
-}
-
-#[tauri::command]
-pub async fn stop_sync_server(auth: State<'_, SharedAuthState>) -> Result<(), String> {
-    let mut state = auth.lock().await;
-    state.window_open = false;
-    state.pending_requests.clear(); 
-    if let Some(child) = state.tunnel_process.take() {
-        kill_child_process(child).await;
-    }
-    if let Some(tx) = state.shutdown_tx.take() {
-        let _ = tx.send(());
-    }
-    state.wan_url = None;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn respond_to_request(request_id: String, approve: bool, auth: State<'_, SharedAuthState>) -> Result<(), String> {
-    let mut state = auth.lock().await;
-    if let Some(req) = state.pending_requests.get_mut(&request_id) {
-        req.status = if approve { "approved".to_string() } else { "rejected".to_string() };
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_active_sessions(auth: State<'_, SharedAuthState>) -> Result<Vec<Value>, String> {
-    let mut state = auth.lock().await;
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs_f64();
-    state.sessions.retain(|_, s| now - s.last_access <= 300.0);
-    
-    let mut active = Vec::new();
-    for (_, s) in state.sessions.iter() {
-        let remaining = (300.0 - (now - s.last_access)) as i64;
-        active.push(serde_json::json!({"device": s.device.clone(), "ip": s.ip.clone(), "remaining": remaining}));
-    }
-    Ok(active)
-}
-
-#[tauri::command]
-pub async fn force_disconnect_session(ip: String, device: String, auth: State<'_, SharedAuthState>) -> Result<(), String> {
-    let mut state = auth.lock().await;
-    state.sessions.retain(|_, s| !(s.ip == ip && s.device == device));
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuthState>) -> Result<String, String> {
-    let mut state = auth.lock().await;
-
-    if enable {
-        if state.tunnel_process.is_some() {
-            return Ok(state.wan_url.clone().unwrap_or_default());
-        }
-
-        let binary_path = get_cloudflared_path();
-
-        let mut std_cmd = std::process::Command::new(&binary_path);
-        std_cmd.args(&[
-            "tunnel",
-            "--no-autoupdate",
-            "--http-host-header",
-            "localhost",
-            "--url",
-            &format!("http://127.0.0.1:{}", port),
-        ])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped());
-
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            std_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        }
-
-        let mut cmd = Command::from(std_cmd);
-        cmd.kill_on_drop(true);
-
-        let mut child = cmd.spawn()
-            .map_err(|_| format!("ERR_CLOUDFLARED_START:{}", binary_path))?;
-
-        let stderr = child.stderr.take().ok_or("ERR_STDERR_PIPE")?;
-
-        let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-
-        tokio::spawn(async move {
-            let mut reader = BufReader::new(stderr);
-            let mut line = String::new();
-            let mut tx_option = Some(tx);
-
-            while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-                if let Some(_) = tx_option.as_ref() {
-                    if line.contains("trycloudflare.com") {
-                        if let Some(url_part) = line.split("https://").nth(1) {
-                            let url = url_part.split_whitespace().next().unwrap_or("").trim_matches(&['\r', '\n', '\t', ' ', '|', '\''][..]);
-                            if !url.is_empty() {
-                                let wan_url = format!("https://{}", url);
-                                if let Some(sender) = tx_option.take() {
-                                    let _ = sender.send(wan_url);
-                                }
-                            }
-                        }
-                    }
-                }
-                line.clear();
-            }
-        });
-
-        match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
-            Ok(Ok(wan_url)) => {
-                state.tunnel_process = Some(child);
-                state.wan_url = Some(wan_url.clone());
-                Ok(wan_url)
-            }
-            _ => {
-                kill_child_process(child).await;
-                Err("ERR_CLOUDFLARED_TIMEOUT".to_string())
-            }
-        }
-    } else {
-        if let Some(child) = state.tunnel_process.take() {
-            kill_child_process(child).await;
-        }
-        state.wan_url = None;
-        Ok("".to_string())
-    }
 }

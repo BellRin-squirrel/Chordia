@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+    const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : null;
 
     let isInitialized = false;
     let syncPollingTimer = null;
@@ -37,6 +38,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sec.classList.remove('active');
                 }
             });
+
+            // 統計タブが開かれたら自動取得
+            if (targetId === 'sec-music-stats') loadPlayStatistics();
+            if (targetId === 'sec-work-stats') loadWorkStatistics();
         });
     });
 
@@ -97,6 +102,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const logoutConfirmModal = document.getElementById('logoutConfirmModal');
     const btnCancelLogoutModal = document.getElementById('btnCancelLogoutModal');
     const btnExecLogoutModal = document.getElementById('btnExecLogoutModal');
+
+    // 既存履歴同期オーバーレイ要素
+    const syncHistoryProgressOverlay = document.getElementById('syncHistoryProgressOverlay');
+    const syncHistoryProgressBar = document.getElementById('syncHistoryProgressBar');
+    const syncHistoryProgressText = document.getElementById('syncHistoryProgressText');
 
     const THEME_PRESETS = {
         light: { bg: '#f3f4f6', subBg: '#ffffff', text: '#1f2937' },
@@ -166,9 +176,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderCombinedTagList();
             }
 
-            if (showNotify) showToast(window.i18n ? window.i18n.t("Messages.saved") : "設定を保存しました");
+            if (showNotify) showToast("設定を保存しました");
         } else {
-            if (showNotify) showToast(window.i18n ? window.i18n.t("Messages.save_failed") : "保存に失敗しました", true);
+            if (showNotify) showToast("保存に失敗しました", true);
         }
     }
 
@@ -254,20 +264,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function rebuildThemeOptions(activeMode) {
         customSelectDropdown.innerHTML = '';
-        
-        const labelLight = window.i18n ? window.i18n.t('Settings.theme_light') : 'ライトテーマ';
-        const labelDark = window.i18n ? window.i18n.t('Settings.theme_dark') : 'ダークテーマ';
-        const labelCustom = window.i18n ? window.i18n.t('Settings.theme_custom') : 'カスタム';
-
         const options = [
-            { val: 'light', label: labelLight },
-            { val: 'dark', label: labelDark }
+            { val: 'light', label: 'ライトテーマ' },
+            { val: 'dark', label: 'ダークテーマ' }
         ];
 
         for (const name in customThemes) {
             options.push({ val: name, label: name });
         }
-        options.push({ val: 'custom', label: labelCustom });
+        options.push({ val: 'custom', label: 'カスタム' });
 
         options.forEach(opt => {
             const item = document.createElement('div');
@@ -328,9 +333,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const options = customSelectDropdown.querySelectorAll('.custom-option');
         options.forEach(opt => {
-            const val = (opt.textContent.trim() === 'ライトテーマ' || opt.textContent.trim() === 'Light Theme') ? 'light' : 
-                        (opt.textContent.trim() === 'ダークテーマ' || opt.textContent.trim() === 'Dark Theme') ? 'dark' : 
-                        (opt.textContent.trim() === 'カスタム' || opt.textContent.trim() === 'Custom') ? 'custom' : opt.textContent.trim();
+            const val = (opt.textContent.trim() === 'ライトテーマ') ? 'light' : 
+                        (opt.textContent.trim() === 'ダークテーマ') ? 'dark' : 
+                        (opt.textContent.trim() === 'カスタム') ? 'custom' : opt.textContent.trim();
             if (val === mode) opt.classList.add('active');
             else opt.classList.remove('active');
         });
@@ -348,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isDbChecked = currentSettings.active_tags.includes(tag.key) ? 'checked' : '';
             const isPlayerChecked = currentSettings.player_visible_tags.includes(tag.key) ? 'checked' : '';
 
-            const labelText = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${tag.key}`) : tag.label;
+            const labelText = tag.label;
 
             li.innerHTML = `
                 <div class="handle disabled">${labelText}</div>
@@ -365,6 +370,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCombinedTagList();
 
     // --- Chordia Sync 認証フロー制御 ---
+    if (listen) {
+        listen("sync_history_progress", (event) => {
+            const data = event.payload;
+            if (data && syncHistoryProgressBar && syncHistoryProgressText) {
+                const percent = Math.floor((data.current / data.total) * 100);
+                syncHistoryProgressBar.style.width = `${percent}%`;
+                syncHistoryProgressText.textContent = `${data.current} / ${data.total} 曲 (${percent}%)`;
+            }
+        });
+    }
+
     async function initCloudSyncStatus() {
         try {
             const authInfo = await invoke("get_cloud_auth_info");
@@ -381,6 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showLoggedOutView() {
         stopPolling();
+        if (syncHistoryProgressOverlay) syncHistoryProgressOverlay.style.display = 'none';
         syncLoggedInArea.style.display = 'none';
         syncFormArea.style.display = 'none';
         syncCodeArea.style.display = 'none';
@@ -389,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showLoggedInView(username, device) {
         stopPolling();
+        if (syncHistoryProgressOverlay) syncHistoryProgressOverlay.style.display = 'none';
         syncInitArea.style.display = 'none';
         syncFormArea.style.display = 'none';
         syncCodeArea.style.display = 'none';
@@ -416,8 +434,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (status === "authenticated") {
                     stopPolling();
-                    showLoggedInView(uVal, dVal);
-                    showToast("Chordia Sync の認証が完了しました！");
+                    syncCodeArea.style.display = 'none';
+                    await executeInitialHistorySync(uVal, dVal);
                 } else if (status === "expired") {
                     stopPolling();
                     alert("認証コードの有効期限が切れました。再度認証コードを発行してください。");
@@ -427,6 +445,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn("Polling status check:", e);
             }
         }, 2000);
+    }
+
+    async function executeInitialHistorySync(uVal, dVal) {
+        if (syncHistoryProgressOverlay) {
+            syncHistoryProgressBar.style.width = '0%';
+            syncHistoryProgressText.textContent = "準備中...";
+            syncHistoryProgressOverlay.style.display = 'flex';
+        }
+
+        try {
+            await invoke("sync_all_local_history_to_cloud");
+            showLoggedInView(uVal, dVal);
+            showToast("Chordia Sync の認証と履歴の同期が完了しました！");
+        } catch(err) {
+            console.error("Initial history sync failed:", err);
+            showLoggedInView(uVal, dVal);
+            showToast("同期処理の一部でエラーが発生しましたが、ログインは完了しました", true);
+        } finally {
+            if (syncHistoryProgressOverlay) {
+                syncHistoryProgressOverlay.style.display = 'none';
+            }
+        }
     }
 
     function checkSyncInputs() {
@@ -480,7 +520,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 syncCodeArea.style.display = 'block';
                 showToast("認証コードを発行しました！");
 
-                // ★ Web側での承認を監視するポーリング開始
                 startPolling(uVal, dVal);
             } catch (err) {
                 console.error("register_auth_code_to_cloud failed:", err);
@@ -518,7 +557,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ★ 修正: confirm() ではなくカスタムモーダルを開いて確実にログアウトを実行
     if (btnLogoutCloud && logoutConfirmModal) {
         btnLogoutCloud.addEventListener('click', () => {
             logoutConfirmModal.style.display = 'flex';
@@ -549,6 +587,252 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnExecLogoutModal.disabled = false;
                 btnExecLogoutModal.textContent = originalText;
             }
+        });
+    }
+
+    // --- 統計・ライセンス関連 ---
+    const appVersionContainer = document.getElementById("infoAppVersion");
+    if (appVersionContainer) {
+        try {
+            const appVersion = await invoke("get_app_version");
+            appVersionContainer.textContent = appVersion;
+        } catch(e) {
+            appVersionContainer.textContent = "v5.0.0";
+        }
+    }
+
+    const escapeHtml = (str) => str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+
+    const deviceMap = new Map();
+    function getDeviceClass(deviceName) {
+        if (!deviceName) return 'device0';
+        if (!deviceMap.has(deviceName)) {
+            const idx = (deviceMap.size % 9) + 1;
+            deviceMap.set(deviceName, `device${idx}`);
+        }
+        return deviceMap.get(deviceName);
+    }
+
+    function parseDotDate(dotStr) {
+        if (!dotStr) return new Date(0);
+        const p = dotStr.split('.').map(Number);
+        if (p.length >= 5) {
+            return new Date(p[0], p[1] - 1, p[2], p[3], p[4]);
+        }
+        return new Date(dotStr);
+    }
+
+    function formatDotDate(dotStr) {
+        if (!dotStr) return '--';
+        const p = dotStr.split('.');
+        if (p.length >= 5) {
+            return `${p[0]}/${p[1]}/${p[2]} ${p[3]}:${p[4]}`;
+        }
+        return dotStr;
+    }
+
+    async function loadPlayStatistics() {
+        const syncBadge = document.getElementById('syncStatusBadgePlay');
+        const rankingContainer = document.getElementById('topRankingContainer');
+        const historyTbody = document.getElementById('playHistoryTableBody');
+
+        try {
+            const authInfo = await invoke("get_cloud_auth_info");
+            const isSyncLoggedIn = (authInfo && authInfo.logged_in);
+
+            if (isSyncLoggedIn) {
+                if (syncBadge) {
+                    syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                    syncBadge.className = "sync-indicator-badge cloud";
+                }
+
+                const cloudHistory = await invoke("fetch_cloud_play_history");
+                renderCloudPlayStats(cloudHistory, rankingContainer, historyTbody);
+            } else {
+                if (syncBadge) {
+                    syncBadge.textContent = "● ローカル再生履歴";
+                    syncBadge.className = "sync-indicator-badge local";
+                }
+
+                const localStats = await invoke("get_local_play_statistics");
+                renderLocalPlayStats(localStats, rankingContainer, historyTbody);
+            }
+        } catch(e) {
+            console.error("Failed to load play statistics:", e);
+            if (historyTbody) {
+                historyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+            }
+        }
+    }
+
+    function renderCloudPlayStats(history, rankingEl, tbody) {
+        if (!Array.isArray(history) || history.length === 0) {
+            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">直近7日間の再生データがありません。</p>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
+            return;
+        }
+
+        const sortedHistory = [...history].sort((a, b) => {
+            const dA = parseDotDate(a.date);
+            const dB = parseDotDate(b.date);
+            return dB - dA;
+        });
+
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        const countMap = new Map();
+        sortedHistory.forEach(item => {
+            const itemDate = parseDotDate(item.date);
+            if (itemDate >= sevenDaysAgo) {
+                const key = `${item.title || 'Unknown'}___${item.artist || 'Unknown'}`;
+                const cur = countMap.get(key) || { title: item.title, artist: item.artist, count: 0 };
+                cur.count += 1;
+                countMap.set(key, cur);
+            }
+        });
+
+        const rankingList = Array.from(countMap.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+
+        if (rankingList.length > 0) {
+            rankingEl.innerHTML = '';
+            rankingList.forEach((r, idx) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'ranking-item';
+                const rankClass = idx === 0 ? 'top1' : idx === 1 ? 'top2' : idx === 2 ? 'top3' : '';
+                itemDiv.innerHTML = `
+                    <div class="rank-badge ${rankClass}">${idx + 1}</div>
+                    <div class="rank-info">
+                        <div class="rank-title">${escapeHtml(r.title)}</div>
+                        <div class="rank-artist">${escapeHtml(r.artist)}</div>
+                    </div>
+                    <div class="rank-count">${r.count} 回</div>
+                `;
+                rankingEl.appendChild(itemDiv);
+            });
+        } else {
+            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">直近7日間の再生データがありません。</p>';
+        }
+
+        tbody.innerHTML = '';
+        sortedHistory.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            const devClass = getDeviceClass(item.device);
+            tr.innerHTML = `
+                <td style="color:var(--text-sub);">${idx + 1}</td>
+                <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
+                <td>${escapeHtml(item.artist || 'Unknown')}</td>
+                <td>${escapeHtml(item.album || '--')}</td>
+                <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
+                <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${formatDotDate(item.date)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderLocalPlayStats(stats, rankingEl, tbody) {
+        const ranking = stats.ranking || [];
+        const history = stats.history || [];
+
+        if (ranking.length > 0) {
+            rankingEl.innerHTML = '';
+            ranking.forEach((r, idx) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'ranking-item';
+                const rankClass = idx === 0 ? 'top1' : idx === 1 ? 'top2' : idx === 2 ? 'top3' : '';
+                itemDiv.innerHTML = `
+                    <div class="rank-badge ${rankClass}">${idx + 1}</div>
+                    <div class="rank-info">
+                        <div class="rank-title">${escapeHtml(r.title)}</div>
+                        <div class="rank-artist">${escapeHtml(r.artist)}</div>
+                    </div>
+                    <div class="rank-count">${r.count} 回</div>
+                `;
+                rankingEl.appendChild(itemDiv);
+            });
+        } else {
+            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">再生データがありません。</p>';
+        }
+
+        if (history.length > 0) {
+            tbody.innerHTML = '';
+            history.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="color:var(--text-sub);">${idx + 1}</td>
+                    <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
+                    <td>${escapeHtml(item.artist || 'Unknown')}</td>
+                    <td>--</td>
+                    <td><span class="device-badge device1">Desktop (Local)</span></td>
+                    <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${escapeHtml(item.timestamp || '--')}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
+        }
+    }
+
+    async function loadWorkStatistics() {
+        const syncBadge = document.getElementById('syncStatusBadgeWork');
+        const notConnectedArea = document.getElementById('workSyncNotConnected');
+        const connectedArea = document.getElementById('workSyncConnectedArea');
+        const tbody = document.getElementById('workHistoryTableBody');
+
+        try {
+            const authInfo = await invoke("get_cloud_auth_info");
+            const isSyncLoggedIn = (authInfo && authInfo.logged_in);
+
+            if (!isSyncLoggedIn) {
+                if (syncBadge) {
+                    syncBadge.textContent = "● 未接続";
+                    syncBadge.className = "sync-indicator-badge";
+                }
+                if (notConnectedArea) notConnectedArea.style.display = 'block';
+                if (connectedArea) connectedArea.style.display = 'none';
+                return;
+            }
+
+            if (syncBadge) {
+                syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                syncBadge.className = "sync-indicator-badge cloud";
+            }
+            if (notConnectedArea) notConnectedArea.style.display = 'none';
+            if (connectedArea) connectedArea.style.display = 'block';
+
+            const workHistory = await invoke("fetch_cloud_work_history");
+            renderWorkHistory(workHistory, tbody);
+        } catch(e) {
+            console.error("Failed to load work statistics:", e);
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+            }
+        }
+    }
+
+    function renderWorkHistory(history, tbody) {
+        if (!Array.isArray(history) || history.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-sub); padding:24px;">作業セッション履歴がありません。</td></tr>';
+            return;
+        }
+
+        const sorted = [...history].sort((a, b) => {
+            const dA = parseDotDate(a.end);
+            const dB = parseDotDate(b.end);
+            return dB - dA;
+        });
+
+        tbody.innerHTML = '';
+        sorted.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            const devClass = getDeviceClass(item.device);
+            tr.innerHTML = `
+                <td style="color:var(--text-sub);">${idx + 1}</td>
+                <td><strong style="color:var(--primary-color); font-size:0.95rem;">${escapeHtml(item.time || '--')}</strong></td>
+                <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
+                <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${formatDotDate(item.end)}</td>
+            `;
+            tbody.appendChild(tr);
         });
     }
 
@@ -602,7 +886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 chkNormalizeVolume.checked = true;
                 handleChange();
-                showToast(window.i18n ? window.i18n.t("Messages.saved") : "設定を保存しました");
+                showToast("設定を保存しました");
             } else {
                 handleChange();
             }
@@ -632,7 +916,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedThemeMode = name;
             rebuildThemeOptions(name);
             saveAllSettings(false);
-            showToast(window.i18n ? window.i18n.t("Messages.theme_saved", { name: name }) : `テーマ "${name}" を保存しました`);
+            showToast(`テーマ "${name}" を保存しました`);
         }
     });
 
@@ -646,7 +930,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rebuildThemeOptions('custom');
                 updateThemeUI();
                 saveAllSettings(false);
-                showToast(window.i18n ? window.i18n.t("Messages.theme_deleted", { name: name }) : `テーマ "${name}" を削除しました`);
+                showToast(`テーマ "${name}" を削除しました`);
             }
         }
     });
@@ -666,7 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const b64 = event.target.result;
             artPreview.src = b64;
             await invoke("update_default_artwork", { b64Data: b64 });
-            showToast(window.i18n ? window.i18n.t("Messages.art_updated") : "初期画像を更新しました");
+            showToast("初期画像を更新しました");
         };
         reader.readAsDataURL(file);
     });
@@ -676,7 +960,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (success) {
             const url = await invoke("get_default_art_url");
             artPreview.src = url || 'icon/Chordia.png';
-            showToast(window.i18n ? window.i18n.t("Messages.art_restored") : "初期画像に戻しました");
+            showToast("初期画像に戻しました");
         }
     });
 

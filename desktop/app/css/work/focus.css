@@ -1,0 +1,275 @@
+@charset "UTF-8";
+
+/* ★ 作業モード中の真っ黒フルスクリーン背景と白文字の徹底強制 */
+body.mode-focus {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    overflow: hidden !important;
+}
+
+body.mode-focus * {
+    color: #ffffff !important;
+}
+
+/* z-index と配置を確実に行う */
+.focus-screen-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    z-index: 5000 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 50px 40px 40px;
+    box-sizing: border-box;
+    user-select: none;
+    cursor: pointer;
+}
+
+/* 左右分割 / 中央レイアウト */
+.focus-main-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+}
+
+.focus-main-area.center-only {
+    justify-content: center !important;
+}
+
+.focus-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-align: left;
+}
+
+.focus-date-text {
+    font-size: clamp(1.2rem, 3vw, 2.2rem) !important;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75) !important;
+    letter-spacing: 0.05em;
+}
+
+.focus-clock-text {
+    font-size: clamp(3.5rem, 10vw, 8rem) !important;
+    font-weight: 800;
+    font-family: 'Courier New', monospace;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: #ffffff !important;
+}
+
+.focus-right-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.focus-total-label {
+    font-size: 1.1rem !important;
+    font-weight: 800;
+    letter-spacing: 0.25em;
+    color: rgba(255, 255, 255, 0.45) !important;
+    margin-bottom: 8px;
+}
+
+.focus-elapsed-text {
+    font-size: clamp(4rem, 12vw, 9.5rem) !important;
+    font-weight: 800;
+    font-family: 'Courier New', monospace;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: #ffffff !important;
+}
+
+/* 画面中央下: 名言 & 楽曲名 */
+.focus-bottom-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.focus-quote-text {
+    font-size: clamp(1rem, 2.2vw, 1.3rem) !important;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9) !important;
+    line-height: 1.8;
+    max-width: 850px;
+}
+
+.focus-now-playing-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem !important;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.65) !important;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 8px 20px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+/* ★ SVGアイコンにテーマカラーを適用 */
+.focus-now-playing-text svg {
+    width: 16px;
+    height: 16px;
+    color: var(--primary-color, #4f46e5) !important;
+}
+
+/* 一時停止オーバーレイ (PAUSED) */
+.pause-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.88) !important;
+    backdrop-filter: blur(16px);
+    z-index: 6000 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 60px 40px;
+    box-sizing: border-box;
+    cursor: default;
+}
+
+.pause-center-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 14px;
+}
+
+.pause-icon {
+    width: 64px;
+    height: 64px;
+    color: #ffffff !important;
+    opacity: 0.9;
+}
+
+.pause-icon svg { width: 100%; height: 100%; }
+
+.pause-title {
+    font-size: 3.2rem !important;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: #ffffff !important;
+    margin: 0;
+}
+
+.pause-sub {
+    font-size: 1.1rem !important;
+    color: rgba(255, 255, 255, 0.65) !important;
+    margin: 0;
+}
+
+.pause-bottom-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.pause-time-label {
+    font-size: 0.85rem !important;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.pause-time-val {
+    font-size: 2.4rem !important;
+    font-weight: 800;
+    font-family: 'Courier New', monospace;
+    color: #ef4444 !important; /* ★ 赤い文字 */
+}
+
+/* 操作ヘルプモーダル */
+.focus-help-card {
+    background: #18181b !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    width: 440px !important;
+    text-align: center;
+    padding: 32px !important;
+}
+
+.help-list-box {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 20px 0 28px;
+}
+
+.help-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 12px 18px;
+    border-radius: 12px;
+}
+
+.help-key-badge {
+    background: var(--primary-color, #4f46e5);
+    color: #ffffff !important;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.88rem;
+    font-family: monospace;
+}
+
+.help-desc {
+    font-size: 0.92rem !important;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.help-actions-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
+
+.btn-exit-focus {
+    background: transparent;
+    border: none;
+    color: #ef4444 !important; /* ★ 赤い文字 */
+    font-size: 0.95rem !important;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 10px 20px;
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.btn-exit-focus:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+@media (max-width: 600px) {
+    .focus-main-area { flex-direction: column; gap: 32px; }
+    .focus-left-col { text-align: center; align-items: center; }
+}

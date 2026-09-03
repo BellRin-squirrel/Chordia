@@ -1,6 +1,6 @@
 [package]
 name = "Chordia"
-version = "4.1.4"
+version = "5.0.0"
 description = "Chordia - for a Comfortable Life with Music"
 authors = ["BellRin"]
 license = "(c) BellRin all rights reserved."

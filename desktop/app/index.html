@@ -59,14 +59,25 @@
                 </div>
                 <div class="text"><span class="title" data-i18n="Menu.extensions">拡張機能</span><span class="desc" data-i18n="Menu.extensions_desc">DL機能などを管理</span></div>
             </button>
-            <button class="card" id="btnSettings">
-                <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12a7.5 7.5 0 1 1 15 0 7.5 7.5 0 0 1-15 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 2.25V4.5m0 15v2.25m9.75-9.75H19.5m-15 0H2.25m16.121-7.121-1.591 1.591M5.47 18.53l-1.591 1.591m12.242 0 1.591-1.591M5.47 5.47 3.879 3.879" /></svg></div>
-                <div class="text"><span class="title" data-i18n="Menu.settings">設定</span><span class="desc" data-i18n="Menu.settings_desc">アプリの環境設定</span></div>
+
+            <!-- ★ 新設：作業（中央下） -->
+            <button class="card" id="btnWork">
+                <div class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </div>
+                <div class="text"><span class="title">作業</span><span class="desc">作業セッションの管理</span></div>
             </button>
-            <!-- ★ 情報 -> 情報・統計 に変更 -->
+
+            <!-- ★ 設定と統合された情報ボタン（右下） -->
             <button class="card" id="btnInfo">
-                <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg></div>
-                <div class="text"><span class="title">情報・統計</span><span class="desc">ライセンス・再生/作業統計</span></div>
+                <div class="icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                    </svg>
+                </div>
+                <div class="text"><span class="title">情報</span><span class="desc">設定・統計・ライセンス</span></div>
             </button>
         </main>
     </div>

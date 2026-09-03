@@ -1,0 +1,138 @@
+@charset "UTF-8";
+
+.ready-container-card {
+    max-width: 680px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.ready-cards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ready-item-card {
+    background: var(--card-bg, #ffffff);
+    border-radius: 24px;
+    padding: 24px 28px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(128, 128, 128, 0.12);
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    transition: all 0.2s ease;
+}
+
+.ready-item-card:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.07);
+    border-color: rgba(79, 70, 229, 0.2);
+}
+
+.ready-item-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--primary-color, #4f46e5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ready-item-icon svg { width: 26px; height: 26px; }
+
+.ready-item-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ready-item-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-main, #1f2937);
+    margin: 0;
+}
+
+.ready-item-desc {
+    font-size: 0.92rem;
+    color: var(--text-sub, #6b7280);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.ready-item-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-color, #4f46e5);
+    text-decoration: none;
+    margin-top: 4px;
+    width: fit-content;
+    transition: color 0.2s;
+}
+
+.ready-item-link:hover {
+    color: var(--primary-hover, #4338ca);
+    text-decoration: underline;
+}
+
+.ready-item-link svg { width: 14px; height: 14px; }
+
+.ready-action-row {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin-top: 12px;
+}
+
+.btn-enjoy-focus {
+    width: 100%;
+    max-width: 480px;
+    background: var(--primary-color, #4f46e5);
+    color: #ffffff;
+    border: none;
+    padding: 16px;
+    border-radius: 18px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.3);
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.btn-enjoy-focus:hover {
+    background: var(--primary-hover, #4338ca);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
+}
+
+/* 枠線なしの設定やり直しボタン */
+.btn-reconfigure {
+    background: transparent;
+    border: none !important;
+    color: var(--text-sub, #6b7280);
+    padding: 12px 32px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-reconfigure:hover {
+    background: rgba(128, 128, 128, 0.1);
+    color: var(--text-main, #1f2937);
+}
+
+@media (max-width: 600px) {
+    .ready-item-card { padding: 18px 16px; border-radius: 18px; }
+}

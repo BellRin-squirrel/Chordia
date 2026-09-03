@@ -17,7 +17,8 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
         .inner_size(width, height)
         .resizable(true);
 
-    if label == "mini_player_window" {
+    // ★ ミニプレイヤーおよび作業モードウィンドウはタイトルバーなし（枠なし）で開く
+    if label == "mini_player_window" || label == "work_window" {
         builder = builder.decorations(false);
         
         #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
@@ -62,7 +63,6 @@ pub async fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-// ★ 追加：音量解析ウィンドウを確実に閉じるTauriコマンド
 #[tauri::command]
 pub async fn close_lufs_calc_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("lufs_calc_window") { 
@@ -123,6 +123,35 @@ pub fn show_in_explorer(path: String) -> Result<(), String> {
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = abs_path;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32")
+            .args(&["url.dll,FileProtocolHandler", &url])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())

@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
-    // ★ 起動時に全言語パックの安全性を検証し、NGがあれば右上にトースト通知
     try {
         const isHealthy = await invoke("check_language_packs_status");
         if (isHealthy === false) {
@@ -16,10 +15,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnMigration = document.getElementById('btnMigration'); 
     const btnPlayer = document.getElementById('btnPlayer');
     const btnMobileSync = document.getElementById('btnMobileSync');
-    const btnSettings = document.getElementById('btnSettings');
-    const btnInfo = document.getElementById('btnInfo');
     const btnExtensions = document.getElementById('btnExtensions'); 
     const btnIntegrity = document.getElementById('btnIntegrity');
+    const btnWork = document.getElementById('btnWork');
+    const btnInfo = document.getElementById('btnInfo');
 
     if (btnAddMusic) {
         btnAddMusic.addEventListener('click', async () => {
@@ -122,24 +121,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnIntegrity.addEventListener('click', () => window.location.href = 'integrity.html');
     }
 
-    if (btnSettings) {
-        btnSettings.addEventListener('click', async () => {
+    // ★ 作業ボタンのクリック処理（必ず新しい枠なしウィンドウで開く）
+    if (btnWork) {
+        btnWork.addEventListener('click', async () => {
+            try {
+                await invoke("open_new_window", {
+                    label: "work_window", 
+                    url: new URL("work.html", window.location.href).href,
+                    title: "Chordia Focus",
+                    width: 1020.0,
+                    height: 720.0
+                });
+            } catch(e) {
+                console.error("Failed to open work window:", e);
+                window.location.href = 'work.html';
+            }
+        });
+    }
+
+    if (btnInfo) {
+        btnInfo.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_settings_new_window) {
                 await invoke("open_new_window", {
                     label: "settings_window", 
                     url: new URL("settings.html", window.location.href).href,
-                    title: "設定 - Chordia",
-                    width: 1000.0,
-                    height: 750.0
+                    title: "情報・設定 - Chordia",
+                    width: 1050.0,
+                    height: 800.0
                 });
             } else {
                 window.location.href = 'settings.html';
             }
         });
     }
-
-    if (btnInfo) btnInfo.addEventListener('click', () => window.location.href = 'info.html');
 
     document.addEventListener('keydown', (e) => {
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
@@ -153,8 +168,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;
-            case '8': case 'S': targetBtn = btnSettings; break;
-            case '9': case 'I': targetBtn = btnInfo; break;
+            case '8': case 'W': targetBtn = btnWork; break;
+            case '9': case 'I': case 'S': targetBtn = btnInfo; break;
         }
 
         if (targetBtn) {
@@ -165,7 +180,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ★ タイムアウト管理付き・右上表示トースト関数
     let toastTimeout = null;
 
     function showToast(message, isError = false) {

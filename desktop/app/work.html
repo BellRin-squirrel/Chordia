@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作業モード - Chordia</title>
+    <link rel="icon" href="icon/Chordia.ico">
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- 分割された作業モード用CSS -->
+    <link rel="stylesheet" href="css/work/config.css">
+    <link rel="stylesheet" href="css/work/ready.css">
+    <link rel="stylesheet" href="css/work/focus.css">
+    <link rel="stylesheet" href="css/work/modal.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
+</head>
+<body class="mode-config">
+
+    <!-- 枠なしウィンドウ用ドラッグバー & コントロール -->
+    <div class="window-titlebar" id="windowTitlebar">
+        <!-- ★ 赤（閉じる）と緑（最大化）の両方を設置 -->
+        <div class="window-controls-mac" id="windowControlsMac">
+            <button id="btnWinClose" class="btn-circle-mac btn-red tick-btn" title="閉じる">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <button id="btnSwitchMode" class="btn-circle-mac btn-green tick-btn" title="最大化 / 通常表示の切り替え">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            </button>
+        </div>
+        <div class="window-drag-region" data-tauri-drag-region></div>
+    </div>
+
+    <!-- VIEW 1 & 2: 設定・準備完了コンテナ -->
+    <div class="container work-container" id="configContainer">
+        
+        <header class="header form-header">
+            <h1 id="pageTitle">作業設定</h1>
+        </header>
+
+        <!-- VIEW 1: 作業設定 画面 -->
+        <div id="workConfigView" class="work-view active">
+            <div class="work-cards-wrapper">
+                
+                <!-- 左カラム: カード1 (表示設定) -->
+                <div class="work-col-left">
+                    <div class="work-section-card">
+                        <!-- 日付表示 -->
+                        <div class="setting-block">
+                            <div class="setting-title-row">
+                                <div class="setting-icon-box">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11zM7 11h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+                                </div>
+                                <span class="setting-label">日付表示</span>
+                            </div>
+                            <div class="segment-grid segment-4" data-setting="dateFormat">
+                                <button type="button" class="segment-btn" data-val="none">表示しない</button>
+                                <button type="button" class="segment-btn active" data-val="ymd">年月日<span class="check-mark">✓</span></button>
+                                <button type="button" class="segment-btn" data-val="md">月日</button>
+                                <button type="button" class="segment-btn" data-val="d">日</button>
+                            </div>
+                        </div>
+
+                        <!-- 曜日表示 -->
+                        <div class="setting-block">
+                            <div class="setting-title-row">
+                                <div class="setting-icon-box">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+                                </div>
+                                <span class="setting-label">曜日表示</span>
+                            </div>
+                            <div class="segment-grid segment-4" data-setting="dayFormat">
+                                <button type="button" class="segment-btn" data-val="none">表示しない</button>
+                                <button type="button" class="segment-btn active" data-val="paren">(日)<span class="check-mark">✓</span></button>
+                                <button type="button" class="segment-btn" data-val="short">日曜</button>
+                                <button type="button" class="segment-btn" data-val="full">日曜日</button>
+                            </div>
+                        </div>
+
+                        <!-- 時計表示 -->
+                        <div class="setting-block">
+                            <div class="setting-title-row">
+                                <div class="setting-icon-box">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                                </div>
+                                <span class="setting-label">時計表示</span>
+                            </div>
+                            <div class="segment-grid segment-3" data-setting="clockFormat">
+                                <button type="button" class="segment-btn" data-val="none">表示しない</button>
+                                <button type="button" class="segment-btn" data-val="12h">8:19</button>
+                                <button type="button" class="segment-btn active" data-val="24h">22:19<span class="check-mark">✓</span></button>
+                            </div>
+                        </div>
+
+                        <!-- 名言表示 (トグル) -->
+                        <div class="toggle-row-block">
+                            <div class="toggle-row-left">
+                                <div class="setting-icon-box">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                                </div>
+                                <span class="setting-label">名言表示</span>
+                            </div>
+                            <label class="ios-switch">
+                                <input type="checkbox" id="toggleQuote" checked>
+                                <span class="ios-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右カラム: カード2 (ポモドーロ) & カード3 (再生設定) -->
+                <div class="work-col-right">
+                    <!-- カード2: ポモドーロモード -->
+                    <div class="work-section-card">
+                        <div class="toggle-row-block" style="padding: 0;">
+                            <div class="toggle-row-left">
+                                <div class="setting-icon-box">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-5.33 0-8 3.67-8 7.33 0 4.08 3.05 7.67 8 7.67s8-3.59 8-7.67c0-3.66-2.67-7.33-8-7.33zm0 13c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm1-10h-2v5l4.28 2.54.72-1.21-3-1.77z"/></svg>
+                                </div>
+                                <span class="setting-label">ポモドーロモード</span>
+                            </div>
+                            <label class="ios-switch">
+                                <input type="checkbox" id="togglePomodoro">
+                                <span class="ios-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- ポモドーロON時のみ展開 -->
+                        <div id="pomodoroSettingsArea" class="pomodoro-expand-area" style="display: none;">
+                            <!-- 作業時間 -->
+                            <div class="setting-block" style="margin-top: 24px;">
+                                <div class="setting-title-row">
+                                    <div class="setting-icon-box">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-6 0h-4V4h4v2z"/></svg>
+                                    </div>
+                                    <span class="setting-label">作業時間</span>
+                                </div>
+                                <div class="segment-grid segment-3" data-setting="workDuration">
+                                    <button type="button" class="segment-btn" data-val="15">15分</button>
+                                    <button type="button" class="segment-btn" data-val="20">20分</button>
+                                    <button type="button" class="segment-btn active is-recommended" data-val="25">25分<span class="recommend-tag">推奨</span><span class="check-mark">✓</span></button>
+                                    <button type="button" class="segment-btn" data-val="30">30分</button>
+                                    <button type="button" class="segment-btn" data-val="40">40分</button>
+                                    <button type="button" class="segment-btn" data-val="50">50分</button>
+                                    <button type="button" class="segment-btn" data-val="60">60分</button>
+                                    <button type="button" class="segment-btn" data-val="120">120分</button>
+                                    <button type="button" class="segment-btn" data-val="custom">カスタム</button>
+                                </div>
+                                <div id="customWorkWrap" class="custom-num-wrap" style="display: none;">
+                                    <input type="number" id="customWorkInput" class="custom-num-input" min="1" max="480" placeholder="分数を入力">
+                                    <span class="unit-text">分</span>
+                                </div>
+                            </div>
+
+                            <!-- 休憩時間 -->
+                            <div class="setting-block" style="margin-top: 16px;">
+                                <div class="setting-title-row">
+                                    <div class="setting-icon-box">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>
+                                    </div>
+                                    <span class="setting-label">休憩時間</span>
+                                </div>
+                                <div class="segment-grid segment-3" data-setting="breakDuration">
+                                    <button type="button" class="segment-btn" data-val="1">1分</button>
+                                    <button type="button" class="segment-btn" data-val="3">3分</button>
+                                    <button type="button" class="segment-btn active is-recommended" data-val="5">5分<span class="recommend-tag">推奨</span><span class="check-mark">✓</span></button>
+                                    <button type="button" class="segment-btn" data-val="10">10分</button>
+                                    <button type="button" class="segment-btn" data-val="15">15分</button>
+                                    <button type="button" class="segment-btn" data-val="20">20分</button>
+                                    <button type="button" class="segment-btn" data-val="25">25分</button>
+                                    <button type="button" class="segment-btn" data-val="30">30分</button>
+                                    <button type="button" class="segment-btn" data-val="custom">カスタム</button>
+                                </div>
+                                <div id="customBreakWrap" class="custom-num-wrap" style="display: none;">
+                                    <input type="number" id="customBreakInput" class="custom-num-input" min="1" max="120" placeholder="分数を入力">
+                                    <span class="unit-text">分</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- カード3: 再生設定 -->
+                    <div class="work-section-card">
+                        <div class="setting-title-row" style="margin-bottom: 12px;">
+                            <div class="setting-icon-box">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                            </div>
+                            <span class="setting-label">再生設定</span>
+                        </div>
+
+                        <!-- ポモドーロOFF時: 使用するリスト -->
+                        <div id="slotAreaNormal" class="slot-container">
+                            <div class="sub-label-row">使用するリスト</div>
+                            <div class="slot-flex-row">
+                                <div class="list-select-box" id="triggerNormal" data-slot="normal">
+                                    <span id="labelNormal">選択してください</span>
+                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                </div>
+                                <button type="button" class="btn-shuffle-card active" id="btnShuffleNormal" data-state="on">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M15.97 2.47a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H7.5a9.75 9.75 0 0 0-9.75 9.75h-1.5A11.25 11.25 0 0 1 7.5 6.75h11.69l-3.22-3.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M8.03 21.53a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 1 1 1.06 1.06l-3.22 3.22H16.5a9.75 9.75 0 0 0 9.75-9.75h1.5a11.25 11.25 0 0 1-11.25 11.25H4.81l3.22 3.22a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" /></svg>
+                                    <span class="shuf-text">ON</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ポモドーロON時: 作業用 & 休憩用 -->
+                        <div id="slotAreaPomodoro" class="slot-container" style="display: none;">
+                            <div class="sub-label-row">作業用</div>
+                            <div class="slot-flex-row" style="margin-bottom: 16px;">
+                                <div class="list-select-box" id="triggerWork" data-slot="pomo-work">
+                                    <span id="labelWork">選択してください</span>
+                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                </div>
+                                <button type="button" class="btn-shuffle-card active" id="btnShuffleWork" data-state="on">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M15.97 2.47a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H7.5a9.75 9.75 0 0 0-9.75 9.75h-1.5A11.25 11.25 0 0 1 7.5 6.75h11.69l-3.22-3.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M8.03 21.53a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 1 1 1.06 1.06l-3.22 3.22H16.5a9.75 9.75 0 0 0 9.75-9.75h1.5a11.25 11.25 0 0 1-11.25 11.25H4.81l3.22 3.22a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" /></svg>
+                                    <span class="shuf-text">ON</span>
+                                </button>
+                            </div>
+
+                            <div class="sub-label-row">休憩用</div>
+                            <div class="slot-flex-row">
+                                <div class="list-select-box" id="triggerBreak" data-slot="pomo-break">
+                                    <span id="labelBreak">選択してください</span>
+                                    <svg class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                </div>
+                                <button type="button" class="btn-shuffle-card active" id="btnShuffleBreak" data-state="on">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M15.97 2.47a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06l3.22-3.22H7.5a9.75 9.75 0 0 0-9.75 9.75h-1.5A11.25 11.25 0 0 1 7.5 6.75h11.69l-3.22-3.22a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M8.03 21.53a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 1 1 1.06 1.06l-3.22 3.22H16.5a9.75 9.75 0 0 0 9.75-9.75h1.5a11.25 11.25 0 0 1-11.25 11.25H4.81l3.22 3.22a.75.75 0 0 1 0 1.06Z" clip-rule="evenodd" /></svg>
+                                    <span class="shuf-text">ON</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 最下部: 設定完了ボタン -->
+            <div class="submit-action-row">
+                <button type="button" id="btnCompleteConfig" class="btn-complete-work">
+                    <span>設定完了</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- VIEW 2: 準備完了 画面 -->
+        <div id="workReadyView" class="work-view" style="display: none;">
+            <div class="ready-container-card">
+                <div class="ready-cards-list">
+                    <!-- 1. 通知をオフにしましょう -->
+                    <div class="ready-item-card">
+                        <div class="ready-item-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                        </div>
+                        <div class="ready-item-content">
+                            <h3 class="ready-item-title">通知をオフにしましょう</h3>
+                            <p class="ready-item-desc" id="osFocusGuideText">タスクバーの時計をクリックして、応答不可モードを有効にします。</p>
+                            <a href="#" class="ready-item-link" id="osFocusSupportLink">
+                                <span>設定方法を公式サポートで確認</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- 2. イヤホンを使用していますか？ -->
+                    <div class="ready-item-card">
+                        <div class="ready-item-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                        </div>
+                        <div class="ready-item-content">
+                            <h3 class="ready-item-title">イヤホンを使用していますか？</h3>
+                            <p class="ready-item-desc">音楽の世界に没入し、目の前の作業に集中しましょう。</p>
+                        </div>
+                    </div>
+
+                    <!-- 3. ノイズキャンセリングは有効ですか？ -->
+                    <div class="ready-item-card">
+                        <div class="ready-item-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                        </div>
+                        <div class="ready-item-content">
+                            <h3 class="ready-item-title">ノイズキャンセリングは有効ですか？</h3>
+                            <p class="ready-item-desc">周囲の雑音を遮断することで、圧倒的に集中力が高まります。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- アクションボタン群 -->
+                <div class="ready-action-row">
+                    <button type="button" id="btnStartFocus" class="btn-enjoy-focus">集中を楽しむ</button>
+                    <button type="button" id="btnReconfigure" class="btn-reconfigure">設定をやり直す</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW 3: 作業モード画面 (真っ黒フルスクリーン) -->
+    <div id="workFocusView" class="focus-screen-container" style="display: none;">
+        
+        <div class="focus-main-area" id="focusMainArea">
+            <!-- 左側: 日付 & 時計 -->
+            <div class="focus-left-col" id="focusLeftCol">
+                <div id="focusDateDisplay" class="focus-date-text">2026年9月3日 (木)</div>
+                <div id="focusClockDisplay" class="focus-clock-text">22:19</div>
+            </div>
+
+            <!-- 右側 (または中央): 作業経過時間 -->
+            <div class="focus-right-col" id="focusRightCol">
+                <div id="focusTotalWorkLabel" class="focus-total-label" style="display: none;">TOTAL WORK</div>
+                <div id="focusElapsedDisplay" class="focus-elapsed-text">0:00</div>
+            </div>
+        </div>
+
+        <!-- 画面中央下: 名言 & 再生中楽曲 -->
+        <div class="focus-bottom-area">
+            <div id="focusQuoteDisplay" class="focus-quote-text"></div>
+            <div id="focusNowPlayingDisplay" class="focus-now-playing-text">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                <span id="focusSongNameText">楽曲を再生中...</span>
+            </div>
+        </div>
+
+        <!-- 一時停止オーバーレイ (Spaceキー) -->
+        <div id="pauseOverlay" class="pause-overlay" style="display: none;">
+            <div class="pause-center-box">
+                <div class="pause-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.75 5.25a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Zm10.5 0a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Z"/></svg>
+                </div>
+                <h2 class="pause-title">PAUSED</h2>
+                <p class="pause-sub">Spaceキーで再開</p>
+            </div>
+            
+            <div class="pause-bottom-box">
+                <span class="pause-time-label">PAUSED TIME</span>
+                <span id="pausedTimeDisplay" class="pause-time-val">0:00</span>
+            </div>
+        </div>
+
+        <!-- 操作ヘルプモーダル (画面クリック時) -->
+        <div id="focusHelpModal" class="modal-overlay" style="z-index: 10001;">
+            <div class="modal-card focus-help-card">
+                <h3 style="margin-bottom: 20px;">操作ヘルプ</h3>
+                <div class="help-list-box">
+                    <div class="help-row">
+                        <span class="help-key-badge">Space</span>
+                        <span class="help-desc">一時停止 / 再開</span>
+                    </div>
+                    <div class="help-row">
+                        <span class="help-key-badge">クリック</span>
+                        <span class="help-desc">操作ヘルプを表示</span>
+                    </div>
+                </div>
+
+                <div class="help-actions-col">
+                    <button type="button" id="btnResumeFocus" class="btn-enjoy-focus" style="width: 100%; max-width: none;">理解して再開する</button>
+                    <!-- ★ 終了時にウィンドウを閉じるためのボタン -->
+                    <button type="button" id="btnExitFocus" class="btn-exit-focus">今すぐ終了する</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 再生リスト選択ポップアップ (モーダル) -->
+    <div id="playlistSelectModal" class="modal-overlay">
+        <div class="modal-card playlist-picker-modal">
+            <div class="modal-header">
+                <h3>再生リストを選択</h3>
+                <button type="button" id="btnCloseModal" class="btn-close-circle">&times;</button>
+            </div>
+
+            <div class="picker-main-layout">
+                <div class="picker-tabs" id="pickerTabs">
+                    <button type="button" class="picker-tab-btn active" data-type="playlist">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                        <span>プレイリスト</span>
+                    </button>
+                    <button type="button" class="picker-tab-btn" data-type="album">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>
+                        <span>アルバム</span>
+                    </button>
+                    <button type="button" class="picker-tab-btn" data-type="artist">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <span>アーティスト</span>
+                    </button>
+                </div>
+
+                <div class="picker-content-area">
+                    <div class="picker-search-box">
+                        <input type="text" id="pickerSearchInput" placeholder="検索...">
+                    </div>
+                    <div id="pickerListContainer" class="picker-items-list">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- オーディオプレイヤー（非表示） -->
+    <audio id="workAudioPlayer" crossorigin="anonymous"></audio>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast"></div>
+
+    <!-- 分割された作業モード用JS -->
+    <script src="js/work/quotes.js"></script>
+    <script src="js/work/picker.js"></script>
+    <script src="js/work/config.js"></script>
+    <script src="js/work/focus.js"></script>
+    <script src="js/work/main.js"></script>
+    <script src="js/theme.js"></script>
+</body>
+</html>
