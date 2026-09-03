@@ -29,7 +29,7 @@ use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_di
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
-const APP_VERSION: &str = "v4.1.4";
+pub const APP_VERSION: &str = "v5.0.0";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
@@ -336,7 +336,11 @@ fn main() {
             cmd_extensions::check_tool_updates, cmd_extensions::install_tool,
             cmd_integrity::check_system_integrity,
             cmd_i18n::get_available_languages, cmd_i18n::get_language_pack, cmd_i18n::check_language_packs_status,
-            cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session, 
+            cmd_api::start_sync_server, cmd_api::toggle_wan_mode, cmd_api::stop_sync_server, cmd_api::respond_to_request, cmd_api::get_active_sessions, cmd_api::force_disconnect_session,
+            cmd_api::register_auth_code_to_cloud,
+            cmd_api::check_cloud_login_status,
+            cmd_api::get_cloud_auth_info,
+            cmd_api::logout_cloud_auth,
             resolve_path, restart_app
         ])
         .run(tauri::generate_context!())

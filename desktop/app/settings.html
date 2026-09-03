@@ -45,6 +45,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
                     <span data-i18n="Settings.tags">表示タグ</span>
                 </button>
+                <button class="settings-nav-btn" data-target="sec-account">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" /></svg>
+                    <span data-i18n="Settings.account">アカウント設定</span>
+                </button>
             </div>
 
             <div class="settings-main-wrapper">
@@ -64,6 +68,10 @@
                     <button class="settings-nav-btn" data-target="sec-tags">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
                         <span data-i18n="Settings.tags">表示タグ設定</span>
+                    </button>
+                    <button class="settings-nav-btn" data-target="sec-account">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" /></svg>
+                        <span data-i18n="Settings.account">アカウント設定</span>
                     </button>
                 </aside>
 
@@ -226,11 +234,98 @@
                         </div>
                     </section>
 
+                    <!-- 5. アカウント設定 (Chordia Sync) -->
+                    <section id="sec-account" class="settings-section">
+                        <h2 class="section-title" style="display: flex; align-items: center; gap: 10px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 24px; height: 24px; color: var(--primary-color);"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" /></svg>
+                            <span>Chordia Sync</span>
+                        </h2>
+                        
+                        <p class="account-desc-text" data-i18n="Settings.sync_desc">
+                            Chordia Syncは、複数のデバイスでご利用中のChordiaアプリの作業セッション履歴、楽曲再生履歴をオンラインで管理し、デバイス間で共有できるようにする機能です。Desktop版からMobile版へ楽曲を同期する機能とは異なります。
+                        </p>
+
+                        <!-- STEP 1: 初期表示（未ログイン）ボタン -->
+                        <div id="syncInitArea" style="margin-top: 24px;">
+                            <button id="btnStartSyncAuth" class="btn-primary" style="padding: 12px 28px; font-size: 0.95rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" /></svg>
+                                <span data-i18n="Settings.btn_start_sync_auth">Chordia Sync の認証をする</span>
+                            </button>
+                        </div>
+
+                        <!-- STEP 2: ユーザー名・デバイス名入力フォーム -->
+                        <div id="syncFormArea" class="config-box" style="display: none; margin-top: 24px; padding: 24px; border-radius: 16px;">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label for="syncUsername"><span data-i18n="Settings.sync_username_label">ユーザー名</span> <span style="color:#ef4444;">*</span></label>
+                                <input type="text" id="syncUsername" class="sync-input" data-i18n-placeholder="Settings.sync_username_ph" placeholder="アカウント名を入力...">
+                                <p class="form-desc" data-i18n="Settings.sync_username_desc">ユーザー名はChordia Syncのアカウント登録時に作成したアカウント名のことです。</p>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 24px;">
+                                <label for="syncDeviceName"><span data-i18n="Settings.sync_device_label">ログインデバイス名</span> <span style="color:#ef4444;">*</span></label>
+                                <input type="text" id="syncDeviceName" class="sync-input" data-i18n-placeholder="Settings.sync_device_ph" placeholder="例: Main Workstation PC">
+                                <p class="form-desc" data-i18n="Settings.sync_device_desc">ログインデバイス名はログイン成功後にChordia Syncのデバイス一覧に表示されるこのデバイスの名前です。</p>
+                            </div>
+
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <button id="btnCancelSyncForm" class="btn-small secondary-btn" style="padding: 10px 20px;" data-i18n="Common.cancel">キャンセル</button>
+                                <button id="btnSubmitSyncWeb" class="btn-primary" disabled style="padding: 10px 28px;" data-i18n="Settings.btn_auth_web">ウェブで認証</button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: 生成された認証コード表示エリア（承認待ちポーリング中） -->
+                        <div id="syncCodeArea" class="config-box" style="display: none; margin-top: 24px; padding: 32px; border-radius: 16px; text-align: center;">
+                            <p style="font-weight: 700; color: var(--text-main); font-size: 1.05rem; margin-bottom: 8px;" data-i18n="Settings.sync_code_issued">認証コードが発行されました</p>
+                            <p style="font-size: 0.88rem; color: var(--text-sub); margin-bottom: 20px;" data-i18n="Settings.sync_code_instruction">
+                                Webブラウザで Chordia Sync（管理画面）を開き、「アプリでログイン」画面で以下の8文字のコードを入力して認証を完了させてください。
+                            </p>
+
+                            <div class="auth-code-display-box">
+                                <span id="generatedAuthCodeDisplay">--------</span>
+                            </div>
+
+                            <div style="margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--primary-color); font-size: 0.88rem; font-weight: 700;">
+                                <div class="spinner-mini"></div>
+                                <span>Web管理画面での承認を待機しています...</span>
+                            </div>
+
+                            <div style="margin-top: 24px; display: flex; justify-content: center; gap: 12px;">
+                                <button id="btnCopyAuthCode" class="btn-small secondary-btn" style="padding: 10px 20px;" data-i18n="Settings.btn_copy_code">コードをコピー</button>
+                                <button id="btnResetSyncAuth" class="btn-small" style="padding: 10px 20px;" data-i18n="Settings.btn_back">戻る</button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 4: 認証完了（ログイン済み）表示エリア -->
+                        <div id="syncLoggedInArea" class="config-box" style="display: none; margin-top: 24px; padding: 24px; border-radius: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(128,128,128,0.15); padding-bottom: 14px;">
+                                <div>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                                        <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                                        同期連携中 (ログイン済み)
+                                    </span>
+                                </div>
+                                <button id="btnLogoutCloud" class="btn-small secondary-btn" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);">ログアウト</button>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                <div>
+                                    <span style="font-size: 0.8rem; color: var(--text-sub); font-weight: 700; display: block; margin-bottom: 4px;">ユーザー名</span>
+                                    <strong id="loggedInUsernameDisplay" style="font-size: 1.1rem; color: var(--text-main);">...</strong>
+                                </div>
+                                <div>
+                                    <span style="font-size: 0.8rem; color: var(--text-sub); font-weight: 700; display: block; margin-bottom: 4px;">ログインデバイス名</span>
+                                    <strong id="loggedInDeviceDisplay" style="font-size: 1.1rem; color: var(--text-main);">...</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
                 </main>
             </div>
         </div>
     </div>
 
+    <!-- テーマ保存モーダル -->
     <div id="themeModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
         <div style="background: var(--card-bg); padding: 32px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid rgba(128,128,128,0.2);">
             <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 16px;" data-i18n="Settings.save_theme_title">テーマの保存</h3>
@@ -239,6 +334,20 @@
             <div style="display: flex; gap: 12px;">
                 <button id="btnCancelTheme" class="btn-small secondary-btn" style="flex: 1; padding: 12px;" data-i18n="Common.cancel">キャンセル</button>
                 <button id="btnConfirmTheme" class="btn-small" style="flex: 1; padding: 12px;" data-i18n="Common.save">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ログアウト確認モーダル（カスタムダイアログ） -->
+    <div id="logoutConfirmModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+        <div style="background: var(--card-bg); padding: 32px; border-radius: 20px; width: 360px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid rgba(128,128,128,0.2); text-align: center;">
+            <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 12px;">ログアウトの確認</h3>
+            <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 24px; line-height: 1.6;">
+                Chordia Sync からログアウトしますか？<br>オンライン同期が停止されます。
+            </p>
+            <div style="display: flex; gap: 12px;">
+                <button id="btnCancelLogoutModal" class="btn-small secondary-btn" style="flex: 1; padding: 12px;">キャンセル</button>
+                <button id="btnExecLogoutModal" class="btn-small" style="flex: 1; padding: 12px; background-color: #ef4444;">ログアウト</button>
             </div>
         </div>
     </div>

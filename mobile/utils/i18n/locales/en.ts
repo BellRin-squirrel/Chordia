@@ -388,4 +388,8 @@ export const en: Record<string, string> = {
   account_logout_confirm_title: 'Confirm Log Out',
   account_logout_confirm_desc: 'Are you sure you want to log out of Chordia Sync?\n(Local work session and playback history will also be cleared from this device)',
   account_auth_invalid_warning: 'Chordia Sync authentication failed. Please log in again.',
+
+  stats_source_sync: 'Showing Chordia Sync cloud data',
+  stats_source_local: 'Showing local device data',
+  deleting_history_progress: 'Deleting history data...',
 };

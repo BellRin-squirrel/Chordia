@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
     let isInitialized = false;
+    let syncPollingTimer = null;
 
     try {
         const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'settings_window';
@@ -72,6 +73,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newThemeName = document.getElementById('newThemeName');
     const btnConfirmTheme = document.getElementById('btnConfirmTheme');
     const btnCancelTheme = document.getElementById('btnCancelTheme');
+
+    // Chordia Sync 要素
+    const syncInitArea = document.getElementById('syncInitArea');
+    const syncFormArea = document.getElementById('syncFormArea');
+    const syncCodeArea = document.getElementById('syncCodeArea');
+    const syncLoggedInArea = document.getElementById('syncLoggedInArea');
+
+    const btnStartSyncAuth = document.getElementById('btnStartSyncAuth');
+    const btnCancelSyncForm = document.getElementById('btnCancelSyncForm');
+    const btnSubmitSyncWeb = document.getElementById('btnSubmitSyncWeb');
+    const syncUsername = document.getElementById('syncUsername');
+    const syncDeviceName = document.getElementById('syncDeviceName');
+    const generatedAuthCodeDisplay = document.getElementById('generatedAuthCodeDisplay');
+    const btnCopyAuthCode = document.getElementById('btnCopyAuthCode');
+    const btnResetSyncAuth = document.getElementById('btnResetSyncAuth');
+
+    const loggedInUsernameDisplay = document.getElementById('loggedInUsernameDisplay');
+    const loggedInDeviceDisplay = document.getElementById('loggedInDeviceDisplay');
+    const btnLogoutCloud = document.getElementById('btnLogoutCloud');
+
+    // ログアウト確認モーダル要素
+    const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+    const btnCancelLogoutModal = document.getElementById('btnCancelLogoutModal');
+    const btnExecLogoutModal = document.getElementById('btnExecLogoutModal');
 
     const THEME_PRESETS = {
         light: { bg: '#f3f4f6', subBg: '#ffffff', text: '#1f2937' },
@@ -339,6 +364,200 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     renderCombinedTagList();
 
+    // --- Chordia Sync 認証フロー制御 ---
+    async function initCloudSyncStatus() {
+        try {
+            const authInfo = await invoke("get_cloud_auth_info");
+            if (authInfo && authInfo.logged_in) {
+                showLoggedInView(authInfo.username, authInfo.device);
+            } else {
+                showLoggedOutView();
+            }
+        } catch(e) {
+            console.error("Failed to fetch cloud auth info:", e);
+            showLoggedOutView();
+        }
+    }
+
+    function showLoggedOutView() {
+        stopPolling();
+        syncLoggedInArea.style.display = 'none';
+        syncFormArea.style.display = 'none';
+        syncCodeArea.style.display = 'none';
+        syncInitArea.style.display = 'block';
+    }
+
+    function showLoggedInView(username, device) {
+        stopPolling();
+        syncInitArea.style.display = 'none';
+        syncFormArea.style.display = 'none';
+        syncCodeArea.style.display = 'none';
+        syncLoggedInArea.style.display = 'block';
+
+        loggedInUsernameDisplay.textContent = username || 'User';
+        loggedInDeviceDisplay.textContent = device || 'Desktop';
+    }
+
+    function stopPolling() {
+        if (syncPollingTimer) {
+            clearInterval(syncPollingTimer);
+            syncPollingTimer = null;
+        }
+    }
+
+    function startPolling(uVal, dVal) {
+        stopPolling();
+        syncPollingTimer = setInterval(async () => {
+            try {
+                const status = await invoke("check_cloud_login_status", {
+                    username: uVal,
+                    device: dVal
+                });
+
+                if (status === "authenticated") {
+                    stopPolling();
+                    showLoggedInView(uVal, dVal);
+                    showToast("Chordia Sync の認証が完了しました！");
+                } else if (status === "expired") {
+                    stopPolling();
+                    alert("認証コードの有効期限が切れました。再度認証コードを発行してください。");
+                    showLoggedOutView();
+                }
+            } catch(e) {
+                console.warn("Polling status check:", e);
+            }
+        }, 2000);
+    }
+
+    function checkSyncInputs() {
+        const uVal = syncUsername.value.trim();
+        const dVal = syncDeviceName.value.trim();
+        btnSubmitSyncWeb.disabled = (uVal === "" || dVal === "");
+    }
+
+    if (btnStartSyncAuth) {
+        btnStartSyncAuth.addEventListener('click', () => {
+            syncInitArea.style.display = 'none';
+            syncFormArea.style.display = 'block';
+            syncCodeArea.style.display = 'none';
+            checkSyncInputs();
+            syncUsername.focus();
+        });
+    }
+
+    if (btnCancelSyncForm) {
+        btnCancelSyncForm.addEventListener('click', () => {
+            syncFormArea.style.display = 'none';
+            syncInitArea.style.display = 'block';
+            syncUsername.value = '';
+            syncDeviceName.value = '';
+        });
+    }
+
+    if (syncUsername && syncDeviceName) {
+        syncUsername.addEventListener('input', checkSyncInputs);
+        syncDeviceName.addEventListener('input', checkSyncInputs);
+    }
+
+    if (btnSubmitSyncWeb) {
+        btnSubmitSyncWeb.addEventListener('click', async () => {
+            const uVal = syncUsername.value.trim();
+            const dVal = syncDeviceName.value.trim();
+            if (!uVal || !dVal) return;
+
+            const originalText = btnSubmitSyncWeb.textContent;
+            btnSubmitSyncWeb.disabled = true;
+            btnSubmitSyncWeb.textContent = "コード登録中...";
+
+            try {
+                const generatedCode = await invoke("register_auth_code_to_cloud", {
+                    username: uVal,
+                    device: dVal
+                });
+
+                generatedAuthCodeDisplay.textContent = generatedCode;
+                syncFormArea.style.display = 'none';
+                syncCodeArea.style.display = 'block';
+                showToast("認証コードを発行しました！");
+
+                // ★ Web側での承認を監視するポーリング開始
+                startPolling(uVal, dVal);
+            } catch (err) {
+                console.error("register_auth_code_to_cloud failed:", err);
+                alert("認証コードの登録に失敗しました:\n" + err);
+                btnSubmitSyncWeb.disabled = false;
+                btnSubmitSyncWeb.textContent = originalText;
+            }
+        });
+    }
+
+    if (btnCopyAuthCode) {
+        btnCopyAuthCode.addEventListener('click', () => {
+            const code = generatedAuthCodeDisplay.textContent.trim();
+            if (code) {
+                navigator.clipboard.writeText(code).then(() => {
+                    showToast("認証コードをコピーしました！");
+                }).catch(() => {
+                    showToast("コピーに失敗しました", true);
+                });
+            }
+        });
+    }
+
+    if (btnResetSyncAuth) {
+        btnResetSyncAuth.addEventListener('click', () => {
+            stopPolling();
+            syncCodeArea.style.display = 'none';
+            syncInitArea.style.display = 'block';
+            syncUsername.value = '';
+            syncDeviceName.value = '';
+            if (btnSubmitSyncWeb) {
+                btnSubmitSyncWeb.disabled = true;
+                btnSubmitSyncWeb.textContent = "ウェブで認証";
+            }
+        });
+    }
+
+    // ★ 修正: confirm() ではなくカスタムモーダルを開いて確実にログアウトを実行
+    if (btnLogoutCloud && logoutConfirmModal) {
+        btnLogoutCloud.addEventListener('click', () => {
+            logoutConfirmModal.style.display = 'flex';
+        });
+    }
+
+    if (btnCancelLogoutModal && logoutConfirmModal) {
+        btnCancelLogoutModal.addEventListener('click', () => {
+            logoutConfirmModal.style.display = 'none';
+        });
+    }
+
+    if (btnExecLogoutModal && logoutConfirmModal) {
+        btnExecLogoutModal.addEventListener('click', async () => {
+            logoutConfirmModal.style.display = 'none';
+            const originalText = btnExecLogoutModal.textContent;
+            btnExecLogoutModal.disabled = true;
+            btnExecLogoutModal.textContent = "ログアウト中...";
+
+            try {
+                await invoke("logout_cloud_auth");
+                showLoggedOutView();
+                showToast("ログアウトしました");
+            } catch(e) {
+                console.error("Logout failed:", e);
+                alert("ログアウト処理中にエラーが発生しました:\n" + e);
+            } finally {
+                btnExecLogoutModal.disabled = false;
+                btnExecLogoutModal.textContent = originalText;
+            }
+        });
+    }
+
+    window.addEventListener('beforeunload', () => {
+        stopPolling();
+    });
+
+    await initCloudSyncStatus();
+
     isInitialized = true;
 
     const allInputs = [
@@ -461,7 +680,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ★ 修正：タイムアウト管理付きのコンパクトなトースト通知関数
     let toastTimeout = null;
 
     function showToast(msg, isErr = false) {

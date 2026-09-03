@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, FlatList, Image, 
-  Alert, ActivityIndicator, Modal, TouchableWithoutFeedback, Animated, Easing 
+  Alert, ActivityIndicator, Modal, TouchableWithoutFeedback, Animated, Easing, StyleSheet 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,11 +11,15 @@ import {
   loadAllPlayHistoryApi, 
   loadAllWorkHistoryApi, 
   deletePlayHistoryBatchApi,
+  deleteWorkHistoryBatchApi,
   getCutoffDate,
   parseSyncDate, 
   parseDurationToSeconds,
+  formatWorkSessionEndTime,
+  formatWorkDuration,
   DeletePeriod,
-  PlayHistoryItem
+  PlayHistoryItem,
+  WorkHistoryItem
 } from '../../utils/chordiaSync';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
@@ -61,6 +65,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   );
 };
 
+// 削除メニューモーダル
 const HistoryDeleteMenuModal = ({ visible, onClose, onSelectPeriod, dynamicStyles, language }: any) => {
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
@@ -120,6 +125,47 @@ const HistoryDeleteMenuModal = ({ visible, onClose, onSelectPeriod, dynamicStyle
   );
 };
 
+// ★ モーダル競合を防ぐ絶対配置のローディングオーバーレイ
+const DeletingBlockOverlay = ({ visible, dynamicStyles, themeColor, language }: any) => {
+  if (!visible) return null;
+  return (
+    <View 
+      style={[
+        StyleSheet.absoluteFill, 
+        { 
+          backgroundColor: 'rgba(0,0,0,0.65)', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          zIndex: 9999,
+          elevation: 20
+        }
+      ]}
+      pointerEvents="auto"
+    >
+      <View style={{ 
+        backgroundColor: dynamicStyles.card, 
+        paddingVertical: 24, 
+        paddingHorizontal: 28, 
+        borderRadius: 22, 
+        alignItems: 'center', 
+        gap: 14, 
+        borderWidth: 1.5, 
+        borderColor: dynamicStyles.border,
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 8 }, 
+        shadowOpacity: 0.25, 
+        shadowRadius: 16, 
+        elevation: 10 
+      }}>
+        <ActivityIndicator size="large" color={themeColor} />
+        <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }}>
+          {t('deleting_history_progress', language)}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
 export const InfoStatisticsView = ({
   dynamicStyles, themeColor, isDark, isLandscape, safePadding,
   focusHistory = [], pushView, renderHeader, language = 'ja', localLibrary = []
@@ -160,6 +206,8 @@ export const InfoStatisticsView = ({
                 date: parseSyncDate(item.end).toISOString(),
                 duration: parseDurationToSeconds(item.time),
                 device: item.device,
+                rawEnd: item.end,
+                rawTime: item.time,
               }));
               formattedWork.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
               setActiveFocusHistory(formattedWork);
@@ -169,6 +217,7 @@ export const InfoStatisticsView = ({
           }
         }
 
+        setIsSyncAccount(false);
         const ph = await AsyncStorage.getItem('chordia_playback_history');
         if (ph) setPlaybackHistory(JSON.parse(ph));
         setActiveFocusHistory([...focusHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -254,14 +303,18 @@ export const InfoStatisticsView = ({
       {renderHeader(t('stats_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 10 }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <Text style={{ color: dynamicStyles.text, fontSize: 22, fontWeight: 'bold' }}>{t('activity_record', language)}</Text>
-          {isSyncAccount && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: `rgba(79, 70, 229, 0.12)`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 }}>
-              <Ionicons name="cloud-done" size={13} color={themeColor} />
-              <Text style={{ color: themeColor, fontSize: 11, fontWeight: 'bold' }}>Sync</Text>
-            </View>
-          )}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={{ color: dynamicStyles.text, fontSize: 22, fontWeight: 'bold' }}>{t('activity_record', language)}</Text>
+            <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>
+              {isSyncAccount ? t('stats_source_sync', language) : t('stats_source_local', language)}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isSyncAccount ? `rgba(79, 70, 229, 0.12)` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: isSyncAccount ? themeColor : dynamicStyles.border }}>
+            <Ionicons name={isSyncAccount ? "cloud-done" : "phone-portrait-outline"} size={13} color={isSyncAccount ? themeColor : dynamicStyles.subText} />
+            <Text style={{ color: isSyncAccount ? themeColor : dynamicStyles.subText, fontSize: 11, fontWeight: 'bold' }}>{isSyncAccount ? "Sync" : "Local"}</Text>
+          </View>
         </View>
         
         <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25 }}>
@@ -367,6 +420,7 @@ export const InfoAllHistoryView = ({
 }: any) => {
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [accountSid, setAccountSid] = useState<string | null>(null);
 
@@ -385,6 +439,8 @@ export const InfoAllHistoryView = ({
               date: parseSyncDate(item.end).toISOString(),
               duration: parseDurationToSeconds(item.time),
               device: item.device,
+              rawEnd: item.end,
+              rawTime: item.time,
             }));
             formatted.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setHistoryList(formatted);
@@ -418,22 +474,46 @@ export const InfoAllHistoryView = ({
         text: t('delete_confirm_btn', language),
         style: 'destructive',
         onPress: async () => {
-          setIsLoading(true);
+          setIsDeleting(true);
           const cutoff = getCutoffDate(period);
 
-          if (period === 'all') {
-            await AsyncStorage.setItem('chordia_focus_history', JSON.stringify([]));
-            setHistoryList([]);
-          } else {
-            const localRaw = await AsyncStorage.getItem('chordia_focus_history');
-            let localList: any[] = localRaw ? JSON.parse(localRaw) : [];
-            localList = localList.filter((item: any) => new Date(item.date) >= cutoff);
-            await AsyncStorage.setItem('chordia_focus_history', JSON.stringify(localList));
-            setHistoryList(prev => prev.filter(item => new Date(item.date) >= cutoff));
-          }
+          try {
+            if (accountSid) {
+              const toDeleteFromCloud: WorkHistoryItem[] = historyList.filter(item => {
+                if (period === 'all') return true;
+                return new Date(item.date) < cutoff;
+              }).map(item => ({
+                end: item.rawEnd || formatWorkSessionEndTime(new Date(item.date)),
+                time: item.rawTime || formatWorkDuration(item.duration),
+                device: item.device || '',
+              }));
 
-          setIsLoading(false);
-          Alert.alert(t('confirm', language), t('delete_history_success', language));
+              if (toDeleteFromCloud.length > 0) {
+                await deleteWorkHistoryBatchApi(accountSid, toDeleteFromCloud);
+              }
+            }
+
+            if (period === 'all') {
+              await AsyncStorage.setItem('chordia_focus_history', JSON.stringify([]));
+              setHistoryList([]);
+            } else {
+              const localRaw = await AsyncStorage.getItem('chordia_focus_history');
+              let localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+              localList = localList.filter((item: any) => new Date(item.date) >= cutoff);
+              await AsyncStorage.setItem('chordia_focus_history', JSON.stringify(localList));
+              setHistoryList(prev => prev.filter(item => new Date(item.date) >= cutoff));
+            }
+
+            setIsDeleting(false);
+            setTimeout(() => {
+              Alert.alert(t('confirm', language), t('delete_history_success', language));
+            }, 100);
+          } catch (e: any) {
+            setIsDeleting(false);
+            setTimeout(() => {
+              Alert.alert(t('alert_timer_error_title', language), e?.message || '削除中にエラーが発生しました');
+            }, 100);
+          }
         }
       }
     ]);
@@ -486,8 +566,14 @@ export const InfoAllHistoryView = ({
         onClose={() => setMenuVisible(false)}
         onSelectPeriod={handleSelectDeletePeriod}
         dynamicStyles={dynamicStyles}
-        themeColor={themeColor}
         language={language}
+      />
+
+      <DeletingBlockOverlay 
+        visible={isDeleting} 
+        dynamicStyles={dynamicStyles} 
+        themeColor={themeColor} 
+        language={language} 
       />
     </View>
   );
@@ -498,6 +584,7 @@ export const InfoPlaybackHistoryView = ({
 }: any) => {
   const [playbackList, setPlaybackList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [accountSid, setAccountSid] = useState<string | null>(null);
 
@@ -545,7 +632,6 @@ export const InfoPlaybackHistoryView = ({
 
   useEffect(() => { loadData(); }, [language]);
 
-  // ★ 1曲ずつ deletePlayHistory API を呼び出してクラウド・ローカルから削除
   const handleSelectDeletePeriod = (period: DeletePeriod) => {
     const isSync = !!accountSid;
     const title = isSync ? t('delete_history_confirm_sync_title', language) : t('delete_history_confirm_local_title', language);
@@ -557,40 +643,47 @@ export const InfoPlaybackHistoryView = ({
         text: t('delete_confirm_btn', language),
         style: 'destructive',
         onPress: async () => {
-          setIsLoading(true);
+          setIsDeleting(true);
           const cutoff = getCutoffDate(period);
 
-          // 1. クラウド側の削除対象を抽出して1曲ずつ送信
-          if (accountSid) {
-            const toDeleteFromCloud = playbackList.filter((item: PlayHistoryItem) => {
-              if (period === 'all') return true;
-              const itemDate = item.date ? parseSyncDate(item.date) : new Date(0);
-              return itemDate < cutoff;
-            });
+          try {
+            if (accountSid) {
+              const toDeleteFromCloud = playbackList.filter((item: PlayHistoryItem) => {
+                if (period === 'all') return true;
+                const itemDate = item.date ? parseSyncDate(item.date) : new Date(0);
+                return itemDate < cutoff;
+              });
 
-            if (toDeleteFromCloud.length > 0) {
-              await deletePlayHistoryBatchApi(accountSid, toDeleteFromCloud);
+              if (toDeleteFromCloud.length > 0) {
+                await deletePlayHistoryBatchApi(accountSid, toDeleteFromCloud);
+              }
             }
+
+            if (period === 'all') {
+              await AsyncStorage.setItem('chordia_playback_history', JSON.stringify([]));
+              setPlaybackList([]);
+            } else {
+              const localRaw = await AsyncStorage.getItem('chordia_playback_history');
+              let localList: any[] = localRaw ? JSON.parse(localRaw) : [];
+              localList = localList.filter((item: any) => new Date(item.playedAt || 0) >= cutoff);
+              await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(localList));
+
+              setPlaybackList(prev => prev.filter(item => {
+                const itemDate = item.date ? parseSyncDate(item.date) : new Date(item.playedAt || 0);
+                return itemDate >= cutoff;
+              }));
+            }
+
+            setIsDeleting(false);
+            setTimeout(() => {
+              Alert.alert(t('confirm', language), t('delete_history_success', language));
+            }, 100);
+          } catch (e: any) {
+            setIsDeleting(false);
+            setTimeout(() => {
+              Alert.alert(t('alert_timer_error_title', language), e?.message || '削除中にエラーが発生しました');
+            }, 100);
           }
-
-          // 2. ローカル削除 & 更新
-          if (period === 'all') {
-            await AsyncStorage.setItem('chordia_playback_history', JSON.stringify([]));
-            setPlaybackList([]);
-          } else {
-            const localRaw = await AsyncStorage.getItem('chordia_playback_history');
-            let localList: any[] = localRaw ? JSON.parse(localRaw) : [];
-            localList = localList.filter((item: any) => new Date(item.playedAt || 0) >= cutoff);
-            await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(localList));
-
-            setPlaybackList(prev => prev.filter(item => {
-              const itemDate = item.date ? parseSyncDate(item.date) : new Date(item.playedAt || 0);
-              return itemDate >= cutoff;
-            }));
-          }
-
-          setIsLoading(false);
-          Alert.alert(t('confirm', language), t('delete_history_success', language));
         }
       }
     ]);
@@ -646,6 +739,13 @@ export const InfoPlaybackHistoryView = ({
         onSelectPeriod={handleSelectDeletePeriod}
         dynamicStyles={dynamicStyles}
         language={language}
+      />
+
+      <DeletingBlockOverlay 
+        visible={isDeleting} 
+        dynamicStyles={dynamicStyles} 
+        themeColor={themeColor} 
+        language={language} 
       />
     </View>
   );

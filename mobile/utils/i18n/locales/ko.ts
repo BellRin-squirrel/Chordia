@@ -388,4 +388,8 @@ export const ko: Record<string, string> = {
   account_logout_confirm_title: '로그아웃 확인',
   account_logout_confirm_desc: 'Chordia Sync에서 로그아웃하시겠습니까?\n(기기 내 작업 세션 기록 및 재생 기록도 삭제됩니다)',
   account_auth_invalid_warning: 'Chordia Sync 인증에 실패했습니다. 다시 로그인해 주세요.',
+
+  stats_source_sync: 'Chordia Sync 데이터 표시 중',
+  stats_source_local: '이 기기(로컬) 데이터 표시 중',
+  deleting_history_progress: '기록 데이터를 삭제하는 중...',
 };

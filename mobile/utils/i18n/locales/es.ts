@@ -388,4 +388,8 @@ export const es: Record<string, string> = {
   account_logout_confirm_title: 'Confirmar cierre de sesión',
   account_logout_confirm_desc: '¿Seguro que deseas cerrar sesión en Chordia Sync?\n(El historial local de trabajo y reproducción también se eliminará de este dispositivo)',
   account_auth_invalid_warning: 'Error en la autenticación de Chordia Sync. Vuelve a iniciar sesión.',
+  
+  stats_source_sync: 'Mostrando datos de Chordia Sync',
+  stats_source_local: 'Mostrando datos del dispositivo local',
+  deleting_history_progress: 'Eliminando datos del historial...',
 };

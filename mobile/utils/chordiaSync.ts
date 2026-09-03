@@ -1,4 +1,4 @@
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import DeviceInfo from 'react-native-device-info';
@@ -221,8 +221,7 @@ export const checkAuthStatusApi = async (sid: string, name: string, device: stri
 };
 
 /**
- * ★ ログイン状態のセッション検証システム
- * 認証切れ/無効の場合は警告を表示し、保存されている認証情報を削除します
+ * ログイン状態のセッション検証システム
  */
 export const verifyChordiaSyncSession = async (showWarning = true, language: LanguageCode = 'ja'): Promise<boolean> => {
   try {
@@ -232,23 +231,16 @@ export const verifyChordiaSyncSession = async (showWarning = true, language: Lan
     if (!account || !account.sid || !account.username) return false;
 
     const res = await checkAuthStatusApi(account.sid, account.username, account.deviceName || '');
-
-    if (res.success && res.status === 'authenticated') {
-      return true;
-    }
+    if (res.success && res.status === 'authenticated') return true;
 
     console.warn('[Chordia Sync] ❌ ログイン認証が無効でした。認証情報を破棄します:', res);
     await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
 
     if (showWarning) {
-      Alert.alert(
-        t('sync_auth_error_title', language),
-        t('account_auth_invalid_warning', language)
-      );
+      Alert.alert(t('sync_auth_error_title', language), t('account_auth_invalid_warning', language));
     }
     return false;
   } catch (e) {
-    console.warn('[Chordia Sync] セッション検証例外:', e);
     return false;
   }
 };
@@ -360,7 +352,6 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
     }, 6000);
 
     const text = await response.text();
-    console.log(text);
     let data: any = JSON.parse(text);
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
@@ -372,12 +363,79 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
 /**
  * 複数件の楽曲再生履歴を1曲ずつ順次削除するバッチ処理
  */
-export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number; error?: string }> => {
+export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
+  console.log(`[DeletePlayHistory] 🗑️ 楽曲再生履歴を ${itemsToDelete.length} 件、1曲ずつ削除します...`);
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
     const item = itemsToDelete[i];
     const res = await deletePlayHistorySingleApi(sid, item);
-    if (res.success) deletedCount++;
+    if (res.success) {
+      deletedCount++;
+      console.log(`[DeletePlayHistory] ✅ [${i + 1}/${itemsToDelete.length}] 削除完了: "${item.title}" (${item.date})`);
+    } else {
+      console.warn(`[DeletePlayHistory] ⚠️ [${i + 1}/${itemsToDelete.length}] 削除失敗: "${item.title}" (${res.error})`);
+    }
+  }
+  return { success: deletedCount === itemsToDelete.length, deletedCount };
+};
+
+/**
+ * ★ 単一の作業セッション履歴削除API (1件ずつ削除)
+ * - operation: 'deleteWorkHistory'
+ * - SID: セッションID
+ * - time: 作業時間 (HH:mm:ss)
+ * - end: 終了時刻 (YYYY.MM.DD.HH.mm)
+ * - device: デバイス名
+ */
+export const deleteWorkHistorySingleApi = async (
+  sid: string,
+  item: WorkHistoryItem
+): Promise<DeleteHistoryResponse> => {
+  try {
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
+        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
+      },
+      body: JSON.stringify({
+        operation: 'deleteWorkHistory',
+        SID: sid,
+        time: item.time || '',
+        end: item.end || '',
+        device: item.device || '',
+      }),
+    }, 6000);
+
+    const text = await response.text();
+    let data: any = JSON.parse(text);
+    if (data.error) return { success: false, error: String(data.error) };
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || '削除通信に失敗しました' };
+  }
+};
+
+/**
+ * ★ 複数件の作業セッション履歴を1件ずつ順次削除するバッチ処理
+ */
+export const deleteWorkHistoryBatchApi = async (
+  sid: string,
+  itemsToDelete: WorkHistoryItem[]
+): Promise<{ success: boolean; deletedCount: number }> => {
+  console.log(`[DeleteWorkHistory] 🗑️ 作業セッション履歴を ${itemsToDelete.length} 件、1件ずつ削除します...`);
+  let deletedCount = 0;
+  for (let i = 0; i < itemsToDelete.length; i++) {
+    const item = itemsToDelete[i];
+    const res = await deleteWorkHistorySingleApi(sid, item);
+    if (res.success) {
+      deletedCount++;
+      console.log(`[DeleteWorkHistory] ✅ [${i + 1}/${itemsToDelete.length}] 削除完了: end=${item.end}, time=${item.time}`);
+    } else {
+      console.warn(`[DeleteWorkHistory] ⚠️ [${i + 1}/${itemsToDelete.length}] 削除失敗: end=${item.end} (${res.error})`);
+    }
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
 };
@@ -453,7 +511,6 @@ export const addWorkHistoryApi = async (sid: string, end: string, time: string):
           time: item.time,
         }),
       }, 4000);
-
       const data = await response.json();
       if (data.error) throw new Error(data.error);
     } catch (e) {

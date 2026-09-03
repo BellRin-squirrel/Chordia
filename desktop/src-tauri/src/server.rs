@@ -46,6 +46,8 @@ pub struct AuthState {
     pub shutdown_tx: Option<oneshot::Sender<()>>,
     pub tunnel_process: Option<tokio::process::Child>,
     pub wan_url: Option<String>,
+    pub pending_sid: Option<String>, // ★ 認証完了前/承認待ちのSID
+    pub cloud_sid: Option<String>,   // ★ ログイン完了後の本番SID
 }
 
 impl AuthState {
@@ -60,6 +62,8 @@ impl AuthState {
             shutdown_tx: None,
             tunnel_process: None,
             wan_url: None,
+            pending_sid: None,
+            cloud_sid: None,
         }
     }
 }
@@ -218,7 +222,6 @@ async fn api_library(AxumState(state): AxumState<ServerState>, headers: HeaderMa
     (StatusCode::OK, Json(json!({"library": response_data})))
 }
 
-// ★ 修正：スマートプレイリストは固定の楽曲リストではなく conditions (条件) をそのまま同期
 async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: HeaderMap) -> impl IntoResponse {
     if !verify_request(&headers, &state.auth).await { return (StatusCode::FORBIDDEN, Json(json!({"error": "Unauthorized"}))); }
     let master = load_playlists_master();
@@ -260,13 +263,11 @@ async fn api_playlists(AxumState(state): AxumState<ServerState>, headers: Header
             obj.insert("url_cover".into(), url_cover);
 
             if is_smart {
-                // スマートプレイリストの場合：固定の楽曲リストは渡さず、ルール条件(conditions)を同期
                 if !obj.contains_key("conditions") {
                     obj.insert("conditions".into(), Value::Array(Vec::new()));
                 }
                 obj.remove("music");
             } else {
-                // 通常プレイリストの場合：登録されている楽曲ファイル名リスト(music)を読み込んで同期
                 let mut music = Vec::new();
                 let path = base.join(format!("userfiles/playlist/{}.json", pl_id));
                 if path.exists() {

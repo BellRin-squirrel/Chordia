@@ -388,4 +388,8 @@ export const de: Record<string, string> = {
   account_logout_confirm_title: 'Abmeldung bestätigen',
   account_logout_confirm_desc: 'Möchten Sie sich wirklich von Chordia Sync abmelden?\n(Der lokale Arbeits- und Wiedergabeverlauf wird ebenfalls von diesem Gerät gelöscht)',
   account_auth_invalid_warning: 'Chordia Sync-Authentifizierung fehlgeschlagen. Bitte melden Sie sich erneut an.',
+
+  stats_source_sync: 'Chordia Sync Cloud-Daten werden angezeigt',
+  stats_source_local: 'Lokale Gerätedaten werden angezeigt',
+  deleting_history_progress: 'Verlaufsdaten werden gelöscht...',
 };

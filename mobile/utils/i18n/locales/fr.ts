@@ -388,4 +388,8 @@ export const fr: Record<string, string> = {
   account_logout_confirm_title: 'Confirmer la déconnexion',
   account_logout_confirm_desc: 'Voulez-vous vraiment vous déconnecter de Chordia Sync ?\n(L\'historique local des sessions de travail et d\'écoute sera également effacé)',
   account_auth_invalid_warning: 'Échec de l\'authentification Chordia Sync. Veuillez vous reconnecter.',
+  
+  stats_source_sync: 'Affichage des données Chordia Sync',
+  stats_source_local: 'Affichage des données locales',
+  deleting_history_progress: 'Suppression de l\'historique en cours...',
 };

@@ -6,7 +6,6 @@ body {
     transition: background-color 0.3s ease;
 }
 
-/* ★ 設定画面専用：親要素 .container および .settings-container の max-width 制限を削除 */
 .container {
     width: 100%;
     max-width: none !important;
@@ -55,7 +54,6 @@ body {
     box-sizing: border-box;
 }
 
-/* レスポンシブナビゲーションボタン */
 .settings-nav-btn {
     display: flex;
     align-items: center;
@@ -80,7 +78,7 @@ body {
 
 .settings-nav-btn.active {
     color: var(--primary-color);
-    background: rgba(var(--primary-color-rgb, 79, 70, 229), 0.1);
+    background: rgba(79, 70, 229, 0.1);
     font-weight: 800;
 }
 
@@ -90,15 +88,13 @@ body {
     flex-shrink: 0;
 }
 
-/* --- レスポンシブブレークポイント制御 --- */
-
-/* 1. 小画面 (<= 650px, B以下) : 従来通り全セクションを縦積み全表示 */
+/* 1. 小画面 (<= 650px) */
 .settings-tab-bar { display: none; }
 .settings-sidebar { display: none; }
 .settings-section { display: block !important; margin-bottom: 32px; }
 .settings-content-area { height: auto; max-height: none; overflow-y: visible; }
 
-/* 2. 中画面 (651px 〜 960px, B〜A) : 上部タブバー + 固定高の単一セクション表示 */
+/* 2. 中画面 (651px 〜 960px) */
 @media (min-width: 651px) and (max-width: 960px) {
     .settings-tab-bar {
         display: flex;
@@ -131,7 +127,7 @@ body {
     }
 }
 
-/* 3. 大画面 (>= 961px, A超) : 左サイドバー(縦幅最大) + 固定高の単一セクション表示 */
+/* 3. 大画面 (>= 961px) */
 @media (min-width: 961px) {
     .settings-tab-bar { display: none; }
     
@@ -174,7 +170,6 @@ body {
     .settings-section.active { display: block !important; animation: settingsFadeIn 0.2s ease; }
 }
 
-/* カスタムスクロールバー */
 .settings-content-area::-webkit-scrollbar {
     width: 6px;
 }
@@ -194,7 +189,6 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* --- セクション・フォーム共通 --- */
 .config-box {
     background-color: var(--bg-color) !important;
     border: 1px solid rgba(128, 128, 128, 0.1);
@@ -250,7 +244,8 @@ body {
     display: block; font-weight: 700; margin-bottom: 8px; color: var(--text-main);
 }
 
-.form-group input[type="number"] {
+.form-group input[type="number"],
+.sync-input {
     width: 100%; 
     padding: 12px; 
     border: 1px solid rgba(128, 128, 128, 0.3); 
@@ -260,10 +255,13 @@ body {
     color: var(--text-main);
     outline: none;
     box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input[type="color"]:disabled {
-    opacity: 0.6;
+.sync-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    background-color: var(--card-bg) !important;
 }
 
 .custom-select-wrapper {
@@ -347,8 +345,6 @@ input[type="color"]:disabled {
     color: #ffffff !important;
 }
 
-.custom-option option { display: none; }
-
 .custom-check {
     width: 14px;
     height: 14px;
@@ -364,10 +360,6 @@ input[type="color"]:disabled {
 .custom-option span {
     flex: 1;
     font-weight: 500;
-}
-
-.form-group input:focus {
-    border-color: var(--primary-color);
 }
 
 .form-desc { font-size: 0.85rem; color: var(--text-sub); margin-top: 4px; }
@@ -452,6 +444,28 @@ input[type="color"]:disabled {
 .handle { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-main); }
 .check-container { display: flex; justify-content: center; align-items: center; }
 
+.btn-primary {
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.btn-primary:hover:not(:disabled) {
+    background-color: var(--primary-color-dark) !important;
+    transform: translateY(-1px);
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .btn-small {
     background: var(--primary-color); color: white; border: none; padding: 8px 16px;
     border-radius: 6px; cursor: pointer; font-weight: 700; transition: background 0.2s;
@@ -466,7 +480,49 @@ input[type="color"]:disabled {
     background: rgba(128, 128, 128, 0.3);
 }
 
-/* --- トースト通知 (コンパクト・右上固定・スムーズフェードアウト) --- */
+/* --- アカウント設定 (Chordia Sync) 専用スタイル --- */
+.account-desc-text {
+    font-size: 0.92rem;
+    color: var(--text-sub);
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+.auth-code-display-box {
+    background: var(--card-bg);
+    border: 2px dashed var(--primary-color);
+    border-radius: 14px;
+    padding: 20px;
+    display: inline-block;
+    min-width: 280px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.08);
+}
+
+#generatedAuthCodeDisplay {
+    font-family: 'Courier New', monospace;
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: 6px;
+    color: var(--primary-color);
+    user-select: all;
+}
+
+.spinner-mini {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(79, 70, 229, 0.2);
+    border-top: 2px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* --- トースト通知 --- */
 .toast {
     visibility: hidden;
     min-width: 220px;

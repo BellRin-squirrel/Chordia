@@ -388,4 +388,8 @@ export const ja: Record<string, string> = {
   account_logout_confirm_title: 'ログアウトの確認',
   account_logout_confirm_desc: 'Chordia Sync からログアウトしますか？\n(端末内の作業セッション履歴・楽曲再生履歴も消去されます)',
   account_auth_invalid_warning: 'Chordia Sync の認証に失敗しました。再度ログインしてください。',
+
+  stats_source_sync: 'Chordia Sync のデータを表示中',
+  stats_source_local: 'このデバイス（ローカル）のデータを表示中',
+  deleting_history_progress: '履歴データを削除中...',
 };
