@@ -1,13 +1,10 @@
 @charset "UTF-8";
 
-/* ★ 作業モード中の真っ黒フルスクリーン背景と白文字の徹底強制 */
+/* ★ 作業モード中の真っ黒フルスクリーン背景とデフォルト文字色設定 */
 body.mode-focus {
     background-color: #000000 !important;
     overflow: hidden !important;
-}
-
-body.mode-focus * {
-    color: #ffffff !important;
+    color: #ffffff;
 }
 
 /* タイトルバーホバー時のコントロール表示（黒背景用） */
@@ -88,6 +85,7 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
 }
 
 /* 日付は #424242 */
+#focusDateDisplay,
 .focus-date-text {
     font-size: clamp(1.2rem, 3vw, 2.2rem) !important;
     font-weight: 700;
@@ -95,7 +93,8 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     letter-spacing: 0.05em;
 }
 
-/* 時計は白色のまま */
+/* 時計は白色 */
+#focusClockDisplay,
 .focus-clock-text {
     font-size: clamp(3.5rem, 10vw, 8rem) !important;
     font-weight: 800;
@@ -114,6 +113,7 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
 }
 
 /* TOTAL TIMEラベルの色 */
+#focusTotalWorkLabel,
 .focus-total-label {
     font-size: 1.1rem !important;
     font-weight: 800;
@@ -122,7 +122,8 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     margin-bottom: 8px;
 }
 
-/* ★ 作業時間は #4F46E5 */
+/* 作業時間は #4F46E5 */
+#focusTotalWorkDisplay,
 .focus-elapsed-text {
     font-size: clamp(4rem, 12vw, 9.5rem) !important;
     font-weight: 800;
@@ -132,7 +133,7 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     color: #4f46e5 !important;
 }
 
-/* ★ ポモドーロモード用 光るステータスバッジ */
+/* ポモドーロモード用 光るステータスバッジ */
 .pomo-badge-area {
     margin-top: 16px;
     margin-bottom: 8px;
@@ -185,7 +186,8 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
 .pomo-status-badge.break-mode::before { background: linear-gradient(45deg, #10b981, #3b82f6); }
 .pomo-status-badge.break-mode .pomo-dot { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
 
-/* ★ ポモドーロ用のタイマーテキスト（白色） */
+/* ポモドーロ用のタイマーテキスト（白色） */
+#focusPomoTimerDisplay,
 .focus-pomo-timer-text {
     font-size: clamp(3rem, 10vw, 7.5rem) !important;
     font-weight: 800;
@@ -206,7 +208,8 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     margin-bottom: 20px;
 }
 
-/* 名言は #424242 で少し小さく */
+/* ★ 名言は #424242 */
+#focusQuoteDisplay,
 .focus-quote-text {
     font-size: clamp(0.85rem, 1.8vw, 1.1rem) !important;
     font-weight: 500;
@@ -215,7 +218,8 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     max-width: 850px;
 }
 
-/* 再生中楽曲名は #424242 で少し小さく、背景は透明に */
+/* ★ 再生中楽曲名は #424242 */
+#focusNowPlayingDisplay,
 .focus-now-playing-text {
     display: inline-flex;
     align-items: center;
@@ -228,11 +232,16 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     border-radius: 20px;
 }
 
-/* 楽曲名の横のアイコンも #424242 に統一 */
+#focusSongNameText {
+    color: #424242 !important;
+}
+
+#focusNowPlayingDisplay svg,
 .focus-now-playing-text svg {
     width: 14px;
     height: 14px;
     color: #424242 !important;
+    fill: currentColor;
 }
 
 /* 一時停止オーバーレイ (PAUSED) */
@@ -263,11 +272,10 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     gap: 14px;
 }
 
-/* ★ 停止アイコンの色を黒、背景をグレーの円形に */
 .pause-icon {
     width: 64px;
     height: 64px;
-    color: #000000 !important; /* 縦の2本線を黒に */
+    color: #000000 !important;
     background-color: #CCCCCC;
     border-radius: 50%;
     display: flex;
@@ -312,7 +320,6 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     color: rgba(255, 255, 255, 0.45) !important;
 }
 
-/* ★ PAUSED TIMEの時間は赤い文字 */
 .pause-time-val, #pausedTimeDisplay {
     font-size: 2.4rem !important;
     font-weight: 800;
@@ -320,7 +327,7 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     color: #EE4344 !important; 
 }
 
-/* ★ 操作ヘルプモーダル（白背景・黒文字） */
+/* 操作ヘルプモーダル（白背景・黒文字） */
 .focus-help-card {
     background: #ffffff !important;
     color: #1f2937 !important;
@@ -331,7 +338,6 @@ body.mode-focus .window-controls-mac:hover .btn-circle-mac {
     border-radius: 24px !important;
 }
 
-/* 強制的にヘルプモーダル内のすべての文字色を黒系にする（オーバーライド） */
 body.mode-focus .focus-help-card,
 body.mode-focus .focus-help-card h3,
 body.mode-focus .focus-help-card .help-desc {
@@ -346,7 +352,6 @@ body.mode-focus .focus-help-card .help-sub kbd {
     color: #374151 !important;
 }
 
-/* ログアウトの赤いバッジと文字 */
 body.mode-focus .focus-help-card .btn-exit-focus,
 body.mode-focus .focus-help-card .badge-red,
 body.mode-focus .focus-help-card .badge-red svg {
@@ -370,7 +375,6 @@ body.mode-focus .focus-help-card .badge-red svg {
     border-radius: 12px;
 }
 
-/* ★ アイコンバッジを正円にし、背景をテーマカラーの薄い色にする */
 .help-key-badge {
     background: color-mix(in srgb, var(--primary-color, #4f46e5) 15%, transparent) !important;
     color: var(--primary-color, #4f46e5) !important;
@@ -390,7 +394,6 @@ body.mode-focus .focus-help-card .badge-red svg {
     color: var(--primary-color, #4f46e5) !important;
 }
 
-/* ★ アプリ風ショートカット表示等のためのテキストコンテナ */
 .help-text-col {
     display: flex;
     flex-direction: column;
@@ -426,7 +429,6 @@ body.mode-focus .focus-help-card .badge-red svg {
     display: inline-block;
 }
 
-/* ★ 赤色のログアウト用バッジ */
 .help-key-badge.badge-red {
     background: rgba(239, 68, 68, 0.12) !important;
 }
@@ -438,7 +440,6 @@ body.mode-focus .focus-help-card .badge-red svg {
     align-items: center;
 }
 
-/* 今すぐ終了するボタンは赤い文字 */
 .btn-exit-focus {
     background: transparent;
     border: none;

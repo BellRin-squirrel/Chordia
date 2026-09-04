@@ -2,10 +2,13 @@ window.WorkFocus = {
     isFocusActive: false,
     isPaused: false,
     isHelpOpen: false, 
+    isAlarmPlaying: false, // アラーム鳴動中フラグ
     focusTimerInterval: null,
     quoteInterval: null,
     clockInterval: null,
     pauseTimerInterval: null,
+    currentAlarmAudio: null,
+    alarmTimeout: null,
 
     cfg: null, 
 
@@ -32,14 +35,26 @@ window.WorkFocus = {
         if (audioPlayer) {
             audioPlayer.addEventListener('ended', () => {
                 if (this.cfg && this.cfg.pomodoroMode) {
-                    if (this.pomoPhase === 'WORK' && this.workQueue.length > 0) {
-                        this.workIndex = (this.workIndex + 1) % this.workQueue.length;
-                        this.workProgressSec = 0;
-                        this.playCurrentPhaseSong();
-                    } else if (this.pomoPhase === 'BREAK' && this.breakQueue.length > 0) {
-                        this.breakIndex = (this.breakIndex + 1) % this.breakQueue.length;
-                        this.breakProgressSec = 0;
-                        this.playCurrentPhaseSong();
+                    if (this.isSamePlaylist()) {
+                        // 同じ再生リストの場合は共通で次の曲へ進める
+                        if (this.workQueue.length > 0) {
+                            const nextIdx = ((this.pomoPhase === 'WORK' ? this.workIndex : this.breakIndex) + 1) % this.workQueue.length;
+                            this.workIndex = nextIdx;
+                            this.breakIndex = nextIdx;
+                            this.workProgressSec = 0;
+                            this.breakProgressSec = 0;
+                            this.playCurrentPhaseSong();
+                        }
+                    } else {
+                        if (this.pomoPhase === 'WORK' && this.workQueue.length > 0) {
+                            this.workIndex = (this.workIndex + 1) % this.workQueue.length;
+                            this.workProgressSec = 0;
+                            this.playCurrentPhaseSong();
+                        } else if (this.pomoPhase === 'BREAK' && this.breakQueue.length > 0) {
+                            this.breakIndex = (this.breakIndex + 1) % this.breakQueue.length;
+                            this.breakProgressSec = 0;
+                            this.playCurrentPhaseSong();
+                        }
                     }
                 } else {
                     if (this.normalQueue.length > 0) {
@@ -52,10 +67,15 @@ window.WorkFocus = {
             // 再生位置のリアルタイム保持
             audioPlayer.addEventListener('timeupdate', () => {
                 if (this.cfg && this.cfg.pomodoroMode && !this.isMusicFadingOut) {
-                    if (this.pomoPhase === 'WORK') {
+                    if (this.isSamePlaylist()) {
                         this.workProgressSec = audioPlayer.currentTime;
-                    } else {
                         this.breakProgressSec = audioPlayer.currentTime;
+                    } else {
+                        if (this.pomoPhase === 'WORK') {
+                            this.workProgressSec = audioPlayer.currentTime;
+                        } else {
+                            this.breakProgressSec = audioPlayer.currentTime;
+                        }
                     }
                 }
             });
@@ -151,6 +171,15 @@ window.WorkFocus = {
         }
     },
 
+    // 作業用と休憩用の再生リストが同一であるかを判定
+    isSamePlaylist: function() {
+        if (!this.cfg || !this.cfg.pomodoroMode) return false;
+        const workTarget = this.cfg.slots && this.cfg.slots.work ? this.cfg.slots.work.target : null;
+        const breakTarget = this.cfg.slots && this.cfg.slots.break ? this.cfg.slots.break.target : null;
+        if (!workTarget || !breakTarget) return false;
+        return workTarget.type === breakTarget.type && workTarget.id === breakTarget.id;
+    },
+
     start: async function() {
         const defaultConfig = {
             dateFormat: 'ymd',
@@ -198,7 +227,17 @@ window.WorkFocus = {
         this.isFocusActive = true;
         this.isPaused = false;
         this.isHelpOpen = false; 
+        this.isAlarmPlaying = false;
         this.totalWorkSeconds = 0;
+
+        if (this.currentAlarmAudio) {
+            this.currentAlarmAudio.pause();
+            this.currentAlarmAudio = null;
+        }
+        if (this.alarmTimeout) {
+            clearTimeout(this.alarmTimeout);
+            this.alarmTimeout = null;
+        }
 
         // キュー初期化
         this.workQueue = []; this.workIndex = 0; this.workProgressSec = 0;
@@ -206,7 +245,7 @@ window.WorkFocus = {
         this.normalQueue = []; this.normalIndex = 0;
         await this.loadAllPlaylists();
 
-        // ★ ポモドーロの初期化
+        // ポモドーロの初期化
         if (this.cfg.pomodoroMode) {
             this.pomoPhase = 'WORK';
             this.pomoRemaining = this.cfg.workDuration * 60;
@@ -230,8 +269,7 @@ window.WorkFocus = {
 
         if (this.focusTimerInterval) clearInterval(this.focusTimerInterval);
         this.focusTimerInterval = setInterval(() => {
-            if (!this.isPaused && !this.isHelpOpen) {
-                // 1秒進める
+            if (!this.isPaused && !this.isHelpOpen && !this.isAlarmPlaying) {
                 if (this.pomoPhase === 'WORK' || this.pomoPhase === 'NORMAL') {
                     this.totalWorkSeconds++;
                 }
@@ -274,51 +312,106 @@ window.WorkFocus = {
 
         if (this.cfg.pomodoroMode) {
             this.workQueue = await loadSlot(this.cfg.slots.work);
-            this.breakQueue = await loadSlot(this.cfg.slots.break);
+            if (this.isSamePlaylist()) {
+                // 同じ再生リストが指定されている場合はキューを完全共有する
+                this.breakQueue = this.workQueue;
+            } else {
+                this.breakQueue = await loadSlot(this.cfg.slots.break);
+            }
         } else {
             this.normalQueue = await loadSlot(this.cfg.slots.normal);
         }
     },
 
-    checkPomodoroTransition: async function() {
+    checkPomodoroTransition: function() {
         const audioPlayer = document.getElementById('workAudioPlayer');
         
-        // 残り6秒: フェードアウト開始
+        // 残り6秒: 音楽のフェードアウト開始
         if (this.pomoRemaining === 6 && !this.isMusicFadingOut && audioPlayer && !audioPlayer.paused) {
             this.isMusicFadingOut = true;
             this.fadeOutAudio(audioPlayer, 4500); 
         }
 
-        // 残り0秒: フェーズ切り替え
+        // 残り0秒: アラーム鳴動開始 & タイマーを停止して1.2秒後にフェーズ切り替え
         if (this.pomoRemaining <= 0) {
             this.isMusicFadingOut = false;
-            if (audioPlayer) audioPlayer.pause();
+            if (audioPlayer) {
+                const currentPos = audioPlayer.currentTime;
+                audioPlayer.pause();
+                if (this.isSamePlaylist()) {
+                    this.workProgressSec = currentPos;
+                    this.breakProgressSec = currentPos;
+                } else {
+                    if (this.pomoPhase === 'WORK') {
+                        this.workProgressSec = currentPos;
+                    } else {
+                        this.breakProgressSec = currentPos;
+                    }
+                }
+            }
             
-            this.playBeepAndVibrate();
+            this.pomoRemaining = 0;
+            this.updateElapsedTimeUI();
 
+            this.triggerPhaseTransitionAlarm();
+        }
+    },
+
+    // 1.2秒間アラームを鳴らし、その間タイマーを停止する
+    triggerPhaseTransitionAlarm: function() {
+        this.isAlarmPlaying = true;
+
+        if ('vibrate' in navigator) {
+            navigator.vibrate([400, 200, 400]);
+        }
+        
+        const beepUrl = "https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav";
+        
+        if (this.currentAlarmAudio) {
+            this.currentAlarmAudio.pause();
+            this.currentAlarmAudio = null;
+        }
+
+        const beepAudio = new Audio(beepUrl);
+        beepAudio.volume = 1.0;
+        this.currentAlarmAudio = beepAudio;
+        beepAudio.play().catch(e => console.error("BeepSound play error:", e));
+
+        if (this.alarmTimeout) clearTimeout(this.alarmTimeout);
+        this.alarmTimeout = setTimeout(() => {
+            // 1.2秒経過: アラームを確実に停止・巻き戻し
+            if (this.currentAlarmAudio) {
+                this.currentAlarmAudio.pause();
+                this.currentAlarmAudio.currentTime = 0;
+                this.currentAlarmAudio = null;
+            }
+
+            // 次のフェーズへ切り替え
             if (this.pomoPhase === 'WORK') {
                 this.pomoPhase = 'BREAK';
                 this.pomoRemaining = this.cfg.breakDuration * 60;
+                if (this.isSamePlaylist()) {
+                    // 同一リストの場合は作業時間の中断位置・インデックスをそのまま休憩時間へ引き継ぐ
+                    this.breakIndex = this.workIndex;
+                    this.breakProgressSec = this.workProgressSec;
+                }
             } else {
                 this.pomoPhase = 'WORK';
                 this.pomoRemaining = this.cfg.workDuration * 60;
+                if (this.isSamePlaylist()) {
+                    // 同一リストの場合は休憩時間の中断位置・インデックスをそのまま作業時間へ引き継ぐ
+                    this.workIndex = this.breakIndex;
+                    this.workProgressSec = this.breakProgressSec;
+                }
             }
             
             this.updateElapsedTimeUI();
             this.playCurrentPhaseSong(true); 
-        }
-    },
 
-    // ★ Web Audio APIから HTML Audio による再生に変更
-    playBeepAndVibrate: function() {
-        if ('vibrate' in navigator) {
-            navigator.vibrate([500, 200, 500]);
-        }
-        
-        const beepUrl = "https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav";
-        const beepAudio = new Audio(beepUrl);
-        beepAudio.volume = 1.0;
-        beepAudio.play().catch(e => console.error("BeepSound play error:", e));
+            // タイマー稼働を再開
+            this.isAlarmPlaying = false;
+            this.alarmTimeout = null;
+        }, 1200);
     },
 
     fadeOutAudio: function(audio, durationMs) {
@@ -402,8 +495,12 @@ window.WorkFocus = {
                 streamUrl = convertFileSrc(absPath);
             }
             if (streamUrl) {
-                audioPlayer.src = streamUrl;
-                audioPlayer.load();
+                // 同じ楽曲の場合は load() による不要な再読み込みをスキップしてシームレスに位置指定
+                const isSameSrc = (audioPlayer.src === streamUrl || audioPlayer.src.endsWith(encodeURI(streamUrl)) || audioPlayer.src.endsWith(streamUrl));
+                if (!isSameSrc) {
+                    audioPlayer.src = streamUrl;
+                    audioPlayer.load();
+                }
 
                 audioPlayer.currentTime = startSec;
                 
@@ -442,7 +539,6 @@ window.WorkFocus = {
         const isDayNone = this.cfg.dayFormat === 'none';
         const isClockNone = this.cfg.clockFormat === 'none';
 
-        // 常に表示されるもの
         if (focusTotalWorkLabel) focusTotalWorkLabel.style.display = 'block';
         if (focusTotalWorkDisplay) focusTotalWorkDisplay.style.display = 'block';
 
@@ -457,7 +553,6 @@ window.WorkFocus = {
         if (focusDateDisplay) focusDateDisplay.style.display = (isDateNone && isDayNone) ? 'none' : 'block';
         if (focusClockDisplay) focusClockDisplay.style.display = isClockNone ? 'none' : 'block';
 
-        // ポモドーロモードON/OFFでの表示切り替え
         if (this.cfg.pomodoroMode) {
             if (pomoBadgeArea) pomoBadgeArea.style.display = 'block';
             if (focusPomoTimerDisplay) focusPomoTimerDisplay.style.display = 'block';
@@ -561,6 +656,8 @@ window.WorkFocus = {
         if (this.isPaused) {
             if (pauseOverlay) pauseOverlay.style.display = 'flex';
             if (audioPlayer) audioPlayer.pause();
+            if (this.currentAlarmAudio) this.currentAlarmAudio.pause();
+
             this.pausedSeconds = 0;
             if (pausedTimeDisplay) pausedTimeDisplay.textContent = "0:00";
             if (this.pauseTimerInterval) clearInterval(this.pauseTimerInterval);
@@ -573,7 +670,10 @@ window.WorkFocus = {
         } else {
             if (pauseOverlay) pauseOverlay.style.display = 'none';
             if (this.pauseTimerInterval) clearInterval(this.pauseTimerInterval);
-            if (audioPlayer && audioPlayer.src) {
+            
+            if (this.isAlarmPlaying && this.currentAlarmAudio) {
+                this.currentAlarmAudio.play().catch(() => {});
+            } else if (audioPlayer && audioPlayer.src) {
                 const savedVol = localStorage.getItem('player_volume') ? (parseFloat(localStorage.getItem('player_volume')) / 100) : 1.0;
                 audioPlayer.volume = savedVol;
                 this.isMusicFadingOut = false;
@@ -589,6 +689,7 @@ window.WorkFocus = {
         
         const audioPlayer = document.getElementById('workAudioPlayer');
         if (audioPlayer) audioPlayer.pause();
+        if (this.currentAlarmAudio) this.currentAlarmAudio.pause();
     },
 
     closeHelpModal: function() {
@@ -596,9 +697,13 @@ window.WorkFocus = {
         const modal = document.getElementById('focusHelpModal');
         if (modal) modal.classList.remove('show');
         
-        const audioPlayer = document.getElementById('workAudioPlayer');
-        if (audioPlayer && audioPlayer.src && !this.isPaused) {
-            audioPlayer.play().catch(() => {});
+        if (this.isAlarmPlaying && this.currentAlarmAudio && !this.isPaused) {
+            this.currentAlarmAudio.play().catch(() => {});
+        } else {
+            const audioPlayer = document.getElementById('workAudioPlayer');
+            if (audioPlayer && audioPlayer.src && !this.isPaused) {
+                audioPlayer.play().catch(() => {});
+            }
         }
     },
 
@@ -606,6 +711,15 @@ window.WorkFocus = {
         this.isFocusActive = false;
         this.isPaused = false;
         this.isHelpOpen = false;
+        this.isAlarmPlaying = false;
+        if (this.alarmTimeout) {
+            clearTimeout(this.alarmTimeout);
+            this.alarmTimeout = null;
+        }
+        if (this.currentAlarmAudio) {
+            this.currentAlarmAudio.pause();
+            this.currentAlarmAudio = null;
+        }
         if (this.focusTimerInterval) clearInterval(this.focusTimerInterval);
         if (this.quoteInterval) clearInterval(this.quoteInterval);
         if (this.clockInterval) clearInterval(this.clockInterval);

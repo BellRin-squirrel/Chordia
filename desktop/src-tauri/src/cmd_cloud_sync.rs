@@ -141,21 +141,30 @@ fn get_system_model_and_os() -> (String, String) {
     }
 }
 
-// ★ 楽曲再生履歴追記API (addPlayHistory) - albumキーに修正
+// ★ 楽曲再生履歴追記API (addPlayHistory) - 日付パラメータ (date) を追加
 pub async fn send_single_play_history_to_cloud(
     client: &reqwest::Client,
     sid: &str,
     title: &str,
     artist: &str,
     album: &str,
+    date: Option<&str>,
 ) -> Result<(), String> {
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "operation": "addPlayHistory",
         "SID": sid,
         "title": title,
         "artist": artist,
-        "album": album // ★ album に修正
+        "album": album
     });
+
+    // 日付が指定されている場合はペイロードに付与
+    if let Some(d) = date {
+        if !d.is_empty() {
+            payload["date"] = serde_json::Value::String(d.to_string());
+            payload["timestamp"] = serde_json::Value::String(d.to_string());
+        }
+    }
 
     let body_json = serde_json::to_string(&payload)
         .map_err(|e| format!("JSON構築エラー: {}", e))?;
@@ -185,6 +194,7 @@ pub async fn add_play_history_to_cloud(
     title: String,
     artist: String,
     album: String,
+    date: Option<String>,
     auth: State<'_, SharedAuthState>,
 ) -> Result<(), String> {
     let sid = match get_saved_cloud_sid(&auth).await {
@@ -193,9 +203,10 @@ pub async fn add_play_history_to_cloud(
     };
 
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build().map_err(|e| e.to_string())?;
-    send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album).await
+    send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album, date.as_deref()).await
 }
 
+// ★ 全既存履歴のクラウド送信 (history.json の timestamp を日付として送信)
 #[tauri::command]
 pub async fn sync_all_local_history_to_cloud(
     app: AppHandle,
@@ -223,8 +234,9 @@ pub async fn sync_all_local_history_to_cloud(
         let title = item.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown");
         let artist = item.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown");
         let album = item.get("album").and_then(|v| v.as_str()).unwrap_or("");
+        let timestamp = item.get("timestamp").and_then(|v| v.as_str());
 
-        let _ = send_single_play_history_to_cloud(&client, &sid, title, artist, album).await;
+        let _ = send_single_play_history_to_cloud(&client, &sid, title, artist, album, timestamp).await;
         success_count += 1;
 
         let _ = app.emit("sync_history_progress", serde_json::json!({

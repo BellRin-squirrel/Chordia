@@ -25,18 +25,20 @@ pub fn record_playback(song: Value, auth: State<'_, SharedAuthState>) {
 
     let h_path = base.join("userfiles/history.json");
     let mut h: Vec<Value> = fs::read_to_string(&h_path).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     h.push(serde_json::json!({
         "title": title,
         "artist": artist,
         "album": album,
         "filename": filename,
-        "timestamp": Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "timestamp": timestamp
     }));
     if h.len() > 1000 { h.remove(0); }
     let _ = fs::write(&h_path, serde_json::to_string_pretty(&h).unwrap_or_default());
 
     // ★ クラウド同期が有効な場合、バックグラウンドでクラウドへ再生履歴を送信 (cmd_cloud_sync 参照)
     let auth_clone = auth.inner().clone();
+    let timestamp_clone = timestamp.clone();
     tauri::async_runtime::spawn(async move {
         let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
         let mut sid_opt = None;
@@ -58,7 +60,14 @@ pub fn record_playback(song: Value, auth: State<'_, SharedAuthState>) {
         if let Some(sid) = sid_opt {
             let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build();
             if let Ok(c) = client {
-                let _ = crate::cmd_cloud_sync::send_single_play_history_to_cloud(&c, &sid, &title, &artist, &album).await;
+                let _ = crate::cmd_cloud_sync::send_single_play_history_to_cloud(
+                    &c, 
+                    &sid, 
+                    &title, 
+                    &artist, 
+                    &album, 
+                    Some(&timestamp_clone)
+                ).await;
             }
         }
     });
