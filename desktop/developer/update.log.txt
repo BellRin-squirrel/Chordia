@@ -3,7 +3,7 @@
 ・Chordia Sync にログインした際に、既存の作業セッション履歴、楽曲再生履歴がある場合は、Chordia Sync のデータに結合されます。
 ・Chordia Sync からログアウトすると、端末から作業セッション履歴、楽曲再生履歴が削除されます。Chordia Sync からデータは削除されません。
 ・Chordia Sync から強制的にログアウトさせられると、一部の操作を行なったタイミングにログアウトを検知します。
-・作業モード
+・作業モード開発中
 
 v5.0.0 Now Developing
 ・設定画面に Chordia Sync と接続できるアカウント設定という項目を追加しました。[Chordia Sync](https://chordia.bellrin.f5.si/mypage/) というオンラインサービスとアカウントを紐づけ、他の Chordia アプリとが曲再生履歴や作業履歴を共有できるようになりました。詳しいご利用方法はREADMEをご確認ください。

@@ -16,31 +16,52 @@ window.WorkMain = {
     },
 
     setupWindowControls: function() {
-        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-        
-        // ★ Rust バックエンド関数を通して確実にウィンドウを制御
-        const btnWinClose = document.getElementById('btnWinClose');
+        // ★ マウスホバーで表示される緑ボタンによる最大化/元に戻す制御
         const btnSwitchMode = document.getElementById('btnSwitchMode');
-
-        if (btnWinClose) {
-            btnWinClose.onclick = async () => {
-                try {
-                    await invoke('close_work_window');
-                } catch(e) {
-                    window.close(); // Fallback
-                }
-            };
-        }
 
         if (btnSwitchMode) {
             btnSwitchMode.onclick = async () => {
-                try {
-                    await invoke('toggle_maximize_work_window');
-                } catch(e) {
-                    console.error("Maximize error:", e);
+                if (window.__TAURI__ && window.__TAURI__.window) {
+                    const win = window.__TAURI__.window.getCurrentWindow();
+                    const isMax = await win.isMaximized();
+                    const isFull = await win.isFullscreen();
+                    if (isMax || isFull) {
+                        await win.unmaximize();
+                        await win.setFullscreen(false);
+                    } else {
+                        await win.maximize();
+                    }
                 }
             };
         }
+
+        // ★ F11 / Esc キーによるウィンドウ最大化・解除のショートカット
+        document.addEventListener('keydown', async (e) => {
+            if (e.key === 'F11') {
+                e.preventDefault();
+                if (window.__TAURI__ && window.__TAURI__.window) {
+                    const win = window.__TAURI__.window.getCurrentWindow();
+                    const isMax = await win.isMaximized();
+                    const isFull = await win.isFullscreen();
+                    if (isMax || isFull) {
+                        await win.unmaximize();
+                        await win.setFullscreen(false);
+                    } else {
+                        await win.maximize();
+                    }
+                }
+            } else if (e.key === 'Escape') {
+                if (window.__TAURI__ && window.__TAURI__.window) {
+                    const win = window.__TAURI__.window.getCurrentWindow();
+                    const isMax = await win.isMaximized();
+                    const isFull = await win.isFullscreen();
+                    if (isMax || isFull) {
+                        await win.unmaximize();
+                        await win.setFullscreen(false);
+                    }
+                }
+            }
+        });
     },
 
     setupNavigation: function() {
@@ -90,12 +111,6 @@ window.WorkMain = {
         document.getElementById('configContainer').style.display = 'block';
         document.body.className = 'mode-config';
         document.getElementById('workConfigView').style.display = 'block';
-
-        // 設定画面に戻った際にコントロールボタンを再表示
-        const windowControls = document.getElementById('windowControlsMac');
-        if (windowControls) {
-            windowControls.style.display = 'flex';
-        }
 
         const pageTitle = document.getElementById('pageTitle');
         if (pageTitle) pageTitle.textContent = "作業設定";

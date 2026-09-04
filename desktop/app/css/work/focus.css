@@ -6,6 +6,40 @@ body.mode-focus {
     overflow: hidden !important;
 }
 
+body.mode-focus * {
+    color: #ffffff !important;
+}
+
+/* タイトルバーホバー時のコントロール表示（黒背景用） */
+.mode-focus .window-titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 36px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    box-sizing: border-box;
+    -webkit-app-region: drag;
+    background: transparent;
+}
+
+.mode-focus .window-controls-mac {
+    display: flex;
+    align-items: center;
+    -webkit-app-region: no-drag;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.mode-focus .window-titlebar:hover .window-controls-mac {
+    opacity: 1;
+    visibility: visible;
+}
+
 /* z-index と配置を確実に行う */
 .focus-screen-container {
     position: fixed !important;
@@ -48,7 +82,7 @@ body.mode-focus {
     text-align: left;
 }
 
-/* ★ 日付は #424242 */
+/* 日付は #424242 */
 .focus-date-text {
     font-size: clamp(1.2rem, 3vw, 2.2rem) !important;
     font-weight: 700;
@@ -83,7 +117,7 @@ body.mode-focus {
     margin-bottom: 8px;
 }
 
-/* ★ 作業時間は #4F46E5 */
+/* 作業時間は #4F46E5 */
 .focus-elapsed-text {
     font-size: clamp(4rem, 12vw, 9.5rem) !important;
     font-weight: 800;
@@ -103,7 +137,7 @@ body.mode-focus {
     margin-bottom: 20px;
 }
 
-/* ★ 名言は #424242 で少し小さく */
+/* 名言は #424242 で少し小さく */
 .focus-quote-text {
     font-size: clamp(0.85rem, 1.8vw, 1.1rem) !important;
     font-weight: 500;
@@ -112,7 +146,7 @@ body.mode-focus {
     max-width: 850px;
 }
 
-/* ★ 再生中楽曲名は #424242 で少し小さく、背景は透明に */
+/* 再生中楽曲名は #424242 で少し小さく、背景は透明に */
 .focus-now-playing-text {
     display: inline-flex;
     align-items: center;
@@ -125,7 +159,7 @@ body.mode-focus {
     border-radius: 20px;
 }
 
-/* ★ 楽曲名の横のアイコンも #424242 に統一 */
+/* 楽曲名の横のアイコンも #424242 に統一 */
 .focus-now-playing-text svg {
     width: 14px;
     height: 14px;
@@ -197,7 +231,7 @@ body.mode-focus {
     color: rgba(255, 255, 255, 0.45) !important;
 }
 
-/* ★ PAUSED TIMEの時間は赤い文字 */
+/* PAUSED TIMEの時間は赤い文字 */
 .pause-time-val {
     font-size: 2.4rem !important;
     font-weight: 800;
@@ -254,7 +288,7 @@ body.mode-focus {
     align-items: center;
 }
 
-/* ★ 今すぐ終了するボタンは赤い文字 */
+/* 今すぐ終了するボタンは赤い文字 */
 .btn-exit-focus {
     background: transparent;
     border: none;

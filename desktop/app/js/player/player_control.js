@@ -33,7 +33,6 @@
                 };
             }
 
-            // ★ AirPlay / 出力デバイス切り替え機能の初期化
             this.initAirPlay();
 
             const btnPlayPause = document.getElementById('hdrBtnPlayPause');
@@ -160,7 +159,7 @@
             });
         },
 
-        // ★ 改善: 再生前でも動作する AirPlay ＆ オーディオ出力先変更機能
+        // ★ AirPlay / 出力デバイス切り替え機能の初期化（サウンド設定との2択メニュー表示）
         initAirPlay: function() {
             const btnAirPlay = document.getElementById('btnAirPlay');
             const audio = document.getElementById('mainAudio');
@@ -177,74 +176,110 @@
             btnAirPlay.addEventListener('click', async (e) => {
                 e.stopPropagation();
 
-                // メニューが既に開いている場合は閉じる（トグル動作）
                 if (menu && menu.style.display === 'block') {
                     menu.style.display = 'none';
                     return;
                 }
 
-                // 未再生時（audio.src が空の時）に WebKit ピッカーが無反応になるのを防ぐため一時的に無音ソースを設定
-                const hadNoSrc = !audio.src;
-                if (hadNoSrc) {
-                    audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-                }
+                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                const isMac = navigator.userAgent.includes('Mac');
 
-                // 1. macOS / Safari (WKWebView) 純正 AirPlay ピッカーの呼出し
-                if (typeof audio.webkitShowPlaybackTargetPicker === 'function') {
+                const list = menu.querySelector('ul');
+                if (!list) return;
+
+                list.innerHTML = '';
+
+                // 1. サウンド設定を開く
+                const liSound = document.createElement('li');
+                liSound.innerHTML = `<span>サウンド設定を開く</span>`;
+                liSound.onclick = async (ev) => {
+                    ev.stopPropagation();
                     try {
-                        audio.webkitShowPlaybackTargetPicker();
+                        await invoke("open_sound_settings");
+                    } catch(err) {
+                        console.error(err);
+                    }
+                    menu.style.display = 'none';
+                };
+                list.appendChild(liSound);
+
+                // 2. 従来の項目（AirPlayまたはデバイス選択）
+                const liDevices = document.createElement('li');
+                if (isMac) {
+                    liDevices.innerHTML = `<span>AirPlay対応機器一覧</span>`;
+                } else {
+                    liDevices.innerHTML = `<span>出力デバイスを変更</span>`;
+                }
+                
+                liDevices.onclick = async (ev) => {
+                    ev.stopPropagation();
+                    
+                    const hadNoSrc = !audio.src;
+                    if (hadNoSrc) {
+                        audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+                    }
+
+                    // Mac: AirPlay
+                    if (typeof audio.webkitShowPlaybackTargetPicker === 'function') {
+                        try {
+                            audio.webkitShowPlaybackTargetPicker();
+                        } catch (err) {
+                            console.warn("webkitShowPlaybackTargetPicker failed:", err);
+                        }
+                        menu.style.display = 'none';
                         return;
-                    } catch (err) {
-                        console.warn("webkitShowPlaybackTargetPicker failed, falling back to Web API:", err);
                     }
-                }
 
-                // 2. ブラウザ標準 selectAudioOutput API (Chromium / Web API サポート環境)
-                if (navigator.mediaDevices && typeof navigator.mediaDevices.selectAudioOutput === 'function') {
-                    try {
-                        const device = await navigator.mediaDevices.selectAudioOutput();
-                        if (device && typeof audio.setSinkId === 'function') {
-                            await audio.setSinkId(device.deviceId);
-                            u.showToast(`出力先: ${device.label || '選択されたデバイス'}`);
-                            btnAirPlay.classList.add('active');
-                            if (hadNoSrc && !s.isPlaying) audio.src = "";
-                            return;
+                    // Windows等: selectAudioOutput API
+                    if (navigator.mediaDevices && typeof navigator.mediaDevices.selectAudioOutput === 'function') {
+                        try {
+                            const device = await navigator.mediaDevices.selectAudioOutput();
+                            if (device && typeof audio.setSinkId === 'function') {
+                                await audio.setSinkId(device.deviceId);
+                                u.showToast(`出力先: ${device.label || '選択されたデバイス'}`);
+                                btnAirPlay.classList.add('active');
+                                if (hadNoSrc && !s.isPlaying) audio.src = "";
+                            }
+                        } catch (err) {
+                            if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                                console.warn("selectAudioOutput error:", err);
+                            }
                         }
-                    } catch (err) {
-                        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-                            console.warn("selectAudioOutput error:", err);
+                        menu.style.display = 'none';
+                        return;
+                    }
+
+                    // 共通: フォールバック
+                    if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
+                        try {
+                            let devices = await navigator.mediaDevices.enumerateDevices();
+                            let audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+
+                            if (audioOutputs.length > 0 && !audioOutputs[0].label) {
+                                try {
+                                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                                    stream.getTracks().forEach(track => track.stop());
+                                    devices = await navigator.mediaDevices.enumerateDevices();
+                                    audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                                } catch(e) {}
+                            }
+
+                            if (audioOutputs.length > 0) {
+                                window.PlayerController.showAudioDeviceMenu(audioOutputs, btnAirPlay, menu, audio);
+                                return;
+                            }
+                        } catch (err) {
+                            console.error("enumerateDevices error:", err);
                         }
                     }
-                }
 
-                // 3. 出力デバイス選択ポップアップ (Windows / Mac 共通 Fallback)
-                if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
-                    try {
-                        let devices = await navigator.mediaDevices.enumerateDevices();
-                        let audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                    window.PlayerController.showAudioDeviceMenu([
+                        { deviceId: 'default', label: 'システム既定のスピーカー / 出力' }
+                    ], btnAirPlay, menu, audio);
+                };
+                list.appendChild(liDevices);
 
-                        if (audioOutputs.length > 0 && !audioOutputs[0].label) {
-                            try {
-                                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                                stream.getTracks().forEach(track => track.stop());
-                                devices = await navigator.mediaDevices.enumerateDevices();
-                                audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-                            } catch(e) {}
-                        }
-
-                        if (audioOutputs.length > 0) {
-                            this.showAudioDeviceMenu(audioOutputs, btnAirPlay, menu, audio);
-                            return;
-                        }
-                    } catch (err) {
-                        console.error("enumerateDevices error:", err);
-                    }
-                }
-
-                // 4. デバイス列挙が取得できない場合でも、安全なフォールバック選択肢でメニューを表示
-                this.showAudioDeviceMenu([
-                    { deviceId: 'default', label: 'システム既定のスピーカー / 出力' }
-                ], btnAirPlay, menu, audio);
+                menu.style.display = 'block';
             });
         },
 
@@ -311,8 +346,6 @@
                         targetGain = this.userVolume * factor;
                         
                         targetGain = Math.max(0.0, Math.min(1.0, targetGain));
-                        
-                        console.log(`[Volume Normalized] LUFS: ${lufs.toFixed(2)}, Diff: ${diff.toFixed(2)}dB, Final Volume: ${targetGain.toFixed(2)}`);
                     }
                 }
             } catch (e) {

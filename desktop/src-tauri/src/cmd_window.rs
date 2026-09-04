@@ -70,7 +70,6 @@ pub async fn close_lufs_calc_window(app: tauri::AppHandle) -> Result<(), String>
     Ok(())
 }
 
-// ★ 作業モードウィンドウを閉じるためのコマンド
 #[tauri::command]
 pub async fn close_work_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("work_window") { 
@@ -79,7 +78,6 @@ pub async fn close_work_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-// ★ 作業モードウィンドウの最大化/通常切り替えコマンド
 #[tauri::command]
 pub async fn toggle_maximize_work_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("work_window") {
@@ -175,6 +173,33 @@ pub fn open_url(url: String) -> Result<(), String> {
             .arg(&url)
             .spawn()
             .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+// ★ 追加：OSのシステムサウンド設定画面を直接開くコマンド
+#[tauri::command]
+pub fn open_sound_settings() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(&["/C", "start", "ms-settings:sound"])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.sound")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = (); // Linux等ではスキップ
     }
 
     Ok(())
