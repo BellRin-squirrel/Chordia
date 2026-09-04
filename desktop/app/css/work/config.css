@@ -25,22 +25,17 @@ body {
     background: transparent;
 }
 
-/* ★ 通常時は非表示にし、タイトルバーホバー時に表示させる */
+/* ★ 作業設定・準備完了画面では常に表示し、ボタン間の隙間を広げる */
 .window-controls-mac {
     display: flex;
     align-items: center;
+    gap: 14px; 
     -webkit-app-region: no-drag;
-    opacity: 0;
-    visibility: hidden;
+    opacity: 1;
+    visibility: visible;
     transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-.window-titlebar:hover .window-controls-mac {
-    opacity: 1;
-    visibility: visible;
-}
-
-/* 緑色のボタンのみ表示 */
 .btn-circle-mac {
     width: 14px;
     height: 14px;
@@ -65,9 +60,9 @@ body {
     color: rgba(0, 0, 0, 0.7);
 }
 
-.btn-green {
-    background-color: #28c840;
-}
+/* ★ 閉じるボタンと最大化ボタンの色を確実に適用 */
+.btn-red { background-color: #ff5e56 !important; }
+.btn-green { background-color: #28c840 !important; }
 
 .window-drag-region {
     flex: 1;

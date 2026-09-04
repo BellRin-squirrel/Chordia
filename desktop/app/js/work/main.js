@@ -16,52 +16,39 @@ window.WorkMain = {
     },
 
     setupWindowControls: function() {
-        // ★ マウスホバーで表示される緑ボタンによる最大化/元に戻す制御
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+        
+        // ★ Mac環境の場合はシステム標準の枠が付くため、自前のタイトルバーは非表示にする
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
+        if (isMac) {
+            const titlebar = document.getElementById('windowTitlebar');
+            if (titlebar) {
+                titlebar.style.display = 'none';
+            }
+        }
+
+        const btnWinClose = document.getElementById('btnWinClose');
         const btnSwitchMode = document.getElementById('btnSwitchMode');
 
-        if (btnSwitchMode) {
-            btnSwitchMode.onclick = async () => {
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    const win = window.__TAURI__.window.getCurrentWindow();
-                    const isMax = await win.isMaximized();
-                    const isFull = await win.isFullscreen();
-                    if (isMax || isFull) {
-                        await win.unmaximize();
-                        await win.setFullscreen(false);
-                    } else {
-                        await win.maximize();
-                    }
+        if (btnWinClose) {
+            btnWinClose.onclick = async () => {
+                try {
+                    await invoke('close_work_window');
+                } catch(e) {
+                    window.close();
                 }
             };
         }
 
-        // ★ F11 / Esc キーによるウィンドウ最大化・解除のショートカット
-        document.addEventListener('keydown', async (e) => {
-            if (e.key === 'F11') {
-                e.preventDefault();
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    const win = window.__TAURI__.window.getCurrentWindow();
-                    const isMax = await win.isMaximized();
-                    const isFull = await win.isFullscreen();
-                    if (isMax || isFull) {
-                        await win.unmaximize();
-                        await win.setFullscreen(false);
-                    } else {
-                        await win.maximize();
-                    }
+        if (btnSwitchMode) {
+            btnSwitchMode.onclick = async () => {
+                try {
+                    await invoke('toggle_maximize_work_window');
+                } catch(e) {
+                    console.error("Maximize error:", e);
                 }
-            } else if (e.key === 'Escape') {
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    const win = window.__TAURI__.window.getCurrentWindow();
-                    const isMax = await win.isMaximized();
-                    const isFull = await win.isFullscreen();
-                    if (isMax || isFull) {
-                        await win.unmaximize();
-                        await win.setFullscreen(false);
-                    }
-                }
-            }
-        });
+            };
+        }
     },
 
     setupNavigation: function() {

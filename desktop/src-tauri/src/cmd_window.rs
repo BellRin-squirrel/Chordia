@@ -17,11 +17,17 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
         .inner_size(width, height)
         .resizable(true);
 
-    if label == "mini_player_window" || label == "work_window" {
+    // ★ Macのドラッグ問題を回避するため、work_window は Mac のみ通常ウィンドウにする
+    if label == "mini_player_window" {
         builder = builder.decorations(false);
-        
         #[cfg(any(not(target_os = "macos"), feature = "macos-private-api"))]
         {
+            builder = builder.transparent(true);
+        }
+    } else if label == "work_window" {
+        #[cfg(not(target_os = "macos"))]
+        {
+            builder = builder.decorations(false);
             builder = builder.transparent(true);
         }
     }
@@ -70,6 +76,7 @@ pub async fn close_lufs_calc_window(app: tauri::AppHandle) -> Result<(), String>
     Ok(())
 }
 
+// ★ 作業モードウィンドウを閉じるためのコマンド
 #[tauri::command]
 pub async fn close_work_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("work_window") { 
@@ -78,6 +85,7 @@ pub async fn close_work_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ★ 作業モードウィンドウの最大化/通常切り替えコマンド
 #[tauri::command]
 pub async fn toggle_maximize_work_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("work_window") {
@@ -178,7 +186,7 @@ pub fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-// ★ 追加：OSのシステムサウンド設定画面を直接開くコマンド
+// ★ 消失していたサウンド設定用コマンドを復旧
 #[tauri::command]
 pub fn open_sound_settings() -> Result<(), String> {
     #[cfg(target_os = "windows")]

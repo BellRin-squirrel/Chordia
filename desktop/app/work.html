@@ -25,7 +25,7 @@
     <div class="window-titlebar" id="windowTitlebar">
         <div class="window-controls-mac" id="windowControlsMac">
             <button id="btnWinClose" class="btn-circle-mac btn-red tick-btn" title="閉じる">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <button id="btnSwitchMode" class="btn-circle-mac btn-green tick-btn" title="最大化 / 通常表示の切り替え">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
@@ -306,11 +306,19 @@
                 <div id="focusClockDisplay" class="focus-clock-text">22:19</div>
             </div>
 
-            <!-- 右側 (または中央): 作業経過時間 -->
+            <!-- 右側 (または中央): 作業経過時間 & ポモドーロ情報 -->
             <div class="focus-right-col" id="focusRightCol">
-                <!-- ★ TOTAL WORK を TOTAL TIME に修正 -->
-                <div id="focusTotalWorkLabel" class="focus-total-label" style="display: none;">TOTAL TIME</div>
-                <div id="focusElapsedDisplay" class="focus-elapsed-text">0:00</div>
+                <!-- 常に表示する TOTAL TIME と 作業時間 -->
+                <div id="focusTotalWorkLabel" class="focus-total-label">TOTAL TIME</div>
+                <div id="focusTotalWorkDisplay" class="focus-elapsed-text">0:00</div>
+                
+                <!-- ポモドーロ有効時用 バッジ & タイマー -->
+                <div id="pomoBadgeArea" class="pomo-badge-area" style="display: none;">
+                    <div id="pomoStatusBadge" class="pomo-status-badge focus-mode">
+                        <span class="pomo-dot"></span><span id="pomoStatusText">FOCUSING</span>
+                    </div>
+                </div>
+                <div id="focusPomoTimerDisplay" class="focus-pomo-timer-text" style="display: none;">0:00</div>
             </div>
         </div>
 
@@ -327,7 +335,7 @@
         <div id="pauseOverlay" class="pause-overlay" style="display: none;">
             <div class="pause-center-box">
                 <div class="pause-icon">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.75 5.25a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Zm10.5 0a1.5 1.5 0 0 0-1.5 1.5v10.5a1.5 1.5 0 0 0 3 0V6.75a1.5 1.5 0 0 0-1.5-1.5Z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>
                 </div>
                 <h2 class="pause-title">PAUSED</h2>
                 <p class="pause-sub">Spaceキーで再開</p>
@@ -344,19 +352,44 @@
             <div class="modal-card focus-help-card">
                 <h3 style="margin-bottom: 20px;">操作ヘルプ</h3>
                 <div class="help-list-box">
+                    
                     <div class="help-row">
-                        <span class="help-key-badge">Space</span>
-                        <span class="help-desc">一時停止 / 再開</span>
+                        <span class="help-key-badge">
+                            <!-- 一時停止アイコン -->
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>
+                        </span>
+                        <div class="help-text-col">
+                            <span class="help-desc">一時停止 / 再開</span>
+                            <span class="help-sub"><kbd>Space</kbd> キー</span>
+                        </div>
                     </div>
+                    
                     <div class="help-row">
-                        <span class="help-key-badge">クリック</span>
-                        <span class="help-desc">操作ヘルプを表示</span>
+                        <span class="help-key-badge">
+                            <!-- メニューアイコン (3本線) -->
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                        </span>
+                        <div class="help-text-col">
+                            <span class="help-desc">操作ヘルプを表示</span>
+                            <span class="help-sub">画面を <kbd>クリック</kbd></span>
+                        </div>
                     </div>
+
+                    <!-- 終了する -->
+                    <div class="help-row">
+                        <span class="help-key-badge badge-red">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </span>
+                        <div class="help-text-col">
+                            <span class="help-desc">作業を終了する</span>
+                            <span class="help-sub" id="shortcutExit"></span>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div class="help-actions-col">
                     <button type="button" id="btnResumeFocus" class="btn-enjoy-focus" style="width: 100%; max-width: none;">理解して再開する</button>
-                    <!-- 終了時にウィンドウを閉じるためのボタン -->
                     <button type="button" id="btnExitFocus" class="btn-exit-focus">今すぐ終了する</button>
                 </div>
             </div>

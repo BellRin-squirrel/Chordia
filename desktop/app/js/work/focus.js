@@ -1,31 +1,111 @@
 window.WorkFocus = {
     isFocusActive: false,
     isPaused: false,
+    isHelpOpen: false, 
     focusTimerInterval: null,
     quoteInterval: null,
     clockInterval: null,
     pauseTimerInterval: null,
 
-    totalWorkSeconds: 0,
-    currentSessionSeconds: 0,
-    pausedSeconds: 0,
+    cfg: null, 
 
-    playbackQueue: [],
-    currentQueueIndex: 0,
+    // ポモドーロ＆タイマー用のステータス
+    pomoPhase: 'WORK', // 'WORK' or 'BREAK'
+    totalWorkSeconds: 0, // 累計の実作業時間（WORKフェーズ中のみ加算される）
+    pomoRemaining: 0,    // フェーズの残り時間（秒）
+    isMusicFadingOut: false, 
+    
+    // 音楽再生用のキューと進行状態
+    workQueue: [],
+    workIndex: 0,
+    workProgressSec: 0, 
+
+    breakQueue: [],
+    breakIndex: 0,
+    breakProgressSec: 0,
+
+    normalQueue: [],
+    normalIndex: 0,
 
     init: function() {
         const audioPlayer = document.getElementById('workAudioPlayer');
         if (audioPlayer) {
             audioPlayer.addEventListener('ended', () => {
-                if (this.playbackQueue.length > 0) {
-                    this.currentQueueIndex = (this.currentQueueIndex + 1) % this.playbackQueue.length;
-                    this.playSongFromQueue();
+                if (this.cfg && this.cfg.pomodoroMode) {
+                    if (this.pomoPhase === 'WORK' && this.workQueue.length > 0) {
+                        this.workIndex = (this.workIndex + 1) % this.workQueue.length;
+                        this.workProgressSec = 0;
+                        this.playCurrentPhaseSong();
+                    } else if (this.pomoPhase === 'BREAK' && this.breakQueue.length > 0) {
+                        this.breakIndex = (this.breakIndex + 1) % this.breakQueue.length;
+                        this.breakProgressSec = 0;
+                        this.playCurrentPhaseSong();
+                    }
+                } else {
+                    if (this.normalQueue.length > 0) {
+                        this.normalIndex = (this.normalIndex + 1) % this.normalQueue.length;
+                        this.playCurrentPhaseSong();
+                    }
+                }
+            });
+            
+            // 再生位置のリアルタイム保持
+            audioPlayer.addEventListener('timeupdate', () => {
+                if (this.cfg && this.cfg.pomodoroMode && !this.isMusicFadingOut) {
+                    if (this.pomoPhase === 'WORK') {
+                        this.workProgressSec = audioPlayer.currentTime;
+                    } else {
+                        this.breakProgressSec = audioPlayer.currentTime;
+                    }
                 }
             });
         }
 
-        document.addEventListener('keydown', (e) => {
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
+        const shortcutExit = document.getElementById('shortcutExit');
+        if (shortcutExit) {
+            shortcutExit.innerHTML = isMac ? `<kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>Q</kbd>` : `<kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Q</kbd>`;
+        }
+
+        document.addEventListener('keydown', async (e) => {
             if (!this.isFocusActive) return;
+
+            if (e.ctrlKey && e.altKey && (e.code === 'KeyQ' || e.key.toLowerCase() === 'q')) {
+                e.preventDefault();
+                this.closeHelpModal();
+                this.stopSession();
+                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                try {
+                    await invoke('close_work_window');
+                } catch (err) {
+                    window.close();
+                }
+                return;
+            }
+
+            if (e.key === 'F11' || e.key === 'Escape') {
+                e.preventDefault();
+                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                try {
+                    if (e.key === 'F11') {
+                        await invoke('toggle_maximize_work_window');
+                    } else if (e.key === 'Escape') {
+                        if (window.__TAURI__ && window.__TAURI__.window) {
+                            const win = window.__TAURI__.window.getCurrentWindow();
+                            const isMax = await win.isMaximized();
+                            const isFull = await win.isFullscreen();
+                            if (isMax || isFull) {
+                                await win.unmaximize();
+                                await win.setFullscreen(false);
+                            }
+                        }
+                    }
+                } catch(err) {
+                    console.error("Window state error:", err);
+                }
+                return;
+            }
+
             const helpModal = document.getElementById('focusHelpModal');
             if (helpModal && helpModal.classList.contains('show')) return;
 
@@ -61,11 +141,10 @@ window.WorkFocus = {
                 this.closeHelpModal();
                 this.stopSession();
                 
-                // ★ ウィンドウ自体を完全に閉じる
                 const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                 try {
                     await invoke('close_work_window');
-                } catch (e) {
+                } catch (err) {
                     window.close();
                 }
             });
@@ -89,15 +168,14 @@ window.WorkFocus = {
         };
 
         let raw = localStorage.getItem('chordia_work_config');
-        let cfg = defaultConfig;
+        this.cfg = defaultConfig;
         try {
-            if (raw) cfg = Object.assign({}, defaultConfig, JSON.parse(raw));
-            if (!cfg.slots) cfg.slots = defaultConfig.slots;
+            if (raw) this.cfg = Object.assign({}, defaultConfig, JSON.parse(raw));
+            if (!this.cfg.slots) this.cfg.slots = defaultConfig.slots;
         } catch(e) {
-            cfg = defaultConfig;
+            this.cfg = defaultConfig;
         }
 
-        // 表示の確実な切り替え
         const configContainer = document.getElementById('configContainer');
         const workReadyView = document.getElementById('workReadyView');
         const workFocusView = document.getElementById('workFocusView');
@@ -112,7 +190,6 @@ window.WorkFocus = {
         }
         document.body.className = 'mode-focus';
 
-        // ★ 作業モード（黒画面）に入ったら、ウィンドウ左上のボタンコントロールを完全に非表示にする
         const windowControls = document.getElementById('windowControlsMac');
         if (windowControls) {
             windowControls.style.display = 'none';
@@ -120,62 +197,278 @@ window.WorkFocus = {
 
         this.isFocusActive = true;
         this.isPaused = false;
+        this.isHelpOpen = false; 
         this.totalWorkSeconds = 0;
-        this.currentSessionSeconds = 0;
 
-        // 即座に初期同期描画
-        this.applyDisplayFormats(cfg);
-        this.updateClock(cfg);
-        this.updateElapsedTime();
-        this.updateQuote(cfg);
+        // キュー初期化
+        this.workQueue = []; this.workIndex = 0; this.workProgressSec = 0;
+        this.breakQueue = []; this.breakIndex = 0; this.breakProgressSec = 0;
+        this.normalQueue = []; this.normalIndex = 0;
+        await this.loadAllPlaylists();
 
-        // 定期タイマーの起動
+        // ★ ポモドーロの初期化
+        if (this.cfg.pomodoroMode) {
+            this.pomoPhase = 'WORK';
+            this.pomoRemaining = this.cfg.workDuration * 60;
+        } else {
+            this.pomoPhase = 'NORMAL';
+            this.pomoRemaining = 0; 
+        }
+        
+        this.isMusicFadingOut = false;
+
+        this.applyDisplayFormats();
+        this.updateClock();
+        this.updateElapsedTimeUI();
+        this.updateQuote();
+
         if (this.quoteInterval) clearInterval(this.quoteInterval);
-        this.quoteInterval = setInterval(() => this.updateQuote(cfg), 60000);
+        this.quoteInterval = setInterval(() => this.updateQuote(), 60000);
 
         if (this.clockInterval) clearInterval(this.clockInterval);
-        this.clockInterval = setInterval(() => this.updateClock(cfg), 1000);
+        this.clockInterval = setInterval(() => this.updateClock(), 1000);
 
         if (this.focusTimerInterval) clearInterval(this.focusTimerInterval);
         this.focusTimerInterval = setInterval(() => {
-            if (!this.isPaused) {
-                this.totalWorkSeconds++;
-                this.currentSessionSeconds++;
-                this.updateElapsedTime();
+            if (!this.isPaused && !this.isHelpOpen) {
+                // 1秒進める
+                if (this.pomoPhase === 'WORK' || this.pomoPhase === 'NORMAL') {
+                    this.totalWorkSeconds++;
+                }
+
+                if (this.cfg.pomodoroMode) {
+                    this.pomoRemaining--;
+                    this.checkPomodoroTransition();
+                }
+
+                this.updateElapsedTimeUI();
             }
         }, 1000);
 
-        // 音楽再生の開始（非ブロッキング）
-        this.startMusic(cfg).catch(err => console.error("Music playback err:", err));
+        this.playCurrentPhaseSong();
     },
 
-    applyDisplayFormats: function(cfg) {
+    loadAllPlaylists: async function() {
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+        const loadSlot = async (slotData) => {
+            if (!slotData || !slotData.target) return [];
+            let songs = [];
+            if (slotData.target.type === 'playlist') {
+                const details = await invoke("get_playlist_details", { plId: slotData.target.id });
+                if (details && details.songs) songs = details.songs;
+            } else if (slotData.target.type === 'album') {
+                const details = await invoke("get_virtual_playlist_details", { field: "album", value: slotData.target.name });
+                if (details && details.songs) songs = details.songs;
+            } else if (slotData.target.type === 'artist') {
+                const details = await invoke("get_virtual_playlist_details", { field: "artist", value: slotData.target.name });
+                if (details && details.songs) songs = details.songs;
+            }
+            if (songs.length > 0 && slotData.shuffle) {
+                for (let i = songs.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [songs[i], songs[j]] = [songs[j], songs[i]];
+                }
+            }
+            return songs;
+        };
+
+        if (this.cfg.pomodoroMode) {
+            this.workQueue = await loadSlot(this.cfg.slots.work);
+            this.breakQueue = await loadSlot(this.cfg.slots.break);
+        } else {
+            this.normalQueue = await loadSlot(this.cfg.slots.normal);
+        }
+    },
+
+    checkPomodoroTransition: async function() {
+        const audioPlayer = document.getElementById('workAudioPlayer');
+        
+        // 残り6秒: フェードアウト開始
+        if (this.pomoRemaining === 6 && !this.isMusicFadingOut && audioPlayer && !audioPlayer.paused) {
+            this.isMusicFadingOut = true;
+            this.fadeOutAudio(audioPlayer, 4500); 
+        }
+
+        // 残り0秒: フェーズ切り替え
+        if (this.pomoRemaining <= 0) {
+            this.isMusicFadingOut = false;
+            if (audioPlayer) audioPlayer.pause();
+            
+            this.playBeepAndVibrate();
+
+            if (this.pomoPhase === 'WORK') {
+                this.pomoPhase = 'BREAK';
+                this.pomoRemaining = this.cfg.breakDuration * 60;
+            } else {
+                this.pomoPhase = 'WORK';
+                this.pomoRemaining = this.cfg.workDuration * 60;
+            }
+            
+            this.updateElapsedTimeUI();
+            this.playCurrentPhaseSong(true); 
+        }
+    },
+
+    // ★ Web Audio APIから HTML Audio による再生に変更
+    playBeepAndVibrate: function() {
+        if ('vibrate' in navigator) {
+            navigator.vibrate([500, 200, 500]);
+        }
+        
+        const beepUrl = "https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav";
+        const beepAudio = new Audio(beepUrl);
+        beepAudio.volume = 1.0;
+        beepAudio.play().catch(e => console.error("BeepSound play error:", e));
+    },
+
+    fadeOutAudio: function(audio, durationMs) {
+        const steps = 10;
+        const interval = durationMs / steps;
+        let currentVol = audio.volume;
+        const stepVol = currentVol / steps;
+
+        const fade = setInterval(() => {
+            if (audio.paused || this.pomoRemaining <= 0) {
+                clearInterval(fade);
+                return;
+            }
+            currentVol -= stepVol;
+            if (currentVol <= 0.05) {
+                currentVol = 0;
+                clearInterval(fade);
+            }
+            audio.volume = Math.max(0, currentVol);
+        }, interval);
+    },
+
+    fadeInAudio: function(audio, targetVolume, durationMs) {
+        audio.volume = 0;
+        const steps = 10;
+        const interval = durationMs / steps;
+        const stepVol = targetVolume / steps;
+        let currentVol = 0;
+
+        const fade = setInterval(() => {
+            if (audio.paused) {
+                clearInterval(fade);
+                return;
+            }
+            currentVol += stepVol;
+            if (currentVol >= targetVolume) {
+                currentVol = targetVolume;
+                clearInterval(fade);
+            }
+            audio.volume = Math.min(targetVolume, currentVol);
+        }, interval);
+    },
+
+    playCurrentPhaseSong: async function(withFadeIn = false) {
+        let song = null;
+        let startSec = 0;
+
+        if (this.cfg.pomodoroMode) {
+            if (this.pomoPhase === 'WORK') {
+                if (this.workQueue.length > 0) {
+                    song = this.workQueue[this.workIndex];
+                    startSec = this.workProgressSec;
+                }
+            } else {
+                if (this.breakQueue.length > 0) {
+                    song = this.breakQueue[this.breakIndex];
+                    startSec = this.breakProgressSec;
+                }
+            }
+        } else {
+            if (this.normalQueue.length > 0) {
+                song = this.normalQueue[this.normalIndex];
+            }
+        }
+
+        const audioPlayer = document.getElementById('workAudioPlayer');
+        const songNameText = document.getElementById('focusSongNameText');
+
+        if (!song || !audioPlayer) {
+            if (songNameText) songNameText.textContent = "再生可能な楽曲がありません";
+            return;
+        }
+
+        const convertFileSrc = window.__TAURI__.core ? window.__TAURI__.core.convertFileSrc : (window.__TAURI__.tauri ? window.__TAURI__.tauri.convertFileSrc : (p => p));
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+
+        try {
+            let streamUrl = song.streamUrl;
+            if (!streamUrl && song.musicFilename) {
+                const absPath = await invoke("resolve_path", { relPath: song.musicFilename });
+                streamUrl = convertFileSrc(absPath);
+            }
+            if (streamUrl) {
+                audioPlayer.src = streamUrl;
+                audioPlayer.load();
+
+                audioPlayer.currentTime = startSec;
+                
+                const savedVol = localStorage.getItem('player_volume') ? (parseFloat(localStorage.getItem('player_volume')) / 100) : 1.0;
+                
+                if (withFadeIn) {
+                    audioPlayer.volume = 0;
+                    audioPlayer.play().then(() => {
+                        this.fadeInAudio(audioPlayer, savedVol, 2000);
+                    }).catch(() => {});
+                } else {
+                    audioPlayer.volume = savedVol;
+                    audioPlayer.play().catch(() => {});
+                }
+                
+                if (songNameText) songNameText.textContent = `${song.title || 'Unknown'} - ${song.artist || 'Unknown'}`;
+            }
+        } catch(e) {
+            console.error("Play error:", e);
+        }
+    },
+
+    applyDisplayFormats: function() {
+        if (!this.cfg) return;
         const focusLeftCol = document.getElementById('focusLeftCol');
         const focusMainArea = document.getElementById('focusMainArea');
         const focusTotalWorkLabel = document.getElementById('focusTotalWorkLabel');
+        const focusTotalWorkDisplay = document.getElementById('focusTotalWorkDisplay');
         const focusDateDisplay = document.getElementById('focusDateDisplay');
         const focusClockDisplay = document.getElementById('focusClockDisplay');
+        
+        const pomoBadgeArea = document.getElementById('pomoBadgeArea');
+        const focusPomoTimerDisplay = document.getElementById('focusPomoTimerDisplay');
 
-        const isDateNone = cfg.dateFormat === 'none';
-        const isDayNone = cfg.dayFormat === 'none';
-        const isClockNone = cfg.clockFormat === 'none';
+        const isDateNone = this.cfg.dateFormat === 'none';
+        const isDayNone = this.cfg.dayFormat === 'none';
+        const isClockNone = this.cfg.clockFormat === 'none';
+
+        // 常に表示されるもの
+        if (focusTotalWorkLabel) focusTotalWorkLabel.style.display = 'block';
+        if (focusTotalWorkDisplay) focusTotalWorkDisplay.style.display = 'block';
 
         if (isDateNone && isDayNone && isClockNone) {
             if (focusLeftCol) focusLeftCol.style.display = 'none';
             if (focusMainArea) focusMainArea.classList.add('center-only');
-            if (focusTotalWorkLabel) focusTotalWorkLabel.style.display = 'block';
         } else {
             if (focusLeftCol) focusLeftCol.style.display = 'flex';
             if (focusMainArea) focusMainArea.classList.remove('center-only');
-            if (focusTotalWorkLabel) focusTotalWorkLabel.style.display = 'none';
         }
 
         if (focusDateDisplay) focusDateDisplay.style.display = (isDateNone && isDayNone) ? 'none' : 'block';
         if (focusClockDisplay) focusClockDisplay.style.display = isClockNone ? 'none' : 'block';
+
+        // ポモドーロモードON/OFFでの表示切り替え
+        if (this.cfg.pomodoroMode) {
+            if (pomoBadgeArea) pomoBadgeArea.style.display = 'block';
+            if (focusPomoTimerDisplay) focusPomoTimerDisplay.style.display = 'block';
+        } else {
+            if (pomoBadgeArea) pomoBadgeArea.style.display = 'none';
+            if (focusPomoTimerDisplay) focusPomoTimerDisplay.style.display = 'none';
+        }
     },
 
-    updateClock: function(cfg) {
-        if (!cfg) return;
+    updateClock: function() {
+        if (!this.cfg || this.cfg.clockFormat === 'none') return;
         const clockEl = document.getElementById('focusClockDisplay');
         const dateEl = document.getElementById('focusDateDisplay');
 
@@ -183,116 +476,79 @@ window.WorkFocus = {
         const hrs = now.getHours();
         const mins = String(now.getMinutes()).padStart(2, '0');
 
-        if (clockEl && cfg.clockFormat !== 'none') {
-            clockEl.textContent = (cfg.clockFormat === '12h') ? `${hrs % 12 || 12}:${mins}` : `${String(hrs).padStart(2, '0')}:${mins}`;
+        if (clockEl) {
+            clockEl.textContent = (this.cfg.clockFormat === '12h') ? `${hrs % 12 || 12}:${mins}` : `${String(hrs).padStart(2, '0')}:${mins}`;
         }
 
-        if (dateEl && (cfg.dateFormat !== 'none' || cfg.dayFormat !== 'none')) {
+        if (dateEl && (this.cfg.dateFormat !== 'none' || this.cfg.dayFormat !== 'none')) {
             let dateStr = "";
             const y = now.getFullYear();
             const m = now.getMonth() + 1;
             const d = now.getDate();
 
-            if (cfg.dateFormat === 'ymd') dateStr = `${y}年${m}月${d}日`;
-            else if (cfg.dateFormat === 'md') dateStr = `${m}月${d}日`;
-            else if (cfg.dateFormat === 'd') dateStr = `${d}日`;
+            if (this.cfg.dateFormat === 'ymd') dateStr = `${y}年${m}月${d}日`;
+            else if (this.cfg.dateFormat === 'md') dateStr = `${m}月${d}日`;
+            else if (this.cfg.dateFormat === 'd') dateStr = `${d}日`;
 
             const dayShort = ["日", "月", "火", "水", "木", "金", "土"][now.getDay()];
             const dayFull = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"][now.getDay()];
 
             let dayStr = "";
-            if (cfg.dayFormat === 'paren') dayStr = ` (${dayShort})`;
-            else if (cfg.dayFormat === 'short') dayStr = ` ${dayShort}曜`;
-            else if (cfg.dayFormat === 'full') dayStr = ` ${dayFull}`;
+            if (this.cfg.dayFormat === 'paren') dayStr = ` (${dayShort})`;
+            else if (this.cfg.dayFormat === 'short') dayStr = ` ${dayShort}曜`;
+            else if (this.cfg.dayFormat === 'full') dayStr = ` ${dayFull}`;
 
             dateEl.textContent = `${dateStr}${dayStr}`.trim();
         }
     },
 
-    updateElapsedTime: function() {
-        const el = document.getElementById('focusElapsedDisplay');
-        if (!el) return;
+    updateElapsedTimeUI: function() {
+        const totalEl = document.getElementById('focusTotalWorkDisplay');
+        const pomoEl = document.getElementById('focusPomoTimerDisplay');
 
-        const hrs = Math.floor(this.totalWorkSeconds / 3600);
-        const mins = Math.floor((this.totalWorkSeconds % 3600) / 60);
-        const secs = this.totalWorkSeconds % 60;
+        // 累計作業時間の更新
+        const tHrs = Math.floor(this.totalWorkSeconds / 3600);
+        const tMins = Math.floor((this.totalWorkSeconds % 3600) / 60);
+        const tSecs = this.totalWorkSeconds % 60;
 
-        el.textContent = (hrs > 0)
-            ? `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-            : `${mins}:${String(secs).padStart(2, '0')}`;
+        if (totalEl) {
+            totalEl.textContent = (tHrs > 0)
+                ? `${tHrs}:${String(tMins).padStart(2, '0')}:${String(tSecs).padStart(2, '0')}`
+                : `${tMins}:${String(tSecs).padStart(2, '0')}`;
+        }
+
+        // ポモドーロタイマーの更新
+        if (this.cfg && this.cfg.pomodoroMode) {
+            const badge = document.getElementById('pomoStatusBadge');
+            const text = document.getElementById('pomoStatusText');
+            if (badge && text) {
+                if (this.pomoPhase === 'WORK') {
+                    badge.className = 'pomo-status-badge focus-mode';
+                    text.textContent = 'FOCUSING';
+                } else {
+                    badge.className = 'pomo-status-badge break-mode';
+                    text.textContent = 'BREAK TIME';
+                }
+            }
+
+            const pMins = Math.floor(this.pomoRemaining / 60);
+            const pSecs = this.pomoRemaining % 60;
+            if (pomoEl) {
+                pomoEl.textContent = `${String(pMins).padStart(2, '0')}:${String(pSecs).padStart(2, '0')}`;
+            }
+        }
     },
 
-    updateQuote: function(cfg) {
+    updateQuote: function() {
         const quoteEl = document.getElementById('focusQuoteDisplay');
         if (!quoteEl) return;
-        if (cfg && !cfg.showQuote) {
+        if (this.cfg && !this.cfg.showQuote) {
             quoteEl.style.display = 'none';
             return;
         }
         quoteEl.style.display = 'block';
         if (window.WorkQuotes) {
             quoteEl.innerHTML = window.WorkQuotes.getRandomFormattedQuote();
-        }
-    },
-
-    startMusic: async function(cfg) {
-        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-        if (!cfg || !cfg.slots) return;
-        const slot = cfg.pomodoroMode ? cfg.slots.work : cfg.slots.normal;
-        if (!slot || !slot.target) return;
-
-        try {
-            let songs = [];
-            if (slot.target.type === 'playlist') {
-                const details = await invoke("get_playlist_details", { plId: slot.target.id });
-                if (details && details.songs) songs = details.songs;
-            } else if (slot.target.type === 'album') {
-                const details = await invoke("get_virtual_playlist_details", { field: "album", value: slot.target.name });
-                if (details && details.songs) songs = details.songs;
-            } else if (slot.target.type === 'artist') {
-                const details = await invoke("get_virtual_playlist_details", { field: "artist", value: slot.target.name });
-                if (details && details.songs) songs = details.songs;
-            }
-
-            if (songs.length > 0) {
-                if (slot.shuffle) {
-                    for (let i = songs.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [songs[i], songs[j]] = [songs[j], songs[i]];
-                    }
-                }
-                this.playbackQueue = songs;
-                this.currentQueueIndex = 0;
-                this.playSongFromQueue();
-            }
-        } catch(e) {
-            console.error("Focus music load error:", e);
-        }
-    },
-
-    playSongFromQueue: async function() {
-        if (this.playbackQueue.length === 0 || this.currentQueueIndex >= this.playbackQueue.length) return;
-        const song = this.playbackQueue[this.currentQueueIndex];
-        const audioPlayer = document.getElementById('workAudioPlayer');
-        const songNameText = document.getElementById('focusSongNameText');
-        const convertFileSrc = window.__TAURI__.core ? window.__TAURI__.core.convertFileSrc : (window.__TAURI__.tauri ? window.__TAURI__.tauri.convertFileSrc : (p => p));
-        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-
-        if (song && audioPlayer) {
-            try {
-                let streamUrl = song.streamUrl;
-                if (!streamUrl && song.musicFilename) {
-                    const absPath = await invoke("resolve_path", { relPath: song.musicFilename });
-                    streamUrl = convertFileSrc(absPath);
-                }
-                if (streamUrl) {
-                    audioPlayer.src = streamUrl;
-                    audioPlayer.play().catch(() => {});
-                    if (songNameText) songNameText.textContent = `${song.title || 'Unknown'} - ${song.artist || 'Unknown'}`;
-                }
-            } catch(e) {
-                console.error("Play error:", e);
-            }
         }
     },
 
@@ -317,23 +573,39 @@ window.WorkFocus = {
         } else {
             if (pauseOverlay) pauseOverlay.style.display = 'none';
             if (this.pauseTimerInterval) clearInterval(this.pauseTimerInterval);
-            if (audioPlayer && audioPlayer.src) audioPlayer.play().catch(() => {});
+            if (audioPlayer && audioPlayer.src) {
+                const savedVol = localStorage.getItem('player_volume') ? (parseFloat(localStorage.getItem('player_volume')) / 100) : 1.0;
+                audioPlayer.volume = savedVol;
+                this.isMusicFadingOut = false;
+                audioPlayer.play().catch(() => {});
+            }
         }
     },
 
     openHelpModal: function() {
+        this.isHelpOpen = true; 
         const modal = document.getElementById('focusHelpModal');
         if (modal) modal.classList.add('show');
+        
+        const audioPlayer = document.getElementById('workAudioPlayer');
+        if (audioPlayer) audioPlayer.pause();
     },
 
     closeHelpModal: function() {
+        this.isHelpOpen = false;
         const modal = document.getElementById('focusHelpModal');
         if (modal) modal.classList.remove('show');
+        
+        const audioPlayer = document.getElementById('workAudioPlayer');
+        if (audioPlayer && audioPlayer.src && !this.isPaused) {
+            audioPlayer.play().catch(() => {});
+        }
     },
 
     stopSession: function() {
         this.isFocusActive = false;
         this.isPaused = false;
+        this.isHelpOpen = false;
         if (this.focusTimerInterval) clearInterval(this.focusTimerInterval);
         if (this.quoteInterval) clearInterval(this.quoteInterval);
         if (this.clockInterval) clearInterval(this.clockInterval);
