@@ -16,30 +16,28 @@ window.WorkMain = {
     },
 
     setupWindowControls: function() {
-        // ★ ミニプレイヤーと同様の赤（閉じる）ボタンと緑（最大化）ボタンのイベントを紐付け
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+        
+        // ★ Rust バックエンド関数を通して確実にウィンドウを制御
         const btnWinClose = document.getElementById('btnWinClose');
         const btnSwitchMode = document.getElementById('btnSwitchMode');
 
         if (btnWinClose) {
-            btnWinClose.onclick = () => {
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    window.__TAURI__.window.getCurrentWindow().close();
-                } else {
-                    window.close();
+            btnWinClose.onclick = async () => {
+                try {
+                    await invoke('close_work_window');
+                } catch(e) {
+                    window.close(); // Fallback
                 }
             };
         }
 
         if (btnSwitchMode) {
             btnSwitchMode.onclick = async () => {
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    const win = window.__TAURI__.window.getCurrentWindow();
-                    const isMax = await win.isMaximized();
-                    if (isMax) {
-                        await win.unmaximize();
-                    } else {
-                        await win.maximize();
-                    }
+                try {
+                    await invoke('toggle_maximize_work_window');
+                } catch(e) {
+                    console.error("Maximize error:", e);
                 }
             };
         }
@@ -51,6 +49,7 @@ window.WorkMain = {
             btnReconfigure.addEventListener('click', () => this.showConfigView());
         }
 
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
         const osFocusGuideText = document.getElementById('osFocusGuideText');
         const osFocusSupportLink = document.getElementById('osFocusSupportLink');
@@ -69,7 +68,6 @@ window.WorkMain = {
             osFocusSupportLink.addEventListener('click', async (e) => {
                 e.preventDefault();
                 try {
-                    const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                     await invoke("open_url", { url: supportUrl });
                 } catch(err) {
                     window.open(supportUrl, '_blank');
@@ -93,7 +91,7 @@ window.WorkMain = {
         document.body.className = 'mode-config';
         document.getElementById('workConfigView').style.display = 'block';
 
-        // ★ 設定画面に戻った際にコントロールボタンを再表示
+        // 設定画面に戻った際にコントロールボタンを再表示
         const windowControls = document.getElementById('windowControlsMac');
         if (windowControls) {
             windowControls.style.display = 'flex';

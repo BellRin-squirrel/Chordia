@@ -3,12 +3,7 @@
 /* ★ 作業モード中の真っ黒フルスクリーン背景と白文字の徹底強制 */
 body.mode-focus {
     background-color: #000000 !important;
-    color: #ffffff !important;
     overflow: hidden !important;
-}
-
-body.mode-focus * {
-    color: #ffffff !important;
 }
 
 /* z-index と配置を確実に行う */
@@ -19,7 +14,7 @@ body.mode-focus * {
     width: 100vw !important;
     height: 100vh !important;
     background-color: #000000 !important;
-    color: #ffffff !important;
+    color: #ffffff;
     z-index: 5000 !important;
     display: flex;
     flex-direction: column;
@@ -53,13 +48,15 @@ body.mode-focus * {
     text-align: left;
 }
 
+/* ★ 日付は #424242 */
 .focus-date-text {
     font-size: clamp(1.2rem, 3vw, 2.2rem) !important;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.75) !important;
+    color: #424242 !important;
     letter-spacing: 0.05em;
 }
 
+/* 時計は白色のまま */
 .focus-clock-text {
     font-size: clamp(3.5rem, 10vw, 8rem) !important;
     font-weight: 800;
@@ -77,6 +74,7 @@ body.mode-focus * {
     text-align: center;
 }
 
+/* TOTAL TIMEラベルの色 */
 .focus-total-label {
     font-size: 1.1rem !important;
     font-weight: 800;
@@ -85,13 +83,14 @@ body.mode-focus * {
     margin-bottom: 8px;
 }
 
+/* ★ 作業時間は #4F46E5 */
 .focus-elapsed-text {
     font-size: clamp(4rem, 12vw, 9.5rem) !important;
     font-weight: 800;
     font-family: 'Courier New', monospace;
     line-height: 1;
     letter-spacing: -0.02em;
-    color: #ffffff !important;
+    color: #4f46e5 !important;
 }
 
 /* 画面中央下: 名言 & 楽曲名 */
@@ -104,32 +103,33 @@ body.mode-focus * {
     margin-bottom: 20px;
 }
 
+/* ★ 名言は #424242 で少し小さく */
 .focus-quote-text {
-    font-size: clamp(1rem, 2.2vw, 1.3rem) !important;
+    font-size: clamp(0.85rem, 1.8vw, 1.1rem) !important;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9) !important;
+    color: #424242 !important;
     line-height: 1.8;
     max-width: 850px;
 }
 
+/* ★ 再生中楽曲名は #424242 で少し小さく、背景は透明に */
 .focus-now-playing-text {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.92rem !important;
+    font-size: 0.8rem !important;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.65) !important;
-    background: rgba(255, 255, 255, 0.08);
+    color: #424242 !important;
+    background: transparent;
     padding: 8px 20px;
     border-radius: 20px;
-    backdrop-filter: blur(10px);
 }
 
-/* ★ SVGアイコンにテーマカラーを適用 */
+/* ★ 楽曲名の横のアイコンも #424242 に統一 */
 .focus-now-playing-text svg {
-    width: 16px;
-    height: 16px;
-    color: var(--primary-color, #4f46e5) !important;
+    width: 14px;
+    height: 14px;
+    color: #424242 !important;
 }
 
 /* 一時停止オーバーレイ (PAUSED) */
@@ -197,11 +197,12 @@ body.mode-focus * {
     color: rgba(255, 255, 255, 0.45) !important;
 }
 
+/* ★ PAUSED TIMEの時間は赤い文字 */
 .pause-time-val {
     font-size: 2.4rem !important;
     font-weight: 800;
     font-family: 'Courier New', monospace;
-    color: #ef4444 !important; /* ★ 赤い文字 */
+    color: #ef4444 !important; 
 }
 
 /* 操作ヘルプモーダル */
@@ -253,10 +254,11 @@ body.mode-focus * {
     align-items: center;
 }
 
+/* ★ 今すぐ終了するボタンは赤い文字 */
 .btn-exit-focus {
     background: transparent;
     border: none;
-    color: #ef4444 !important; /* ★ 赤い文字 */
+    color: #ef4444 !important; 
     font-size: 0.95rem !important;
     font-weight: 700;
     cursor: pointer;

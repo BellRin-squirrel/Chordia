@@ -17,7 +17,6 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
         .inner_size(width, height)
         .resizable(true);
 
-    // ★ ミニプレイヤーおよび作業モードウィンドウはタイトルバーなし（枠なし）で開く
     if label == "mini_player_window" || label == "work_window" {
         builder = builder.decorations(false);
         
@@ -67,6 +66,30 @@ pub async fn close_mini_player(app: tauri::AppHandle) -> Result<(), String> {
 pub async fn close_lufs_calc_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("lufs_calc_window") { 
         let _ = window.close(); 
+    }
+    Ok(())
+}
+
+// ★ 作業モードウィンドウを閉じるためのコマンド
+#[tauri::command]
+pub async fn close_work_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("work_window") { 
+        let _ = window.close(); 
+    }
+    Ok(())
+}
+
+// ★ 作業モードウィンドウの最大化/通常切り替えコマンド
+#[tauri::command]
+pub async fn toggle_maximize_work_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("work_window") {
+        if let Ok(is_max) = window.is_maximized() {
+            if is_max {
+                let _ = window.unmaximize();
+            } else {
+                let _ = window.maximize();
+            }
+        }
     }
     Ok(())
 }

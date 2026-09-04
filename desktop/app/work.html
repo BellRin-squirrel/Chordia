@@ -23,7 +23,6 @@
 
     <!-- 枠なしウィンドウ用ドラッグバー & コントロール -->
     <div class="window-titlebar" id="windowTitlebar">
-        <!-- ★ 赤（閉じる）と緑（最大化）の両方を設置 -->
         <div class="window-controls-mac" id="windowControlsMac">
             <button id="btnWinClose" class="btn-circle-mac btn-red tick-btn" title="閉じる">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -309,7 +308,8 @@
 
             <!-- 右側 (または中央): 作業経過時間 -->
             <div class="focus-right-col" id="focusRightCol">
-                <div id="focusTotalWorkLabel" class="focus-total-label" style="display: none;">TOTAL WORK</div>
+                <!-- ★ TOTAL WORK を TOTAL TIME に修正 -->
+                <div id="focusTotalWorkLabel" class="focus-total-label" style="display: none;">TOTAL TIME</div>
                 <div id="focusElapsedDisplay" class="focus-elapsed-text">0:00</div>
             </div>
         </div>
@@ -356,7 +356,7 @@
 
                 <div class="help-actions-col">
                     <button type="button" id="btnResumeFocus" class="btn-enjoy-focus" style="width: 100%; max-width: none;">理解して再開する</button>
-                    <!-- ★ 終了時にウィンドウを閉じるためのボタン -->
+                    <!-- 終了時にウィンドウを閉じるためのボタン -->
                     <button type="button" id="btnExitFocus" class="btn-exit-focus">今すぐ終了する</button>
                 </div>
             </div>

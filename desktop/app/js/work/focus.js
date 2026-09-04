@@ -56,15 +56,16 @@ window.WorkFocus = {
         }
 
         if (btnExitFocus) {
-            btnExitFocus.addEventListener('click', (e) => {
+            btnExitFocus.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 this.closeHelpModal();
                 this.stopSession();
                 
-                // ★ ウィンドウ自体を完全に閉じるように修正
-                if (window.__TAURI__ && window.__TAURI__.window) {
-                    window.__TAURI__.window.getCurrentWindow().close();
-                } else {
+                // ★ ウィンドウ自体を完全に閉じる
+                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                try {
+                    await invoke('close_work_window');
+                } catch (e) {
                     window.close();
                 }
             });
@@ -96,6 +97,7 @@ window.WorkFocus = {
             cfg = defaultConfig;
         }
 
+        // 表示の確実な切り替え
         const configContainer = document.getElementById('configContainer');
         const workReadyView = document.getElementById('workReadyView');
         const workFocusView = document.getElementById('workFocusView');
@@ -110,7 +112,7 @@ window.WorkFocus = {
         }
         document.body.className = 'mode-focus';
 
-        // ★ 作業モード（黒画面）に入ったら、ウィンドウ左上のボタンコントロールを非表示にする
+        // ★ 作業モード（黒画面）に入ったら、ウィンドウ左上のボタンコントロールを完全に非表示にする
         const windowControls = document.getElementById('windowControlsMac');
         if (windowControls) {
             windowControls.style.display = 'none';
@@ -121,11 +123,13 @@ window.WorkFocus = {
         this.totalWorkSeconds = 0;
         this.currentSessionSeconds = 0;
 
+        // 即座に初期同期描画
         this.applyDisplayFormats(cfg);
         this.updateClock(cfg);
         this.updateElapsedTime();
         this.updateQuote(cfg);
 
+        // 定期タイマーの起動
         if (this.quoteInterval) clearInterval(this.quoteInterval);
         this.quoteInterval = setInterval(() => this.updateQuote(cfg), 60000);
 
@@ -141,6 +145,7 @@ window.WorkFocus = {
             }
         }, 1000);
 
+        // 音楽再生の開始（非ブロッキング）
         this.startMusic(cfg).catch(err => console.error("Music playback err:", err));
     },
 
