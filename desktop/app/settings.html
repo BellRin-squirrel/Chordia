@@ -6,7 +6,6 @@
     <link rel="icon" href="icon/Chordia.ico">
     <link rel="stylesheet" href="css/style.css">
     
-    <!-- 分割された設定画面用CSS -->
     <link rel="stylesheet" href="css/settings/layout.css">
     <link rel="stylesheet" href="css/settings/controls.css">
     <link rel="stylesheet" href="css/settings/account.css">
@@ -34,7 +33,6 @@
         </header>
 
         <div class="settings-container">
-            <!-- 中画面用タブバー -->
             <div class="settings-tab-bar" id="settingsTabBar">
                 <button class="settings-nav-btn active" data-target="sec-general">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
@@ -71,7 +69,6 @@
             </div>
 
             <div class="settings-main-wrapper">
-                <!-- 大画面用サイドバー -->
                 <aside class="settings-sidebar" id="settingsSidebar">
                     <button class="settings-nav-btn active" data-target="sec-general">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
@@ -444,7 +441,7 @@
     <!-- 履歴同期ブロッキングオーバーレイ -->
     <div id="syncHistoryProgressOverlay" class="loading-overlay" style="display: none; z-index: 20000;">
         <div class="spinner"></div>
-        <h3 style="color: var(--text-main); margin-bottom: 8px; font-size: 1.25rem;">クラウドへ再生履歴を同期中...</h3>
+        <h3 id="syncHistoryProgressTitle" style="color: var(--text-main); margin-bottom: 8px; font-size: 1.25rem;">クラウドへ再生履歴を同期中...</h3>
         <p style="color: #ef4444; font-weight: bold; margin-bottom: 20px; font-size: 0.95rem;">⚠️ 完了するまでアプリを終了・操作しないでください</p>
         <div class="progress-bar-bg" style="width: 320px; height: 10px; background: rgba(128,128,128,0.2); border-radius: 5px; overflow: hidden;">
             <div id="syncHistoryProgressBar" style="width: 0%; height: 100%; background: var(--primary-color); transition: width 0.1s linear;"></div>

@@ -1,12 +1,61 @@
 (async function() {
-    // ★ ブラウザ標準の不要な右クリックメニュー（コンテキストメニュー）を全画面で無効化
-    // アプリ固有の要素（楽曲行やプレイリスト等）で登録された右クリックイベントは阻害されず正常に動作します
-    /*document.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-    }, false);*/
-
     try {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+        const listen = window.__TAURI__.event ? window.__TAURI__.event.listen : null;
+
+        // トースト通知ヘルパー
+        function showGlobalToast(msg, isError = true) {
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.className = 'toast show ' + (isError ? 'error' : 'success');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3500);
+        }
+
+        // 認証失効イベントの監視
+        if (listen) {
+            listen("cloud_auth_expired", () => {
+                showGlobalToast("Chordia Sync の認証に失敗しました", true);
+            });
+        }
+
+        // ★ 全画面で利用できる Chordia Sync ログイン状態確認関数
+        window.checkChordiaSyncSession = async function(force = false) {
+            if (!window.__TAURI__) return;
+            const now = Date.now();
+            // 連続クリック等による過剰通信を防止（10秒スロットル。force=trueなら即時実行）
+            if (!force && window._lastSyncSessionCheckTime && (now - window._lastSyncSessionCheckTime < 10000)) {
+                return;
+            }
+            window._lastSyncSessionCheckTime = now;
+
+            try {
+                const authInfo = await invoke("get_cloud_auth_info");
+                if (authInfo && authInfo.logged_in) {
+                    const isValid = await invoke("verify_current_cloud_session");
+                    if (!isValid) {
+                        showGlobalToast("Chordia Sync の認証に失敗しました", true);
+                        if (typeof window.onChordiaSyncExpired === 'function') {
+                            window.onChordiaSyncExpired();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("Chordia Sync session check error:", e);
+            }
+        };
+
+        // 全画面で画面初期表示時およびフォーカス復帰時にセッション状態をチェック
+        window.checkChordiaSyncSession();
+        window.addEventListener('focus', () => {
+            window.checkChordiaSyncSession();
+        });
         
         const settings = await invoke("get_app_settings");
         const root = document.documentElement;

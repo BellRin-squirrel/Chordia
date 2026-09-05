@@ -2,7 +2,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
 use std::fs;
-use crate::utils::get_base_dir;
+use chrono::Local;
+use crate::utils::{get_base_dir, safe_write_file};
 use super::auth::get_saved_cloud_sid;
 
 pub async fn send_single_play_history_to_cloud(
@@ -72,6 +73,7 @@ pub async fn add_play_history_to_cloud(
     send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album, date.as_deref()).await
 }
 
+// 既存の再生履歴をクラウドへ一括同期（送信完了後にローカル履歴を完全消去）
 #[tauri::command]
 pub async fn sync_all_local_history_to_cloud(
     app: AppHandle,
@@ -89,6 +91,7 @@ pub async fn sync_all_local_history_to_cloud(
 
     let total = history_list.len();
     if total == 0 {
+        let _ = safe_write_file(&h_path, b"[]");
         return Ok(0);
     }
 
@@ -111,6 +114,9 @@ pub async fn sync_all_local_history_to_cloud(
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
+
+    // ★ クラウド送信完了後、ローカルの再生履歴を完全に消去
+    let _ = safe_write_file(&h_path, b"[]");
 
     Ok(success_count)
 }
@@ -185,6 +191,68 @@ pub async fn send_single_work_history_to_cloud(
     }
 
     Ok(())
+}
+
+// 既存の作業履歴をクラウドへ一括同期（送信完了後にローカル履歴を完全消去）
+#[tauri::command]
+pub async fn sync_all_local_work_history_to_cloud(
+    app: AppHandle,
+    auth: State<'_, SharedAuthState>,
+) -> Result<usize, String> {
+    let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
+
+    let w_path = get_base_dir().join("userfiles/work_history.json");
+    if !w_path.exists() {
+        return Ok(0);
+    }
+
+    let data = fs::read_to_string(&w_path).map_err(|e| e.to_string())?;
+    let work_list: Vec<Value> = serde_json::from_str(&data).unwrap_or_default();
+
+    let total = work_list.len();
+    if total == 0 {
+        let _ = safe_write_file(&w_path, b"[]");
+        return Ok(0);
+    }
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(10)).build().map_err(|e| e.to_string())?;
+    let mut success_count = 0;
+
+    for (idx, item) in work_list.iter().enumerate() {
+        let seconds = item.get("seconds").and_then(|v| v.as_u64()).unwrap_or(0);
+        let api_time = if seconds > 0 {
+            let hours = seconds / 3600;
+            let mins = (seconds % 3600) / 60;
+            let secs = seconds % 60;
+            format!("{:02}:{:02}:{:02}", hours, mins, secs)
+        } else {
+            item.get("time").and_then(|v| v.as_str()).unwrap_or("00:00:00").to_string()
+        };
+
+        let raw_end = item.get("end").and_then(|v| v.as_str()).unwrap_or("");
+        let api_end = if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(raw_end, "%Y-%m-%d %H:%M:%S") {
+            dt.format("%Y.%m.%d.%H.%M").to_string()
+        } else if raw_end.contains('.') {
+            raw_end.to_string()
+        } else {
+            Local::now().format("%Y.%m.%d.%H.%M").to_string()
+        };
+
+        let _ = send_single_work_history_to_cloud(&client, &sid, &api_end, &api_time).await;
+        success_count += 1;
+
+        let _ = app.emit("sync_work_history_progress", serde_json::json!({
+            "current": idx + 1,
+            "total": total
+        }));
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    // ★ クラウド送信完了後、ローカルの作業履歴を完全に消去
+    let _ = safe_write_file(&w_path, b"[]");
+
+    Ok(success_count)
 }
 
 #[tauri::command]

@@ -4,6 +4,11 @@ window.SubmitController = {
         if(form) {
             form.onsubmit = async (e) => {
                 e.preventDefault();
+                // ★ 楽曲追加操作時にもセッション状態を即時確認
+                if (window.checkChordiaSyncSession) {
+                    await window.checkChordiaSyncSession(true);
+                }
+
                 if (window.DuplicateController && window.DuplicateController.hasDuplicates()) {
                     const confirmModal = document.getElementById('confirmDuplicateModal');
                     if(confirmModal) {
@@ -93,7 +98,6 @@ window.SubmitController = {
                 if (!videoInfo) { u.showAlert("動画情報を取得してください"); return; }
                 this.showLoading("動画をダウンロード中...");
                 metaData.video_url = videoInfo.url;
-                // ★ Rustのダウンロード関数を呼び出す
                 result = await invoke("download_and_save_music", { data: metaData });
             }
 

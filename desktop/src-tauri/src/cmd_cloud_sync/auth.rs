@@ -1,5 +1,5 @@
 use serde_json::Value;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
 use rand::{rng, Rng};
 use std::fs;
@@ -172,6 +172,100 @@ pub fn get_cloud_auth_info() -> Value {
         }
     }
     serde_json::json!({ "logged_in": false })
+}
+
+// ★ 操作時にログイン状態が有効か checkAlreadyLogin API で確認
+#[tauri::command]
+pub async fn verify_current_cloud_session(
+    app: AppHandle,
+    auth: State<'_, SharedAuthState>,
+) -> Result<bool, String> {
+    let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
+    if !auth_file_path.exists() {
+        return Ok(false);
+    }
+
+    let content = match fs::read_to_string(&auth_file_path) {
+        Ok(c) => c,
+        Err(_) => return Ok(false),
+    };
+
+    let json: Value = match serde_json::from_str(&content) {
+        Ok(j) => j,
+        Err(_) => return Ok(false),
+    };
+
+    let is_logged_in = json.get("logged_in").and_then(|v| v.as_bool()).unwrap_or(false);
+    if !is_logged_in {
+        return Ok(false);
+    }
+
+    let username = json.get("username").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let device = json.get("device").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let sid = json.get("sid").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    if username.is_empty() || device.is_empty() || sid.is_empty() {
+        let _ = fs::remove_file(&auth_file_path);
+        let mut state = auth.lock().await;
+        state.cloud_sid = None;
+        return Ok(false);
+    }
+
+    let payload = serde_json::json!({
+        "operation": "checkAlreadyLogin",
+        "SID": sid,
+        "name": username,
+        "device": device
+    });
+
+    let body_json = serde_json::to_string(&payload)
+        .map_err(|e| format!("JSON構築エラー: {}", e))?;
+
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build() {
+        Ok(c) => c,
+        Err(e) => return Err(e.to_string()),
+    };
+
+    let response = match client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(body_json)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => {
+            // 一時的な通信エラー時はローカル情報を保持
+            return Ok(true);
+        }
+    };
+
+    let res_text = match response.text().await {
+        Ok(t) => t,
+        Err(_) => return Ok(true),
+    };
+
+    let json_res: Value = match serde_json::from_str(&res_text) {
+        Ok(j) => j,
+        Err(_) => return Ok(true),
+    };
+
+    let is_auth = json_res.get("status").and_then(|v| v.as_str()) == Some("authenticated");
+
+    if is_auth {
+        let mut state = auth.lock().await;
+        state.cloud_sid = Some(sid);
+        Ok(true)
+    } else {
+        // ★ 認証に失敗した場合：ローカルの認証情報を削除
+        let _ = fs::remove_file(&auth_file_path);
+        let mut state = auth.lock().await;
+        state.cloud_sid = None;
+        let _ = app.emit("cloud_auth_expired", ());
+        Ok(false)
+    }
 }
 
 #[tauri::command]

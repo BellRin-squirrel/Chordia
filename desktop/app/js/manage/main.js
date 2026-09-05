@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnToggle) {
         btnToggle.addEventListener('click', () => {
             window.TableController.toggleSelectionMode();
+            // 楽曲選択モード切り替え時にセッション状態を確認
+            if (window.checkChordiaSyncSession) window.checkChordiaSyncSession();
         });
     }
 
@@ -40,12 +42,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSearch && inputSearch) {
         btnSearch.addEventListener('click', () => {
             window.TableController.execSearch(inputSearch.value.trim());
+            // 検索実行時にセッション状態を確認
+            if (window.checkChordiaSyncSession) window.checkChordiaSyncSession();
         });
 
         inputSearch.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 window.TableController.execSearch(inputSearch.value.trim());
+                if (window.checkChordiaSyncSession) window.checkChordiaSyncSession();
             }
         });
     }
@@ -54,15 +59,19 @@ document.addEventListener('DOMContentLoaded', () => {
         btnClear.addEventListener('click', () => {
             inputSearch.value = ''; 
             window.TableController.execSearch(''); 
+            if (window.checkChordiaSyncSession) window.checkChordiaSyncSession();
         });
     }
 
-    // ★ エクスプローラーやFinder等で直接編集した後にウィンドウにフォーカスが戻った場合、自動で最新データを再読み込み
+    // エクスプローラー等での編集後やウィンドウ復帰時にテーブル再読み込み＆セッション状態確認
     window.addEventListener('focus', () => {
         if (!document.querySelector('#tableBody input.inline-input')) {
             if (window.TableController && typeof window.TableController.loadTableData === 'function') {
                 window.TableController.loadTableData();
             }
+        }
+        if (window.checkChordiaSyncSession) {
+            window.checkChordiaSyncSession();
         }
     });
 });

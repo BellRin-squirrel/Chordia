@@ -27,7 +27,7 @@ pub async fn record_playback(
 
     let base = get_base_dir();
 
-    // 1. 再生回数の更新
+    // 1. 再生回数の更新 (played_times.json)
     let pt_path = base.join("userfiles/played_times.json");
     let mut pt: serde_json::Map<String, Value> = fs::read_to_string(&pt_path)
         .ok()
@@ -55,27 +55,13 @@ pub async fn record_playback(
         }
     }
 
-    let h_path = base.join("userfiles/history.json");
-    let mut h: Vec<Value> = fs::read_to_string(&h_path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    
-    // 2. ローカルの history.json へ保存
-    h.push(serde_json::json!({
-        "title": title,
-        "artist": artist,
-        "album": album,
-        "filename": filename,
-        "timestamp": timestamp
-    }));
 
-    let _ = fs::write(&h_path, serde_json::to_string_pretty(&h).unwrap_or_default());
-
-    // 3. Chordia Sync にログインしている場合、クラウドAPI (addPlayHistory) を送信
+    // ★ Chordia Sync にログインしているか確認
     let sid_opt = crate::cmd_cloud_sync::auth::get_saved_cloud_sid(&auth).await;
+
     if let Some(sid) = sid_opt {
+        // ★ Chordia Sync 接続中: ローカルには保存せず、API を叩くだけ
         let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build();
         if let Ok(c) = client {
             let res = crate::cmd_cloud_sync::send_single_play_history_to_cloud(
@@ -91,6 +77,23 @@ pub async fn record_playback(
                 eprintln!("[Chordia Sync Error] Failed to sync play history: {}", e);
             }
         }
+    } else {
+        // ★ 未接続の場合のみ: ローカルの history.json へ保存
+        let h_path = base.join("userfiles/history.json");
+        let mut h: Vec<Value> = fs::read_to_string(&h_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        
+        h.push(serde_json::json!({
+            "title": title,
+            "artist": artist,
+            "album": album,
+            "filename": filename,
+            "timestamp": timestamp
+        }));
+
+        let _ = fs::write(&h_path, serde_json::to_string_pretty(&h).unwrap_or_default());
     }
 
     Ok(())

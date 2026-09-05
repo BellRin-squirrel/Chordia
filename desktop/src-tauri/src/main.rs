@@ -354,8 +354,10 @@ fn main() {
             cmd_cloud_sync::logout_cloud_auth,
             cmd_cloud_sync::add_play_history_to_cloud,
             cmd_cloud_sync::sync_all_local_history_to_cloud,
-            cmd_cloud_sync::record_work_session,    // ★ 追加
-            cmd_cloud_sync::get_local_work_history, // ★ 追加
+            cmd_cloud_sync::sync_all_local_work_history_to_cloud,
+            cmd_cloud_sync::record_work_session,
+            cmd_cloud_sync::get_local_work_history,
+            cmd_cloud_sync::verify_current_cloud_session, // ★ 追加
             resolve_path, restart_app
         ])
         .run(tauri::generate_context!())

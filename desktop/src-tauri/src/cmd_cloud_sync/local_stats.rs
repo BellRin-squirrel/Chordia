@@ -19,40 +19,20 @@ pub async fn record_work_session(
         return Ok(());
     }
 
-    let base = get_base_dir();
-    let w_path = base.join("userfiles/work_history.json");
-    let mut w_list: Vec<Value> = fs::read_to_string(&w_path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-
     let end_str = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let (model, _) = get_system_model_and_os();
     let device = if !model.is_empty() { model } else { "Desktop".to_string() };
 
-    // ローカル保存用データ（保存形式はそのまま保持）
-    w_list.push(serde_json::json!({
-        "time": time,
-        "seconds": seconds,
-        "device": device,
-        "end": end_str
-    }));
-
-    let _ = safe_write_file(&w_path, serde_json::to_string_pretty(&w_list).unwrap_or_default().as_bytes());
-
-    // ★ API送信用に作業終了時刻と作業時間を指定フォーマットに変換
-    // end: 年(4桁).月(2桁).日(2桁).時(2桁24時間表記).分(2桁)
     let api_end_str = Local::now().format("%Y.%m.%d.%H.%M").to_string();
-    
-    // time: 時間(2桁):分(2桁):秒(2桁)
     let hours = seconds / 3600;
     let mins = (seconds % 3600) / 60;
     let secs = seconds % 60;
     let api_time_str = format!("{:02}:{:02}:{:02}", hours, mins, secs);
 
-    // Chordia Sync にログインしている場合は API でクラウドに追記
     let sid_opt = get_saved_cloud_sid(&auth).await;
+
     if let Some(sid) = sid_opt {
+        // ★ Chordia Sync 接続中: ローカルには保存せず、API を叩くだけ
         let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build();
         if let Ok(c) = client {
             let res = send_single_work_history_to_cloud(&c, &sid, &api_end_str, &api_time_str).await;
@@ -60,6 +40,23 @@ pub async fn record_work_session(
                 eprintln!("[Chordia Sync Error] Failed to sync work session: {}", e);
             }
         }
+    } else {
+        // ★ 未接続の場合のみ: ローカルの userfiles/work_history.json へ保存
+        let base = get_base_dir();
+        let w_path = base.join("userfiles/work_history.json");
+        let mut w_list: Vec<Value> = fs::read_to_string(&w_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+
+        w_list.push(serde_json::json!({
+            "time": time,
+            "seconds": seconds,
+            "device": device,
+            "end": end_str
+        }));
+
+        let _ = safe_write_file(&w_path, serde_json::to_string_pretty(&w_list).unwrap_or_default().as_bytes());
     }
 
     Ok(())

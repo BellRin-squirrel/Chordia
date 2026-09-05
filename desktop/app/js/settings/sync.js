@@ -15,6 +15,19 @@ window.SettingsSync = {
                     syncHistoryProgressText.textContent = `${data.current} / ${data.total} 曲 (${percent}%)`;
                 }
             });
+
+            listen("sync_work_history_progress", (event) => {
+                const data = event.payload;
+                const syncHistoryProgressBar = document.getElementById('syncHistoryProgressBar');
+                const syncHistoryProgressText = document.getElementById('syncHistoryProgressText');
+                const titleEl = document.getElementById('syncHistoryProgressTitle');
+                if (titleEl) titleEl.textContent = "クラウドへ作業履歴を同期中...";
+                if (data && syncHistoryProgressBar && syncHistoryProgressText) {
+                    const percent = Math.floor((data.current / data.total) * 100);
+                    syncHistoryProgressBar.style.width = `${percent}%`;
+                    syncHistoryProgressText.textContent = `${data.current} / ${data.total} 件 (${percent}%)`;
+                }
+            });
         }
 
         this.setupEventListeners();
@@ -163,17 +176,24 @@ window.SettingsSync = {
         }
     },
 
+    // ★ 表示・操作時に checkAlreadyLogin でセッション有効性を確認
     initCloudSyncStatus: async function() {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         try {
             const authInfo = await invoke("get_cloud_auth_info");
             if (authInfo && authInfo.logged_in) {
-                this.showLoggedInView(authInfo.username, authInfo.device);
+                const isValid = await invoke("verify_current_cloud_session");
+                if (isValid) {
+                    this.showLoggedInView(authInfo.username, authInfo.device);
+                } else {
+                    this.showLoggedOutView();
+                    window.SettingsGeneral.showToast("Chordia Sync の認証に失敗しました", true);
+                }
             } else {
                 this.showLoggedOutView();
             }
         } catch(e) {
-            console.error("Failed to fetch cloud auth info:", e);
+            console.error("Failed to verify cloud auth info:", e);
             this.showLoggedOutView();
         }
     },
@@ -237,8 +257,10 @@ window.SettingsSync = {
         const syncHistoryProgressOverlay = document.getElementById('syncHistoryProgressOverlay');
         const syncHistoryProgressBar = document.getElementById('syncHistoryProgressBar');
         const syncHistoryProgressText = document.getElementById('syncHistoryProgressText');
+        const titleEl = document.getElementById('syncHistoryProgressTitle');
 
         if (syncHistoryProgressOverlay) {
+            if (titleEl) titleEl.textContent = "クラウドへ再生履歴を同期中...";
             syncHistoryProgressBar.style.width = '0%';
             syncHistoryProgressText.textContent = "準備中...";
             syncHistoryProgressOverlay.style.display = 'flex';
@@ -247,6 +269,12 @@ window.SettingsSync = {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         try {
             await invoke("sync_all_local_history_to_cloud");
+
+            if (titleEl) titleEl.textContent = "クラウドへ作業履歴を同期中...";
+            if (syncHistoryProgressBar) syncHistoryProgressBar.style.width = '0%';
+            if (syncHistoryProgressText) syncHistoryProgressText.textContent = "準備中...";
+            await invoke("sync_all_local_work_history_to_cloud");
+
             this.showLoggedInView(uVal, dVal);
             window.SettingsGeneral.showToast("Chordia Sync の認証と履歴の同期が完了しました！");
         } catch(err) {

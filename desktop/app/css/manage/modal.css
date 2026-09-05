@@ -261,7 +261,6 @@
 }
 .btn-cancel:hover { background: rgba(128, 128, 128, 0.2); }
 
-
 /* =========================================
    高度な検索 UI 用スタイル
 ========================================= */
@@ -356,7 +355,6 @@
     background: transparent;
 }
 
-
 /* --- カスタムセレクター --- */
 .custom-select-wrapper {
     position: relative;
@@ -449,37 +447,3 @@
 .custom-option.active .custom-check {
     visibility: visible;
 }
-
-/* ★ トースト通知 (コンパクト・右上固定・スムーズフェードアウト) */
-.toast {
-    visibility: hidden;
-    min-width: 220px;
-    max-width: 360px;
-    background-color: #333333;
-    color: #ffffff;
-    text-align: left;
-    border-radius: 12px;
-    padding: 12px 18px;
-    position: fixed;
-    z-index: 10000;
-    right: 30px;
-    top: 30px;
-    font-size: 0.9rem;
-    font-weight: 700;
-    opacity: 0;
-    transform: translateY(-20px);
-    transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.3s;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    pointer-events: none;
-    line-height: 1.4;
-    box-sizing: border-box;
-}
-
-.toast.show {
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.toast.success { background-color: #059669 !important; }
-.toast.error { background-color: #ef4444 !important; }

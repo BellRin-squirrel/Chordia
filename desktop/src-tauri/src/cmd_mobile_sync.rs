@@ -153,10 +153,9 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
         std_cmd.args(&[
             "tunnel",
             "--no-autoupdate",
-            "--http-host-header",
-            "localhost",
-            "--url",
-            &format!("http://127.0.0.1:{}", port),
+            "--protocol", "http2", // ★ Windows環境でUDP/QUIC遮断による接続不安定を防ぐ
+            "--http-host-header", "localhost",
+            "--url", &format!("http://127.0.0.1:{}", port),
         ])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -185,11 +184,20 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
 
             while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
                 if let Some(_) = tx_option.as_ref() {
-                    if line.contains("trycloudflare.com") {
-                        if let Some(url_part) = line.split("https://").nth(1) {
-                            let url = url_part.split_whitespace().next().unwrap_or("").trim_matches(&['\r', '\n', '\t', ' ', '|', '\''][..]);
-                            if !url.is_empty() {
-                                let wan_url = format!("https://{}", url);
+                    // ★ ANSIエスケープコードや不可視文字・改行を完全に排除し、純粋なURLのみを抽出
+                    if let Some(https_idx) = line.find("https://") {
+                        let after_https = &line[https_idx + 8..];
+                        if let Some(domain_idx) = after_https.find(".trycloudflare.com") {
+                            let raw_subdomain = &after_https[..domain_idx];
+                            // 英数字とハイフンのみをホワイトリスト抽出
+                            let clean_subdomain: String = raw_subdomain
+                                .chars()
+                                .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                                .collect();
+
+                            if !clean_subdomain.is_empty() {
+                                let wan_url = format!("https://{}.trycloudflare.com", clean_subdomain);
+                                println!("[WAN Sync] Clean Cloudflare Tunnel URL established: {}", wan_url);
                                 if let Some(sender) = tx_option.take() {
                                     let _ = sender.send(wan_url);
                                 }
@@ -201,7 +209,7 @@ pub async fn toggle_wan_mode(enable: bool, port: u16, auth: State<'_, SharedAuth
             }
         });
 
-        match tokio::time::timeout(std::time::Duration::from_secs(20), rx).await {
+        match tokio::time::timeout(std::time::Duration::from_secs(25), rx).await {
             Ok(Ok(wan_url)) => {
                 state.tunnel_process = Some(child);
                 state.wan_url = Some(wan_url.clone());

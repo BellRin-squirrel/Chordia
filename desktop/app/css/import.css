@@ -256,7 +256,6 @@ body.import-body-layout {
 .mp3-table .col-art-thumb { width: 60px; text-align: center; }
 .mp3-table .col-art-thumb img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(128,128,128,0.2); }
 
-/* ★ 修正：一括追加（Bulk）と共通化し、表の中の入力欄を綺麗に装飾 */
 .mp3-table td input[type="text"] {
     min-width: 180px; 
     padding: 8px 12px;
@@ -299,7 +298,7 @@ body.import-body-layout {
 }
 .edit-input:focus { border-color: var(--primary-color); background: var(--card-bg); }
 
-/* --- アートワークミニタブ (インポート画面風) --- */
+/* --- アートワークミニタブ --- */
 .art-tabs-mini {
     display: flex;
     gap: 6px;
@@ -425,7 +424,6 @@ body.import-body-layout {
 }
 .btn-cancel:hover { background: rgba(128, 128, 128, 0.2) !important; }
 
-/* ★ 修正：バツボタン（btnCloseBulkArtModalX 等）のサイズ固定および右上絶対配置 */
 .btn-close-circle {
     position: absolute !important; 
     top: 20px !important; 
@@ -457,12 +455,10 @@ body.import-body-layout {
     pointer-events: none !important;
 }
 
-/* ★ 修正：モーダルコンテンツの基準点（バツボタンをポップアップ内に固定する） */
 .modal-content {
     position: relative !important;
 }
 
-/* --- ボタン・進捗 --- */
 .btn-icon-action { background: none; border: none; padding: 8px; color: var(--text-sub); cursor: pointer; border-radius: 8px; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
 .btn-icon-action:hover { color: var(--primary-color); background: rgba(var(--primary-color-rgb, 79, 70, 229), 0.1); }
 
@@ -506,24 +502,3 @@ body.import-body-layout {
 .btn-auto-lyric { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; }
 
 .lyric-result-list { list-style: none; padding: 0; border: 1px solid rgba(128,128,128,0.2); border-radius: 12px; overflow: hidden; }
-
-/* --- トースト --- */
-.toast {
-    visibility: hidden;
-    min-width: 280px;
-    background-color: #333;
-    color: #fff;
-    text-align: center;
-    border-radius: 50px;
-    padding: 14px 28px;
-    position: fixed;
-    z-index: 6000;
-    left: 50%;
-    bottom: 30px;
-    transform: translateX(-50%);
-    font-weight: 700;
-    transition: 0.3s;
-}
-.toast.show { visibility: visible; bottom: 50px; opacity: 1; }
-.toast.success { background-color: #059669; }
-.toast.error { background-color: #ef4444; }

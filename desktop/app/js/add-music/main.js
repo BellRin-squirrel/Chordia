@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // ★ 追加：新しいウィンドウで開かれた場合（または設定で新ウィンドウ指定時）、左上の「トップへ戻る」ボタンを非表示にする
+    // 新しいウィンドウで開かれた場合、左上の「トップへ戻る」ボタンを非表示にする
     try {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const isWindowMode = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow().label === 'add_music_window';
@@ -21,4 +21,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (window.ArtworkController) window.ArtworkController.init();
     if (window.LyricController) window.LyricController.init();
     if (window.BulkController) window.BulkController.init();
+
+    // ★ 曲を追加画面の操作時にも Chordia Sync のセッションを確認
+    if (window.checkChordiaSyncSession) {
+        window.checkChordiaSyncSession();
+    }
+    
+    // タブ切り替え時にも確認
+    document.querySelectorAll('.tab-menu .tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (window.checkChordiaSyncSession) window.checkChordiaSyncSession();
+        });
+    });
 });

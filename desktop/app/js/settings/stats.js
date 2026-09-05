@@ -51,6 +51,7 @@ window.SettingsStats = {
         return str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
     },
 
+    // ★ 楽曲再生統計の取得前にセッション状態を確認
     loadPlayStatistics: async function() {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const syncBadge = document.getElementById('syncStatusBadgePlay');
@@ -59,25 +60,31 @@ window.SettingsStats = {
 
         try {
             const authInfo = await invoke("get_cloud_auth_info");
-            const isSyncLoggedIn = (authInfo && authInfo.logged_in);
+            let isSyncLoggedIn = (authInfo && authInfo.logged_in);
 
             if (isSyncLoggedIn) {
-                if (syncBadge) {
-                    syncBadge.textContent = "● Chordia Sync オンライン同期中";
-                    syncBadge.className = "sync-indicator-badge cloud";
+                const isValid = await invoke("verify_current_cloud_session");
+                if (isValid) {
+                    if (syncBadge) {
+                        syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                        syncBadge.className = "sync-indicator-badge cloud";
+                    }
+                    const cloudHistory = await invoke("fetch_cloud_play_history");
+                    this.renderCloudPlayStats(cloudHistory, rankingContainer, historyTbody);
+                    return;
+                } else {
+                    isSyncLoggedIn = false;
+                    window.SettingsGeneral.showToast("Chordia Sync の認証に失敗しました", true);
+                    if (window.SettingsSync) window.SettingsSync.showLoggedOutView();
                 }
-
-                const cloudHistory = await invoke("fetch_cloud_play_history");
-                this.renderCloudPlayStats(cloudHistory, rankingContainer, historyTbody);
-            } else {
-                if (syncBadge) {
-                    syncBadge.textContent = "● ローカル再生履歴";
-                    syncBadge.className = "sync-indicator-badge local";
-                }
-
-                const localStats = await invoke("get_local_play_statistics");
-                this.renderLocalPlayStats(localStats, rankingContainer, historyTbody);
             }
+
+            if (syncBadge) {
+                syncBadge.textContent = "● ローカル再生履歴";
+                syncBadge.className = "sync-indicator-badge local";
+            }
+            const localStats = await invoke("get_local_play_statistics");
+            this.renderLocalPlayStats(localStats, rankingContainer, historyTbody);
         } catch(e) {
             console.error("Failed to load play statistics:", e);
             if (historyTbody) {
@@ -196,6 +203,7 @@ window.SettingsStats = {
         }
     },
 
+    // ★ 作業統計の取得前にセッション状態を確認
     loadWorkStatistics: async function() {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const syncBadge = document.getElementById('syncStatusBadgeWork');
@@ -205,36 +213,44 @@ window.SettingsStats = {
 
         try {
             const authInfo = await invoke("get_cloud_auth_info");
-            const isSyncLoggedIn = (authInfo && authInfo.logged_in);
+            let isSyncLoggedIn = (authInfo && authInfo.logged_in);
 
             if (isSyncLoggedIn) {
-                if (syncBadge) {
-                    syncBadge.textContent = "● Chordia Sync オンライン同期中";
-                    syncBadge.className = "sync-indicator-badge cloud";
-                }
-                if (notConnectedArea) notConnectedArea.style.display = 'none';
-                if (connectedArea) connectedArea.style.display = 'block';
-
-                const workHistory = await invoke("fetch_cloud_work_history");
-                this.renderWorkHistory(workHistory, tbody);
-            } else {
-                const localWorkHistory = await invoke("get_local_work_history");
-                if (Array.isArray(localWorkHistory) && localWorkHistory.length > 0) {
+                const isValid = await invoke("verify_current_cloud_session");
+                if (isValid) {
                     if (syncBadge) {
-                        syncBadge.textContent = "● ローカル作業履歴";
-                        syncBadge.className = "sync-indicator-badge local";
+                        syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                        syncBadge.className = "sync-indicator-badge cloud";
                     }
                     if (notConnectedArea) notConnectedArea.style.display = 'none';
                     if (connectedArea) connectedArea.style.display = 'block';
-                    this.renderWorkHistory(localWorkHistory, tbody);
+
+                    const workHistory = await invoke("fetch_cloud_work_history");
+                    this.renderWorkHistory(workHistory, tbody);
+                    return;
                 } else {
-                    if (syncBadge) {
-                        syncBadge.textContent = "● 未接続";
-                        syncBadge.className = "sync-indicator-badge";
-                    }
-                    if (notConnectedArea) notConnectedArea.style.display = 'block';
-                    if (connectedArea) connectedArea.style.display = 'none';
+                    isSyncLoggedIn = false;
+                    window.SettingsGeneral.showToast("Chordia Sync の認証に失敗しました", true);
+                    if (window.SettingsSync) window.SettingsSync.showLoggedOutView();
                 }
+            }
+
+            const localWorkHistory = await invoke("get_local_work_history");
+            if (Array.isArray(localWorkHistory) && localWorkHistory.length > 0) {
+                if (syncBadge) {
+                    syncBadge.textContent = "● ローカル作業履歴";
+                    syncBadge.className = "sync-indicator-badge local";
+                }
+                if (notConnectedArea) notConnectedArea.style.display = 'none';
+                if (connectedArea) connectedArea.style.display = 'block';
+                this.renderWorkHistory(localWorkHistory, tbody);
+            } else {
+                if (syncBadge) {
+                    syncBadge.textContent = "● 未接続";
+                    syncBadge.className = "sync-indicator-badge";
+                }
+                if (notConnectedArea) notConnectedArea.style.display = 'block';
+                if (connectedArea) connectedArea.style.display = 'none';
             }
         } catch(e) {
             console.error("Failed to load work statistics:", e);

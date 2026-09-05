@@ -88,42 +88,47 @@ body {
 .text .title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
 .text .desc { font-size: 0.85rem; color: var(--text-sub); }
 
-/* --- トースト通知 (右上固定・スムーズフェードアウト) --- */
+/* --- トースト通知 (全画面共通・右上固定・高さ自動調整の完全堅牢化) --- */
 .toast {
     visibility: hidden;
-    min-width: 280px;
+    min-width: 220px;
     max-width: 400px;
+    height: auto !important;
+    min-height: 0 !important;
     background-color: #333333;
     color: #ffffff;
     text-align: left;
     border-radius: 12px;
     padding: 14px 20px;
-    position: fixed;
-    z-index: 10000;
-    right: 30px;
-    top: 20px;
+    position: fixed !important;
+    z-index: 25000 !important;
+    right: 30px !important;
+    top: 20px !important;
+    bottom: auto !important;
+    left: auto !important;
     font-size: 0.95rem;
     font-weight: 700;
     opacity: 0;
     transform: translateY(-20px);
     transition: opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.3s;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
     pointer-events: none;
     line-height: 1.4;
+    box-sizing: border-box !important;
 }
 
 .toast.show {
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(10px);
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: translateY(10px) !important;
 }
 
 .toast.success {
-    background-color: #059669;
+    background-color: #059669 !important;
 }
 
 .toast.error {
-    background-color: #ef4444;
+    background-color: #ef4444 !important;
 }
 
 @media (max-width: 600px) { .header h1 { font-size: 2rem; } .grid-menu { grid-template-columns: 1fr; } }
