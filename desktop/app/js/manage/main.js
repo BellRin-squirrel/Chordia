@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ★ 追加：URLから高度な検索パラメータを受け取り、初期状態として適用する
     const params = new URLSearchParams(window.location.search);
     const advTitle = params.get('adv_title');
     const advArtist = params.get('adv_artist');
@@ -34,9 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 重複していた一括変更(btnBulkEdit), 一括削除(btnBulkDelete), 高度な検索(btnAdvancedSearch)の
-    // イベントリスナー登録は、各モーダルモジュールの init() 側で一元管理するためここからは削除しました。
-
     const btnSearch = document.getElementById('btnSearchManage');
     const inputSearch = document.getElementById('searchInputManage');
     const btnClear = document.getElementById('btnClearSearch');
@@ -60,4 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
             window.TableController.execSearch(''); 
         });
     }
+
+    // ★ エクスプローラーやFinder等で直接編集した後にウィンドウにフォーカスが戻った場合、自動で最新データを再読み込み
+    window.addEventListener('focus', () => {
+        if (!document.querySelector('#tableBody input.inline-input')) {
+            if (window.TableController && typeof window.TableController.loadTableData === 'function') {
+                window.TableController.loadTableData();
+            }
+        }
+    });
 });

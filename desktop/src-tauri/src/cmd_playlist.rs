@@ -90,11 +90,15 @@ pub fn set_playlist_cover_from_song(pl_id: String, song_image_path: String) -> R
 
 #[tauri::command]
 pub fn get_playlist_summaries(state: State<'_, AppState>) -> Vec<Value> {
+    check_and_reload_playlists_if_needed(&state);
     state.playlists.lock().unwrap().clone()
 }
 
 #[tauri::command]
 pub fn get_playlist_details(pl_id: String, state: State<'_, AppState>) -> Option<Value> {
+    check_and_reload_db_if_needed(&state);
+    check_and_reload_playlists_if_needed(&state);
+
     let playlists = state.playlists.lock().unwrap();
     let mut pl = match playlists.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
         Some(p) => p.clone(),
@@ -150,6 +154,7 @@ pub fn get_playlist_details(pl_id: String, state: State<'_, AppState>) -> Option
 
 #[tauri::command]
 pub fn get_album_list(state: State<'_, AppState>) -> Vec<String> {
+    check_and_reload_db_if_needed(&state);
     let db = state.db.lock().unwrap();
     let mut list = HashSet::new();
     for item in db.iter() {
@@ -164,6 +169,7 @@ pub fn get_album_list(state: State<'_, AppState>) -> Vec<String> {
 
 #[tauri::command]
 pub fn get_artist_list(state: State<'_, AppState>) -> Vec<String> {
+    check_and_reload_db_if_needed(&state);
     let db = state.db.lock().unwrap();
     let mut list = HashSet::new();
     for item in db.iter() {
@@ -178,6 +184,7 @@ pub fn get_artist_list(state: State<'_, AppState>) -> Vec<String> {
 
 #[tauri::command]
 pub fn get_virtual_playlist_details(field: String, value: String, state: State<'_, AppState>) -> Value {
+    check_and_reload_db_if_needed(&state);
     let db = state.db.lock().unwrap();
     let mut songs = Vec::new();
     let mut music_list = Vec::new();
@@ -225,6 +232,7 @@ pub fn create_playlist(name: String, pl_type: String, state: State<'_, AppState>
     let mut master = state.playlists.lock().unwrap();
     master.push(new_pl);
     save_playlists_master(&master);
+    update_playlists_mtime(&state);
 
     Some(master.last().unwrap().clone())
 }
@@ -252,6 +260,7 @@ pub fn update_playlist_by_id(pl_id: String, field: String, value: Value, state: 
         
         if needs_save {
             save_playlists_master(&master);
+            update_playlists_mtime(&state);
         }
     }
     
@@ -264,6 +273,8 @@ pub fn delete_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> bool 
     if let Some(pos) = master.iter().position(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
         master.remove(pos);
         save_playlists_master(&master);
+        update_playlists_mtime(&state);
+
         let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
         if path.exists() { let _ = fs::remove_file(path); }
         
@@ -312,6 +323,7 @@ pub fn duplicate_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> Op
             
             master.push(new_pl.clone());
             save_playlists_master(&master);
+            update_playlists_mtime(&state);
 
             let mut covers = load_playlist_covers();
             if let Some(cover_path) = covers.get(&pl_id).cloned() {
@@ -399,6 +411,8 @@ pub fn create_smart_playlist(name: String, conditions: Value, state: State<'_, A
     let mut master = state.playlists.lock().unwrap();
     master.push(new_pl);
     save_playlists_master(&master);
+    update_playlists_mtime(&state);
+
     Some(master.last().unwrap().clone())
 }
 
@@ -416,6 +430,7 @@ pub fn update_smart_playlist(pl_id: String, name: String, conditions: Value, sta
         }
         if result_pl.is_some() {
             save_playlists_master(&master);
+            update_playlists_mtime(&state);
         }
     }
     result_pl
@@ -454,6 +469,7 @@ pub fn convert_smart_to_normal_and_remove_songs(pl_id: String, filenames: Vec<St
 
         if pl_clone.is_some() {
             save_playlists_master(&master);
+            update_playlists_mtime(&state);
         }
     }
     
@@ -501,6 +517,7 @@ pub fn convert_smart_to_normal_and_add_songs(pl_id: String, filenames: Vec<Strin
 
         if pl_clone.is_some() {
             save_playlists_master(&master);
+            update_playlists_mtime(&state);
         }
     }
     

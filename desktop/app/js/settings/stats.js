@@ -1,53 +1,16 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+window.SettingsStats = {
+    deviceMap: new Map(),
 
-    // バージョン表示
-    const appVersionContainer = document.getElementById("infoAppVersion");
-    if (appVersionContainer) {
-        try {
-            const appVersion = await invoke("get_app_version");
-            appVersionContainer.textContent = appVersion;
-        } catch(e) {
-            appVersionContainer.textContent = "v5.0.0";
-        }
-    }
-
-    // タブ切り替え
-    const navButtons = document.querySelectorAll('.info-nav-btn');
-    const sections = document.querySelectorAll('.info-section');
-
-    navButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.dataset.target;
-            
-            navButtons.forEach(b => {
-                if (b.dataset.target === targetId) b.classList.add('active');
-                else b.classList.remove('active');
-            });
-
-            sections.forEach(sec => {
-                if (sec.id === targetId) sec.classList.add('active');
-                else sec.classList.remove('active');
-            });
-
-            if (targetId === 'sec-music-stats') loadPlayStatistics();
-            if (targetId === 'sec-work-stats') loadWorkStatistics();
-        });
-    });
-
-    const escapeHtml = (str) => str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
-
-    const deviceMap = new Map();
-    function getDeviceClass(deviceName) {
+    getDeviceClass: function(deviceName) {
         if (!deviceName) return 'device0';
-        if (!deviceMap.has(deviceName)) {
-            const idx = (deviceMap.size % 9) + 1;
-            deviceMap.set(deviceName, `device${idx}`);
+        if (!this.deviceMap.has(deviceName)) {
+            const idx = (this.deviceMap.size % 9) + 1;
+            this.deviceMap.set(deviceName, `device${idx}`);
         }
-        return deviceMap.get(deviceName);
-    }
+        return this.deviceMap.get(deviceName);
+    },
 
-    function parseDateTime(dateStr) {
+    parseDateTime: function(dateStr) {
         if (!dateStr) return new Date(0);
         if (dateStr.includes('.')) {
             const p = dateStr.split('.').map(Number);
@@ -57,9 +20,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const dt = new Date(dateStr);
         return isNaN(dt.getTime()) ? new Date(0) : dt;
-    }
+    },
 
-    function formatDateTime(dateStr) {
+    formatDateTime: function(dateStr) {
         if (!dateStr) return '--';
         if (dateStr.includes('.')) {
             const p = dateStr.split('.').map(Number);
@@ -82,10 +45,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             return `${y}/${m}/${d} ${h}:${min}`;
         }
         return dateStr;
-    }
+    },
 
-    // --- 楽曲再生統計の読み込み ---
-    async function loadPlayStatistics() {
+    escapeHtml: function(str) {
+        return str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+    },
+
+    loadPlayStatistics: async function() {
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const syncBadge = document.getElementById('syncStatusBadgePlay');
         const rankingContainer = document.getElementById('topRankingContainer');
         const historyTbody = document.getElementById('playHistoryTableBody');
@@ -101,7 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
 
                 const cloudHistory = await invoke("fetch_cloud_play_history");
-                renderCloudPlayStats(cloudHistory, rankingContainer, historyTbody);
+                this.renderCloudPlayStats(cloudHistory, rankingContainer, historyTbody);
             } else {
                 if (syncBadge) {
                     syncBadge.textContent = "● ローカル再生履歴";
@@ -109,17 +76,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
 
                 const localStats = await invoke("get_local_play_statistics");
-                renderLocalPlayStats(localStats, rankingContainer, historyTbody);
+                this.renderLocalPlayStats(localStats, rankingContainer, historyTbody);
             }
         } catch(e) {
             console.error("Failed to load play statistics:", e);
             if (historyTbody) {
-                historyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+                historyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${this.escapeHtml(e)}</td></tr>`;
             }
         }
-    }
+    },
 
-    function renderCloudPlayStats(history, rankingEl, tbody) {
+    renderCloudPlayStats: function(history, rankingEl, tbody) {
         if (!Array.isArray(history) || history.length === 0) {
             rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">直近7日間の再生データがありません。</p>';
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
@@ -127,8 +94,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const sortedHistory = [...history].sort((a, b) => {
-            const dA = parseDateTime(a.date || a.timestamp);
-            const dB = parseDateTime(b.date || b.timestamp);
+            const dA = this.parseDateTime(a.date || a.timestamp);
+            const dB = this.parseDateTime(b.date || b.timestamp);
             return dB - dA;
         });
 
@@ -137,7 +104,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const countMap = new Map();
         sortedHistory.forEach(item => {
-            const itemDate = parseDateTime(item.date || item.timestamp);
+            const itemDate = this.parseDateTime(item.date || item.timestamp);
             if (itemDate >= sevenDaysAgo) {
                 const key = `${item.title || 'Unknown'}___${item.artist || 'Unknown'}`;
                 const cur = countMap.get(key) || { title: item.title, artist: item.artist, count: 0 };
@@ -157,8 +124,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 itemDiv.innerHTML = `
                     <div class="rank-badge ${rankClass}">${idx + 1}</div>
                     <div class="rank-info">
-                        <div class="rank-title">${escapeHtml(r.title)}</div>
-                        <div class="rank-artist">${escapeHtml(r.artist)}</div>
+                        <div class="rank-title">${this.escapeHtml(r.title)}</div>
+                        <div class="rank-artist">${this.escapeHtml(r.artist)}</div>
                     </div>
                     <div class="rank-count">${r.count} 回</div>
                 `;
@@ -171,21 +138,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         tbody.innerHTML = '';
         sortedHistory.forEach((item, idx) => {
             const tr = document.createElement('tr');
-            const devClass = getDeviceClass(item.device);
+            const devClass = this.getDeviceClass(item.device);
             const dateStr = item.date || item.timestamp;
             tr.innerHTML = `
                 <td style="color:var(--text-sub);">${idx + 1}</td>
-                <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
-                <td>${escapeHtml(item.artist || 'Unknown')}</td>
-                <td>${escapeHtml(item.album || '--')}</td>
-                <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
-                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(dateStr)}</td>
+                <td><strong>${this.escapeHtml(item.title || 'Unknown')}</strong></td>
+                <td>${this.escapeHtml(item.artist || 'Unknown')}</td>
+                <td>${this.escapeHtml(item.album || '--')}</td>
+                <td><span class="device-badge ${devClass}">${this.escapeHtml(item.device || 'Unknown')}</span></td>
+                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${this.formatDateTime(dateStr)}</td>
             `;
             tbody.appendChild(tr);
         });
-    }
+    },
 
-    function renderLocalPlayStats(stats, rankingEl, tbody) {
+    renderLocalPlayStats: function(stats, rankingEl, tbody) {
         const ranking = stats.ranking || [];
         const history = stats.history || [];
 
@@ -198,8 +165,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 itemDiv.innerHTML = `
                     <div class="rank-badge ${rankClass}">${idx + 1}</div>
                     <div class="rank-info">
-                        <div class="rank-title">${escapeHtml(r.title)}</div>
-                        <div class="rank-artist">${escapeHtml(r.artist)}</div>
+                        <div class="rank-title">${this.escapeHtml(r.title)}</div>
+                        <div class="rank-artist">${this.escapeHtml(r.artist)}</div>
                     </div>
                     <div class="rank-count">${r.count} 回</div>
                 `;
@@ -216,21 +183,21 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const dateStr = item.timestamp || item.date;
                 tr.innerHTML = `
                     <td style="color:var(--text-sub);">${idx + 1}</td>
-                    <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
-                    <td>${escapeHtml(item.artist || 'Unknown')}</td>
-                    <td>${escapeHtml(item.album || '--')}</td>
+                    <td><strong>${this.escapeHtml(item.title || 'Unknown')}</strong></td>
+                    <td>${this.escapeHtml(item.artist || 'Unknown')}</td>
+                    <td>${this.escapeHtml(item.album || '--')}</td>
                     <td><span class="device-badge device1">Desktop (Local)</span></td>
-                    <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(dateStr)}</td>
+                    <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${this.formatDateTime(dateStr)}</td>
                 `;
                 tbody.appendChild(tr);
             });
         } else {
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
         }
-    }
+    },
 
-    // --- 作業統計の読み込み（ローカル作業履歴の読み込みに対応） ---
-    async function loadWorkStatistics() {
+    loadWorkStatistics: async function() {
+        const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         const syncBadge = document.getElementById('syncStatusBadgeWork');
         const notConnectedArea = document.getElementById('workSyncNotConnected');
         const connectedArea = document.getElementById('workSyncConnectedArea');
@@ -249,9 +216,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (connectedArea) connectedArea.style.display = 'block';
 
                 const workHistory = await invoke("fetch_cloud_work_history");
-                renderWorkHistory(workHistory, tbody);
+                this.renderWorkHistory(workHistory, tbody);
             } else {
-                // ★ 未接続時はローカルの userfiles/work_history.json を取得して表示
                 const localWorkHistory = await invoke("get_local_work_history");
                 if (Array.isArray(localWorkHistory) && localWorkHistory.length > 0) {
                     if (syncBadge) {
@@ -260,7 +226,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     }
                     if (notConnectedArea) notConnectedArea.style.display = 'none';
                     if (connectedArea) connectedArea.style.display = 'block';
-                    renderWorkHistory(localWorkHistory, tbody);
+                    this.renderWorkHistory(localWorkHistory, tbody);
                 } else {
                     if (syncBadge) {
                         syncBadge.textContent = "● 未接続";
@@ -273,40 +239,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(e) {
             console.error("Failed to load work statistics:", e);
             if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${this.escapeHtml(e)}</td></tr>`;
             }
         }
-    }
+    },
 
-    function renderWorkHistory(history, tbody) {
+    renderWorkHistory: function(history, tbody) {
         if (!Array.isArray(history) || history.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-sub); padding:24px;">作業セッション履歴がありません。</td></tr>';
             return;
         }
 
         const sorted = [...history].sort((a, b) => {
-            const dA = parseDateTime(a.end);
-            const dB = parseDateTime(b.end);
+            const dA = this.parseDateTime(a.end);
+            const dB = this.parseDateTime(b.end);
             return dB - dA;
         });
 
         tbody.innerHTML = '';
         sorted.forEach((item, idx) => {
             const tr = document.createElement('tr');
-            const devClass = getDeviceClass(item.device);
+            const devClass = this.getDeviceClass(item.device);
             tr.innerHTML = `
                 <td style="color:var(--text-sub);">${idx + 1}</td>
-                <td><strong style="color:var(--primary-color); font-size:0.95rem;">${escapeHtml(item.time || '--')}</strong></td>
-                <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
-                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(item.end)}</td>
+                <td><strong style="color:var(--primary-color); font-size:0.95rem;">${this.escapeHtml(item.time || '--')}</strong></td>
+                <td><span class="device-badge ${devClass}">${this.escapeHtml(item.device || 'Unknown')}</span></td>
+                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${this.formatDateTime(item.end)}</td>
             `;
             tbody.appendChild(tr);
         });
     }
-
-    window.addEventListener('focus', () => {
-        const activeSec = document.querySelector('.info-section.active');
-        if (activeSec && activeSec.id === 'sec-music-stats') loadPlayStatistics();
-        if (activeSec && activeSec.id === 'sec-work-stats') loadWorkStatistics();
-    });
-});
+};

@@ -5,7 +5,13 @@
     <title>情報・設定 - Chordia</title>
     <link rel="icon" href="icon/Chordia.ico">
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/settings.css">
+    
+    <!-- 分割された設定画面用CSS -->
+    <link rel="stylesheet" href="css/settings/layout.css">
+    <link rel="stylesheet" href="css/settings/controls.css">
+    <link rel="stylesheet" href="css/settings/account.css">
+    <link rel="stylesheet" href="css/settings/stats.css">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;800&display=swap" rel="stylesheet">
@@ -319,7 +325,6 @@
                             <span id="syncStatusBadgePlay" class="sync-indicator-badge">取得中...</span>
                         </div>
 
-                        <!-- 直近7日間の再生回数ランキング（TOP 5） -->
                         <div class="stats-sub-box">
                             <h3 class="sub-box-title">直近7日間の再生回数ランキング (TOP 5)</h3>
                             <div id="topRankingContainer" class="ranking-grid">
@@ -327,7 +332,6 @@
                             </div>
                         </div>
 
-                        <!-- 再生履歴一覧 -->
                         <div class="stats-sub-box" style="margin-top: 24px;">
                             <h3 class="sub-box-title">再生履歴一覧</h3>
                             <div class="table-responsive">
@@ -450,7 +454,11 @@
 
     <div id="toast" class="toast"></div>
 
-    <script src="js/settings.js"></script>
+    <!-- 分割された設定画面用JS -->
+    <script src="js/settings/general.js"></script>
+    <script src="js/settings/sync.js"></script>
+    <script src="js/settings/stats.js"></script>
+    <script src="js/settings/main.js"></script>
     <script src="js/theme.js"></script>
 </body>
 </html>

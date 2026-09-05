@@ -25,7 +25,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tauri::{Manager, Emitter, AppHandle, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
-use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress};
+use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime};
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
@@ -36,6 +36,8 @@ pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
     pub playlists: std::sync::Mutex<Vec<serde_json::Value>>,
     pub lufs_cache: std::sync::Mutex<HashMap<String, f32>>,
+    pub db_mtime: std::sync::Mutex<Option<std::time::SystemTime>>,
+    pub playlists_mtime: std::sync::Mutex<Option<std::time::SystemTime>>,
 }
 
 #[tauri::command]
@@ -114,6 +116,8 @@ fn main() {
             db: std::sync::Mutex::new(Vec::new()),
             playlists: std::sync::Mutex::new(Vec::new()),
             lufs_cache: std::sync::Mutex::new(HashMap::new()),
+            db_mtime: std::sync::Mutex::new(None),
+            playlists_mtime: std::sync::Mutex::new(None),
         })
         .manage(auth_state.clone()) 
         .on_window_event(|window, event| {
@@ -184,6 +188,8 @@ fn main() {
                     *state.db.lock().unwrap() = initial_db;
                     *state.playlists.lock().unwrap() = initial_playlists;
                     *state.lufs_cache.lock().unwrap() = initial_lufs_cache;
+                    update_db_mtime(&state);
+                    update_playlists_mtime(&state);
                 }
 
                 let _ = app_handle_for_init.emit("splash_progress", serde_json::json!({
@@ -312,7 +318,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             cmd_window::open_new_window, cmd_window::set_mini_player_mode, cmd_window::close_mini_player, cmd_window::close_lufs_calc_window, cmd_window::make_window_square, cmd_window::minimize_mini_player, cmd_window::show_in_explorer,
-            cmd_window::open_url, cmd_window::close_work_window, cmd_window::toggle_maximize_work_window, cmd_window::open_sound_settings, // ★ サウンド設定用コマンドを追加
+            cmd_window::open_url, cmd_window::close_work_window, cmd_window::toggle_maximize_work_window, cmd_window::open_sound_settings,
             cmd_settings::get_app_settings, cmd_settings::save_app_settings, cmd_settings::get_custom_themes, cmd_settings::save_custom_theme, cmd_settings::delete_custom_theme,
             cmd_add_music::get_default_art_url, cmd_add_music::update_default_artwork, cmd_add_music::reset_default_artwork, cmd_add_music::get_available_tags, cmd_add_music::get_autocomplete_lists, cmd_add_music::check_duplicate_songs, cmd_add_music::save_music_data, cmd_add_music::download_and_save_music, cmd_add_music::check_tools_status, cmd_add_music::fetch_video_info, cmd_add_music::fetch_youtube_playlist, cmd_add_music::fetch_and_crop_thumbnail, cmd_add_music::fetch_and_crop_image_url, cmd_add_music::extract_artwork_from_local_file, cmd_add_music::download_original_thumbnail, cmd_add_music::search_lyrics_online,
             cmd_playlist::get_playlist_summaries, cmd_playlist::get_playlist_details, cmd_playlist::get_album_list, cmd_playlist::get_artist_list, cmd_playlist::get_virtual_playlist_details, cmd_playlist::create_playlist, cmd_playlist::update_playlist_by_id, cmd_playlist::delete_playlist_by_id, cmd_playlist::duplicate_playlist_by_id, cmd_playlist::add_songs_to_playlist, cmd_playlist::remove_songs_from_playlist, cmd_playlist::create_smart_playlist, cmd_playlist::update_smart_playlist, cmd_playlist::convert_smart_to_normal_and_remove_songs, cmd_playlist::convert_smart_to_normal_and_add_songs,
@@ -348,6 +354,8 @@ fn main() {
             cmd_cloud_sync::logout_cloud_auth,
             cmd_cloud_sync::add_play_history_to_cloud,
             cmd_cloud_sync::sync_all_local_history_to_cloud,
+            cmd_cloud_sync::record_work_session,    // ★ 追加
+            cmd_cloud_sync::get_local_work_history, // ★ 追加
             resolve_path, restart_app
         ])
         .run(tauri::generate_context!())

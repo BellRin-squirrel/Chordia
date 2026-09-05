@@ -10,6 +10,8 @@ use id3::frame::{Picture, PictureType, Comment, Lyrics};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+use crate::AppState;
+
 pub fn get_base_dir() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if cfg!(debug_assertions) {
@@ -29,7 +31,6 @@ pub fn get_base_dir() -> PathBuf {
     path
 }
 
-// ★ macOS/Unix環境で確実に書き込み権限（0o777）を付与するヘルパー
 pub fn ensure_dir_writable<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<()> {
     let p = path.as_ref();
     if !p.exists() {
@@ -46,7 +47,6 @@ pub fn ensure_dir_writable<P: AsRef<std::path::Path>>(path: P) -> std::io::Resul
     Ok(())
 }
 
-// ★ macOS/Unix環境でファイルに書き込み権限（0o666）を付与するヘルパー
 pub fn ensure_file_writable<P: AsRef<std::path::Path>>(path: P) {
     let p = path.as_ref();
     if p.exists() {
@@ -61,7 +61,6 @@ pub fn ensure_file_writable<P: AsRef<std::path::Path>>(path: P) {
     }
 }
 
-// ★ ディレクトリとファイルのパーミッションを自動解決して安全に保存する共通関数
 pub fn safe_write_file<P: AsRef<std::path::Path>, C: AsRef<[u8]>>(path: P, contents: C) -> Result<(), String> {
     let p = path.as_ref();
     if let Some(parent) = p.parent() {
@@ -189,6 +188,71 @@ pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     let path = get_base_dir().join("userfiles/music.json");
     let data = serde_json::to_string_pretty(&db_to_save).map_err(|e| e.to_string())?;
     safe_write_file(&path, data.as_bytes())
+}
+
+// ★ 外部変更検知と自動リロード用関数
+pub fn check_and_reload_db_if_needed(state: &AppState) {
+    let base = get_base_dir();
+    let path = base.join("userfiles/music.json");
+    if let Ok(meta) = fs::metadata(&path) {
+        if let Ok(mtime) = meta.modified() {
+            let mut last_mtime_guard = state.db_mtime.lock().unwrap();
+            let should_reload = match *last_mtime_guard {
+                Some(last) => mtime > last,
+                None => true,
+            };
+            if should_reload {
+                *last_mtime_guard = Some(mtime);
+                drop(last_mtime_guard);
+                let new_db = load_db();
+                let mut db_guard = state.db.lock().unwrap();
+                *db_guard = new_db;
+            }
+        }
+    }
+}
+
+pub fn check_and_reload_playlists_if_needed(state: &AppState) {
+    let base = get_base_dir();
+    let path = base.join("userfiles/playlist.json");
+    if let Ok(meta) = fs::metadata(&path) {
+        if let Ok(mtime) = meta.modified() {
+            let mut last_mtime_guard = state.playlists_mtime.lock().unwrap();
+            let should_reload = match *last_mtime_guard {
+                Some(last) => mtime > last,
+                None => true,
+            };
+            if should_reload {
+                *last_mtime_guard = Some(mtime);
+                drop(last_mtime_guard);
+                let new_pl = load_playlists_master();
+                let mut pl_guard = state.playlists.lock().unwrap();
+                *pl_guard = new_pl;
+            }
+        }
+    }
+}
+
+pub fn update_db_mtime(state: &AppState) {
+    let base = get_base_dir();
+    let path = base.join("userfiles/music.json");
+    if let Ok(meta) = fs::metadata(&path) {
+        if let Ok(mtime) = meta.modified() {
+            let mut last_mtime_guard = state.db_mtime.lock().unwrap();
+            *last_mtime_guard = Some(mtime);
+        }
+    }
+}
+
+pub fn update_playlists_mtime(state: &AppState) {
+    let base = get_base_dir();
+    let path = base.join("userfiles/playlist.json");
+    if let Ok(meta) = fs::metadata(&path) {
+        if let Ok(mtime) = meta.modified() {
+            let mut last_mtime_guard = state.playlists_mtime.lock().unwrap();
+            *last_mtime_guard = Some(mtime);
+        }
+    }
 }
 
 pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {

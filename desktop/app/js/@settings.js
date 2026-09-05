@@ -613,22 +613,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         return deviceMap.get(deviceName);
     }
 
-    function parseDotDate(dotStr) {
-        if (!dotStr) return new Date(0);
-        const p = dotStr.split('.').map(Number);
-        if (p.length >= 5) {
-            return new Date(p[0], p[1] - 1, p[2], p[3], p[4]);
+    function parseDateTime(dateStr) {
+        if (!dateStr) return new Date(0);
+        if (dateStr.includes('.')) {
+            const p = dateStr.split('.').map(Number);
+            if (p.length >= 5) {
+                return new Date(p[0], p[1] - 1, p[2], p[3], p[4]);
+            }
         }
-        return new Date(dotStr);
+        const dt = new Date(dateStr);
+        return isNaN(dt.getTime()) ? new Date(0) : dt;
     }
 
-    function formatDotDate(dotStr) {
-        if (!dotStr) return '--';
-        const p = dotStr.split('.');
-        if (p.length >= 5) {
-            return `${p[0]}/${p[1]}/${p[2]} ${p[3]}:${p[4]}`;
+    function formatDateTime(dateStr) {
+        if (!dateStr) return '--';
+        if (dateStr.includes('.')) {
+            const p = dateStr.split('.').map(Number);
+            if (p.length >= 5) {
+                const y = p[0];
+                const m = String(p[1]).padStart(2, '0');
+                const d = String(p[2]).padStart(2, '0');
+                const h = String(p[3]).padStart(2, '0');
+                const min = String(p[4]).padStart(2, '0');
+                return `${y}/${m}/${d} ${h}:${min}`;
+            }
         }
-        return dotStr;
+        const dt = new Date(dateStr);
+        if (!isNaN(dt.getTime())) {
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const d = String(dt.getDate()).padStart(2, '0');
+            const h = String(dt.getHours()).padStart(2, '0');
+            const min = String(dt.getMinutes()).padStart(2, '0');
+            return `${y}/${m}/${d} ${h}:${min}`;
+        }
+        return dateStr;
     }
 
     async function loadPlayStatistics() {
@@ -673,8 +692,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const sortedHistory = [...history].sort((a, b) => {
-            const dA = parseDotDate(a.date);
-            const dB = parseDotDate(b.date);
+            const dA = parseDateTime(a.date || a.timestamp);
+            const dB = parseDateTime(b.date || b.timestamp);
             return dB - dA;
         });
 
@@ -683,7 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const countMap = new Map();
         sortedHistory.forEach(item => {
-            const itemDate = parseDotDate(item.date);
+            const itemDate = parseDateTime(item.date || item.timestamp);
             if (itemDate >= sevenDaysAgo) {
                 const key = `${item.title || 'Unknown'}___${item.artist || 'Unknown'}`;
                 const cur = countMap.get(key) || { title: item.title, artist: item.artist, count: 0 };
@@ -718,13 +737,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         sortedHistory.forEach((item, idx) => {
             const tr = document.createElement('tr');
             const devClass = getDeviceClass(item.device);
+            const dateStr = item.date || item.timestamp;
             tr.innerHTML = `
                 <td style="color:var(--text-sub);">${idx + 1}</td>
                 <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
                 <td>${escapeHtml(item.artist || 'Unknown')}</td>
                 <td>${escapeHtml(item.album || '--')}</td>
                 <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
-                <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${formatDotDate(item.date)}</td>
+                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(dateStr)}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -758,13 +778,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbody.innerHTML = '';
             history.forEach((item, idx) => {
                 const tr = document.createElement('tr');
+                const dateStr = item.timestamp || item.date;
                 tr.innerHTML = `
                     <td style="color:var(--text-sub);">${idx + 1}</td>
                     <td><strong>${escapeHtml(item.title || 'Unknown')}</strong></td>
                     <td>${escapeHtml(item.artist || 'Unknown')}</td>
-                    <td>--</td>
+                    <td>${escapeHtml(item.album || '--')}</td>
                     <td><span class="device-badge device1">Desktop (Local)</span></td>
-                    <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${escapeHtml(item.timestamp || '--')}</td>
+                    <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(dateStr)}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -773,6 +794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- 作業統計の読み込み（ローカル作業履歴の読み込みに対応） ---
     async function loadWorkStatistics() {
         const syncBadge = document.getElementById('syncStatusBadgeWork');
         const notConnectedArea = document.getElementById('workSyncNotConnected');
@@ -783,25 +805,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             const authInfo = await invoke("get_cloud_auth_info");
             const isSyncLoggedIn = (authInfo && authInfo.logged_in);
 
-            if (!isSyncLoggedIn) {
+            if (isSyncLoggedIn) {
                 if (syncBadge) {
-                    syncBadge.textContent = "● 未接続";
-                    syncBadge.className = "sync-indicator-badge";
+                    syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                    syncBadge.className = "sync-indicator-badge cloud";
                 }
-                if (notConnectedArea) notConnectedArea.style.display = 'block';
-                if (connectedArea) connectedArea.style.display = 'none';
-                return;
-            }
+                if (notConnectedArea) notConnectedArea.style.display = 'none';
+                if (connectedArea) connectedArea.style.display = 'block';
 
-            if (syncBadge) {
-                syncBadge.textContent = "● Chordia Sync オンライン同期中";
-                syncBadge.className = "sync-indicator-badge cloud";
+                const workHistory = await invoke("fetch_cloud_work_history");
+                renderWorkHistory(workHistory, tbody);
+            } else {
+                // ★ 未接続時はローカルの userfiles/work_history.json を取得して表示
+                const localWorkHistory = await invoke("get_local_work_history");
+                if (Array.isArray(localWorkHistory) && localWorkHistory.length > 0) {
+                    if (syncBadge) {
+                        syncBadge.textContent = "● ローカル作業履歴";
+                        syncBadge.className = "sync-indicator-badge local";
+                    }
+                    if (notConnectedArea) notConnectedArea.style.display = 'none';
+                    if (connectedArea) connectedArea.style.display = 'block';
+                    renderWorkHistory(localWorkHistory, tbody);
+                } else {
+                    if (syncBadge) {
+                        syncBadge.textContent = "● 未接続";
+                        syncBadge.className = "sync-indicator-badge";
+                    }
+                    if (notConnectedArea) notConnectedArea.style.display = 'block';
+                    if (connectedArea) connectedArea.style.display = 'none';
+                }
             }
-            if (notConnectedArea) notConnectedArea.style.display = 'none';
-            if (connectedArea) connectedArea.style.display = 'block';
-
-            const workHistory = await invoke("fetch_cloud_work_history");
-            renderWorkHistory(workHistory, tbody);
         } catch(e) {
             console.error("Failed to load work statistics:", e);
             if (tbody) {
@@ -817,8 +850,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const sorted = [...history].sort((a, b) => {
-            const dA = parseDotDate(a.end);
-            const dB = parseDotDate(b.end);
+            const dA = parseDateTime(a.end);
+            const dB = parseDateTime(b.end);
             return dB - dA;
         });
 
@@ -830,7 +863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="color:var(--text-sub);">${idx + 1}</td>
                 <td><strong style="color:var(--primary-color); font-size:0.95rem;">${escapeHtml(item.time || '--')}</strong></td>
                 <td><span class="device-badge ${devClass}">${escapeHtml(item.device || 'Unknown')}</span></td>
-                <td style="font-family:monospace; font-size:0.8rem; color:var(--text-sub);">${formatDotDate(item.end)}</td>
+                <td style="font-family:monospace; font-size:0.85rem; color:var(--text-sub);">${formatDateTime(item.end)}</td>
             `;
             tbody.appendChild(tr);
         });
@@ -985,4 +1018,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             toast.classList.remove('show');
         }, 3000);
     }
+
+    window.addEventListener('focus', () => {
+        const activeSec = document.querySelector('.settings-section.active');
+        if (activeSec && activeSec.id === 'sec-music-stats') loadPlayStatistics();
+        if (activeSec && activeSec.id === 'sec-work-stats') loadWorkStatistics();
+    });
 });

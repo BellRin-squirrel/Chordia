@@ -182,6 +182,7 @@
             }
         },
 
+        // ★ 外部変更を自動反映するため、全ライブラリ・プレイリスト一覧・選択中プレイリスト詳細を同期更新
         loadPlaylists: async function() {
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
             try {
@@ -197,6 +198,12 @@
                 
                 if (s.playlists.length > 0 && s.currentPlaylistIndex === -1 && window.MainViewController) {
                     await window.MainViewController.selectPlaylist(0);
+                } else if (s.currentPlaylistIndex !== -1 && s.playlists[s.currentPlaylistIndex] && window.MainViewController) {
+                    const curPl = s.playlists[s.currentPlaylistIndex];
+                    const details = await invoke("get_playlist_details", { plId: curPl.id });
+                    if (details) s.playlists[s.currentPlaylistIndex] = details;
+                    await window.MainViewController.updatePlaylistCoverUI(s.playlists[s.currentPlaylistIndex]);
+                    window.MainViewController.renderMainView();
                 }
             } catch (e) { 
                 console.error("Load Error:", e); 

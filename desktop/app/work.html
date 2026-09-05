@@ -7,7 +7,6 @@
     <link rel="icon" href="icon/Chordia.ico">
     <link rel="stylesheet" href="css/style.css">
     
-    <!-- 分割された作業モード用CSS -->
     <link rel="stylesheet" href="css/work/config.css">
     <link rel="stylesheet" href="css/work/ready.css">
     <link rel="stylesheet" href="css/work/focus.css">
@@ -34,7 +33,6 @@
         <div class="window-drag-region" data-tauri-drag-region></div>
     </div>
 
-    <!-- VIEW 1 & 2: 設定・準備完了コンテナ -->
     <div class="container work-container" id="configContainer">
         
         <header class="header form-header">
@@ -45,7 +43,6 @@
         <div id="workConfigView" class="work-view active">
             <div class="work-cards-wrapper">
                 
-                <!-- 左カラム: カード1 (表示設定) -->
                 <div class="work-col-left">
                     <div class="work-section-card">
                         <!-- 日付表示 -->
@@ -111,7 +108,6 @@
                     </div>
                 </div>
 
-                <!-- 右カラム: カード2 (ポモドーロ) & カード3 (再生設定) -->
                 <div class="work-col-right">
                     <!-- カード2: ポモドーロモード -->
                     <div class="work-section-card">
@@ -128,9 +124,7 @@
                             </label>
                         </div>
 
-                        <!-- ポモドーロON時のみ展開 -->
                         <div id="pomodoroSettingsArea" class="pomodoro-expand-area" style="display: none;">
-                            <!-- 作業時間 -->
                             <div class="setting-block" style="margin-top: 24px;">
                                 <div class="setting-title-row">
                                     <div class="setting-icon-box">
@@ -155,7 +149,6 @@
                                 </div>
                             </div>
 
-                            <!-- 休憩時間 -->
                             <div class="setting-block" style="margin-top: 16px;">
                                 <div class="setting-title-row">
                                     <div class="setting-icon-box">
@@ -191,7 +184,6 @@
                             <span class="setting-label">再生設定</span>
                         </div>
 
-                        <!-- ポモドーロOFF時: 使用するリスト -->
                         <div id="slotAreaNormal" class="slot-container">
                             <div class="sub-label-row">使用するリスト</div>
                             <div class="slot-flex-row">
@@ -206,7 +198,6 @@
                             </div>
                         </div>
 
-                        <!-- ポモドーロON時: 作業用 & 休憩用 -->
                         <div id="slotAreaPomodoro" class="slot-container" style="display: none;">
                             <div class="sub-label-row">作業用</div>
                             <div class="slot-flex-row" style="margin-bottom: 16px;">
@@ -237,7 +228,6 @@
 
             </div>
 
-            <!-- 最下部: 設定完了ボタン -->
             <div class="submit-action-row">
                 <button type="button" id="btnCompleteConfig" class="btn-complete-work">
                     <span>設定完了</span>
@@ -249,7 +239,6 @@
         <div id="workReadyView" class="work-view" style="display: none;">
             <div class="ready-container-card">
                 <div class="ready-cards-list">
-                    <!-- 1. 通知をオフにしましょう -->
                     <div class="ready-item-card">
                         <div class="ready-item-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
@@ -264,7 +253,6 @@
                         </div>
                     </div>
 
-                    <!-- 2. イヤホンを使用していますか？ -->
                     <div class="ready-item-card">
                         <div class="ready-item-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
@@ -275,7 +263,6 @@
                         </div>
                     </div>
 
-                    <!-- 3. ノイズキャンセリングは有効ですか？ -->
                     <div class="ready-item-card">
                         <div class="ready-item-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
@@ -287,7 +274,6 @@
                     </div>
                 </div>
 
-                <!-- アクションボタン群 -->
                 <div class="ready-action-row">
                     <button type="button" id="btnStartFocus" class="btn-enjoy-focus">集中を楽しむ</button>
                     <button type="button" id="btnReconfigure" class="btn-reconfigure">設定をやり直す</button>
@@ -300,19 +286,15 @@
     <div id="workFocusView" class="focus-screen-container" style="display: none;">
         
         <div class="focus-main-area" id="focusMainArea">
-            <!-- 左側: 日付 & 時計 -->
             <div class="focus-left-col" id="focusLeftCol">
                 <div id="focusDateDisplay" class="focus-date-text">2026年9月3日 (木)</div>
                 <div id="focusClockDisplay" class="focus-clock-text">22:19</div>
             </div>
 
-            <!-- 右側 (または中央): 作業経過時間 & ポモドーロ情報 -->
             <div class="focus-right-col" id="focusRightCol">
-                <!-- 常に表示する TOTAL TIME と 作業時間 -->
                 <div id="focusTotalWorkLabel" class="focus-total-label">TOTAL TIME</div>
                 <div id="focusTotalWorkDisplay" class="focus-elapsed-text">0:00</div>
                 
-                <!-- ポモドーロ有効時用 バッジ & タイマー -->
                 <div id="pomoBadgeArea" class="pomo-badge-area" style="display: none;">
                     <div id="pomoStatusBadge" class="pomo-status-badge focus-mode">
                         <span class="pomo-dot"></span><span id="pomoStatusText">FOCUSING</span>
@@ -322,7 +304,6 @@
             </div>
         </div>
 
-        <!-- 画面中央下: 名言 & 再生中楽曲 -->
         <div class="focus-bottom-area">
             <div id="focusQuoteDisplay" class="focus-quote-text"></div>
             <div id="focusNowPlayingDisplay" class="focus-now-playing-text">
@@ -355,7 +336,6 @@
                     
                     <div class="help-row">
                         <span class="help-key-badge">
-                            <!-- 一時停止アイコン -->
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>
                         </span>
                         <div class="help-text-col">
@@ -366,7 +346,6 @@
                     
                     <div class="help-row">
                         <span class="help-key-badge">
-                            <!-- メニューアイコン (3本線) -->
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                         </span>
                         <div class="help-text-col">
@@ -375,7 +354,6 @@
                         </div>
                     </div>
 
-                    <!-- 終了する -->
                     <div class="help-row">
                         <span class="help-key-badge badge-red">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -435,14 +413,15 @@
     <!-- オーディオプレイヤー（非表示） -->
     <audio id="workAudioPlayer" crossorigin="anonymous"></audio>
 
-    <!-- トースト通知 -->
     <div id="toast" class="toast"></div>
 
     <!-- 分割された作業モード用JS -->
     <script src="js/work/quotes.js"></script>
     <script src="js/work/picker.js"></script>
     <script src="js/work/config.js"></script>
-    <script src="js/work/focus.js"></script>
+    <script src="js/work/focus/core.js"></script>
+    <script src="js/work/focus/audio.js"></script>
+    <script src="js/work/focus/events.js"></script>
     <script src="js/work/main.js"></script>
     <script src="js/theme.js"></script>
 </body>

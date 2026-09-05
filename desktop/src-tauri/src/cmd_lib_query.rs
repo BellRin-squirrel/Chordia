@@ -2,7 +2,7 @@ use serde_json::Value;
 use tauri::State;
 
 use crate::AppState;
-use crate::utils::{evaluate_smart_rules, match_search};
+use crate::utils::{evaluate_smart_rules, match_search, check_and_reload_db_if_needed};
 
 #[tauri::command]
 pub fn get_library_count(
@@ -10,6 +10,8 @@ pub fn get_library_count(
     advanced_conditions: Option<Value>, 
     state: State<'_, AppState>
 ) -> usize {
+    check_and_reload_db_if_needed(&state);
+
     let db = state.db.lock().unwrap();
     db.iter().filter(|i| {
         let match_search_query = if search_query.is_empty() { true } else { match_search(i, &search_query) };
@@ -32,9 +34,10 @@ pub fn get_library_chunk(
     advanced_conditions: Option<Value>, 
     state: State<'_, AppState>
 ) -> Vec<serde_json::Map<String, Value>> {
+    check_and_reload_db_if_needed(&state);
+
     let db = state.db.lock().unwrap();
     
-    // 全件クローン（.clone()）を避け、参照のベクタを作成してフィルタリングを行う
     let mut filtered: Vec<&serde_json::Map<String, Value>> = db.iter().filter(|i| {
         let match_search_query = if search_query.is_empty() { true } else { match_search(i, &search_query) };
         let match_advanced = if let Some(ref conds) = advanced_conditions {
@@ -45,7 +48,6 @@ pub fn get_library_chunk(
         match_search_query && match_advanced
     }).collect();
 
-    // 参照のままソートを実行
     if let Some(f) = sort_field {
         filtered.sort_by(|a, b| {
             let (va, vb) = (a.get(&f).and_then(|v| v.as_str()).unwrap_or("").to_lowercase(), b.get(&f).and_then(|v| v.as_str()).unwrap_or("").to_lowercase());
@@ -56,7 +58,6 @@ pub fn get_library_chunk(
         });
     }
 
-    // 最終的に必要なページ・件数のみをクローンして返す（劇的なパフォーマンス改善）
     if limit > 0 { 
         let start = (page.saturating_sub(1)) * limit; 
         filtered.into_iter().skip(start).take(limit).cloned().collect() 
@@ -67,6 +68,8 @@ pub fn get_library_chunk(
 
 #[tauri::command]
 pub fn get_common_values_for_selected(filenames: Vec<String>, state: State<'_, AppState>) -> serde_json::Map<String, Value> {
+    check_and_reload_db_if_needed(&state);
+
     let db = state.db.lock().unwrap();
     let sel: Vec<_> = db.iter().filter(|i| filenames.contains(&i.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("").split(&['/', '\\'][..]).last().unwrap_or("").into())).collect();
     let mut res = serde_json::Map::new();

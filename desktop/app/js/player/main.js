@@ -16,10 +16,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         
-        // 起動直後にサイドバーの初期読み込みを実行
         if (window.SidebarController) {
             await window.SidebarController.loadPlaylists();
         }
+
+        // ★ エクスプローラーやFinder等で直接編集した後にウィンドウにフォーカスが戻った場合、自動でライブラリと画面を再同期
+        window.addEventListener('focus', async () => {
+            try {
+                if (window.SidebarController) {
+                    await window.SidebarController.loadPlaylists();
+                }
+            } catch (e) {
+                console.error("Player refresh error on focus:", e);
+            }
+        });
 
     } catch (e) {
         console.error("Initialization Error:", e);
