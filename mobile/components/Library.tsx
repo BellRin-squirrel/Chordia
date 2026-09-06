@@ -11,6 +11,7 @@ import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { t } from '../utils/i18n';
+import { syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
 
 import { LibraryMenuView } from './library/LibraryMenuView';
 import { LibraryCategoryView } from './library/LibraryCategoryView';
@@ -190,6 +191,10 @@ export const Library = ({
         if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
         setAddToPlaylistSong(null);
         setSelectedPlaylistsForAdd(new Set());
+
+        // ★ プレイリストへの楽曲追加完了時にクラウド同期
+        syncMusicAndPlaylistsToCloud();
+
         Alert.alert(t('confirm', language), t('added_to_playlists_done', language));
       } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
     };
@@ -220,6 +225,9 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
             setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
+
+            // ★ プレイリスト更新時にクラウド同期
+            syncMusicAndPlaylistsToCloud();
           }}
         ]
       );
@@ -235,6 +243,9 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
             setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
+
+            // ★ プレイリスト更新時にクラウド同期
+            syncMusicAndPlaylistsToCloud();
           }}
         ]
       );
@@ -257,6 +268,9 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalLibrary) setLocalLibrary(remainingLibrary);
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+
+            // ★ 楽曲完全削除時にクラウド同期
+            syncMusicAndPlaylistsToCloud();
           } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
         }}
       ]
@@ -280,6 +294,9 @@ export const Library = ({
     await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
     if (setLocalLibrary) setLocalLibrary(updatedLibrary);
     setEditingSong(null);
+
+    // ★ 個別楽曲情報編集保存時にクラウド同期
+    syncMusicAndPlaylistsToCloud();
   };
 
   const currentProgress = Animated.subtract(navAnim, Animated.divide(panX, width));
@@ -431,7 +448,6 @@ export const Library = ({
                   else if (currentSelectionType === 'ALBUM') item = { type: 'ALBUM', data: currentAlbum, id: `${currentAlbum.album}:::${currentAlbum.artist}`, art: currentAlbum.coverArt ? { uri: currentAlbum.coverArt } : DEFAULT_ICON };
                   else if (currentSelectionType === 'ARTIST') item = { type: 'ARTIST', data: artistsList.find((a: any) => a.artistName === currentArtist), id: currentArtist, art: songs.length > 0 && songs[0].localImageUri ? { uri: songs[0].localImageUri } : DEFAULT_ICON };
                   
-                  // ★ 曲が 1 曲以上ある場合のみ履歴に保存
                   if (s && s.length > 0 && item) {
                     saveCollectionToHistory(item);
                   }

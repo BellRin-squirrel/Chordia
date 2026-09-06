@@ -176,7 +176,6 @@ window.SettingsSync = {
         }
     },
 
-    // ★ 表示・操作時に checkAlreadyLogin でセッション有効性を確認
     initCloudSyncStatus: async function() {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         try {
@@ -253,6 +252,7 @@ window.SettingsSync = {
         }, 2000);
     },
 
+    // ★ 再生履歴、作業履歴、曲一覧、プレイリスト一覧を順次クラウドへ送信
     executeInitialHistorySync: async function(uVal, dVal) {
         const syncHistoryProgressOverlay = document.getElementById('syncHistoryProgressOverlay');
         const syncHistoryProgressBar = document.getElementById('syncHistoryProgressBar');
@@ -268,15 +268,33 @@ window.SettingsSync = {
 
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         try {
+            // 1. 再生履歴の同期
             await invoke("sync_all_local_history_to_cloud");
 
+            // 2. 作業履歴の同期
             if (titleEl) titleEl.textContent = "クラウドへ作業履歴を同期中...";
             if (syncHistoryProgressBar) syncHistoryProgressBar.style.width = '0%';
             if (syncHistoryProgressText) syncHistoryProgressText.textContent = "準備中...";
             await invoke("sync_all_local_work_history_to_cloud");
 
+            // 3. 曲一覧の送信 (registerMusicList)
+            if (titleEl) titleEl.textContent = "クラウドへ曲一覧を送信中...";
+            if (syncHistoryProgressBar) syncHistoryProgressBar.style.width = '50%';
+            if (syncHistoryProgressText) syncHistoryProgressText.textContent = "ライブラリデータを送信中...";
+            await invoke("sync_all_local_music_list_to_cloud");
+
+            // 4. プレイリスト一覧の送信 (先行実装)
+            if (titleEl) titleEl.textContent = "クラウドへプレイリスト一覧を送信中...";
+            if (syncHistoryProgressBar) syncHistoryProgressBar.style.width = '80%';
+            if (syncHistoryProgressText) syncHistoryProgressText.textContent = "プレイリストを送信中...";
+            try {
+                await invoke("sync_all_local_playlists_to_cloud");
+            } catch(plErr) {
+                console.warn("Playlist cloud sync skipped (server may be in progress):", plErr);
+            }
+
             this.showLoggedInView(uVal, dVal);
-            window.SettingsGeneral.showToast("Chordia Sync の認証と履歴の同期が完了しました！");
+            window.SettingsGeneral.showToast("Chordia Sync の認証と同期が完了しました！");
         } catch(err) {
             console.error("Initial history sync failed:", err);
             this.showLoggedInView(uVal, dVal);

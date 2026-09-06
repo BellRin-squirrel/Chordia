@@ -4,11 +4,12 @@ use std::io::{Cursor, Read};
 use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
-use tauri::State;
+use tauri::{AppHandle, State};
 use id3::TagLike;
 
 use crate::AppState;
 use crate::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, get_duration_str, update_mp3_tags_from_song_map};
+use crate::cmd_cloud_sync::trigger_background_sync;
 
 #[tauri::command]
 pub fn parse_list_import(content: String, file_type: String) -> Result<serde_json::Value, String> {
@@ -43,7 +44,7 @@ pub fn parse_list_import(content: String, file_type: String) -> Result<serde_jso
 }
 
 #[tauri::command]
-pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, Value>>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+pub fn execute_final_list_import(app: AppHandle, import_data_list: Vec<serde_json::Map<String, Value>>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let mut db = state.db.lock().unwrap();
     let mut count = 0;
     
@@ -89,7 +90,10 @@ pub fn execute_final_list_import(import_data_list: Vec<serde_json::Map<String, V
         count += 1;
     }
     
-    if count > 0 { let _ = save_db(&db); }
+    if count > 0 { 
+        let _ = save_db(&db); 
+        trigger_background_sync(app, true, false);
+    }
     Ok(serde_json::json!({"status": "success", "count": count}))
 }
 
@@ -115,7 +119,6 @@ pub fn check_import_duplicates(import_list: Vec<serde_json::Map<String, Value>>,
     duplicates
 }
 
-// ★ 修正: 表示タグ設定に含まれるすべてのMP3タグおよび歌詞(USLT)を抽出
 #[tauri::command]
 pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result<serde_json::Value, String> {
     if let Some(ref pass) = password {
@@ -207,26 +210,22 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                     if let Some(aa) = tag.album_artist() { album_artist = aa.to_string(); }
                     if let Some(d) = tag.disc() { disc = d.to_string(); }
 
-                    // BPM (TBPM)
                     if let Some(frame) = tag.get("TBPM") {
                         if let Some(text) = frame.content().text() {
                             bpm = text.to_string();
                         }
                     }
 
-                    // 作曲者 (TCOM)
                     if let Some(frame) = tag.get("TCOM") {
                         if let Some(text) = frame.content().text() {
                             composer = text.to_string();
                         }
                     }
 
-                    // コメント (COMM)
                     if let Some(c) = tag.comments().next() {
                         comment = c.text.to_string();
                     }
 
-                    // 歌詞 (USLT)
                     if let Some(l) = tag.lyrics().next() {
                         lyric = l.text.replace("\r\n", "\n").replace('\r', "\n");
                     }
@@ -273,7 +272,7 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
 }
 
 #[tauri::command]
-pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json::Map<String, Value>>, password: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+pub fn execute_zip_import(app: AppHandle, zip_data_b64: String, import_data_list: Vec<serde_json::Map<String, Value>>, password: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|e| e.to_string())?;
     let cursor = Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
@@ -368,6 +367,9 @@ pub fn execute_zip_import(zip_data_b64: String, import_data_list: Vec<serde_json
         }
     }
     
-    if count > 0 { let _ = save_db(&db); }
+    if count > 0 { 
+        let _ = save_db(&db); 
+        trigger_background_sync(app, true, false);
+    }
     Ok(serde_json::json!({"status": "success", "count": count}))
 }

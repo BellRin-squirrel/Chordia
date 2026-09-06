@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { t } from '../utils/i18n';
-import { verifyChordiaSyncSession } from '../utils/chordiaSync';
+import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
 
 import { InfoSettingsView } from './info/InfoSettingsView';
 import { InfoAccountView } from './info/InfoAccountView';
@@ -91,7 +91,6 @@ export const InfoScreen = ({
     { title: t('menu_license', language), icon: 'document-text-outline' as const, view: 'LICENSE', sub: t('menu_license_sub', language) },
   ];
 
-  // ★ 3. 統計画面・アカウント画面・全履歴画面への遷移時および戻り時のセッション検証
   useEffect(() => {
     const currentView = navStack[navStack.length - 1];
     if (['ACCOUNT', 'STATISTICS', 'STATS_ALL', 'PLAY_HISTORY'].includes(currentView)) {
@@ -170,6 +169,10 @@ export const InfoScreen = ({
     try {
       await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
       if (setLocalLibrary) setLocalLibrary(updatedLibrary);
+
+      // ★ データ管理画面での楽曲編集保存時にクラウド自動同期
+      syncMusicAndPlaylistsToCloud();
+
       popView();
     } catch (e: any) {}
   };

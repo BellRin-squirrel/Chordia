@@ -3,13 +3,14 @@ use std::fs;
 use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::AppState;
 use crate::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, save_lufs_cache, update_mp3_tags_from_song_map};
+use crate::cmd_cloud_sync::trigger_background_sync;
 
 #[tauri::command]
-pub fn update_song_by_id(music_filename: String, field: String, value: String, state: State<'_, AppState>) -> bool {
+pub fn update_song_by_id(app: AppHandle, music_filename: String, field: String, value: String, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(i) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         if field == "lyric" {
@@ -20,12 +21,16 @@ pub fn update_song_by_id(music_filename: String, field: String, value: String, s
         }
 
         update_mp3_tags_from_song_map(i);
-        save_db(&db).is_ok()
+        let ok = save_db(&db).is_ok();
+        if ok {
+            trigger_background_sync(app, true, true);
+        }
+        ok
     } else { false }
 }
 
 #[tauri::command]
-pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<String>, remove: bool, state: State<'_, AppState>) -> bool {
+pub fn update_song_artwork_by_id(app: AppHandle, music_filename: String, new_art_base64: Option<String>, remove: bool, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(target) = db.iter_mut().find(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         if let Some(old) = target.get("imageFilename").and_then(|v| v.as_str()) { 
@@ -50,12 +55,16 @@ pub fn update_song_artwork_by_id(music_filename: String, new_art_base64: Option<
         }
 
         update_mp3_tags_from_song_map(target);
-        save_db(&db).is_ok()
+        let ok = save_db(&db).is_ok();
+        if ok {
+            trigger_background_sync(app, true, false);
+        }
+        ok
     } else { false }
 }
 
 #[tauri::command]
-pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> bool {
+pub fn delete_song_by_id(app: AppHandle, music_filename: String, state: State<'_, AppState>) -> bool {
     let mut db = state.db.lock().unwrap();
     if let Some(pos) = db.iter().position(|i| i.get("musicFilename").and_then(|v| v.as_str()) == Some(&music_filename)) {
         let i = db.remove(pos);
@@ -70,12 +79,16 @@ pub fn delete_song_by_id(music_filename: String, state: State<'_, AppState>) -> 
                 let _ = fs::remove_file(get_base_dir().join(normalize_rel_path(p)));
             }
         }
-        save_db(&db).is_ok()
+        let ok = save_db(&db).is_ok();
+        if ok {
+            trigger_background_sync(app, true, true);
+        }
+        ok
     } else { false }
 }
 
 #[tauri::command]
-pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Value {
+pub fn update_multiple_songs(app: AppHandle, filenames: Vec<String>, updates: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Value {
     let mut db = state.db.lock().unwrap();
     let mut count = 0;
     
@@ -129,12 +142,15 @@ pub fn update_multiple_songs(filenames: Vec<String>, updates: serde_json::Map<St
             count += 1;
         }
     }
-    if count > 0 { let _ = save_db(&db); }
+    if count > 0 { 
+        let _ = save_db(&db);
+        trigger_background_sync(app, true, true);
+    }
     serde_json::json!({"success": true, "count": count})
 }
 
 #[tauri::command]
-pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>) -> Value {
+pub fn delete_multiple_songs(app: AppHandle, filenames: Vec<String>, state: State<'_, AppState>) -> Value {
     let mut db = state.db.lock().unwrap();
     let mut count = 0;
     let mut removed_paths = Vec::new();
@@ -161,6 +177,7 @@ pub fn delete_multiple_songs(filenames: Vec<String>, state: State<'_, AppState>)
             cache.remove(&p);
         }
         save_lufs_cache(&cache);
+        trigger_background_sync(app, true, true);
     }
     serde_json::json!({"success": true, "count": count})
 }

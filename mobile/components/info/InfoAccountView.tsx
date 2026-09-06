@@ -76,7 +76,7 @@ export const InfoAccountView = ({
               authenticatedAt: new Date().toISOString(),
             }));
 
-            // ログイン成功時に既存の作業履歴＆再生履歴をサーバーへ一括送信
+            // ログイン成功時に既存の作業履歴・再生履歴・所有楽曲一覧をサーバーへ送信
             syncInitialLocalHistory(sid).catch((err) => {
               console.warn('[InitialSync Error]', err);
             });
@@ -186,7 +186,6 @@ export const InfoAccountView = ({
       {renderHeader(t('menu_account', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 20 }]}>
-        {/* 説明カード */}
         <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <View style={[s.iconBox, { backgroundColor: `rgba(79, 70, 229, 0.12)` }]}>
@@ -200,7 +199,6 @@ export const InfoAccountView = ({
           </Text>
         </View>
 
-        {/* 1. ログイン完了状態の表示 */}
         {authStage === 'AUTHENTICATED' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: themeColor, marginTop: 15 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -235,7 +233,6 @@ export const InfoAccountView = ({
           </View>
         )}
 
-        {/* 2. 未ログイン / 認証開始ボタン */}
         {authStage === 'IDLE' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
             <TouchableOpacity 
@@ -251,7 +248,6 @@ export const InfoAccountView = ({
           </View>
         )}
 
-        {/* 3. ユーザー名・デバイス名入力フォーム */}
         {authStage === 'INPUT' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
             <View style={{ gap: 16 }}>
@@ -319,7 +315,6 @@ export const InfoAccountView = ({
           </View>
         )}
 
-        {/* 4. 認証コード表示 & ポーリング待機中 */}
         {authStage === 'WAITING_CODE' && generatedCode && (
           <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: themeColor }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -346,7 +341,6 @@ export const InfoAccountView = ({
           </View>
         )}
 
-        {/* 5. 認証コードの有効期限切れ */}
         {authStage === 'EXPIRED' && (
           <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: '#ef4444' }]}>
             <Ionicons name="alert-circle" size={32} color="#ef4444" style={{ marginBottom: 6 }} />

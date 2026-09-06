@@ -24,7 +24,7 @@ import { TabBar } from '../../components/TabBar';
 import { LanguageSelectModal } from '../../components/LanguageSelectModal';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 import { LanguageCode, t } from '../../utils/i18n';
-import { verifyChordiaSyncSession } from '../../utils/chordiaSync';
+import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../../utils/chordiaSync';
 
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
@@ -85,9 +85,14 @@ const AppContent = () => {
     language
   });
 
-  // ★ 1. アプリ起動時 & 2. タブ切替時のセッション検証
+  // ★ 1. アプリ起動時 & タブ切替時のセッション検証 ＆ 楽曲・プレイリストのクラウド同期
   useEffect(() => {
-    verifyChordiaSyncSession(true, language);
+    (async () => {
+      const isValid = await verifyChordiaSyncSession(true, language);
+      if (isValid) {
+        syncMusicAndPlaylistsToCloud();
+      }
+    })();
   }, [activeTab]);
 
   useEffect(() => {
@@ -242,16 +247,16 @@ const AppContent = () => {
             dynamicStyles={actualDynamicStyles} 
             insets={insets} 
             themeColor={themeColor} 
-            localLibrary={localLibrary}
-            localPlaylists={localPlaylists}
-            currentSong={currentSong}
-            startQueue={startQueue}
-            stage={focusStage}
-            setStage={setFocusStage}
-            audioEngine={audioEngine}           
-            changeAudioEngine={changeAudioEngine}
-            themeR={themeR} themeG={themeG} themeB={themeB}
-            language={language}
+            localLibrary={localLibrary} 
+            localPlaylists={localPlaylists} 
+            currentSong={currentSong} 
+            startQueue={startQueue} 
+            stage={focusStage} 
+            setStage={setFocusStage} 
+            audioEngine={audioEngine} 
+            changeAudioEngine={changeAudioEngine} 
+            themeR={themeR} themeG={themeG} themeB={themeB} 
+            language={language} 
           />
         )}
         {activeTab === 'INFO' && (
@@ -278,10 +283,10 @@ const AppContent = () => {
             toggleFocusTab={toggleFocusTab} 
             showSyncTab={showSyncTab} 
             toggleSyncTab={toggleSyncTab} 
-            showPlaylistTypeIcon={showPlaylistTypeIcon}
-            toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
-            language={language}
-            changeLanguage={changeLanguage}
+            showPlaylistTypeIcon={showPlaylistTypeIcon} 
+            toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon} 
+            language={language} 
+            changeLanguage={changeLanguage} 
             localLibrary={localLibrary} 
             setLocalLibrary={setLocalLibrary} 
             localPlaylists={localPlaylists} 

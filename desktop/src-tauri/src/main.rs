@@ -26,6 +26,7 @@ use tokio::sync::{Mutex, Semaphore};
 use tauri::{Manager, Emitter, AppHandle, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
 use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime};
+use cmd_cloud_sync::trigger_background_sync;
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
@@ -206,6 +207,9 @@ fn main() {
                 if let Some(splash_win) = app_handle_for_init.get_webview_window("splashscreen") {
                     let _ = splash_win.close();
                 }
+
+                // ★ アプリ起動完了時にバックグラウンドでクラウド同期を自動実行
+                trigger_background_sync(app_handle_for_init, true, true);
             });
 
             let app_handle_for_timer = app.handle().clone();
@@ -355,9 +359,11 @@ fn main() {
             cmd_cloud_sync::add_play_history_to_cloud,
             cmd_cloud_sync::sync_all_local_history_to_cloud,
             cmd_cloud_sync::sync_all_local_work_history_to_cloud,
+            cmd_cloud_sync::sync_all_local_music_list_to_cloud,
+            cmd_cloud_sync::sync_all_local_playlists_to_cloud,
             cmd_cloud_sync::record_work_session,
             cmd_cloud_sync::get_local_work_history,
-            cmd_cloud_sync::verify_current_cloud_session, // ★ 追加
+            cmd_cloud_sync::verify_current_cloud_session,
             resolve_path, restart_app
         ])
         .run(tauri::generate_context!())

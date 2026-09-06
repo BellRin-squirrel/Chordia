@@ -1,9 +1,10 @@
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use crate::server::SharedAuthState;
 use std::fs;
 use chrono::Local;
-use crate::utils::{get_base_dir, safe_write_file};
+use crate::utils::{get_base_dir, safe_write_file, check_and_reload_db_if_needed, check_and_reload_playlists_if_needed, load_playlists_master};
+use crate::AppState;
 use super::auth::get_saved_cloud_sid;
 
 pub async fn send_single_play_history_to_cloud(
@@ -20,7 +21,7 @@ pub async fn send_single_play_history_to_cloud(
         "title": title,
         "artist": artist,
         "album": album,
-        "albbum": album // サーバー側パラメータ互換用
+        "albbum": album
     });
 
     if let Some(d) = date {
@@ -73,7 +74,6 @@ pub async fn add_play_history_to_cloud(
     send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album, date.as_deref()).await
 }
 
-// 既存の再生履歴をクラウドへ一括同期（送信完了後にローカル履歴を完全消去）
 #[tauri::command]
 pub async fn sync_all_local_history_to_cloud(
     app: AppHandle,
@@ -115,9 +115,7 @@ pub async fn sync_all_local_history_to_cloud(
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
-    // ★ クラウド送信完了後、ローカルの再生履歴を完全に消去
     let _ = safe_write_file(&h_path, b"[]");
-
     Ok(success_count)
 }
 
@@ -193,7 +191,6 @@ pub async fn send_single_work_history_to_cloud(
     Ok(())
 }
 
-// 既存の作業履歴をクラウドへ一括同期（送信完了後にローカル履歴を完全消去）
 #[tauri::command]
 pub async fn sync_all_local_work_history_to_cloud(
     app: AppHandle,
@@ -249,9 +246,7 @@ pub async fn sync_all_local_work_history_to_cloud(
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
-    // ★ クラウド送信完了後、ローカルの作業履歴を完全に消去
     let _ = safe_write_file(&w_path, b"[]");
-
     Ok(success_count)
 }
 
@@ -286,4 +281,205 @@ pub async fn fetch_cloud_work_history(auth: State<'_, SharedAuthState>) -> Resul
     }
 
     Ok(json_res.get("history").cloned().unwrap_or(serde_json::json!([])))
+}
+
+// ★ 曲一覧送信API (registerMusicList)
+#[tauri::command]
+pub async fn sync_all_local_music_list_to_cloud(
+    state: State<'_, AppState>,
+    auth: State<'_, SharedAuthState>,
+) -> Result<usize, String> {
+    let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
+
+    check_and_reload_db_if_needed(&state);
+
+    let music_list: Vec<Value> = {
+        let db = state.db.lock().unwrap();
+        db.iter().map(|song| {
+            let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("");
+            let artist = song.get("artist").and_then(|v| v.as_str()).unwrap_or("");
+            let album = song.get("album").and_then(|v| v.as_str()).unwrap_or("");
+            let lyric = song.get("lyric").and_then(|v| v.as_str()).unwrap_or("");
+            serde_json::json!({
+                "title": title,
+                "artist": artist,
+                "album": album,
+                "lyric": lyric
+            })
+        }).collect()
+    };
+
+    let total = music_list.len();
+
+    let payload = serde_json::json!({
+        "operation": "registerMusicList",
+        "SID": sid,
+        "musicList": music_list
+    });
+
+    let body_json = serde_json::to_string(&payload)
+        .map_err(|e| format!("JSON構築エラー: {}", e))?;
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(body_json)
+        .send()
+        .await
+        .map_err(|e| format!("通信エラー: {}", e))?;
+
+    let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
+    println!("[Chordia Sync] registerMusicList result: {}", res_text);
+
+    let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSONレスポンス: {}", res_text))?;
+
+    if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+
+    Ok(total)
+}
+
+// ★ プレイリスト送信API (registerPlaylist)
+#[tauri::command]
+pub async fn sync_all_local_playlists_to_cloud(
+    state: State<'_, AppState>,
+    auth: State<'_, SharedAuthState>,
+) -> Result<usize, String> {
+    let sid = get_saved_cloud_sid(&auth).await.ok_or_else(|| "ログインしていません。".to_string())?;
+
+    check_and_reload_db_if_needed(&state);
+    check_and_reload_playlists_if_needed(&state);
+
+    let master = load_playlists_master();
+    let base = get_base_dir();
+
+    let playlist_data: Vec<Value> = {
+        let db = state.db.lock().unwrap();
+        let mut list = Vec::new();
+
+        for pl in master {
+            let pl_id = pl.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let pl_name = pl.get("playlistName").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let pl_type = pl.get("type").and_then(|v| v.as_str()).unwrap_or("normal").to_string();
+            let sort_by = pl.get("sortBy").and_then(|v| v.as_str()).unwrap_or("title").to_string();
+            let sort_desc = pl.get("sortDesc").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            if pl_type == "smart" {
+                let conditions = pl.get("conditions").cloned().unwrap_or(serde_json::json!({
+                    "items": [],
+                    "match": "all",
+                    "type": "group"
+                }));
+                list.push(serde_json::json!({
+                    "id": pl_id,
+                    "playlistName": pl_name,
+                    "sortBy": sort_by,
+                    "sortDesc": sort_desc,
+                    "type": "smart",
+                    "conditions": conditions
+                }));
+            } else {
+                let mut musics = Vec::new();
+                let p_file = base.join(format!("userfiles/playlist/{}.json", pl_id));
+                if p_file.exists() {
+                    if let Ok(data) = fs::read_to_string(&p_file) {
+                        if let Ok(file_list) = serde_json::from_str::<Vec<String>>(&data) {
+                            for target_path in file_list {
+                                let norm_target = crate::utils::normalize_rel_path(&target_path);
+                                let target_fname = std::path::Path::new(&target_path).file_name().and_then(|n| n.to_str()).unwrap_or("");
+                                
+                                if let Some(song) = db.iter().find(|s| {
+                                    let s_path = s.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
+                                    let s_norm = crate::utils::normalize_rel_path(s_path);
+                                    let s_fname = std::path::Path::new(s_path).file_name().and_then(|n| n.to_str()).unwrap_or("");
+                                    s_norm == norm_target || s_path == norm_target || s_fname == target_fname
+                                }) {
+                                    let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                                    let artist = song.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                                    musics.push(serde_json::json!({
+                                        "title": title,
+                                        "artist": artist
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                list.push(serde_json::json!({
+                    "id": pl_id,
+                    "playlistName": pl_name,
+                    "sortBy": sort_by,
+                    "sortDesc": sort_desc,
+                    "type": "normal",
+                    "musics": musics
+                }));
+            }
+        }
+        list
+    };
+
+    let total = playlist_data.len();
+
+    let payload = serde_json::json!({
+        "operation": "registerPlaylist",
+        "SID": sid,
+        "playlist": playlist_data
+    });
+
+    let body_json = serde_json::to_string(&payload)
+        .map_err(|e| format!("JSON構築エラー: {}", e))?;
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).build().map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(body_json)
+        .send()
+        .await
+        .map_err(|e| format!("通信エラー: {}", e))?;
+
+    let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
+    println!("[Chordia Sync] registerPlaylist result: {}", res_text);
+
+    let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSONレスポンス: {}", res_text))?;
+
+    if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+
+    Ok(total)
+}
+
+// ★ 楽曲一覧およびプレイリスト情報のバックグラウンド自動同期ヘルパー
+pub fn trigger_background_sync(app_handle: AppHandle, sync_music: bool, sync_playlists: bool) {
+    tauri::async_runtime::spawn(async move {
+        let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");
+        let mut is_logged_in = false;
+        if auth_file_path.exists() {
+            if let Ok(content) = fs::read_to_string(&auth_file_path) {
+                if let Ok(json) = serde_json::from_str::<Value>(&content) {
+                    is_logged_in = json.get("logged_in").and_then(|v| v.as_bool()).unwrap_or(false);
+                }
+            }
+        }
+
+        if is_logged_in {
+            let state = app_handle.state::<AppState>();
+            let auth = app_handle.state::<SharedAuthState>();
+
+            if sync_music {
+                let _ = sync_all_local_music_list_to_cloud(state.clone(), auth.clone()).await;
+            }
+            if sync_playlists {
+                let _ = sync_all_local_playlists_to_cloud(state.clone(), auth.clone()).await;
+            }
+        }
+    });
 }

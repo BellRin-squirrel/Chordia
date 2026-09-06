@@ -4,11 +4,12 @@ use std::fs;
 use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use std::collections::HashSet;
-use tauri::State;
+use tauri::{AppHandle, State};
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::AppState;
 use crate::utils::*;
+use crate::cmd_cloud_sync::trigger_background_sync;
 
 fn load_playlist_covers() -> serde_json::Map<String, Value> {
     let path = get_base_dir().join("userfiles/playlist_covers.json");
@@ -208,7 +209,7 @@ pub fn get_virtual_playlist_details(field: String, value: String, state: State<'
 }
 
 #[tauri::command]
-pub fn create_playlist(name: String, pl_type: String, state: State<'_, AppState>) -> Option<Value> {
+pub fn create_playlist(app: AppHandle, name: String, pl_type: String, state: State<'_, AppState>) -> Option<Value> {
     let id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     let mut new_pl = serde_json::json!({
         "id": id,
@@ -234,11 +235,13 @@ pub fn create_playlist(name: String, pl_type: String, state: State<'_, AppState>
     save_playlists_master(&master);
     update_playlists_mtime(&state);
 
+    trigger_background_sync(app, false, true);
+
     Some(master.last().unwrap().clone())
 }
 
 #[tauri::command]
-pub fn update_playlist_by_id(pl_id: String, field: String, value: Value, state: State<'_, AppState>) -> Option<Value> {
+pub fn update_playlist_by_id(app: AppHandle, pl_id: String, field: String, value: Value, state: State<'_, AppState>) -> Option<Value> {
     let mut result_pl = None;
     let mut needs_save = false;
 
@@ -264,11 +267,15 @@ pub fn update_playlist_by_id(pl_id: String, field: String, value: Value, state: 
         }
     }
     
+    if result_pl.is_some() {
+        trigger_background_sync(app, false, true);
+    }
+
     result_pl
 }
 
 #[tauri::command]
-pub fn delete_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> bool {
+pub fn delete_playlist_by_id(app: AppHandle, pl_id: String, state: State<'_, AppState>) -> bool {
     let mut master = state.playlists.lock().unwrap();
     if let Some(pos) = master.iter().position(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id)) {
         master.remove(pos);
@@ -282,13 +289,15 @@ pub fn delete_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> bool 
         covers.remove(&pl_id);
         save_playlist_covers(&covers);
 
+        trigger_background_sync(app, false, true);
+
         return true;
     }
     false
 }
 
 #[tauri::command]
-pub fn duplicate_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> Option<Value> {
+pub fn duplicate_playlist_by_id(app: AppHandle, pl_id: String, state: State<'_, AppState>) -> Option<Value> {
     let mut new_pl_result = None;
     
     {
@@ -335,11 +344,15 @@ pub fn duplicate_playlist_by_id(pl_id: String, state: State<'_, AppState>) -> Op
         }
     }
     
+    if new_pl_result.is_some() {
+        trigger_background_sync(app, false, true);
+    }
+
     new_pl_result
 }
 
 #[tauri::command]
-pub fn add_songs_to_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
+pub fn add_songs_to_playlist(app: AppHandle, pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
     let master = state.playlists.lock().unwrap();
     let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))
         .ok_or_else(|| format!("プレイリストが見つかりません: ID={}", pl_id))?;
@@ -373,11 +386,13 @@ pub fn add_songs_to_playlist(pl_id: String, filenames: Vec<String>, state: State
     let data = serde_json::to_string_pretty(&current).map_err(|e| e.to_string())?;
     safe_write_file(&path, data.as_bytes())?;
 
+    trigger_background_sync(app, false, true);
+
     Ok(pl.clone())
 }
 
 #[tauri::command]
-pub fn remove_songs_from_playlist(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
+pub fn remove_songs_from_playlist(app: AppHandle, pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Result<Value, String> {
     let master = state.playlists.lock().unwrap();
     let pl = master.iter().find(|p| p.get("id").and_then(|v| v.as_str()) == Some(&pl_id))
         .ok_or_else(|| format!("プレイリストが見つかりません: ID={}", pl_id))?;
@@ -394,11 +409,14 @@ pub fn remove_songs_from_playlist(pl_id: String, filenames: Vec<String>, state: 
         let data = serde_json::to_string_pretty(&current).map_err(|e| e.to_string())?;
         safe_write_file(&path, data.as_bytes())?;
     }
+
+    trigger_background_sync(app, false, true);
+
     Ok(pl.clone())
 }
 
 #[tauri::command]
-pub fn create_smart_playlist(name: String, conditions: Value, state: State<'_, AppState>) -> Option<Value> {
+pub fn create_smart_playlist(app: AppHandle, name: String, conditions: Value, state: State<'_, AppState>) -> Option<Value> {
     let id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     let new_pl = serde_json::json!({
         "id": id,
@@ -413,11 +431,13 @@ pub fn create_smart_playlist(name: String, conditions: Value, state: State<'_, A
     save_playlists_master(&master);
     update_playlists_mtime(&state);
 
+    trigger_background_sync(app, false, true);
+
     Some(master.last().unwrap().clone())
 }
 
 #[tauri::command]
-pub fn update_smart_playlist(pl_id: String, name: String, conditions: Value, state: State<'_, AppState>) -> Option<Value> {
+pub fn update_smart_playlist(app: AppHandle, pl_id: String, name: String, conditions: Value, state: State<'_, AppState>) -> Option<Value> {
     let mut result_pl = None;
     {
         let mut master = state.playlists.lock().unwrap();
@@ -433,11 +453,16 @@ pub fn update_smart_playlist(pl_id: String, name: String, conditions: Value, sta
             update_playlists_mtime(&state);
         }
     }
+
+    if result_pl.is_some() {
+        trigger_background_sync(app, false, true);
+    }
+
     result_pl
 }
 
 #[tauri::command]
-pub fn convert_smart_to_normal_and_remove_songs(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
+pub fn convert_smart_to_normal_and_remove_songs(app: AppHandle, pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
     let mut current_music = Vec::new();
     let mut pl_clone = None;
     
@@ -479,13 +504,14 @@ pub fn convert_smart_to_normal_and_remove_songs(pl_id: String, filenames: Vec<St
         
         let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
         let _ = safe_write_file(&path, serde_json::to_string_pretty(&current_music).unwrap_or_default().as_bytes());
+        trigger_background_sync(app, false, true);
         return pl_clone;
     }
     None
 }
 
 #[tauri::command]
-pub fn convert_smart_to_normal_and_add_songs(pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
+pub fn convert_smart_to_normal_and_add_songs(app: AppHandle, pl_id: String, filenames: Vec<String>, state: State<'_, AppState>) -> Option<Value> {
     let mut current_music = Vec::new();
     let mut pl_clone = None;
     
@@ -530,6 +556,7 @@ pub fn convert_smart_to_normal_and_add_songs(pl_id: String, filenames: Vec<Strin
         }
         let path = get_base_dir().join(format!("userfiles/playlist/{}.json", pl_id));
         let _ = safe_write_file(&path, serde_json::to_string_pretty(&current_music).unwrap_or_default().as_bytes());
+        trigger_background_sync(app, false, true);
         return pl_clone;
     }
     None

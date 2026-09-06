@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { MarqueeText } from '../MarqueeText';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
+import { syncMusicAndPlaylistsToCloud } from '../../utils/chordiaSync';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -88,6 +89,9 @@ export const InfoManageDataView = ({
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
       if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
       
+      // ★ プレイリスト更新時にクラウド自動同期
+      syncMusicAndPlaylistsToCloud();
+
       closeAddToPlaylistModal();
     } catch (e: any) {
       console.error('[PlaylistAdd Error]', e);
@@ -136,6 +140,9 @@ export const InfoManageDataView = ({
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
       if (setLocalLibrary) setLocalLibrary(remainingLibrary);
       if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
+
+      // ★ 楽曲・プレイリスト削除時にクラウド自動同期
+      syncMusicAndPlaylistsToCloud();
 
       setSelectedSongUris(new Set());
       setIsSelectionMode(false);
@@ -389,7 +396,6 @@ export const InfoManageDataView = ({
                   );
                 })()}
 
-                {/* ★ キャンセルボタンの多言語化 */}
                 <AnimatedCancelButton 
                   onPress={() => closeActionSheet()} 
                   dynamicStyles={dynamicStyles} 

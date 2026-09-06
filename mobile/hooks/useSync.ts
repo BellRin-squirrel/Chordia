@@ -8,6 +8,7 @@ import * as Network from 'expo-network';
 import DeviceInfo from 'react-native-device-info';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
 import { LanguageCode, t } from '../utils/i18n';
+import { syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
 
 type QrData = {
   ip?: string;
@@ -665,6 +666,9 @@ export const useSync = ({
         setLocalPlaylists(processedPlaylists);
 
         await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+
+        // ★ 同期完了直後に Chordia Sync クラウドへ最新ライブラリ＆プレイリストを自動同期
+        syncMusicAndPlaylistsToCloud();
 
         setIsFullScreenSyncing(false);
         setSyncProgress('');

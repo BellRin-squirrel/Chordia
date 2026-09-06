@@ -5,11 +5,12 @@ use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
 use std::collections::HashSet;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::AppState;
 use crate::types::*;
 use crate::utils::*;
+use crate::cmd_cloud_sync::trigger_background_sync;
 
 fn verify_tool_executable(tool: &str) -> Result<(), String> {
     let b = crate::utils::get_base_dir().join("userfiles/bin");
@@ -211,7 +212,7 @@ async fn fetch_and_crop_thumbnail_internal(url: String) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
+pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     verify_tool_executable("yt-dlp")?;
     verify_tool_executable("ffmpeg")?;
 
@@ -334,11 +335,15 @@ pub async fn download_and_save_music(mut data: serde_json::Map<String, Value>, s
 
     db.push(data.clone()); 
     let _ = save_db(&db); 
+
+    // ★ クラウドへ楽曲一覧を自動バックグラウンド同期
+    trigger_background_sync(app, true, false);
+
     Ok(true)
 }
 
 #[tauri::command]
-pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
+pub async fn save_music_data(app: AppHandle, mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     let base = get_base_dir();
     let _ = fs::create_dir_all(base.join("userfiles"));
     let _ = fs::create_dir_all(base.join("library/music"));
@@ -407,6 +412,10 @@ pub async fn save_music_data(mut data: serde_json::Map<String, Value>, state: St
 
     db_guard.push(data);
     let _ = save_db(&db_guard);
+
+    // ★ クラウドへ楽曲一覧を自動バックグラウンド同期
+    trigger_background_sync(app, true, false);
+
     Ok(true)
 }
 

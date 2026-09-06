@@ -14,6 +14,7 @@ import { MarqueeText } from '../MarqueeText';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { SmartPlaylistEditorModal } from './SmartPlaylistEditorModal';
 import { t } from '../../utils/i18n';
+import { syncMusicAndPlaylistsToCloud } from '../../utils/chordiaSync';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -171,6 +172,9 @@ export const LibraryCategoryView = ({
       const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
       if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
+      // ★ カバー画像変更時にクラウド同期
+      syncMusicAndPlaylistsToCloud();
+
       Alert.alert(t('confirm', language), sourceUri ? t('cover_updated', language) : t('cover_reset', language));
     } catch (e: any) {
       Alert.alert(t('alert_timer_error_title', language), e.message);
@@ -265,6 +269,9 @@ export const LibraryCategoryView = ({
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
     if (setLocalPlaylists) setLocalPlaylists(updated);
 
+    // ★ 通常プレイリスト新規作成時にクラウド同期
+    syncMusicAndPlaylistsToCloud();
+
     setSelectSongsModalVisible(false);
     setNewPlaylistName('');
     setSelectedSongFilenames(new Set());
@@ -285,6 +292,10 @@ export const LibraryCategoryView = ({
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
       if (setLocalPlaylists) setLocalPlaylists(updated);
       setSmartEditorConfig({ visible: false, mode: 'CREATE', targetPlaylist: null });
+
+      // ★ スマートプレイリスト作成時にクラウド同期
+      syncMusicAndPlaylistsToCloud();
+
       Alert.alert(t('confirm', language), t('smart_playlist_created_alert', language).replace('{name}', name));
     } else {
       const target = smartEditorConfig.targetPlaylist;
@@ -303,6 +314,10 @@ export const LibraryCategoryView = ({
       if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
       setSmartEditorConfig({ visible: false, mode: 'EDIT', targetPlaylist: null });
+
+      // ★ スマートプレイリスト編集時にクラウド同期
+      syncMusicAndPlaylistsToCloud();
+
       Alert.alert(t('confirm', language), t('rules_saved_alert', language).replace('{name}', target.playlistName));
     }
   };
@@ -340,6 +355,9 @@ export const LibraryCategoryView = ({
 
               const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
               if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
+
+              // ★ 通常プレイリスト変換時にクラウド同期
+              syncMusicAndPlaylistsToCloud();
 
               Alert.alert(t('confirm', language), t('convert_smart_done', language).replace('{name}', targetPl.playlistName));
             } catch (e: any) {
@@ -383,6 +401,10 @@ export const LibraryCategoryView = ({
     if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
     setEditSongsTargetPl(null);
+
+    // ★ 収録曲更新時にクラウド同期
+    syncMusicAndPlaylistsToCloud();
+
     Alert.alert(t('confirm', language), t('tracks_updated_alert', language).replace('{name}', editSongsTargetPl.playlistName));
   };
 
@@ -396,6 +418,9 @@ export const LibraryCategoryView = ({
     const updated = [...localPlaylists, newPl];
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
     if (setLocalPlaylists) setLocalPlaylists(updated);
+
+    // ★ プレイリスト複製時にクラウド同期
+    syncMusicAndPlaylistsToCloud();
 
     Alert.alert(t('confirm', language), t('playlist_duplicated_alert', language).replace('{name}', newPl.playlistName));
   };
@@ -415,6 +440,9 @@ export const LibraryCategoryView = ({
 
     setRenameTarget(null);
     setRenameInput('');
+
+    // ★ プレイリスト名変更時にクラウド同期
+    syncMusicAndPlaylistsToCloud();
   };
 
   const handleDeletePlaylist = (targetPl: any) => {
@@ -430,6 +458,9 @@ export const LibraryCategoryView = ({
             const updated = localPlaylists.filter((pl: any) => pl.id !== targetPl.id);
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
             if (setLocalPlaylists) setLocalPlaylists(updated);
+
+            // ★ プレイリスト削除時にクラウド同期
+            syncMusicAndPlaylistsToCloud();
           }
         }
       ]

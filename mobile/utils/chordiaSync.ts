@@ -4,6 +4,7 @@ import * as Device from 'expo-device';
 import DeviceInfo from 'react-native-device-info';
 import { HTTP_X_ACCESS_KEY, CHORDIA_SYNC_API_URL, APP_VERSION } from '../constants/config';
 import { LanguageCode, t } from './i18n';
+import { getPlaylistSongs } from './playlistEvaluator';
 
 export const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 const PENDING_PLAY_HISTORY_KEY = 'chordia_pending_play_history';
@@ -11,53 +12,17 @@ const PENDING_WORK_HISTORY_KEY = 'chordia_pending_work_history';
 
 export type DeletePeriod = '1day' | '1week' | '1month' | '1year' | 'all';
 
-export interface RegisterAuthResponse {
-  success: boolean;
-  sid?: string;
-  error?: string;
-}
-
-export interface CheckAuthStatusResponse {
-  success: boolean;
-  status?: 'authenticated' | 'unauthenticated' | 'expired';
-  error?: string;
-}
-
-export interface LogoutResponse {
-  success: boolean;
-  error?: string;
-}
-
-export interface PlayHistoryItem {
-  title: string;
-  artist: string;
-  album: string;
-  device?: string;
-  date?: string; // "YYYY.MM.DD.HH.mm"
-}
-
-export interface LoadPlayHistoryResponse {
-  success: boolean;
-  history?: PlayHistoryItem[];
-  error?: string;
-}
-
-export interface WorkHistoryItem {
-  end: string;   // "YYYY.MM.DD.HH.mm"
-  time: string;  // "HH:mm:ss"
-  device?: string;
-}
-
-export interface LoadWorkHistoryResponse {
-  success: boolean;
-  history?: WorkHistoryItem[];
-  error?: string;
-}
-
-export interface DeleteHistoryResponse {
-  success: boolean;
-  error?: string;
-}
+export interface RegisterAuthResponse { success: boolean; sid?: string; error?: string; }
+export interface CheckAuthStatusResponse { success: boolean; status?: 'authenticated' | 'unauthenticated' | 'expired'; error?: string; }
+export interface LogoutResponse { success: boolean; error?: string; }
+export interface RegisterMusicItem { title: string; artist: string; album: string; lyric: string; }
+export interface RegisterMusicListResponse { success: boolean; error?: string; }
+export interface RegisterPlaylistResponse { success: boolean; error?: string; }
+export interface PlayHistoryItem { title: string; artist: string; album: string; device?: string; date?: string; }
+export interface LoadPlayHistoryResponse { success: boolean; history?: PlayHistoryItem[]; error?: string; }
+export interface WorkHistoryItem { end: string; time: string; device?: string; }
+export interface LoadWorkHistoryResponse { success: boolean; history?: WorkHistoryItem[]; error?: string; }
+export interface DeleteHistoryResponse { success: boolean; error?: string; }
 
 export const getDeviceModelName = (): string => {
   let modelName = Platform.OS === 'ios' ? 'iPhone' : 'Android Device';
@@ -72,11 +37,10 @@ export const getDeviceModelName = (): string => {
 };
 
 export const getDeviceOsInfo = (): string => {
-  if (Platform.OS === 'ios') return `iOS ${Platform.Version}`;
-  return `Android ${Platform.Version}`;
+  return Platform.OS === 'ios' ? `iOS ${Platform.Version}` : `Android ${Platform.Version}`;
 };
 
-const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 8000): Promise<Response> => {
+const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 10000): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -85,9 +49,7 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
     return res;
   } catch (e: any) {
     clearTimeout(timeoutId);
-    if (e.name === 'AbortError') {
-      throw new Error('通信がタイムアウトしました。インターネット接続を確認してください。');
-    }
+    if (e.name === 'AbortError') throw new Error('通信がタイムアウトしました。インターネット接続を確認してください。');
     throw new Error('インターネットに接続できません。ネットワーク設定を確認してください。');
   }
 };
@@ -95,9 +57,7 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
 export const generateAuthCode = (length: number = 8): string => {
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
   let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
+  for (let i = 0; i < length; i++) result += chars[Math.floor(Math.random() * chars.length)];
   return result;
 };
 
@@ -108,9 +68,7 @@ export const parseSyncDate = (dateStr?: string): Date => {
     return isNaN(d.getTime()) ? new Date(0) : d;
   }
   const parts = dateStr.split('.').map((p) => parseInt(p, 10));
-  if (parts.length >= 5) {
-    return new Date(parts[0], parts[1] - 1, parts[2], parts[3], parts[4]);
-  }
+  if (parts.length >= 5) return new Date(parts[0], parts[1] - 1, parts[2], parts[3], parts[4]);
   return new Date(0);
 };
 
@@ -151,298 +109,249 @@ export const formatWorkDuration = (totalSeconds: number): string => {
   return `${h}:${m}:${s}`;
 };
 
-/**
- * 認証コード事前通信 (registerAuthenticationCode)
- */
 export const registerAuthCodeApi = async (username: string, device: string, code: string, model?: string): Promise<RegisterAuthResponse> => {
-  const deviceModel = model || getDeviceModelName();
-  const deviceOs = getDeviceOsInfo();
-  const appVer = `Chordia Mobile ${APP_VERSION}`;
-
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
-      body: JSON.stringify({
-        operation: 'registerAuthenticationCode',
-        code: code,
-        username: username.trim(),
-        device: device.trim(),
-        model: deviceModel.trim(),
-        OS: deviceOs,
-        chordiaV: appVer,
-      }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'registerAuthenticationCode', code, username: username.trim(), device: device.trim(), model: (model || getDeviceModelName()).trim(), OS: getDeviceOsInfo(), chordiaV: `Chordia Mobile ${APP_VERSION}` }),
     }, 10000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     if (data.sid) return { success: true, sid: String(data.sid) };
-    return { success: false, error: '有効なセッションID(sid)が取得できませんでした' };
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'インターネット接続を確認してください' };
-  }
+    return { success: false, error: '有効なセッションIDが取得できませんでした' };
+  } catch (e: any) { return { success: false, error: e?.message || 'インターネット接続を確認してください' }; }
 };
 
-/**
- * 認証完了確認API (checkAlreadyLogin)
- */
 export const checkAuthStatusApi = async (sid: string, name: string, device: string): Promise<CheckAuthStatusResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
-      body: JSON.stringify({
-        operation: 'checkAlreadyLogin',
-        SID: sid,
-        name: name.trim(),
-        device: device.trim(),
-      }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'checkAlreadyLogin', SID: sid, name: name.trim(), device: device.trim() }),
     }, 5000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     if (data.status) return { success: true, status: data.status };
     return { success: false, error: '認証ステータスを取得できませんでした' };
-  } catch (error: any) {
-    return { success: false, error: error?.message || '通信エラーが発生しました' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || '通信エラーが発生しました' }; }
 };
 
-/**
- * ログイン状態のセッション検証システム
- */
 export const verifyChordiaSyncSession = async (showWarning = true, language: LanguageCode = 'ja'): Promise<boolean> => {
   try {
     const raw = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
     if (!raw) return false;
     const account = JSON.parse(raw);
-    if (!account || !account.sid || !account.username) return false;
+    if (!account?.sid || !account?.username) return false;
 
     const res = await checkAuthStatusApi(account.sid, account.username, account.deviceName || '');
     if (res.success && res.status === 'authenticated') return true;
 
-    console.warn('[Chordia Sync] ❌ ログイン認証が無効でした。認証情報を破棄します:', res);
+    console.warn('[Chordia Sync] ❌ 認証が無効でした。認証情報を破棄します:', res);
     await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
-
-    if (showWarning) {
-      Alert.alert(t('sync_auth_error_title', language), t('account_auth_invalid_warning', language));
-    }
+    if (showWarning) Alert.alert(t('sync_auth_error_title', language), t('account_auth_invalid_warning', language));
     return false;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 };
 
-/**
- * ログアウトAPI
- */
 export const logoutApi = async (sid: string, name: string, device: string): Promise<LogoutResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
-      body: JSON.stringify({
-        operation: 'logout',
-        SID: sid,
-        name: name.trim(),
-        device: device.trim(),
-      }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'logout', SID: sid, name: name.trim(), device: device.trim() }),
     }, 8000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'ログアウト通信に失敗しました' };
+  } catch (e: any) { return { success: false, error: e?.message || 'ログアウト通信に失敗しました' }; }
+};
+
+export const registerMusicListApi = async (sid: string, musicList: RegisterMusicItem[]): Promise<RegisterMusicListResponse> => {
+  console.log(`[MusicList API] 📡 所有楽曲一覧を送信中... (全 ${musicList.length} 曲)`);
+  try {
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'registerMusicList', SID: sid, musicList }),
+    }, 15000);
+    const data = JSON.parse(await response.text());
+    if (data.error) {
+      console.warn('[MusicList API] ❌ 楽曲一覧の登録エラー:', data.error);
+      return { success: false, error: String(data.error) };
+    }
+    console.log(`[MusicList API] ✅ 楽曲一覧の登録に成功しました (全 ${musicList.length} 曲)`);
+    return { success: true };
+  } catch (e: any) {
+    console.error('[MusicList API] ❌ 楽曲一覧送信 通信例外:', e?.message || e);
+    return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' };
+  }
+};
+
+export const registerPlaylistApi = async (sid: string, playlist: any[]): Promise<RegisterPlaylistResponse> => {
+  console.log(`[Playlist API] 📡 プレイリスト一覧を送信中... (全 ${playlist.length} 件)`);
+  try {
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'registerPlaylist', SID: sid, playlist }),
+    }, 15000);
+    const data = JSON.parse(await response.text());
+    if (data.error) {
+      console.warn('[Playlist API] ❌ プレイリスト登録エラー:', data.error);
+      return { success: false, error: String(data.error) };
+    }
+    console.log(`[Playlist API] ✅ プレイリスト一覧の登録に成功しました (全 ${playlist.length} 件)`);
+    return { success: true };
+  } catch (e: any) {
+    console.error('[Playlist API] ❌ プレイリスト送信 通信例外:', e?.message || e);
+    return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' };
   }
 };
 
 /**
- * 全楽曲再生履歴取得API (loadAllPlayHistory)
+ * ★ ログイン中に楽曲一覧とプレイリスト一覧をクラウドへ送信する共通関数
  */
+export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
+  try {
+    const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+    if (!rawAccount) return;
+    const account = JSON.parse(rawAccount);
+    if (!account?.sid) return;
+
+    const sid = account.sid;
+
+    // 1. 所有楽曲一覧の送信
+    let localLibraryList: any[] = [];
+    const localLibraryRaw = await AsyncStorage.getItem('local_library');
+    if (localLibraryRaw) {
+      localLibraryList = JSON.parse(localLibraryRaw);
+      const musicList: RegisterMusicItem[] = localLibraryList.map((s: any) => ({
+        title: s.title || 'Untitled',
+        artist: s.artist || 'Unknown Artist',
+        album: s.album || 'Unknown Album',
+        lyric: s.lyric || '',
+      }));
+      await registerMusicListApi(sid, musicList);
+    }
+
+    // 2. プレイリスト一覧の送信
+    const localPlaylistsRaw = await AsyncStorage.getItem('local_playlists');
+    if (localPlaylistsRaw) {
+      const rawPlaylists: any[] = JSON.parse(localPlaylistsRaw);
+      const formattedPlaylists: any[] = [];
+
+      for (const pl of rawPlaylists) {
+        if (!pl || pl.isAll || pl.id === 'all_songs') continue;
+
+        if (pl.type === 'smart') {
+          formattedPlaylists.push({
+            id: pl.id,
+            playlistName: pl.playlistName || 'Untitled Playlist',
+            sortBy: pl.sortBy || 'title',
+            sortDesc: !!pl.sortDesc,
+            type: 'smart',
+            conditions: pl.conditions || { type: 'group', match: 'all', items: [] },
+          });
+        } else {
+          const matchedSongs = getPlaylistSongs(pl, localLibraryList);
+          const musics = matchedSongs.map((s: any) => ({
+            title: s.title || 'Untitled',
+            artist: s.artist || 'Unknown Artist',
+          }));
+
+          formattedPlaylists.push({
+            id: pl.id,
+            playlistName: pl.playlistName || 'Untitled Playlist',
+            sortBy: pl.sortBy || 'title',
+            sortDesc: !!pl.sortDesc,
+            type: 'normal',
+            musics: musics,
+          });
+        }
+      }
+
+      await registerPlaylistApi(sid, formattedPlaylists);
+    }
+  } catch (e) {
+    console.warn('[Chordia Sync] 楽曲・プレイリスト同期エラー:', e);
+  }
+};
+
 export const loadAllPlayHistoryApi = async (sid: string): Promise<LoadPlayHistoryResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'loadAllPlayHistory', SID: sid }),
     }, 10000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     if (Array.isArray(data.history)) return { success: true, history: data.history };
     return { success: true, history: [] };
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'インターネット接続を確認してください' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || 'インターネット接続を確認してください' }; }
 };
 
-/**
- * 全作業セッション履歴取得API (loadAllWorkHistory)
- */
 export const loadAllWorkHistoryApi = async (sid: string): Promise<LoadWorkHistoryResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'loadAllWorkHistory', SID: sid }),
     }, 10000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     if (Array.isArray(data.history)) return { success: true, history: data.history };
     return { success: true, history: [] };
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'インターネット接続を確認してください' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || 'インターネット接続を確認してください' }; }
 };
 
-/**
- * 単一の楽曲再生履歴削除API
- */
 export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryItem): Promise<DeleteHistoryResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
-      body: JSON.stringify({
-        operation: 'deletePlayHistory',
-        SID: sid,
-        title: item.title || '',
-        artist: item.artist || '',
-        album: item.album || '',
-        device: item.device || '',
-        date: item.date || '',
-      }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'deletePlayHistory', SID: sid, title: item.title || '', artist: item.artist || '', album: item.album || '', device: item.device || '', date: item.date || '' }),
     }, 6000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error?.message || '削除通信に失敗しました' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || '削除通信に失敗しました' }; }
 };
 
-/**
- * 複数件の楽曲再生履歴を1曲ずつ順次削除するバッチ処理
- */
 export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
-  console.log(`[DeletePlayHistory] 🗑️ 楽曲再生履歴を ${itemsToDelete.length} 件、1曲ずつ削除します...`);
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
     const item = itemsToDelete[i];
     const res = await deletePlayHistorySingleApi(sid, item);
-    if (res.success) {
-      deletedCount++;
-      console.log(`[DeletePlayHistory] ✅ [${i + 1}/${itemsToDelete.length}] 削除完了: "${item.title}" (${item.date})`);
-    } else {
-      console.warn(`[DeletePlayHistory] ⚠️ [${i + 1}/${itemsToDelete.length}] 削除失敗: "${item.title}" (${res.error})`);
-    }
+    if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
 };
 
-/**
- * ★ 単一の作業セッション履歴削除API (1件ずつ削除)
- * - operation: 'deleteWorkHistory'
- * - SID: セッションID
- * - time: 作業時間 (HH:mm:ss)
- * - end: 終了時刻 (YYYY.MM.DD.HH.mm)
- * - device: デバイス名
- */
-export const deleteWorkHistorySingleApi = async (
-  sid: string,
-  item: WorkHistoryItem
-): Promise<DeleteHistoryResponse> => {
+export const deleteWorkHistorySingleApi = async (sid: string, item: WorkHistoryItem): Promise<DeleteHistoryResponse> => {
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-        'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-      },
-      body: JSON.stringify({
-        operation: 'deleteWorkHistory',
-        SID: sid,
-        time: item.time || '',
-        end: item.end || '',
-        device: item.device || '',
-      }),
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'deleteWorkHistory', SID: sid, time: item.time || '', end: item.end || '', device: item.device || '', }),
     }, 6000);
-
-    const text = await response.text();
-    let data: any = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error?.message || '削除通信に失敗しました' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || '削除通信に失敗しました' }; }
 };
 
-/**
- * ★ 複数件の作業セッション履歴を1件ずつ順次削除するバッチ処理
- */
-export const deleteWorkHistoryBatchApi = async (
-  sid: string,
-  itemsToDelete: WorkHistoryItem[]
-): Promise<{ success: boolean; deletedCount: number }> => {
-  console.log(`[DeleteWorkHistory] 🗑️ 作業セッション履歴を ${itemsToDelete.length} 件、1件ずつ削除します...`);
+export const deleteWorkHistoryBatchApi = async (sid: string, itemsToDelete: WorkHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
     const item = itemsToDelete[i];
     const res = await deleteWorkHistorySingleApi(sid, item);
-    if (res.success) {
-      deletedCount++;
-      console.log(`[DeleteWorkHistory] ✅ [${i + 1}/${itemsToDelete.length}] 削除完了: end=${item.end}, time=${item.time}`);
-    } else {
-      console.warn(`[DeleteWorkHistory] ⚠️ [${i + 1}/${itemsToDelete.length}] 削除失敗: end=${item.end} (${res.error})`);
-    }
+    if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
 };
 
-/**
- * 楽曲再生履歴追加API (オフラインキュー自動再送対応)
- */
 export const addPlayHistoryApi = async (sid: string, title: string, artist: string, album: string): Promise<void> => {
   const currentItem = { title: title || 'Untitled', artist: artist || 'Unknown', album: album || 'Unknown', sid };
   let queue: any[] = [];
@@ -457,33 +366,16 @@ export const addPlayHistoryApi = async (sid: string, title: string, artist: stri
     try {
       const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-          'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-        },
-        body: JSON.stringify({
-          operation: 'addPlayHistory',
-          SID: item.sid || sid,
-          title: item.title,
-          artist: item.artist,
-          album: item.album,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+        body: JSON.stringify({ operation: 'addPlayHistory', SID: item.sid || sid, title: item.title, artist: item.artist, album: item.album }),
       }, 4000);
-
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-    } catch (e) {
-      remainingQueue.push(item);
-    }
+    } catch (e) { remainingQueue.push(item); }
   }
   await AsyncStorage.setItem(PENDING_PLAY_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
-/**
- * 作業セッション履歴追加API (オフラインキュー自動再送対応)
- */
 export const addWorkHistoryApi = async (sid: string, end: string, time: string): Promise<void> => {
   const currentItem = { end, time, sid };
   let queue: any[] = [];
@@ -498,31 +390,16 @@ export const addWorkHistoryApi = async (sid: string, end: string, time: string):
     try {
       const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY,
-          'X-ACCESS-KEY': HTTP_X_ACCESS_KEY,
-        },
-        body: JSON.stringify({
-          operation: 'addWorkHistory',
-          SID: item.sid || sid,
-          end: item.end,
-          time: item.time,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+        body: JSON.stringify({ operation: 'addWorkHistory', SID: item.sid || sid, end: item.end, time: item.time }),
       }, 4000);
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-    } catch (e) {
-      remainingQueue.push(item);
-    }
+    } catch (e) { remainingQueue.push(item); }
   }
   await AsyncStorage.setItem(PENDING_WORK_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
-/**
- * ログイン時に既存のローカル作業セッション履歴と楽曲再生履歴をサーバーへ一括送信
- */
 export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
   try {
     const focusHistoryRaw = await AsyncStorage.getItem('chordia_focus_history');
@@ -530,8 +407,7 @@ export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
       const focusList: any[] = JSON.parse(focusHistoryRaw);
       for (const item of focusList) {
         if (item.duration && item.duration > 0) {
-          const dateObj = item.date ? new Date(item.date) : new Date();
-          const end = formatWorkSessionEndTime(dateObj);
+          const end = formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date());
           const time = formatWorkDuration(item.duration);
           await addWorkHistoryApi(sid, end, time);
         }
@@ -550,4 +426,6 @@ export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
       }
     }
   } catch (e) {}
+
+  await syncMusicAndPlaylistsToCloud();
 };
