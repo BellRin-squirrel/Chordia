@@ -1,0 +1,35 @@
+SID
+playlistID
+playlistName
+shuffle
+loop
+musicList
+nowPlayingTitle
+nowPlayingArtist
+nowPlayingAlbum
+nowPlayingTime
+
+{
+  "SID": "rf9kmn7exlzvfmrzp1amgj3owo4ic28x1celdy2ciwji99xkb0xyg6chojh3aocv",
+  "loop": false,
+  "musiclist": [
+    {
+      "album": "Deemo",
+      "artist": "Tomggg",
+      "title": "Kokoro Odoro feat. m/lue"
+    },
+    {
+      "album": "Deemo",
+      "artist": "iolli",
+      "title": "Through Mist and Fog"
+    }
+  ],
+  "nowPlayingAlbum": "Deemo",
+  "nowPlayingArtist": "Tomggg",
+  "nowPlayingTime": 0,
+  "nowPlayingTitle": "Kokoro Odoro feat. m/lue",
+  "operation": "registerNowPlaying",
+  "playlistID": "3kfNroSbOcvC8iMZHEozvu8oHYhH2sEp",
+  "playlistName": "Deemo",
+  "shuffle": false
+}
