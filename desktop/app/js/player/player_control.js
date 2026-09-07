@@ -5,6 +5,7 @@
     window.PlayerController = {
         lastMiniPushTime: 0,
         userVolume: 1.0,
+        _nowPlayingTimer: null,
 
         init: function() {
             this.audio = document.getElementById('mainAudio');
@@ -83,6 +84,7 @@
                     }
                     s.isSeeking = false;
                     this.pushStateToMini(true); 
+                    this.sendNowPlayingUpdate(); // シーク時にも即時反映
                 });
                 this.updateSeekColor(0);
             }
@@ -120,12 +122,14 @@
                         s.isShuffle = !s.isShuffle;
                         this.syncShuffle();
                         if (window.HeaderController) window.HeaderController.updateToggleButtons();
+                        this.sendNowPlayingUpdate();
                         break;
                     case 'KeyR':
                         if (s.loopMode === 'off') s.loopMode = 'all';
                         else if (s.loopMode === 'all') s.loopMode = 'one';
                         else s.loopMode = 'off';
                         if (window.HeaderController) window.HeaderController.updateToggleButtons();
+                        this.sendNowPlayingUpdate();
                         break;
                     case 'ArrowRight':
                         this.nextSong();
@@ -153,13 +157,17 @@
                         else if (cmd.action === 'seek' && this.audio && this.audio.duration) {
                             this.audio.currentTime = cmd.value * this.audio.duration;
                             this.pushStateToMini(true);
+                            this.sendNowPlayingUpdate();
                         }
                     } catch(err) { console.error(err); }
                 }
             });
+
+            window.addEventListener('beforeunload', () => {
+                this.stopNowPlayingSyncTimer();
+            });
         },
 
-        // ★ AirPlay / 出力デバイス切り替え機能の初期化（サウンド設定との2択メニュー表示）
         initAirPlay: function() {
             const btnAirPlay = document.getElementById('btnAirPlay');
             const audio = document.getElementById('mainAudio');
@@ -183,13 +191,11 @@
 
                 const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                 const isMac = navigator.userAgent.includes('Mac');
-
                 const list = menu.querySelector('ul');
                 if (!list) return;
 
                 list.innerHTML = '';
 
-                // 1. サウンド設定を開く
                 const liSound = document.createElement('li');
                 liSound.innerHTML = `<span>サウンド設定を開く</span>`;
                 liSound.onclick = async (ev) => {
@@ -203,7 +209,6 @@
                 };
                 list.appendChild(liSound);
 
-                // 2. 従来の項目（AirPlayまたはデバイス選択）
                 const liDevices = document.createElement('li');
                 if (isMac) {
                     liDevices.innerHTML = `<span>AirPlay対応機器一覧</span>`;
@@ -219,7 +224,6 @@
                         audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
                     }
 
-                    // Mac: AirPlay
                     if (typeof audio.webkitShowPlaybackTargetPicker === 'function') {
                         try {
                             audio.webkitShowPlaybackTargetPicker();
@@ -230,7 +234,6 @@
                         return;
                     }
 
-                    // Windows等: selectAudioOutput API
                     if (navigator.mediaDevices && typeof navigator.mediaDevices.selectAudioOutput === 'function') {
                         try {
                             const device = await navigator.mediaDevices.selectAudioOutput();
@@ -249,7 +252,6 @@
                         return;
                     }
 
-                    // 共通: フォールバック
                     if (navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
                         try {
                             let devices = await navigator.mediaDevices.enumerateDevices();
@@ -341,10 +343,8 @@
                         let diff = TARGET_LUFS - lufs;
                         
                         diff = Math.max(-15, Math.min(3, diff)); 
-                        
                         const factor = Math.pow(10, diff / 20);
                         targetGain = this.userVolume * factor;
-                        
                         targetGain = Math.max(0.0, Math.min(1.0, targetGain));
                     }
                 }
@@ -377,6 +377,7 @@
                     s.currentIndex = 0; 
                 }
                 this.pushStateToMini(true);
+                this.sendNowPlayingUpdate();
             }
         },
 
@@ -401,6 +402,12 @@
             const targetPl = isVirtual ? s.currentVirtualPlaylist : s.playlists[s.currentPlaylistIndex];
 
             if (!targetPl || !targetPl.songs) return;
+
+            // ★ 再生中のプレイリスト/アルバム/アーティストのメタ情報をセッションとして保持
+            s.activeSessionInfo = {
+                playlistID: isVirtual ? (s.currentVirtualField || "album") : (targetPl.id || "normal"),
+                playlistName: isVirtual ? (s.currentVirtualName || "Untitled") : (targetPl.playlistName || "Untitled")
+            };
 
             document.getElementById('headerLogo').style.display = 'none';
             document.getElementById('headerPlayerInfo').style.display = 'flex';
@@ -447,10 +454,12 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.afterPlayStarted(song);
+                    this.startNowPlayingSyncTimer(); // ★ 5秒間隔の定期送信を開始
                 }).catch(e => {
                     console.error("Playback failed:", e);
                     s.isPlaying = false;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
+                    this.stopNowPlayingSyncTimer();
                     u.showToast("再生に失敗しました", true);
                 });
             }
@@ -496,6 +505,7 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.pushStateToMini(true);
+                    this.startNowPlayingSyncTimer(); // ★ 再開時に送信タイマー開始
                     
                     if ('mediaSession' in navigator) {
                         navigator.mediaSession.playbackState = 'playing';
@@ -506,6 +516,7 @@
                 s.isPlaying = false;
                 if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
                 this.pushStateToMini(true);
+                this.stopNowPlayingSyncTimer(); // ★ 一時停止時は送信タイマー停止
                 
                 if ('mediaSession' in navigator) {
                     navigator.mediaSession.playbackState = 'paused';
@@ -515,6 +526,7 @@
         },
 
         stopPlayback: function() {
+            this.stopNowPlayingSyncTimer(); // ★ 停止時にタイマー停止
             if (!this.audio) return;
             this.audio.pause();
             this.audio.src = ""; 
@@ -595,7 +607,87 @@
             return currentSong.musicFilename === song.musicFilename;
         },
         
-        syncShuffle: function() {},
+        syncShuffle: function() {
+            if (s.originalList.length === 0) return;
+            if (s.isShuffle) {
+                const currentSong = s.queue[s.currentIndex];
+                const rest = s.originalList.filter(song => !currentSong || song.musicFilename !== currentSong.musicFilename);
+                const shuffledRest = u.shuffleArray([...rest]);
+                if (currentSong) {
+                    s.queue = [currentSong, ...shuffledRest];
+                    s.currentIndex = 0;
+                } else {
+                    s.queue = u.shuffleArray([...s.originalList]);
+                    s.currentIndex = 0;
+                }
+            } else {
+                const currentSong = s.queue[s.currentIndex];
+                s.queue = [...s.originalList];
+                if (currentSong) {
+                    const newIdx = s.queue.findIndex(song => song.musicFilename === currentSong.musicFilename);
+                    s.currentIndex = (newIdx !== -1) ? newIdx : 0;
+                }
+            }
+            this.pushStateToMini(true);
+        },
+
+        // ★ 5秒間隔での楽曲再生位置送信タイマーの開始・停止
+        startNowPlayingSyncTimer: function() {
+            this.stopNowPlayingSyncTimer();
+            this.sendNowPlayingUpdate(); // 再生開始時に即座に1回送信
+
+            this._nowPlayingTimer = setInterval(() => {
+                if (s.isPlaying && this.audio && !this.audio.paused && s.currentIndex >= 0) {
+                    this.sendNowPlayingUpdate();
+                }
+            }, 5000);
+        },
+
+        stopNowPlayingSyncTimer: function() {
+            if (this._nowPlayingTimer) {
+                clearInterval(this._nowPlayingTimer);
+                this._nowPlayingTimer = null;
+            }
+        },
+
+        // ★ registerNowPlaying API の送信ペイロード構築と実行
+        sendNowPlayingUpdate: async function() {
+            if (!s.isPlaying || !this.audio || this.audio.paused || s.currentIndex < 0) return;
+            const currentSong = s.queue[s.currentIndex];
+            if (!currentSong) return;
+
+            const sessionInfo = s.activeSessionInfo || {
+                playlistID: "normal",
+                playlistName: "Untitled"
+            };
+
+            // キューの再生順序に従った楽曲リストを構築
+            const musiclist = s.queue.map(song => ({
+                title: song.title || "Unknown",
+                artist: song.artist || "Unknown",
+                album: song.album || ""
+            }));
+
+            const payload = {
+                playlistID: sessionInfo.playlistID,
+                playlistName: sessionInfo.playlistName,
+                shuffle: Boolean(s.isShuffle),
+                loop: Boolean(s.loopMode !== 'off'),
+                musiclist: musiclist,
+                nowPlayingTitle: currentSong.title || "Unknown",
+                nowPlayingArtist: currentSong.artist || "Unknown",
+                nowPlayingAlbum: currentSong.album || "",
+                nowPlayingTime: Math.floor(this.audio.currentTime || 0)
+            };
+
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+            try {
+                await invoke("send_now_playing_to_cloud", { payload: payload });
+            } catch(e) {
+                // バックグラウンド送信エラー時はログを出力して通常再生を継続
+                console.warn("[Chordia Sync] sendNowPlayingUpdate error:", e);
+            }
+        },
         
         updateSeekColor: function(p) {
             if (this.seekBar) {

@@ -208,7 +208,7 @@ fn main() {
                     let _ = splash_win.close();
                 }
 
-                // ★ アプリ起動完了時にバックグラウンドでクラウド同期を自動実行
+                // アプリ起動完了時にバックグラウンドでクラウド同期を自動実行
                 trigger_background_sync(app_handle_for_init, true, true);
             });
 
@@ -361,6 +361,7 @@ fn main() {
             cmd_cloud_sync::sync_all_local_work_history_to_cloud,
             cmd_cloud_sync::sync_all_local_music_list_to_cloud,
             cmd_cloud_sync::sync_all_local_playlists_to_cloud,
+            cmd_cloud_sync::send_now_playing_to_cloud, // ★ 追加
             cmd_cloud_sync::record_work_session,
             cmd_cloud_sync::get_local_work_history,
             cmd_cloud_sync::verify_current_cloud_session,

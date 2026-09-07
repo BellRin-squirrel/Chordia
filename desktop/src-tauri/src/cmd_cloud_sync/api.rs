@@ -1,5 +1,6 @@
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::Manager; // ★ state メソッドを使用するために明示的にインポート
+use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
 use std::fs;
 use chrono::Local;
@@ -21,7 +22,7 @@ pub async fn send_single_play_history_to_cloud(
         "title": title,
         "artist": artist,
         "album": album,
-        "albbum": album
+        "albbum": album // サーバー側パラメータ互換用
     });
 
     if let Some(d) = date {
@@ -74,6 +75,7 @@ pub async fn add_play_history_to_cloud(
     send_single_play_history_to_cloud(&client, &sid, &title, &artist, &album, date.as_deref()).await
 }
 
+// 既存の再生履歴をクラウドへ一括同期
 #[tauri::command]
 pub async fn sync_all_local_history_to_cloud(
     app: AppHandle,
@@ -283,7 +285,7 @@ pub async fn fetch_cloud_work_history(auth: State<'_, SharedAuthState>) -> Resul
     Ok(json_res.get("history").cloned().unwrap_or(serde_json::json!([])))
 }
 
-// ★ 曲一覧送信API (registerMusicList)
+// 曲一覧送信API (registerMusicList)
 #[tauri::command]
 pub async fn sync_all_local_music_list_to_cloud(
     state: State<'_, AppState>,
@@ -343,7 +345,7 @@ pub async fn sync_all_local_music_list_to_cloud(
     Ok(total)
 }
 
-// ★ プレイリスト送信API (registerPlaylist)
+// プレイリスト送信API (registerPlaylist)
 #[tauri::command]
 pub async fn sync_all_local_playlists_to_cloud(
     state: State<'_, AppState>,
@@ -457,7 +459,50 @@ pub async fn sync_all_local_playlists_to_cloud(
     Ok(total)
 }
 
-// ★ 楽曲一覧およびプレイリスト情報のバックグラウンド自動同期ヘルパー
+// 楽曲再生位置送信API (registerNowPlaying)
+#[tauri::command]
+pub async fn send_now_playing_to_cloud(
+    payload: Value,
+    auth: State<'_, SharedAuthState>,
+) -> Result<(), String> {
+    let sid = match get_saved_cloud_sid(&auth).await {
+        Some(s) if !s.is_empty() => s,
+        _ => return Ok(()),
+    };
+
+    let mut body_map = match payload.as_object() {
+        Some(m) => m.clone(),
+        None => return Err("Invalid payload".to_string()),
+    };
+
+    body_map.insert("operation".to_string(), Value::String("registerNowPlaying".to_string()));
+    body_map.insert("SID".to_string(), Value::String(sid));
+
+    let body_json = serde_json::to_string(&body_map)
+        .map_err(|e| format!("JSON構築エラー: {}", e))?;
+
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(4)).build().map_err(|e| e.to_string())?;
+    let response = client
+        .post("https://chordia.bellrin.f5.si/api/")
+        .header("X-ACCESS-KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("HTTP_X_ACCESS_KEY", "ucbancmuvmczvlxgycbvuwfasdyowwap")
+        .header("Content-Type", "application/json")
+        .body(body_json)
+        .send()
+        .await
+        .map_err(|e| format!("通信エラー: {}", e))?;
+
+    let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
+    let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSON: {}", res_text))?;
+
+    if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
+        return Err(err.to_string());
+    }
+
+    Ok(())
+}
+
+// 楽曲一覧およびプレイリスト情報のバックグラウンド自動同期ヘルパー
 pub fn trigger_background_sync(app_handle: AppHandle, sync_music: bool, sync_playlists: bool) {
     tauri::async_runtime::spawn(async move {
         let auth_file_path = get_base_dir().join("userfiles/sync_auth.json");

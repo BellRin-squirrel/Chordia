@@ -1,21 +1,36 @@
-MIT License
+Copyright (c) [2026] [BellRin]
 
-Copyright (c) 2026 BellRin
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted to any person obtaining a copy of this software 
+and associated documentation files (the "Software") strictly for personal, 
+private, and non-commercial evaluation or study purposes, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Attribution Requirement:
+   - Attribution is REQUIRED ONLY IF you publicly display, share, or publish the source 
+     code (in whole or in part, modified or unmodified, including public repositories or forks). 
+     In such cases, you must clearly display the original author's copyright notice 
+     and attribution ([Your Name]).
+   - If you do NOT publish, share, or publicly display the source code (e.g., using or 
+     modifying it strictly for private, local use), NO attribution is required.
+   - You are under no obligation to disclose or make your modified source code public.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Complete Prohibition of Commercial Use:
+   Commercial use of any kind is strictly prohibited. This includes, but is not limited to, 
+   corporate or business operations, revenue-generating activities, advertising, monetized 
+   services, or paid products.
+
+3. Strict Prohibition of Public Release and Distribution of Programs:
+   You may NOT publicly distribute, publish, release, host, deploy, or make publicly available 
+   any compiled binaries, executables, installers, packages, web applications, or services 
+   derived from or incorporating this Software (including any forks or modified versions). 
+   Running or building the program is permitted solely on local machines for personal, private use.
+
+4. Disclaimer of Warranty:
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
