@@ -3,6 +3,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
 use rand::{rng, Rng};
 use std::fs;
+use std::io::Write;
 use crate::utils::{get_base_dir, safe_write_file};
 
 pub fn generate_34char_auth_code() -> String {
@@ -174,7 +175,6 @@ pub fn get_cloud_auth_info() -> Value {
     serde_json::json!({ "logged_in": false })
 }
 
-// ★ 操作時にログイン状態が有効か checkAlreadyLogin API で確認
 #[tauri::command]
 pub async fn verify_current_cloud_session(
     app: AppHandle,
@@ -236,16 +236,24 @@ pub async fn verify_current_cloud_session(
         .await
     {
         Ok(r) => r,
-        Err(_) => {
-            // 一時的な通信エラー時はローカル情報を保持
+        Err(e) => {
+            eprintln!("[Chordia Sync Error] checkAlreadyLogin network error: {}", e);
             return Ok(true);
         }
     };
 
     let res_text = match response.text().await {
         Ok(t) => t,
-        Err(_) => return Ok(true),
+        Err(e) => {
+            eprintln!("[Chordia Sync Error] checkAlreadyLogin read error: {}", e);
+            return Ok(true);
+        }
     };
+
+    println!("{}", res_text);
+    let _ = std::io::stdout().flush();
+    eprintln!("{}", res_text);
+    let _ = std::io::stderr().flush();
 
     let json_res: Value = match serde_json::from_str(&res_text) {
         Ok(j) => j,
@@ -259,7 +267,6 @@ pub async fn verify_current_cloud_session(
         state.cloud_sid = Some(sid);
         Ok(true)
     } else {
-        // ★ 認証に失敗した場合：ローカルの認証情報を削除
         let _ = fs::remove_file(&auth_file_path);
         let mut state = auth.lock().await;
         state.cloud_sid = None;
@@ -312,6 +319,11 @@ pub async fn register_auth_code_to_cloud(
 
     let status = response.status();
     let res_text = response.text().await.map_err(|e| format!("レスポンスの読み取りに失敗しました: {}", e))?;
+
+    println!("{}", res_text);
+    let _ = std::io::stdout().flush();
+    eprintln!("{}", res_text);
+    let _ = std::io::stderr().flush();
 
     let json_res: serde_json::Value = serde_json::from_str(&res_text)
         .map_err(|_| format!("サーバーから不正なレスポンスが返却されました (HTTP {}): {}", status, res_text))?;
@@ -373,6 +385,12 @@ pub async fn check_cloud_login_status(
         .map_err(|e| format!("ポーリング通信エラー: {}", e))?;
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
+
+    println!("{}", res_text);
+    let _ = std::io::stdout().flush();
+    eprintln!("{}", res_text);
+    let _ = std::io::stderr().flush();
+
     let json_res: serde_json::Value = serde_json::from_str(&res_text)
         .map_err(|_| format!("不正なJSONレスポンスです: {}", res_text))?;
 
@@ -461,6 +479,12 @@ pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), S
             .map_err(|e| format!("ログアウトAPI通信エラー: {}", e))?;
 
         let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
+
+        println!("{}", res_text);
+        let _ = std::io::stdout().flush();
+        eprintln!("{}", res_text);
+        let _ = std::io::stderr().flush();
+
         let json_res: serde_json::Value = serde_json::from_str(&res_text)
             .map_err(|_| format!("不正なJSONレスポンスです: {}", res_text))?;
 

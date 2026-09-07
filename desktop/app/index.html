@@ -14,6 +14,16 @@
 <body>
     <div class="container">
         <header class="header">
+            <!-- ★ 右上: Chordia Relay 雲アイコンボタン -->
+            <div class="header-relay-wrapper">
+                <button type="button" id="btnRelay" class="btn-relay" title="Chordia Relay" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" />
+                    </svg>
+                    <span id="relayBadge" class="relay-badge" style="display: none;"></span>
+                </button>
+            </div>
+
             <h1 data-i18n="Menu.title">Chordia</h1>
             <p class="subtitle" data-i18n="Menu.subtitle">ライブラリをスマートに管理</p>
         </header>
@@ -60,7 +70,6 @@
                 <div class="text"><span class="title" data-i18n="Menu.extensions">拡張機能</span><span class="desc" data-i18n="Menu.extensions_desc">DL機能などを管理</span></div>
             </button>
 
-            <!-- ★ 新設：作業（中央下） -->
             <button class="card" id="btnWork">
                 <div class="icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -70,7 +79,6 @@
                 <div class="text"><span class="title">作業</span><span class="desc">作業セッションの管理</span></div>
             </button>
 
-            <!-- ★ 設定と統合された情報ボタン（右下） -->
             <button class="card" id="btnInfo">
                 <div class="icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -80,6 +88,28 @@
                 <div class="text"><span class="title">情報</span><span class="desc">設定・統計・ライセンス</span></div>
             </button>
         </main>
+    </div>
+
+    <!-- ★ Chordia Relay ポップアップモーダル -->
+    <div id="relayModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content relay-modal">
+            <button id="btnCloseRelayModalX" class="btn-close-circle" title="閉じる">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div class="relay-modal-header">
+                <div class="relay-icon-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 24px; height: 24px; color: var(--primary-color);">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" />
+                    </svg>
+                    <h3>Chordia Relay</h3>
+                </div>
+                <p class="relay-desc">ほかのデバイスで再生中の楽曲を引き継いで再生できます</p>
+            </div>
+
+            <div id="relayListContainer" class="relay-list-container">
+                <!-- デバイスカードがここに動的生成されます -->
+            </div>
+        </div>
     </div>
 
     <div id="toast" class="toast"></div>

@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use chrono::Local;
 use crate::utils::{get_base_dir, safe_write_file, check_and_reload_db_if_needed};
 use crate::AppState;
-use super::auth::{get_saved_cloud_sid, get_system_model_and_os};
-use super::api::send_single_work_history_to_cloud;
+use crate::cmd_cloud_sync::auth::{get_saved_cloud_sid, get_system_model_and_os};
+use crate::cmd_cloud_sync::api_history::send_single_work_history_to_cloud;
 
 #[tauri::command]
 pub async fn record_work_session(
@@ -32,7 +32,6 @@ pub async fn record_work_session(
     let sid_opt = get_saved_cloud_sid(&auth).await;
 
     if let Some(sid) = sid_opt {
-        // ★ Chordia Sync 接続中: ローカルには保存せず、API を叩くだけ
         let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build();
         if let Ok(c) = client {
             let res = send_single_work_history_to_cloud(&c, &sid, &api_end_str, &api_time_str).await;
@@ -41,7 +40,6 @@ pub async fn record_work_session(
             }
         }
     } else {
-        // ★ 未接続の場合のみ: ローカルの userfiles/work_history.json へ保存
         let base = get_base_dir();
         let w_path = base.join("userfiles/work_history.json");
         let mut w_list: Vec<Value> = fs::read_to_string(&w_path)

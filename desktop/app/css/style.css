@@ -25,7 +25,7 @@ body {
     transition: background-color 0.3s ease;
 }
 
-.container { width: 100%; max-width: 800px; margin: 0 auto; }
+.container { width: 100%; max-width: 800px; margin: 0 auto; position: relative; }
 .header { text-align: center; margin-bottom: 40px; position: relative; }
 .header h1 { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text-main); margin-bottom: 8px; }
 .subtitle { font-size: 1rem; color: var(--text-sub); }
@@ -35,6 +35,248 @@ body {
 .back-link { text-decoration: none; color: var(--text-sub); font-size: 0.9rem; display: flex; align-items: center; gap: 4px; transition: color 0.2s; }
 .back-link:hover { color: var(--primary-color); }
 .back-link svg { width: 18px; height: 18px; }
+
+/* --- Chordia Relay (トップ画面右上 雲アイコン) --- */
+.header-relay-wrapper {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+}
+
+.btn-relay {
+    position: relative;
+    background: var(--card-bg);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 12px;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.btn-relay:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--card-bg));
+}
+
+.btn-relay svg {
+    width: 24px;
+    height: 24px;
+}
+
+.relay-badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
+    background-color: #10b981;
+    border: 2px solid var(--card-bg);
+    border-radius: 50%;
+    box-shadow: 0 0 6px #10b981;
+    animation: pulseBadge 2s infinite;
+}
+
+@keyframes pulseBadge {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+}
+
+/* --- Chordia Relay モーダル --- */
+.modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 5000 !important;
+    backdrop-filter: blur(4px) !important;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.relay-modal {
+    width: 480px;
+    max-width: 95vw;
+    max-height: 80vh;
+    padding: 28px !important;
+    border-radius: 20px !important;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: var(--card-bg) !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    text-align: left;
+}
+
+.relay-modal-header {
+    margin-bottom: 20px;
+    padding-right: 32px;
+}
+
+.relay-icon-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.relay-icon-title h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.relay-desc {
+    margin: 6px 0 0 0;
+    font-size: 0.85rem;
+    color: var(--text-sub);
+}
+
+.relay-list-container {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 50vh;
+    padding: 4px 2px;
+}
+
+.relay-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+.relay-list-container::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.25);
+    border-radius: 3px;
+}
+
+.relay-device-card {
+    background: var(--bg-color);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.relay-device-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.12);
+    transform: translateY(-2px);
+    background: color-mix(in srgb, var(--primary-color) 4%, var(--bg-color));
+}
+
+.relay-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.relay-device-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.relay-device-name svg {
+    width: 18px;
+    height: 18px;
+    color: var(--primary-color);
+}
+
+.relay-type-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--primary-color);
+    white-space: nowrap;
+}
+
+.relay-type-badge.album {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.relay-type-badge.artist {
+    background: rgba(2, 132, 199, 0.1);
+    color: #0284c7;
+}
+
+.relay-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.relay-playlist-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.relay-song-info {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.relay-empty-msg {
+    text-align: center;
+    color: var(--text-sub);
+    font-size: 0.9rem;
+    padding: 40px 20px;
+    line-height: 1.6;
+}
+
+.btn-close-circle {
+    position: absolute; 
+    top: 20px; 
+    right: 20px;
+    width: 32px; 
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(128, 128, 128, 0.1); 
+    border: none;
+    color: var(--text-sub); 
+    cursor: pointer; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.btn-close-circle:hover {
+    background-color: #ef4444;
+    color: white;
+    transform: rotate(90deg);
+}
 
 .grid-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
 
@@ -88,7 +330,7 @@ body {
 .text .title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
 .text .desc { font-size: 0.85rem; color: var(--text-sub); }
 
-/* --- トースト通知 (全画面共通・右上固定・高さ自動調整の完全堅牢化) --- */
+/* --- トースト通知 --- */
 .toast {
     visibility: hidden;
     min-width: 220px;

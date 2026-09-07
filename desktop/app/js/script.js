@@ -121,7 +121,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnIntegrity.addEventListener('click', () => window.location.href = 'integrity.html');
     }
 
-    // ★ 作業ボタンのクリック処理（必ず新しい枠なしウィンドウで開く）
     if (btnWork) {
         btnWork.addEventListener('click', async () => {
             try {
@@ -205,4 +204,157 @@ document.addEventListener('DOMContentLoaded', async () => {
             toast.classList.remove('show');
         }, 4000);
     }
+
+    // ========================================================
+    // ★ Chordia Relay (トップ画面右上 雲アイコン & ポーリング)
+    // ========================================================
+    const btnRelay = document.getElementById('btnRelay');
+    const relayBadge = document.getElementById('relayBadge');
+    const relayModal = document.getElementById('relayModal');
+    const btnCloseRelayModalX = document.getElementById('btnCloseRelayModalX');
+    const relayListContainer = document.getElementById('relayListContainer');
+
+    let relayDevices = [];
+    let relayPollingTimer = null;
+
+    const escapeHtml = (str) => str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+
+    // モーダルを閉じる処理
+    const closeRelayModal = () => {
+        if (relayModal) {
+            relayModal.classList.remove('show');
+            setTimeout(() => { relayModal.style.display = 'none'; }, 200);
+        }
+    };
+
+    if (btnCloseRelayModalX) btnCloseRelayModalX.addEventListener('click', closeRelayModal);
+    if (relayModal) {
+        relayModal.addEventListener('click', (e) => {
+            if (e.target === relayModal) closeRelayModal();
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && relayModal && relayModal.classList.contains('show')) {
+            closeRelayModal();
+        }
+    });
+
+    // デバイス一覧を描画する関数
+    function renderRelayDevices() {
+        if (!relayListContainer) return;
+        relayListContainer.innerHTML = '';
+
+        if (!Array.isArray(relayDevices) || relayDevices.length === 0) {
+            relayListContainer.innerHTML = `
+                <div class="relay-empty-msg">
+                    現在、再生を引き継げるデバイスはありません。<br>
+                    他のデバイスで楽曲を再生するとここに表示されます。
+                </div>
+            `;
+            return;
+        }
+
+        relayDevices.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = 'relay-device-card';
+            card.dataset.index = index;
+
+            const now = item.nowPlaying || {};
+            const plId = now.playlistID || "";
+            const plName = now.playlistName || "Untitled";
+
+            // タイプバッジの判別 (albumならアルバム, artistならアーティスト, それ以外ならプレイリスト)
+            let typeLabel = "プレイリスト";
+            let typeClass = "";
+            if (plId === "album") {
+                typeLabel = "アルバム";
+                typeClass = "album";
+            } else if (plId === "artist") {
+                typeLabel = "アーティスト";
+                typeClass = "artist";
+            }
+
+            const title = now.nowPlayingTitle || "楽曲未再生";
+            const artist = now.nowPlayingArtist || "";
+            const songSubtitle = artist ? `${title} - ${artist}` : title;
+
+            card.innerHTML = `
+                <div class="relay-card-top">
+                    <span class="relay-device-name">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8.009 8.009 0 0 1-8 8Z"/>
+                            <path d="M12 6a1 1 0 0 0-1 1v5.586l-2.707-2.707a1 1 0 0 0-1.414 1.414l4.414 4.414a1 1 0 0 0 1.414 0l4.414-4.414a1 1 0 0 0-1.414-1.414L13 12.586V7a1 1 0 0 0-1-1Z"/>
+                        </svg>
+                        ${escapeHtml(item.name || "不明なデバイス")}
+                    </span>
+                    <span class="relay-type-badge ${typeClass}">${escapeHtml(typeLabel)}</span>
+                </div>
+                <div class="relay-card-body">
+                    <div class="relay-playlist-name">${escapeHtml(plName)}</div>
+                    <div class="relay-song-info">${escapeHtml(songSubtitle)}</div>
+                </div>
+            `;
+
+            // クリック時のアクション（次回の実装用コールバック受け皿）
+            card.onclick = () => {
+                console.log("[Chordia Relay] Selected device for handover:", item);
+            };
+
+            relayListContainer.appendChild(card);
+        });
+    }
+
+    // ポーリング処理
+    async function pollRelayDevices() {
+        try {
+            const authInfo = await invoke("get_cloud_auth_info");
+            const isLoggedIn = (authInfo && authInfo.logged_in);
+
+            if (!isLoggedIn) {
+                if (btnRelay) btnRelay.style.display = 'none';
+                if (relayBadge) relayBadge.style.display = 'none';
+                return;
+            }
+
+            if (btnRelay) btnRelay.style.display = 'flex';
+
+            const devices = await invoke("fetch_relay_devices_from_cloud");
+            if (Array.isArray(devices)) {
+                relayDevices = devices;
+                if (relayBadge) {
+                    relayBadge.style.display = (devices.length > 0) ? 'block' : 'none';
+                }
+                // モーダルが開いている場合はリアルタイムにリストを更新
+                if (relayModal && relayModal.classList.contains('show')) {
+                    renderRelayDevices();
+                }
+            }
+        } catch (e) {
+            console.warn("[Chordia Relay] Polling error:", e);
+        }
+    }
+
+    if (btnRelay) {
+        btnRelay.addEventListener('click', async () => {
+            await pollRelayDevices();
+            renderRelayDevices();
+            if (relayModal) {
+                relayModal.style.display = 'flex';
+                requestAnimationFrame(() => relayModal.classList.add('show'));
+            }
+        });
+    }
+
+    // 初期化と定期ポーリング（5秒間隔）
+    await pollRelayDevices();
+    relayPollingTimer = setInterval(pollRelayDevices, 5000);
+
+    window.addEventListener('focus', () => {
+        pollRelayDevices();
+    });
+
+    window.addEventListener('beforeunload', () => {
+        if (relayPollingTimer) clearInterval(relayPollingTimer);
+    });
 });

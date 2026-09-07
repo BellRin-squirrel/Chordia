@@ -6,6 +6,7 @@
         lastMiniPushTime: 0,
         userVolume: 1.0,
         _nowPlayingTimer: null,
+        _isSendingNowPlaying: false, // ★ API通信の重複防止フラグ
 
         init: function() {
             this.audio = document.getElementById('mainAudio');
@@ -403,7 +404,6 @@
 
             if (!targetPl || !targetPl.songs) return;
 
-            // ★ 再生中のプレイリスト/アルバム/アーティストのメタ情報をセッションとして保持
             s.activeSessionInfo = {
                 playlistID: isVirtual ? (s.currentVirtualField || "album") : (targetPl.id || "normal"),
                 playlistName: isVirtual ? (s.currentVirtualName || "Untitled") : (targetPl.playlistName || "Untitled")
@@ -454,7 +454,7 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.afterPlayStarted(song);
-                    this.startNowPlayingSyncTimer(); // ★ 5秒間隔の定期送信を開始
+                    this.startNowPlayingSyncTimer(); // ★ 1秒間隔の定期送信を開始
                 }).catch(e => {
                     console.error("Playback failed:", e);
                     s.isPlaying = false;
@@ -505,7 +505,7 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.pushStateToMini(true);
-                    this.startNowPlayingSyncTimer(); // ★ 再開時に送信タイマー開始
+                    this.startNowPlayingSyncTimer(); // ★ 再開時に1秒送信タイマー開始
                     
                     if ('mediaSession' in navigator) {
                         navigator.mediaSession.playbackState = 'playing';
@@ -516,7 +516,7 @@
                 s.isPlaying = false;
                 if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
                 this.pushStateToMini(true);
-                this.stopNowPlayingSyncTimer(); // ★ 一時停止時は送信タイマー停止
+                this.stopNowPlayingSyncTimer(); // ★ 一時停止時はタイマー停止
                 
                 if ('mediaSession' in navigator) {
                     navigator.mediaSession.playbackState = 'paused';
@@ -631,7 +631,7 @@
             this.pushStateToMini(true);
         },
 
-        // ★ 5秒間隔での楽曲再生位置送信タイマーの開始・停止
+        // ★ 1秒間隔での楽曲再生位置送信タイマーの開始・停止
         startNowPlayingSyncTimer: function() {
             this.stopNowPlayingSyncTimer();
             this.sendNowPlayingUpdate(); // 再生開始時に即座に1回送信
@@ -640,7 +640,7 @@
                 if (s.isPlaying && this.audio && !this.audio.paused && s.currentIndex >= 0) {
                     this.sendNowPlayingUpdate();
                 }
-            }, 5000);
+            }, 1000); // ★ 5秒から1秒に変更
         },
 
         stopNowPlayingSyncTimer: function() {
@@ -648,10 +648,13 @@
                 clearInterval(this._nowPlayingTimer);
                 this._nowPlayingTimer = null;
             }
+            this._isSendingNowPlaying = false; // フラグもリセット
         },
 
-        // ★ registerNowPlaying API の送信ペイロード構築と実行
+        // ★ registerNowPlaying API の送信（前回の通信が完了するまで新しく始めない排他制御）
         sendNowPlayingUpdate: async function() {
+            // 前回のAPI通信が未完了の場合は多重リクエストを防止
+            if (this._isSendingNowPlaying) return;
             if (!s.isPlaying || !this.audio || this.audio.paused || s.currentIndex < 0) return;
             const currentSong = s.queue[s.currentIndex];
             if (!currentSong) return;
@@ -661,7 +664,6 @@
                 playlistName: "Untitled"
             };
 
-            // キューの再生順序に従った楽曲リストを構築
             const musiclist = s.queue.map(song => ({
                 title: song.title || "Unknown",
                 artist: song.artist || "Unknown",
@@ -681,11 +683,14 @@
             };
 
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+            this._isSendingNowPlaying = true; // ★ 通信中フラグON
+
             try {
                 await invoke("send_now_playing_to_cloud", { payload: payload });
             } catch(e) {
-                // バックグラウンド送信エラー時はログを出力して通常再生を継続
                 console.warn("[Chordia Sync] sendNowPlayingUpdate error:", e);
+            } finally {
+                this._isSendingNowPlaying = false; // ★ 通信完了時にフラグOFF
             }
         },
         
