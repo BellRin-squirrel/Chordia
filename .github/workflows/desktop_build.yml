@@ -1,4 +1,4 @@
-name: Build Chordia Desktop
+name: Build Chordia Desktop v5.0.0-alpha1
 
 on:
   workflow_dispatch: # 手動実行用

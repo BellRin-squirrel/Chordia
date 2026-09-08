@@ -6,7 +6,7 @@
         lastMiniPushTime: 0,
         userVolume: 1.0,
         _nowPlayingTimer: null,
-        _isSendingNowPlaying: false, // ★ API通信の重複防止フラグ
+        _isSendingNowPlaying: false,
 
         init: function() {
             this.audio = document.getElementById('mainAudio');
@@ -85,7 +85,7 @@
                     }
                     s.isSeeking = false;
                     this.pushStateToMini(true); 
-                    this.sendNowPlayingUpdate(); // シーク時にも即時反映
+                    this.sendNowPlayingUpdate();
                 });
                 this.updateSeekColor(0);
             }
@@ -454,7 +454,7 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.afterPlayStarted(song);
-                    this.startNowPlayingSyncTimer(); // ★ 1秒間隔の定期送信を開始
+                    this.startNowPlayingSyncTimer();
                 }).catch(e => {
                     console.error("Playback failed:", e);
                     s.isPlaying = false;
@@ -505,7 +505,7 @@
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
                     this.pushStateToMini(true);
-                    this.startNowPlayingSyncTimer(); // ★ 再開時に1秒送信タイマー開始
+                    this.startNowPlayingSyncTimer();
                     
                     if ('mediaSession' in navigator) {
                         navigator.mediaSession.playbackState = 'playing';
@@ -516,7 +516,7 @@
                 s.isPlaying = false;
                 if (window.HeaderController) window.HeaderController.updatePlayIcons(false);
                 this.pushStateToMini(true);
-                this.stopNowPlayingSyncTimer(); // ★ 一時停止時はタイマー停止
+                this.stopNowPlayingSyncTimer();
                 
                 if ('mediaSession' in navigator) {
                     navigator.mediaSession.playbackState = 'paused';
@@ -526,7 +526,7 @@
         },
 
         stopPlayback: function() {
-            this.stopNowPlayingSyncTimer(); // ★ 停止時にタイマー停止
+            this.stopNowPlayingSyncTimer();
             if (!this.audio) return;
             this.audio.pause();
             this.audio.src = ""; 
@@ -631,16 +631,15 @@
             this.pushStateToMini(true);
         },
 
-        // ★ 1秒間隔での楽曲再生位置送信タイマーの開始・停止
         startNowPlayingSyncTimer: function() {
             this.stopNowPlayingSyncTimer();
-            this.sendNowPlayingUpdate(); // 再生開始時に即座に1回送信
+            this.sendNowPlayingUpdate();
 
             this._nowPlayingTimer = setInterval(() => {
                 if (s.isPlaying && this.audio && !this.audio.paused && s.currentIndex >= 0) {
                     this.sendNowPlayingUpdate();
                 }
-            }, 1000); // ★ 5秒から1秒に変更
+            }, 1000);
         },
 
         stopNowPlayingSyncTimer: function() {
@@ -648,12 +647,10 @@
                 clearInterval(this._nowPlayingTimer);
                 this._nowPlayingTimer = null;
             }
-            this._isSendingNowPlaying = false; // フラグもリセット
+            this._isSendingNowPlaying = false;
         },
 
-        // ★ registerNowPlaying API の送信（前回の通信が完了するまで新しく始めない排他制御）
         sendNowPlayingUpdate: async function() {
-            // 前回のAPI通信が未完了の場合は多重リクエストを防止
             if (this._isSendingNowPlaying) return;
             if (!s.isPlaying || !this.audio || this.audio.paused || s.currentIndex < 0) return;
             const currentSong = s.queue[s.currentIndex];
@@ -683,14 +680,14 @@
             };
 
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
-            this._isSendingNowPlaying = true; // ★ 通信中フラグON
+            this._isSendingNowPlaying = true;
 
             try {
                 await invoke("send_now_playing_to_cloud", { payload: payload });
             } catch(e) {
                 console.warn("[Chordia Sync] sendNowPlayingUpdate error:", e);
             } finally {
-                this._isSendingNowPlaying = false; // ★ 通信完了時にフラグOFF
+                this._isSendingNowPlaying = false;
             }
         },
         
@@ -698,6 +695,198 @@
             if (this.seekBar) {
                 this.seekBar.style.background = `linear-gradient(to right, var(--primary-color) ${p}%, rgba(128,128,128,0.2) ${p}%)`;
             }
+        },
+
+        // ========================================================
+        // ★ Chordia Relay 引き継ぎ再生ハンドラ
+        // ========================================================
+        handleRelayHandover: async function(relayData) {
+            if (!relayData || !relayData.handover) return;
+            const now = relayData.handover;
+            const targetTitle = (now.nowPlayingTitle || "").trim().toLowerCase();
+            const targetArtist = (now.nowPlayingArtist || "").trim().toLowerCase();
+            const targetAlbum = (now.nowPlayingAlbum || "").trim().toLowerCase();
+            const plId = now.playlistID || "";
+            const plName = (now.playlistName || "").trim();
+            const startTime = parseFloat(now.nowPlayingTime) || 0;
+
+            const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+
+            // 1. 全ライブラリがロードされていなければロード
+            if (!s.fullLibrary) {
+                try {
+                    s.fullLibrary = await invoke("get_library_chunk", {
+                        page: 1, limit: 0, sortField: null, sortDesc: false, searchQuery: "", advancedConditions: null
+                    });
+                } catch(e) {}
+            }
+
+            // 2. プレイリスト / アルバム / アーティストの特定と選択
+            let targetPlIndex = -1;
+            if (plId === "album") {
+                if (window.SidebarController) {
+                    window.SidebarController.currentView = 'album';
+                    const displayVal = document.getElementById('customSelectValue');
+                    if (displayVal) displayVal.textContent = window.i18n ? window.i18n.t('Player.select_album') : "アルバム";
+                    await window.SidebarController.selectVirtualPlaylist('album', plName);
+                }
+            } else if (plId === "artist") {
+                if (window.SidebarController) {
+                    window.SidebarController.currentView = 'artist';
+                    const displayVal = document.getElementById('customSelectValue');
+                    if (displayVal) displayVal.textContent = window.i18n ? window.i18n.t('Player.select_artist') : "アーティスト";
+                    await window.SidebarController.selectVirtualPlaylist('artist', plName);
+                }
+            } else {
+                targetPlIndex = s.playlists.findIndex(p => p.id === plId || (p.playlistName && p.playlistName.trim() === plName));
+                if (targetPlIndex !== -1 && window.MainViewController) {
+                    if (window.SidebarController) {
+                        window.SidebarController.currentView = 'playlist';
+                        const displayVal = document.getElementById('customSelectValue');
+                        if (displayVal) displayVal.textContent = window.i18n ? window.i18n.t('Player.select_playlist') : "プレイリスト";
+                    }
+                    await window.MainViewController.selectPlaylist(targetPlIndex);
+                }
+            }
+
+            // 3. 対象プレイリストの楽曲リストを取得し、元の全曲ソート順リスト（originalList）を保持
+            const isVirtual = s.currentPlaylistType === 'virtual';
+            const currentPl = isVirtual ? s.currentVirtualPlaylist : (targetPlIndex !== -1 ? s.playlists[targetPlIndex] : null);
+            let poolSongs = currentPl && currentPl.songs && currentPl.songs.length > 0 ? currentPl.songs : (s.fullLibrary || []);
+            const sortedOriginal = currentPl ? u.sortSongs(poolSongs, currentPl.sortBy || 'title', currentPl.sortDesc || false) : [...poolSongs];
+            s.originalList = [...sortedOriginal];
+
+            // 4. ローカル楽曲プールからタイトル・アーティスト・アルバムで楽曲オブジェクトを探す関数
+            const findSongObject = (mItem) => {
+                if (!mItem) return null;
+                const t = (mItem.title || "").trim().toLowerCase();
+                const a = (mItem.artist || "").trim().toLowerCase();
+                const al = (mItem.album || "").trim().toLowerCase();
+
+                // 優先度1: タイトル + アーティスト + アルバム
+                let found = poolSongs.find(song => {
+                    const sT = (song.title || "").trim().toLowerCase();
+                    const sA = (song.artist || "").trim().toLowerCase();
+                    const sAl = (song.album || "").trim().toLowerCase();
+                    return sT === t && (!a || sA === a) && (!al || sAl === al);
+                });
+                if (found) return found;
+
+                // 優先度2: タイトル + アーティスト
+                found = poolSongs.find(song => {
+                    const sT = (song.title || "").trim().toLowerCase();
+                    const sA = (song.artist || "").trim().toLowerCase();
+                    return sT === t && (!a || sA === a);
+                });
+                if (found) return found;
+
+                // 優先度3: タイトルのみ
+                found = poolSongs.find(song => (song.title || "").trim().toLowerCase() === t);
+                if (found) return found;
+
+                // 優先度4: fullLibrary 全体からフォールバック検索
+                if (poolSongs !== s.fullLibrary && s.fullLibrary) {
+                    found = s.fullLibrary.find(song => {
+                        const sT = (song.title || "").trim().toLowerCase();
+                        const sA = (song.artist || "").trim().toLowerCase();
+                        const sAl = (song.album || "").trim().toLowerCase();
+                        return sT === t && (!a || sA === a) && (!al || sAl === al);
+                    });
+                    if (found) return found;
+                    found = s.fullLibrary.find(song => {
+                        const sT = (song.title || "").trim().toLowerCase();
+                        const sA = (song.artist || "").trim().toLowerCase();
+                        return sT === t && (!a || sA === a);
+                    });
+                    if (found) return found;
+                    found = s.fullLibrary.find(song => (song.title || "").trim().toLowerCase() === t);
+                    if (found) return found;
+                }
+
+                return null;
+            };
+
+            // 5. ★ 渡された musiclist の順序通りに再生キュー（s.queue）を構築
+            let handoverQueue = [];
+            if (Array.isArray(now.musiclist) && now.musiclist.length > 0) {
+                handoverQueue = now.musiclist.map(mItem => findSongObject(mItem)).filter(Boolean);
+            }
+
+            // 6. nowPlayingTitle, nowPlayingArtist, nowPlayingAlbum に合致する楽曲を特定
+            const targetNowItem = {
+                title: now.nowPlayingTitle,
+                artist: now.nowPlayingArtist,
+                album: now.nowPlayingAlbum
+            };
+            let targetSong = findSongObject(targetNowItem);
+
+            if (!targetSong && handoverQueue.length > 0) {
+                targetSong = handoverQueue[0];
+            }
+
+            if (!targetSong) {
+                u.showToast("引き継ぎ対象の楽曲がライブラリに見つかりませんでした", true);
+                return;
+            }
+
+            // 7. handoverQueue 内での対象楽曲の位置（currentIndex）を特定
+            let currentIdxInQueue = -1;
+            if (handoverQueue.length > 0) {
+                currentIdxInQueue = handoverQueue.findIndex(song => song.musicFilename === targetSong.musicFilename);
+                if (currentIdxInQueue === -1) {
+                    currentIdxInQueue = handoverQueue.findIndex(song => {
+                        const sT = (song.title || "").trim().toLowerCase();
+                        const sA = (song.artist || "").trim().toLowerCase();
+                        return sT === targetTitle && (!targetArtist || sA === targetArtist);
+                    });
+                }
+            }
+
+            if (handoverQueue.length === 0) {
+                handoverQueue = [targetSong];
+                currentIdxInQueue = 0;
+            } else if (currentIdxInQueue === -1) {
+                handoverQueue.unshift(targetSong);
+                currentIdxInQueue = 0;
+            }
+
+            // 8. セッション情報とキュー・シャッフル・ループ設定の確定
+            s.activeSessionInfo = {
+                playlistID: isVirtual ? (s.currentVirtualField || "album") : (currentPl ? currentPl.id : "normal"),
+                playlistName: isVirtual ? (s.currentVirtualName || "Untitled") : (currentPl ? currentPl.playlistName : "Untitled")
+            };
+
+            const headerLogo = document.getElementById('headerLogo');
+            const headerPlayerInfo = document.getElementById('headerPlayerInfo');
+            const headerControls = document.getElementById('headerControls');
+            if (headerLogo) headerLogo.style.display = 'none';
+            if (headerPlayerInfo) headerPlayerInfo.style.display = 'flex';
+            if (headerControls) headerControls.style.display = 'flex';
+
+            s.queue = handoverQueue;
+            s.currentIndex = currentIdxInQueue;
+            s.isShuffle = Boolean(now.shuffle);
+            s.loopMode = now.loop ? 'all' : 'off';
+
+            if (window.HeaderController) {
+                window.HeaderController.updateToggleButtons();
+            }
+
+            // 9. 再生開始と秒数シーク
+            this.playCurrentIndex();
+
+            if (startTime > 0) {
+                const applySeek = () => {
+                    if (this.audio) {
+                        this.audio.currentTime = startTime;
+                    }
+                };
+                setTimeout(applySeek, 150);
+                setTimeout(applySeek, 400);
+            }
+
+            const devName = relayData.deviceName || "他デバイス";
+            u.showToast(`${devName} から「${targetSong.title || targetTitle}」を引き継ぎました`);
         }
     };
 })();

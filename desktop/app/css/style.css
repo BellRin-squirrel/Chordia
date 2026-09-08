@@ -80,22 +80,34 @@ body {
     height: 24px;
 }
 
+/* ★ Chordia Relay デバイス数カウントバッジ */
 .relay-badge {
     position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 10px;
-    height: 10px;
+    top: -6px;
+    right: -6px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
     background-color: #10b981;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    font-family: monospace, sans-serif;
     border: 2px solid var(--card-bg);
-    border-radius: 50%;
-    box-shadow: 0 0 6px #10b981;
-    animation: pulseBadge 2s infinite;
+    border-radius: 10px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+    box-sizing: border-box;
+    line-height: 1;
+    pointer-events: none;
+    animation: popBadge 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-@keyframes pulseBadge {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.15); opacity: 0.7; }
+@keyframes popBadge {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 /* --- Chordia Relay モーダル --- */

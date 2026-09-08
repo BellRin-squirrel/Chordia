@@ -219,7 +219,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const escapeHtml = (str) => str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
 
-    // モーダルを閉じる処理
     const closeRelayModal = () => {
         if (relayModal) {
             relayModal.classList.remove('show');
@@ -308,8 +307,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `;
 
-            card.onclick = () => {
-                console.log("[Chordia Relay] Selected device for handover:", item);
+            // ★ デバイスカードクリック時：再生引き継ぎ情報を保存して再生画面へ遷移
+            card.onclick = async () => {
+                const nowData = item.nowPlaying;
+                if (!nowData || !nowData.nowPlayingTitle) {
+                    showToast("再生情報が取得できませんでした", true);
+                    return;
+                }
+
+                // 引き継ぎデータをlocalStorageに保存
+                localStorage.setItem('chordia_relay_handover', JSON.stringify({
+                    handover: nowData,
+                    deviceName: item.name || "他デバイス",
+                    timestamp: Date.now()
+                }));
+
+                closeRelayModal();
+
+                const settings = await invoke("get_app_settings");
+                if (settings && settings.open_player_new_window) {
+                    await invoke("open_new_window", {
+                        label: "player_window",
+                        url: new URL("player.html", window.location.href).href,
+                        title: "音楽を再生 - Chordia",
+                        width: 1200.0,
+                        height: 900.0
+                    });
+                } else {
+                    window.location.href = 'player.html';
+                }
             };
 
             relayListContainer.appendChild(card);
@@ -323,7 +349,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isLoggedIn = (authInfo && authInfo.logged_in);
 
             if (!isLoggedIn) {
-                if (relayBadge) relayBadge.style.display = 'none';
+                if (relayBadge) {
+                    relayBadge.style.display = 'none';
+                    relayBadge.textContent = '';
+                }
                 return;
             }
 
@@ -331,7 +360,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (Array.isArray(devices)) {
                 relayDevices = devices;
                 if (relayBadge) {
-                    relayBadge.style.display = (devices.length > 0) ? 'block' : 'none';
+                    if (devices.length > 0) {
+                        relayBadge.textContent = devices.length;
+                        relayBadge.style.display = 'flex';
+                    } else {
+                        relayBadge.textContent = '';
+                        relayBadge.style.display = 'none';
+                    }
                 }
                 if (relayModal && relayModal.classList.contains('show')) {
                     renderRelayDevices();
