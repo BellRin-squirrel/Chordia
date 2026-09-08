@@ -22,10 +22,8 @@ const file = "node_modules/react-native-track-player/android/src/main/java/com/d
 if (fs.existsSync(file)) {
   let content = fs.readFileSync(file, "utf8");
   
-  // パッチ1: Arguments.fromBundle( を Null-Safe な代替関数 fromBundleSafe に置換
   content = content.split("Arguments.fromBundle(").join("fromBundleSafe(");
   
-  // パッチ2: fromBundleSafe 関数を MusicModule クラスの末尾の } の直前に挿入
   if (!content.includes("fun fromBundleSafe")) {
     const lastBraceIndex = content.lastIndexOf("}");
     if (lastBraceIndex !== -1) {
@@ -34,15 +32,13 @@ if (fs.existsSync(file)) {
     }
   }
 
-  // パッチ3: New Architecture 起動クラッシュを回避するため、戻り値(Job)をカッコを解析してUnit(void)ブロックで包む
   let regex = /@ReactMethod\s+fun\s+[a-zA-Z0-9_]+\s*\([^)]*\)\s*=\s*[a-zA-Z0-9_\.]*launch\s*\{/g;
   let match;
   while ((match = regex.exec(content)) !== null) {
-      let startIndex = match.index + match[0].length - 1; // "{" の位置
+      let startIndex = match.index + match[0].length - 1; 
       let openBraces = 0;
       let endIndex = -1;
       
-      // カッコのペアを正確にカウントして関数の終わりを見つける
       for (let i = startIndex; i < content.length; i++) {
           if (content[i] === "{") openBraces++;
           if (content[i] === "}") openBraces--;
@@ -57,10 +53,7 @@ if (fs.existsSync(file)) {
           let afterEq = content.slice(match.index + match[0].indexOf("=") + 1, endIndex + 1);
           let afterBlock = content.slice(endIndex + 1);
           
-          // "= scope.launch { ... }" を "{ scope.launch { ... } }" のブロック構文に変換
           content = beforeEq + "{" + afterEq + "\n    }" + afterBlock;
-          
-          // 文字列が書き換わったので検索インデックスをリセット
           regex.lastIndex = 0;
       }
   }
@@ -81,7 +74,6 @@ echo "⚙️ 4/5 ABI パッチ ＆ メモリ上限パッチ ＆ Android 14 バ�
 node -e '
 const fs = require("fs");
 
-// ABIフィルター追加
 const gradleFile = "android/app/build.gradle";
 if (fs.existsSync(gradleFile)) {
   let content = fs.readFileSync(gradleFile, "utf8");
@@ -92,7 +84,6 @@ if (fs.existsSync(gradleFile)) {
   }
 }
 
-// Gradle メモリ領域の拡張
 const propFile = "android/gradle.properties";
 if (fs.existsSync(propFile)) {
   let content = fs.readFileSync(propFile, "utf8");
@@ -103,12 +94,16 @@ if (fs.existsSync(propFile)) {
   }
 }
 
-// Android 14+ Foreground Service (mediaPlayback) の Manifest 注入
 const manifestFile = "android/app/src/main/AndroidManifest.xml";
 if (fs.existsSync(manifestFile)) {
   let manifest = fs.readFileSync(manifestFile, "utf8");
+
+  if (!manifest.includes("xmlns:tools=")) {
+    manifest = manifest.replace("<manifest", "<manifest xmlns:tools=\"http://schemas.android.com/tools\"");
+  }
+
   if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
-    const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\" />";
+    const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"true\" android:foregroundServiceType=\"mediaPlayback\" tools:replace=\"android:exported,android:foregroundServiceType\" />";
     manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
     fs.writeFileSync(manifestFile, manifest);
     console.log("   --> Android 14 バックグラウンド再生用 ForegroundServiceType を追加しました。");

@@ -205,11 +205,16 @@ jobs:
           const manifestFile = "android/app/src/main/AndroidManifest.xml";
           if (fs.existsSync(manifestFile)) {
             let manifest = fs.readFileSync(manifestFile, "utf8");
+            
+            if (!manifest.includes("xmlns:tools=")) {
+              manifest = manifest.replace("<manifest", "<manifest xmlns:tools=\"http://schemas.android.com/tools\"");
+            }
+
             if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
-              const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"false\" android:foregroundServiceType=\"mediaPlayback\" />";
+              const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"true\" android:foregroundServiceType=\"mediaPlayback\" tools:replace=\"android:exported,android:foregroundServiceType\" />";
               manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
               fs.writeFileSync(manifestFile, manifest);
-              console.log("Successfully injected foregroundServiceType=mediaPlayback");
+              console.log("Successfully injected foregroundServiceType=mediaPlayback with tools:replace");
             }
           }
           '

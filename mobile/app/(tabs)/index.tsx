@@ -41,6 +41,13 @@ LogBox.ignoreLogs([
   'The objective-c `clearSleepTimer'
 ]);
 
+// ★ RNTP仕様: バックグラウンド実行クラッシュを防ぐため、コンポーネントの外（トップレベル）で登録
+try {
+  TrackPlayer.registerPlaybackService(() => require('../../service'));
+} catch (e) {
+  console.warn('[RNTP] registerPlaybackService error:', e);
+}
+
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState<TabType>('PLAYER');
   const [focusStage, setFocusStage] = useState<FocusStageType>('SETUP');
@@ -85,7 +92,6 @@ const AppContent = () => {
     language
   });
 
-  // ★ 1. アプリ起動時 & タブ切替時のセッション検証 ＆ 楽曲・プレイリストのクラウド同期
   useEffect(() => {
     (async () => {
       const isValid = await verifyChordiaSyncSession(true, language);
@@ -417,8 +423,9 @@ const AppContent = () => {
 };
 
 export default function App() {
-  useEffect(() => {
-    try { TrackPlayer.registerPlaybackService(() => require('../../service')); } catch (e) {}
-  }, []);
-  return ( <SafeAreaProvider><AppContent /></SafeAreaProvider> );
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  );
 }

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chordia",
     "slug": "Chordia",
-    "version": "v6.0.0",
+    "version": "v6.0.0-alpha1",
     "backgroundColor": "#ffffff",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
