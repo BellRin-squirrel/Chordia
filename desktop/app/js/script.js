@@ -223,14 +223,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeRelayModal = () => {
         if (relayModal) {
             relayModal.classList.remove('show');
-            setTimeout(() => { relayModal.style.display = 'none'; }, 200);
+            setTimeout(() => {
+                if (!relayModal.classList.contains('show')) {
+                    relayModal.style.display = 'none';
+                }
+            }, 200);
         }
     };
 
-    if (btnCloseRelayModalX) btnCloseRelayModalX.addEventListener('click', closeRelayModal);
+    if (btnCloseRelayModalX) {
+        btnCloseRelayModalX.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeRelayModal();
+        });
+    }
+
     if (relayModal) {
         relayModal.addEventListener('click', (e) => {
-            if (e.target === relayModal) closeRelayModal();
+            if (e.target === relayModal) {
+                closeRelayModal();
+            }
         });
     }
 
@@ -264,7 +277,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const plId = now.playlistID || "";
             const plName = now.playlistName || "Untitled";
 
-            // タイプバッジの判別 (albumならアルバム, artistならアーティスト, それ以外ならプレイリスト)
             let typeLabel = "プレイリスト";
             let typeClass = "";
             if (plId === "album") {
@@ -296,7 +308,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `;
 
-            // クリック時のアクション（次回の実装用コールバック受け皿）
             card.onclick = () => {
                 console.log("[Chordia Relay] Selected device for handover:", item);
             };
@@ -312,12 +323,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isLoggedIn = (authInfo && authInfo.logged_in);
 
             if (!isLoggedIn) {
-                if (btnRelay) btnRelay.style.display = 'none';
                 if (relayBadge) relayBadge.style.display = 'none';
                 return;
             }
-
-            if (btnRelay) btnRelay.style.display = 'flex';
 
             const devices = await invoke("fetch_relay_devices_from_cloud");
             if (Array.isArray(devices)) {
@@ -325,7 +333,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (relayBadge) {
                     relayBadge.style.display = (devices.length > 0) ? 'block' : 'none';
                 }
-                // モーダルが開いている場合はリアルタイムにリストを更新
                 if (relayModal && relayModal.classList.contains('show')) {
                     renderRelayDevices();
                 }
@@ -337,6 +344,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnRelay) {
         btnRelay.addEventListener('click', async () => {
+            const authInfo = await invoke("get_cloud_auth_info");
+            const isLoggedIn = (authInfo && authInfo.logged_in);
+
+            if (!isLoggedIn) {
+                showToast("Chordia Sync にログインしていません。設定画面からログインしてください。", true);
+                return;
+            }
+
             await pollRelayDevices();
             renderRelayDevices();
             if (relayModal) {
@@ -346,7 +361,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // 初期化と定期ポーリング（5秒間隔）
     await pollRelayDevices();
     relayPollingTimer = setInterval(pollRelayDevices, 5000);
 
