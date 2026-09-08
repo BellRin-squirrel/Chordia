@@ -472,10 +472,12 @@ export const useSync = ({
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
         let currentLocal = Array.isArray(localLibrary) ? [...localLibrary] : [];
-        const targetTitleArtists = new Set();
+
+        // ★ 同一曲（重複）判定キー: cleanStr(title) ::: cleanStr(artist) ::: cleanStr(album)
+        const targetTitleArtistAlbums = new Set<string>();
         for (const tg of targets) {
             if (tg && tg.title && tg.artist) {
-                targetTitleArtists.add(`${cleanStr(tg.title)}:::${cleanStr(tg.artist)}`);
+                targetTitleArtistAlbums.add(`${cleanStr(tg.title)}:::${cleanStr(tg.artist)}:::${cleanStr(tg.album || '')}`);
             }
         }
 
@@ -516,8 +518,10 @@ export const useSync = ({
                 }
                 
                 const localSong = currentLocal[i];
-                const titleArtistKey = localSong && localSong.title && localSong.artist ? `${cleanStr(localSong.title)}:::${cleanStr(localSong.artist)}` : "";
-                const isTarget = titleArtistKey ? targetTitleArtists.has(titleArtistKey) : false;
+                const songIdentityKey = localSong && localSong.title && localSong.artist 
+                  ? `${cleanStr(localSong.title)}:::${cleanStr(localSong.artist)}:::${cleanStr(localSong.album || '')}` 
+                  : "";
+                const isTarget = songIdentityKey ? targetTitleArtistAlbums.has(songIdentityKey) : false;
 
                 if (!isTarget) {
                     if (localSong.localMusicUri) {
@@ -533,10 +537,11 @@ export const useSync = ({
             currentLocal = updatedLocalList;
         }
 
+        // ★ ライブラリ照合用マップ（曲名 + アーティスト + アルバム）
         const libraryMap = new Map();
         for (const s of currentLocal) {
             if (s && s.title && s.artist) {
-                libraryMap.set(`${cleanStr(s.title)}:::${cleanStr(s.artist)}`, s);
+                libraryMap.set(`${cleanStr(s.title)}:::${cleanStr(s.artist)}:::${cleanStr(s.album || '')}`, s);
             }
         }
 
@@ -555,7 +560,7 @@ export const useSync = ({
               .replace('{title}', song.title || 'Untitled');
             setSyncProgress(progressMsg);
             
-            const songKey = song.title && song.artist ? `${cleanStr(song.title)}:::${cleanStr(song.artist)}` : "";
+            const songKey = song.title && song.artist ? `${cleanStr(song.title)}:::${cleanStr(song.artist)}:::${cleanStr(song.album || '')}` : "";
             const existingLocal = songKey ? libraryMap.get(songKey) : undefined;
 
             let finalMusicUri = musicLocalUri;
@@ -667,7 +672,6 @@ export const useSync = ({
 
         await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
 
-        // ★ 同期完了直後に Chordia Sync クラウドへ最新ライブラリ＆プレイリストを自動同期
         syncMusicAndPlaylistsToCloud();
 
         setIsFullScreenSyncing(false);
