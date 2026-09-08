@@ -48,6 +48,8 @@ export const ja: Record<string, string> = {
   playback_history_title: '楽曲再生履歴',
   no_focus_history: '履歴がありません',
   no_playback_history: '再生履歴がありません',
+  stats_source_sync: 'Chordia Sync のデータを表示中',
+  stats_source_local: 'このデバイス（ローカル）のデータを表示中',
 
   delete_history_menu_title: '履歴データの削除',
   delete_history_menu_subtitle: '削除する期間を選択してください',
@@ -61,6 +63,7 @@ export const ja: Record<string, string> = {
   delete_history_confirm_sync_title: 'Chordia Sync 履歴の削除',
   delete_history_confirm_sync_desc: '選択した期間より前の履歴データを削除しますか？\n\n【注意】\nChordia Sync（クラウド）上のデータも削除され、連携しているすべてのデバイスからも消去されます。\n(この操作は取り消せません)',
   delete_history_success: '履歴データを削除しました。',
+  deleting_history_progress: '履歴データを削除中...',
 
   manage_data_title: 'データを管理',
   select_btn: '選択',
@@ -388,11 +391,6 @@ export const ja: Record<string, string> = {
   account_logout_confirm_title: 'ログアウトの確認',
   account_logout_confirm_desc: 'Chordia Sync からログアウトしますか？\n(端末内の作業セッション履歴・楽曲再生履歴も消去されます)',
   account_auth_invalid_warning: 'Chordia Sync の認証に失敗しました。再度ログインしてください。',
-
-  stats_source_sync: 'Chordia Sync のデータを表示中',
-  stats_source_local: 'このデバイス（ローカル）のデータを表示中',
-  deleting_history_progress: '履歴データを削除中...',
-
   account_resync_btn: 'データを再送信',
   account_syncing_title: 'Chordia Sync へデータを送信中',
   account_syncing_warning: '送信が完了するまでアプリを閉じずにお待ちください',
@@ -402,4 +400,11 @@ export const ja: Record<string, string> = {
   account_sync_step_playlist: 'プレイリスト一覧を送信中... ({count}件)',
   account_resync_complete_title: '再送信完了',
   account_resync_complete_desc: 'すべてのデータが Chordia Sync に正常に再送信されました。',
+
+  // ★ Chordia Relay
+  relay_type_album: 'アルバム',
+  relay_type_artist: 'アーティスト',
+  relay_type_playlist: 'プレイリスト',
+  relay_modal_desc: 'Chordia Relay は一つのデバイスで再生していた再生リストを別のデバイスで再生を続ける機能です。\nDesktop 版から Mobile 版への同期とは異なります。',
+  relay_no_devices: '再生中のデバイスが見つかりません',
 };

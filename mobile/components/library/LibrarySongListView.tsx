@@ -18,7 +18,7 @@ export const LibrarySongListView = ({
   searchQuery, setSearchQuery, isSearching, setIsSearching,
   startQueue, onPlayCollectionPress, openActionSheet,
   renderFloatingBackButton, flatListRefPortrait, flatListRefLandscape,
-  AnimatedMenuButton, language = 'ja'
+  AnimatedMenuButton, language = 'ja', collectionContext = null
 }: any) => {
 
   const isPlaylist = currentSelectionType === 'PLAYLIST';
@@ -123,7 +123,10 @@ export const LibrarySongListView = ({
               snapToOffsets={[0, 70]} 
               snapToEnd={false} 
               renderItem={({ item }) => (
-                <TouchableOpacity style={[styles.songRow, { borderBottomWidth: 0, backgroundColor: 'transparent' }]} onPress={() => startQueue(songs, item, undefined)}>
+                <TouchableOpacity 
+                  style={[styles.songRow, { borderBottomWidth: 0, backgroundColor: 'transparent' }]} 
+                  onPress={() => startQueue(songs, item, undefined, collectionContext)}
+                >
                   <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArt} />
                   <View style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                     <MarqueeText text={item.title} style={[styles.songTitle, { color: dynamicStyles.text }]} />
@@ -146,7 +149,10 @@ export const LibrarySongListView = ({
           snapToOffsets={[0, 70]} 
           snapToEnd={false} 
           renderItem={({ item }) => (
-            <TouchableOpacity style={[styles.songRow, { borderBottomWidth: 0, backgroundColor: 'transparent' }]} onPress={() => startQueue(songs, item, undefined)}>
+            <TouchableOpacity 
+              style={[styles.songRow, { borderBottomWidth: 0, backgroundColor: 'transparent' }]} 
+              onPress={() => startQueue(songs, item, undefined, collectionContext)}
+            >
               <Image source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} style={styles.smallArt} />
               <View style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                 <MarqueeText text={item.title} style={[styles.songTitle, { color: dynamicStyles.text }]} />

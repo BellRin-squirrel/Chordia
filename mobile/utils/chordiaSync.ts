@@ -24,6 +24,29 @@ export interface WorkHistoryItem { end: string; time: string; device?: string; }
 export interface LoadWorkHistoryResponse { success: boolean; history?: WorkHistoryItem[]; error?: string; }
 export interface DeleteHistoryResponse { success: boolean; error?: string; }
 
+export interface RelayNowPlaying {
+  playlistID?: string;
+  playlistName?: string;
+  shuffle?: boolean;
+  loop?: boolean; // ★ boolean型に統一
+  musiclist?: any[];
+  nowPlayingTitle?: string;
+  nowPlayingArtist?: string;
+  nowPlayingAlbum?: string;
+  nowPlayingTime?: number;
+}
+
+export interface RelayDeviceItem {
+  name: string;
+  nowPlaying: RelayNowPlaying;
+}
+
+export interface GetNowPlayingResponse {
+  success: boolean;
+  response?: RelayDeviceItem[];
+  error?: string;
+}
+
 export const getDeviceModelName = (): string => {
   let modelName = Platform.OS === 'ios' ? 'iPhone' : 'Android Device';
   try {
@@ -49,8 +72,8 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
     return res;
   } catch (e: any) {
     clearTimeout(timeoutId);
-    if (e.name === 'AbortError') throw new Error('通信がタイムアウトしました。インターネット接続を確認してください。');
-    throw new Error('インターネットに接続できません。ネットワーク設定を確認してください。');
+    if (e.name === 'AbortError') throw new Error('通信がタイムアウトしました。');
+    throw new Error('ネットワーク接続を確認してください。');
   }
 };
 
@@ -168,35 +191,29 @@ export const logoutApi = async (sid: string, name: string, device: string): Prom
 };
 
 export const registerMusicListApi = async (sid: string, musicList: RegisterMusicItem[]): Promise<RegisterMusicListResponse> => {
-  console.log(`[MusicList API] 📡 所有楽曲一覧を送信中... (全 ${musicList.length} 曲)`);
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'registerMusicList', SID: sid, musicList }),
-    }, 20000);
+    }, 15000);
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' }; }
 };
 
 export const registerPlaylistApi = async (sid: string, playlist: any[]): Promise<RegisterPlaylistResponse> => {
-  console.log(`[Playlist API] 📡 プレイリスト一覧を送信中... (全 ${playlist.length} 件)`);
   try {
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'registerPlaylist', SID: sid, playlist }),
-    }, 20000);
+    }, 15000);
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' };
-  }
+  } catch (e: any) { return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' }; }
 };
 
 export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
@@ -212,10 +229,7 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
     if (localLibraryRaw) {
       localLibraryList = JSON.parse(localLibraryRaw);
       const musicList: RegisterMusicItem[] = localLibraryList.map((s: any) => ({
-        title: s.title || 'Untitled',
-        artist: s.artist || 'Unknown Artist',
-        album: s.album || 'Unknown Album',
-        lyric: s.lyric || '',
+        title: s.title || 'Untitled', artist: s.artist || 'Unknown Artist', album: s.album || 'Unknown Album', lyric: s.lyric || '',
       }));
       await registerMusicListApi(sid, musicList);
     }
@@ -228,34 +242,70 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
         if (!pl || pl.isAll || pl.id === 'all_songs') continue;
         if (pl.type === 'smart') {
           formattedPlaylists.push({
-            id: pl.id,
-            playlistName: pl.playlistName || 'Untitled Playlist',
-            sortBy: pl.sortBy || 'title',
-            sortDesc: !!pl.sortDesc,
-            type: 'smart',
-            conditions: pl.conditions || { type: 'group', match: 'all', items: [] },
+            id: pl.id, playlistName: pl.playlistName || 'Untitled Playlist', sortBy: pl.sortBy || 'title', sortDesc: !!pl.sortDesc, type: 'smart', conditions: pl.conditions || { type: 'group', match: 'all', items: [] },
           });
         } else {
           const matchedSongs = getPlaylistSongs(pl, localLibraryList);
-          const musics = matchedSongs.map((s: any) => ({
-            title: s.title || 'Untitled',
-            artist: s.artist || 'Unknown Artist',
-          }));
+          const musics = matchedSongs.map((s: any) => ({ title: s.title || 'Untitled', artist: s.artist || 'Unknown Artist' }));
           formattedPlaylists.push({
-            id: pl.id,
-            playlistName: pl.playlistName || 'Untitled Playlist',
-            sortBy: pl.sortBy || 'title',
-            sortDesc: !!pl.sortDesc,
-            type: 'normal',
-            musics,
+            id: pl.id, playlistName: pl.playlistName || 'Untitled Playlist', sortBy: pl.sortBy || 'title', sortDesc: !!pl.sortDesc, type: 'normal', musics,
           });
         }
       }
       await registerPlaylistApi(sid, formattedPlaylists);
     }
-  } catch (e) {
-    console.warn('[Chordia Sync] 楽曲・プレイリスト同期エラー:', e);
+  } catch (e) {}
+};
+
+/**
+ * ★ 楽曲再生位置送信API (registerNowPlaying)
+ * - loop: boolean型 (true / false)
+ */
+export const registerNowPlayingApi = async (
+  sid: string,
+  payload: {
+    playlistID: string;
+    playlistName: string;
+    shuffle: boolean;
+    loop: boolean;
+    musiclist: { title: string; artist: string; album: string }[];
+    nowPlayingTitle: string;
+    nowPlayingArtist: string;
+    nowPlayingAlbum: string;
+    nowPlayingTime: number;
   }
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({
+        operation: 'registerNowPlaying',
+        SID: sid,
+        ...payload,
+      }),
+    }, 4000);
+
+    const data = JSON.parse(await response.text());
+    if (data.error) return { success: false, error: String(data.error) };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || '再生位置の送信に失敗しました' };
+  }
+};
+
+export const getNowPlayingApi = async (sid: string): Promise<GetNowPlayingResponse> => {
+  try {
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'getNowPlaying', SID: sid }),
+    }, 6000);
+    const data = JSON.parse(await response.text());
+    if (data.error) return { success: false, error: String(data.error) };
+    if (Array.isArray(data.response)) return { success: true, response: data.response };
+    return { success: true, response: [] };
+  } catch (e: any) { return { success: false, error: e?.message || 'リレー情報の取得に失敗しました' }; }
 };
 
 export const loadAllPlayHistoryApi = async (sid: string): Promise<LoadPlayHistoryResponse> => {
@@ -302,7 +352,7 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
 export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
-    const res = await deletePlayHistorySingleApi(sid, itemsToDelete[i]);
+    const res = await deletePlayHistorySingleApi(sid, item);
     if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
@@ -378,124 +428,59 @@ export const addWorkHistoryApi = async (sid: string, end: string, time: string):
   await AsyncStorage.setItem(PENDING_WORK_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
-/**
- * ★ ログイン時 / 再送信ボタン押下時に「作業履歴」「再生履歴」「所有楽曲一覧」「プレイリスト一覧」をサーバーへ一括送信
- * - onProgress コールバックにより、各ステップの進捗テキストをリアルタイムで通知
- */
-export const syncInitialLocalHistory = async (
-  sid: string, 
-  onProgress?: (progressText: string) => void,
-  language: LanguageCode = 'ja'
-): Promise<void> => {
-  console.log('[InitialSync] 🚀 既存ローカルデータのクラウド送信を開始します...');
-
-  // 1. 作業セッション履歴
+export const syncInitialLocalHistory = async (sid: string, onProgress?: (msg: string) => void, language: LanguageCode = 'ja'): Promise<void> => {
   try {
     const focusHistoryRaw = await AsyncStorage.getItem('chordia_focus_history');
     if (focusHistoryRaw) {
       const focusList: any[] = JSON.parse(focusHistoryRaw);
       for (let i = 0; i < focusList.length; i++) {
         const item = focusList[i];
-        if (onProgress) {
-          const msg = t('account_sync_step_work', language)
-            .replace('{current}', String(i + 1))
-            .replace('{total}', String(focusList.length));
-          onProgress(`[1/4] ${msg}`);
-        }
+        if (onProgress) onProgress(`[1/4] ${t('account_sync_step_work', language).replace('{current}', String(i + 1)).replace('{total}', String(focusList.length))}`);
         if (item.duration && item.duration > 0) {
-          const end = formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date());
-          const time = formatWorkDuration(item.duration);
-          await addWorkHistoryApi(sid, end, time);
+          await addWorkHistoryApi(sid, formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date()), formatWorkDuration(item.duration));
         }
       }
     }
   } catch (e) {}
 
-  // 2. 楽曲再生履歴
   try {
     const playHistoryRaw = await AsyncStorage.getItem('chordia_playback_history');
     if (playHistoryRaw) {
       const playList: any[] = JSON.parse(playHistoryRaw);
       for (let i = 0; i < playList.length; i++) {
         const item = playList[i];
-        if (onProgress) {
-          const msg = t('account_sync_step_play', language)
-            .replace('{current}', String(i + 1))
-            .replace('{total}', String(playList.length));
-          onProgress(`[2/4] ${msg}`);
-        }
-        if (item.title || item.artist) {
-          await addPlayHistoryApi(sid, item.title || 'Untitled', item.artist || 'Unknown Artist', item.album || 'Unknown Album');
-        }
+        if (onProgress) onProgress(`[2/4] ${t('account_sync_step_play', language).replace('{current}', String(i + 1)).replace('{total}', String(playList.length))}`);
+        if (item.title || item.artist) await addPlayHistoryApi(sid, item.title || 'Untitled', item.artist || 'Unknown Artist', item.album || 'Unknown Album');
       }
     }
   } catch (e) {}
 
-  // 3. 所有楽曲一覧
   let localLibraryList: any[] = [];
   try {
     const localLibraryRaw = await AsyncStorage.getItem('local_library');
     if (localLibraryRaw) {
       localLibraryList = JSON.parse(localLibraryRaw);
-      if (onProgress) {
-        const msg = t('account_sync_step_music', language).replace('{count}', String(localLibraryList.length));
-        onProgress(`[3/4] ${msg}`);
-      }
-      const musicList: RegisterMusicItem[] = localLibraryList.map((s: any) => ({
-        title: s.title || 'Untitled',
-        artist: s.artist || 'Unknown Artist',
-        album: s.album || 'Unknown Album',
-        lyric: s.lyric || '',
-      }));
-      await registerMusicListApi(sid, musicList);
+      if (onProgress) onProgress(`[3/4] ${t('account_sync_step_music', language).replace('{count}', String(localLibraryList.length))}`);
+      await registerMusicListApi(sid, localLibraryList.map((s: any) => ({ title: s.title || 'Untitled', artist: s.artist || 'Unknown Artist', album: s.album || 'Unknown Album', lyric: s.lyric || '' })));
     }
   } catch (e) {}
 
-  // 4. プレイリスト一覧
   try {
     const localPlaylistsRaw = await AsyncStorage.getItem('local_playlists');
     if (localPlaylistsRaw) {
       const rawPlaylists: any[] = JSON.parse(localPlaylistsRaw);
       const formattedPlaylists: any[] = [];
-
       for (const pl of rawPlaylists) {
         if (!pl || pl.isAll || pl.id === 'all_songs') continue;
         if (pl.type === 'smart') {
-          formattedPlaylists.push({
-            id: pl.id,
-            playlistName: pl.playlistName || 'Untitled Playlist',
-            sortBy: pl.sortBy || 'title',
-            sortDesc: !!pl.sortDesc,
-            type: 'smart',
-            conditions: pl.conditions || { type: 'group', match: 'all', items: [] },
-          });
+          formattedPlaylists.push({ id: pl.id, playlistName: pl.playlistName || 'Untitled Playlist', sortBy: pl.sortBy || 'title', sortDesc: !!pl.sortDesc, type: 'smart', conditions: pl.conditions || { type: 'group', match: 'all', items: [] } });
         } else {
           const matchedSongs = getPlaylistSongs(pl, localLibraryList);
-          const musics = matchedSongs.map((s: any) => ({
-            title: s.title || 'Untitled',
-            artist: s.artist || 'Unknown Artist',
-          }));
-          formattedPlaylists.push({
-            id: pl.id,
-            playlistName: pl.playlistName || 'Untitled Playlist',
-            sortBy: pl.sortBy || 'title',
-            sortDesc: !!pl.sortDesc,
-            type: 'normal',
-            musics,
-          });
+          formattedPlaylists.push({ id: pl.id, playlistName: pl.playlistName || 'Untitled Playlist', sortBy: pl.sortBy || 'title', sortDesc: !!pl.sortDesc, type: 'normal', musics: matchedSongs.map((s: any) => ({ title: s.title || 'Untitled', artist: s.artist || 'Unknown Artist' })) });
         }
       }
-
-      if (onProgress) {
-        const msg = t('account_sync_step_playlist', language).replace('{count}', String(formattedPlaylists.length));
-        onProgress(`[4/4] ${msg}`);
-      }
-
-      if (formattedPlaylists.length > 0) {
-        await registerPlaylistApi(sid, formattedPlaylists);
-      }
+      if (onProgress) onProgress(`[4/4] ${t('account_sync_step_playlist', language).replace('{count}', String(formattedPlaylists.length))}`);
+      if (formattedPlaylists.length > 0) await registerPlaylistApi(sid, formattedPlaylists);
     }
   } catch (e) {}
-
-  console.log('[InitialSync] ✅ 既存ローカルデータのクラウド送信処理が完了しました');
 };

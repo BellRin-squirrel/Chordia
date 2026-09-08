@@ -12,6 +12,7 @@ import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluato
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { t } from '../utils/i18n';
 import { syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
+import { PlayCollectionContext } from '../hooks/useAudioPlayer';
 
 import { LibraryMenuView } from './library/LibraryMenuView';
 import { LibraryCategoryView } from './library/LibraryCategoryView';
@@ -191,10 +192,7 @@ export const Library = ({
         if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
         setAddToPlaylistSong(null);
         setSelectedPlaylistsForAdd(new Set());
-
-        // ★ プレイリストへの楽曲追加完了時にクラウド同期
         syncMusicAndPlaylistsToCloud();
-
         Alert.alert(t('confirm', language), t('added_to_playlists_done', language));
       } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
     };
@@ -225,8 +223,6 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
             setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
-
-            // ★ プレイリスト更新時にクラウド同期
             syncMusicAndPlaylistsToCloud();
           }}
         ]
@@ -243,8 +239,6 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
             setCurrentPlaylist(updatedPlaylists.find((p: any) => p.id === currentPlaylist.id));
-
-            // ★ プレイリスト更新時にクラウド同期
             syncMusicAndPlaylistsToCloud();
           }}
         ]
@@ -268,8 +262,6 @@ export const Library = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalLibrary) setLocalLibrary(remainingLibrary);
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
-
-            // ★ 楽曲完全削除時にクラウド同期
             syncMusicAndPlaylistsToCloud();
           } catch (e: any) { Alert.alert(t('alert_timer_error_title', language), e.message); }
         }}
@@ -294,8 +286,6 @@ export const Library = ({
     await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
     if (setLocalLibrary) setLocalLibrary(updatedLibrary);
     setEditingSong(null);
-
-    // ★ 個別楽曲情報編集保存時にクラウド同期
     syncMusicAndPlaylistsToCloud();
   };
 
@@ -386,18 +376,36 @@ export const Library = ({
   let heroArtSource: any = DEFAULT_ICON;
   let heroTitle = "";
 
+  // ★ 現在表示しているコレクションのコンテキストを構築
+  let collectionContext: PlayCollectionContext | null = null;
+
   if (currentSelectionType === 'PLAYLIST') {
     songs = getPlaylistSongs(currentPlaylist, localLibrary);
     heroArtSource = getPlaylistFirstArt(currentPlaylist, localLibrary);
     heroTitle = currentPlaylist?.playlistName || '';
+    collectionContext = {
+      type: 'PLAYLIST',
+      playlistID: currentPlaylist?.id || 'all_songs',
+      playlistName: currentPlaylist?.playlistName || 'Playlist',
+    };
   } else if (currentSelectionType === 'ALBUM') {
     songs = localLibrary.filter((s: any) => s.album === currentAlbum?.album && s.artist === currentAlbum?.artist).sort((a: any, b: any) => (a.track || 0) - (b.track || 0));
     heroArtSource = currentAlbum?.coverArt ? { uri: currentAlbum.coverArt } : DEFAULT_ICON;
     heroTitle = currentAlbum?.album || '';
+    collectionContext = {
+      type: 'ALBUM',
+      playlistID: 'album',
+      playlistName: currentAlbum?.album || 'Album',
+    };
   } else if (currentSelectionType === 'ARTIST') {
     songs = localLibrary.filter((s: any) => s.artist === currentArtist).sort((a: any, b: any) => (a.title || '').localeCompare(b.title || '', 'ja'));
     heroArtSource = songs.length > 0 && songs[0].localImageUri ? { uri: songs[0].localImageUri } : DEFAULT_ICON;
     heroTitle = currentArtist || '';
+    collectionContext = {
+      type: 'ARTIST',
+      playlistID: 'artist',
+      playlistName: currentArtist || 'Artist',
+    };
   }
 
   if (searchQuery) {
@@ -442,6 +450,7 @@ export const Library = ({
                 currentSelectionType={currentSelectionType} currentPlaylist={currentPlaylist} showPlaylistTypeIcon={showPlaylistTypeIcon}
                 searchQuery={searchQuery} setSearchQuery={setSearchQuery} isSearching={isSearching} setIsSearching={setIsSearching}
                 startQueue={startQueue} 
+                collectionContext={collectionContext}
                 onPlayCollectionPress={(s: any[], sh: boolean) => {
                   let item: any;
                   if (currentSelectionType === 'PLAYLIST') item = { type: 'PLAYLIST', data: currentPlaylist, id: currentPlaylist.id, art: getPlaylistFirstArt(currentPlaylist, localLibrary) };
@@ -451,7 +460,8 @@ export const Library = ({
                   if (s && s.length > 0 && item) {
                     saveCollectionToHistory(item);
                   }
-                  startQueue(s, undefined, sh);
+                  // ★ context を渡して再生開始
+                  startQueue(s, undefined, sh, collectionContext);
                 }}
                 openActionSheet={openActionSheet} renderFloatingBackButton={renderFloatingBackButton}
                 flatListRefPortrait={flatListRefPortrait} flatListRefLandscape={flatListRefLandscape}
