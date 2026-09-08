@@ -174,16 +174,11 @@ export const registerMusicListApi = async (sid: string, musicList: RegisterMusic
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'registerMusicList', SID: sid, musicList }),
-    }, 15000);
+    }, 20000);
     const data = JSON.parse(await response.text());
-    if (data.error) {
-      console.warn('[MusicList API] ❌ 楽曲一覧の登録エラー:', data.error);
-      return { success: false, error: String(data.error) };
-    }
-    console.log(`[MusicList API] ✅ 楽曲一覧の登録に成功しました (全 ${musicList.length} 曲)`);
+    if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
   } catch (e: any) {
-    console.error('[MusicList API] ❌ 楽曲一覧送信 通信例外:', e?.message || e);
     return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' };
   }
 };
@@ -195,23 +190,15 @@ export const registerPlaylistApi = async (sid: string, playlist: any[]): Promise
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
       body: JSON.stringify({ operation: 'registerPlaylist', SID: sid, playlist }),
-    }, 15000);
+    }, 20000);
     const data = JSON.parse(await response.text());
-    if (data.error) {
-      console.warn('[Playlist API] ❌ プレイリスト登録エラー:', data.error);
-      return { success: false, error: String(data.error) };
-    }
-    console.log(`[Playlist API] ✅ プレイリスト一覧の登録に成功しました (全 ${playlist.length} 件)`);
+    if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
   } catch (e: any) {
-    console.error('[Playlist API] ❌ プレイリスト送信 通信例外:', e?.message || e);
     return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' };
   }
 };
 
-/**
- * ★ ログイン中に楽曲一覧とプレイリスト一覧をクラウドへ送信する共通関数
- */
 export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
   try {
     const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
@@ -220,8 +207,6 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
     if (!account?.sid) return;
 
     const sid = account.sid;
-
-    // 1. 所有楽曲一覧の送信
     let localLibraryList: any[] = [];
     const localLibraryRaw = await AsyncStorage.getItem('local_library');
     if (localLibraryRaw) {
@@ -235,15 +220,12 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
       await registerMusicListApi(sid, musicList);
     }
 
-    // 2. プレイリスト一覧の送信
     const localPlaylistsRaw = await AsyncStorage.getItem('local_playlists');
     if (localPlaylistsRaw) {
       const rawPlaylists: any[] = JSON.parse(localPlaylistsRaw);
       const formattedPlaylists: any[] = [];
-
       for (const pl of rawPlaylists) {
         if (!pl || pl.isAll || pl.id === 'all_songs') continue;
-
         if (pl.type === 'smart') {
           formattedPlaylists.push({
             id: pl.id,
@@ -259,18 +241,16 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
             title: s.title || 'Untitled',
             artist: s.artist || 'Unknown Artist',
           }));
-
           formattedPlaylists.push({
             id: pl.id,
             playlistName: pl.playlistName || 'Untitled Playlist',
             sortBy: pl.sortBy || 'title',
             sortDesc: !!pl.sortDesc,
             type: 'normal',
-            musics: musics,
+            musics,
           });
         }
       }
-
       await registerPlaylistApi(sid, formattedPlaylists);
     }
   } catch (e) {
@@ -322,8 +302,7 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
 export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
-    const item = itemsToDelete[i];
-    const res = await deletePlayHistorySingleApi(sid, item);
+    const res = await deletePlayHistorySingleApi(sid, itemsToDelete[i]);
     if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
@@ -334,7 +313,7 @@ export const deleteWorkHistorySingleApi = async (sid: string, item: WorkHistoryI
     const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
-      body: JSON.stringify({ operation: 'deleteWorkHistory', SID: sid, time: item.time || '', end: item.end || '', device: item.device || '', }),
+      body: JSON.stringify({ operation: 'deleteWorkHistory', SID: sid, time: item.time || '', end: item.end || '', device: item.device || '' }),
     }, 6000);
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
@@ -345,8 +324,7 @@ export const deleteWorkHistorySingleApi = async (sid: string, item: WorkHistoryI
 export const deleteWorkHistoryBatchApi = async (sid: string, itemsToDelete: WorkHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
-    const item = itemsToDelete[i];
-    const res = await deleteWorkHistorySingleApi(sid, item);
+    const res = await deleteWorkHistorySingleApi(sid, itemsToDelete[i]);
     if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };
@@ -400,12 +378,30 @@ export const addWorkHistoryApi = async (sid: string, end: string, time: string):
   await AsyncStorage.setItem(PENDING_WORK_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
-export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
+/**
+ * ★ ログイン時 / 再送信ボタン押下時に「作業履歴」「再生履歴」「所有楽曲一覧」「プレイリスト一覧」をサーバーへ一括送信
+ * - onProgress コールバックにより、各ステップの進捗テキストをリアルタイムで通知
+ */
+export const syncInitialLocalHistory = async (
+  sid: string, 
+  onProgress?: (progressText: string) => void,
+  language: LanguageCode = 'ja'
+): Promise<void> => {
+  console.log('[InitialSync] 🚀 既存ローカルデータのクラウド送信を開始します...');
+
+  // 1. 作業セッション履歴
   try {
     const focusHistoryRaw = await AsyncStorage.getItem('chordia_focus_history');
     if (focusHistoryRaw) {
       const focusList: any[] = JSON.parse(focusHistoryRaw);
-      for (const item of focusList) {
+      for (let i = 0; i < focusList.length; i++) {
+        const item = focusList[i];
+        if (onProgress) {
+          const msg = t('account_sync_step_work', language)
+            .replace('{current}', String(i + 1))
+            .replace('{total}', String(focusList.length));
+          onProgress(`[1/4] ${msg}`);
+        }
         if (item.duration && item.duration > 0) {
           const end = formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date());
           const time = formatWorkDuration(item.duration);
@@ -415,11 +411,19 @@ export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
     }
   } catch (e) {}
 
+  // 2. 楽曲再生履歴
   try {
     const playHistoryRaw = await AsyncStorage.getItem('chordia_playback_history');
     if (playHistoryRaw) {
       const playList: any[] = JSON.parse(playHistoryRaw);
-      for (const item of playList) {
+      for (let i = 0; i < playList.length; i++) {
+        const item = playList[i];
+        if (onProgress) {
+          const msg = t('account_sync_step_play', language)
+            .replace('{current}', String(i + 1))
+            .replace('{total}', String(playList.length));
+          onProgress(`[2/4] ${msg}`);
+        }
         if (item.title || item.artist) {
           await addPlayHistoryApi(sid, item.title || 'Untitled', item.artist || 'Unknown Artist', item.album || 'Unknown Album');
         }
@@ -427,5 +431,71 @@ export const syncInitialLocalHistory = async (sid: string): Promise<void> => {
     }
   } catch (e) {}
 
-  await syncMusicAndPlaylistsToCloud();
+  // 3. 所有楽曲一覧
+  let localLibraryList: any[] = [];
+  try {
+    const localLibraryRaw = await AsyncStorage.getItem('local_library');
+    if (localLibraryRaw) {
+      localLibraryList = JSON.parse(localLibraryRaw);
+      if (onProgress) {
+        const msg = t('account_sync_step_music', language).replace('{count}', String(localLibraryList.length));
+        onProgress(`[3/4] ${msg}`);
+      }
+      const musicList: RegisterMusicItem[] = localLibraryList.map((s: any) => ({
+        title: s.title || 'Untitled',
+        artist: s.artist || 'Unknown Artist',
+        album: s.album || 'Unknown Album',
+        lyric: s.lyric || '',
+      }));
+      await registerMusicListApi(sid, musicList);
+    }
+  } catch (e) {}
+
+  // 4. プレイリスト一覧
+  try {
+    const localPlaylistsRaw = await AsyncStorage.getItem('local_playlists');
+    if (localPlaylistsRaw) {
+      const rawPlaylists: any[] = JSON.parse(localPlaylistsRaw);
+      const formattedPlaylists: any[] = [];
+
+      for (const pl of rawPlaylists) {
+        if (!pl || pl.isAll || pl.id === 'all_songs') continue;
+        if (pl.type === 'smart') {
+          formattedPlaylists.push({
+            id: pl.id,
+            playlistName: pl.playlistName || 'Untitled Playlist',
+            sortBy: pl.sortBy || 'title',
+            sortDesc: !!pl.sortDesc,
+            type: 'smart',
+            conditions: pl.conditions || { type: 'group', match: 'all', items: [] },
+          });
+        } else {
+          const matchedSongs = getPlaylistSongs(pl, localLibraryList);
+          const musics = matchedSongs.map((s: any) => ({
+            title: s.title || 'Untitled',
+            artist: s.artist || 'Unknown Artist',
+          }));
+          formattedPlaylists.push({
+            id: pl.id,
+            playlistName: pl.playlistName || 'Untitled Playlist',
+            sortBy: pl.sortBy || 'title',
+            sortDesc: !!pl.sortDesc,
+            type: 'normal',
+            musics,
+          });
+        }
+      }
+
+      if (onProgress) {
+        const msg = t('account_sync_step_playlist', language).replace('{count}', String(formattedPlaylists.length));
+        onProgress(`[4/4] ${msg}`);
+      }
+
+      if (formattedPlaylists.length > 0) {
+        await registerPlaylistApi(sid, formattedPlaylists);
+      }
+    }
+  } catch (e) {}
+
+  console.log('[InitialSync] ✅ 既存ローカルデータのクラウド送信処理が完了しました');
 };

@@ -19,6 +19,61 @@ const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 type AuthStage = 'IDLE' | 'INPUT' | 'WAITING_CODE' | 'AUTHENTICATED' | 'EXPIRED';
 
+// ★ 送信中の全画面操作ブロック＆進捗表示オーバーレイ
+const SyncProgressBlockingOverlay = ({ visible, progressText, dynamicStyles, themeColor, language }: any) => {
+  if (!visible) return null;
+  return (
+    <View 
+      style={[
+        StyleSheet.absoluteFill, 
+        { 
+          backgroundColor: 'rgba(0,0,0,0.72)', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          zIndex: 99999,
+          elevation: 25,
+          paddingHorizontal: 25
+        }
+      ]}
+      pointerEvents="auto"
+    >
+      <View style={{ 
+        backgroundColor: dynamicStyles.card, 
+        paddingVertical: 28, 
+        paddingHorizontal: 24, 
+        borderRadius: 24, 
+        alignItems: 'center', 
+        gap: 14, 
+        borderWidth: 1.5, 
+        borderColor: dynamicStyles.border,
+        width: '100%',
+        maxWidth: 380,
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 12 }, 
+        shadowOpacity: 0.35, 
+        shadowRadius: 20, 
+        elevation: 12 
+      }}>
+        <ActivityIndicator size="large" color={themeColor} />
+        
+        <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold', textAlign: 'center' }}>
+          {t('account_syncing_title', language)}
+        </Text>
+        
+        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: 'bold', textAlign: 'center', lineHeight: 18 }}>
+          {t('account_syncing_warning', language)}
+        </Text>
+
+        <View style={{ width: '100%', height: 1, backgroundColor: dynamicStyles.border, marginVertical: 4 }} />
+
+        <Text style={{ color: themeColor, fontSize: 13, fontWeight: '700', textAlign: 'center', lineHeight: 19 }}>
+          {progressText || t('getting_info', language)}
+        </Text>
+      </View>
+    </View>
+  );
+};
+
 export const InfoAccountView = ({
   dynamicStyles, themeColor, textColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
@@ -29,6 +84,10 @@ export const InfoAccountView = ({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [sid, setSid] = useState<string | null>(null);
+
+  // ★ 初期データ送信 / 再送信中の進捗状態管理
+  const [isSyncingData, setIsSyncingData] = useState(false);
+  const [syncProgressText, setSyncProgressText] = useState('');
 
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -58,6 +117,7 @@ export const InfoAccountView = ({
     return () => stopPolling();
   }, []);
 
+  // 認証完了時の一括同期フロー
   useEffect(() => {
     if (authStage === 'WAITING_CODE' && sid && username && deviceName) {
       stopPolling();
@@ -76,10 +136,17 @@ export const InfoAccountView = ({
               authenticatedAt: new Date().toISOString(),
             }));
 
-            // ログイン成功時に既存の作業履歴・再生履歴・所有楽曲一覧をサーバーへ送信
-            syncInitialLocalHistory(sid).catch((err) => {
+            // ★ ログイン完了時に進捗UIを表示して全データ同期を実行
+            setIsSyncingData(true);
+            try {
+              await syncInitialLocalHistory(sid, (msg) => setSyncProgressText(msg), language);
+            } catch (err) {
               console.warn('[InitialSync Error]', err);
-            });
+            } finally {
+              setIsSyncingData(false);
+              setSyncProgressText('');
+            }
+
           } else if (res.status === 'expired') {
             stopPolling();
             setAuthStage('EXPIRED');
@@ -94,13 +161,11 @@ export const InfoAccountView = ({
     }
 
     return () => stopPolling();
-  }, [authStage, sid, username, deviceName]);
+  }, [authStage, sid, username, deviceName, language]);
 
   const handleStartAuth = () => {
     const defaultDevName = getDeviceModelName();
-    if (!deviceName) {
-      setDeviceName(defaultDevName);
-    }
+    if (!deviceName) setDeviceName(defaultDevName);
     setAuthStage('INPUT');
     setGeneratedCode(null);
     setSid(null);
@@ -139,6 +204,28 @@ export const InfoAccountView = ({
     }
   };
 
+  // ★ 「データを再送信」ボタン押下ハンドラー
+  const handleResyncAllData = async () => {
+    if (!sid) return;
+
+    setIsSyncingData(true);
+    setSyncProgressText(t('getting_info', language));
+
+    try {
+      await syncInitialLocalHistory(sid, (msg) => setSyncProgressText(msg), language);
+      setTimeout(() => {
+        Alert.alert(t('account_resync_complete_title', language), t('account_resync_complete_desc', language));
+      }, 150);
+    } catch (err: any) {
+      setTimeout(() => {
+        Alert.alert(t('alert_timer_error_title', language), err?.message || '再送信に失敗しました');
+      }, 150);
+    } finally {
+      setIsSyncingData(false);
+      setSyncProgressText('');
+    }
+  };
+
   const handleLogoutPress = () => {
     Alert.alert(
       t('account_logout_confirm_title', language),
@@ -154,9 +241,7 @@ export const InfoAccountView = ({
 
             if (sid && username && deviceName) {
               const res = await logoutApi(sid, username, deviceName);
-              if (!res.success && res.error) {
-                console.warn('[Logout Warning]', res.error);
-              }
+              if (!res.success && res.error) console.warn('[Logout Warning]', res.error);
             }
 
             await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
@@ -165,8 +250,6 @@ export const InfoAccountView = ({
             await AsyncStorage.removeItem('chordia_playback_history');
             await AsyncStorage.removeItem('chordia_pending_play_history');
             await AsyncStorage.removeItem('chordia_pending_work_history');
-
-            console.log('[Account Logout] 🧹 ローカルの作業セッション履歴および楽曲再生履歴を消去しました');
 
             setSid(null);
             setGeneratedCode(null);
@@ -193,12 +276,10 @@ export const InfoAccountView = ({
             </View>
             <Text style={[s.cardTitle, { color: dynamicStyles.text }]}>Chordia Sync</Text>
           </View>
-
-          <Text style={[s.descText, { color: dynamicStyles.subText }]}>
-            {t('account_sync_desc', language)}
-          </Text>
+          <Text style={[s.descText, { color: dynamicStyles.subText }]}>{t('account_sync_desc', language)}</Text>
         </View>
 
+        {/* ログイン中カード */}
         {authStage === 'AUTHENTICATED' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: themeColor, marginTop: 15 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -219,31 +300,40 @@ export const InfoAccountView = ({
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={{ height: 46, borderRadius: 23, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
-              onPress={handleLogoutPress}
-              disabled={isLoggingOut}
-            >
-              {isLoggingOut ? (
-                <ActivityIndicator color="#ef4444" size="small" />
-              ) : (
-                <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 14 }}>{t('account_logout_btn', language)}</Text>
-              )}
-            </TouchableOpacity>
+            <View style={{ gap: 10 }}>
+              {/* ★ データを再送信ボタン */}
+              <TouchableOpacity 
+                style={[s.primaryBtn, { backgroundColor: themeColor }]}
+                onPress={handleResyncAllData}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cloud-upload-outline" size={19} color={textColor} style={{ marginRight: 8 }} />
+                <Text style={[s.primaryBtnText, { color: textColor }]}>
+                  {t('account_resync_btn', language)}
+                </Text>
+              </TouchableOpacity>
+
+              {/* ログアウトボタン */}
+              <TouchableOpacity 
+                style={{ height: 46, borderRadius: 23, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
+                onPress={handleLogoutPress}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <ActivityIndicator color="#ef4444" size="small" />
+                ) : (
+                  <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 14 }}>{t('account_logout_btn', language)}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
         {authStage === 'IDLE' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
-            <TouchableOpacity 
-              style={[s.primaryBtn, { backgroundColor: themeColor }]}
-              onPress={handleStartAuth}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={handleStartAuth} activeOpacity={0.8}>
               <Ionicons name="key-outline" size={20} color={textColor} style={{ marginRight: 8 }} />
-              <Text style={[s.primaryBtnText, { color: textColor }]}>
-                {t('account_start_auth_btn', language)}
-              </Text>
+              <Text style={[s.primaryBtnText, { color: textColor }]}>{t('account_start_auth_btn', language)}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -252,62 +342,22 @@ export const InfoAccountView = ({
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
             <View style={{ gap: 16 }}>
               <View>
-                <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>
-                  {t('account_username_label', language)}
-                </Text>
-                <TextInput 
-                  style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]}
-                  placeholder={t('account_username_placeholder', language)}
-                  placeholderTextColor={dynamicStyles.subText}
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!isLoading}
-                />
-                <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>
-                  {t('account_username_desc', language)}
-                </Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>{t('account_username_label', language)}</Text>
+                <TextInput style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]} placeholder={t('account_username_placeholder', language)} placeholderTextColor={dynamicStyles.subText} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} editable={!isLoading} />
+                <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>{t('account_username_desc', language)}</Text>
               </View>
 
               <View>
-                <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>
-                  {t('account_devicename_label', language)}
-                </Text>
-                <TextInput 
-                  style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]}
-                  placeholder={t('account_devicename_placeholder', language)}
-                  placeholderTextColor={dynamicStyles.subText}
-                  value={deviceName}
-                  onChangeText={setDeviceName}
-                  editable={!isLoading}
-                />
-                <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>
-                  {t('account_devicename_desc', language)}
-                </Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>{t('account_devicename_label', language)}</Text>
+                <TextInput style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]} placeholder={t('account_devicename_placeholder', language)} placeholderTextColor={dynamicStyles.subText} value={deviceName} onChangeText={setDeviceName} editable={!isLoading} />
+                <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>{t('account_devicename_desc', language)}</Text>
               </View>
 
-              <TouchableOpacity 
-                style={[
-                  s.primaryBtn, 
-                  { 
-                    backgroundColor: isFormValid ? themeColor : (isDark ? '#3a3a3c' : '#c7c7cc'),
-                    opacity: isFormValid && !isLoading ? 1 : 0.6,
-                    marginTop: 4
-                  }
-                ]}
-                disabled={!isFormValid || isLoading}
-                onPress={handleRegisterCode}
-                activeOpacity={0.8}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color={textColor} />
-                ) : (
+              <TouchableOpacity style={[s.primaryBtn, { backgroundColor: isFormValid ? themeColor : (isDark ? '#3a3a3c' : '#c7c7cc'), opacity: isFormValid && !isLoading ? 1 : 0.6, marginTop: 4 }]} disabled={!isFormValid || isLoading} onPress={handleRegisterCode} activeOpacity={0.8}>
+                {isLoading ? <ActivityIndicator color={textColor} /> : (
                   <>
                     <Ionicons name="globe-outline" size={19} color={isFormValid ? textColor : dynamicStyles.subText} style={{ marginRight: 8 }} />
-                    <Text style={[s.primaryBtnText, { color: isFormValid ? textColor : dynamicStyles.subText }]}>
-                      {t('account_web_auth_btn', language)}
-                    </Text>
+                    <Text style={[s.primaryBtnText, { color: isFormValid ? textColor : dynamicStyles.subText }]}>{t('account_web_auth_btn', language)}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -319,24 +369,15 @@ export const InfoAccountView = ({
           <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: themeColor }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <Ionicons name="key" size={20} color={themeColor} />
-              <Text style={[s.codeCardTitle, { color: dynamicStyles.text }]}>
-                {t('account_code_issued_title', language)}
-              </Text>
+              <Text style={[s.codeCardTitle, { color: dynamicStyles.text }]}>{t('account_code_issued_title', language)}</Text>
             </View>
-
-            <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>
-              {t('account_code_issued_desc', language)}
-            </Text>
-
+            <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>{t('account_code_issued_desc', language)}</Text>
             <View style={[s.codeBox, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}>
               <Text style={[s.codeText, { color: themeColor }]}>{generatedCode}</Text>
             </View>
-
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18 }}>
               <ActivityIndicator size="small" color={themeColor} />
-              <Text style={{ color: dynamicStyles.subText, fontSize: 13, fontWeight: '600' }}>
-                {t('account_polling_waiting', language)}
-              </Text>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 13, fontWeight: '600' }}>{t('account_polling_waiting', language)}</Text>
             </View>
           </View>
         )}
@@ -344,23 +385,23 @@ export const InfoAccountView = ({
         {authStage === 'EXPIRED' && (
           <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: '#ef4444' }]}>
             <Ionicons name="alert-circle" size={32} color="#ef4444" style={{ marginBottom: 6 }} />
-            <Text style={[s.codeCardTitle, { color: '#ef4444' }]}>
-              {t('account_auth_expired_title', language)}
-            </Text>
-            <Text style={[s.codeCardDesc, { color: dynamicStyles.subText, marginVertical: 10 }]}>
-              {t('account_auth_expired_desc', language)}
-            </Text>
-            <TouchableOpacity 
-              style={[s.primaryBtn, { backgroundColor: themeColor, width: '100%', marginTop: 8 }]}
-              onPress={handleRegisterCode}
-            >
-              <Text style={[s.primaryBtnText, { color: textColor }]}>
-                {t('account_reissue_btn', language)}
-              </Text>
+            <Text style={[s.codeCardTitle, { color: '#ef4444' }]}>{t('account_auth_expired_title', language)}</Text>
+            <Text style={[s.codeCardDesc, { color: dynamicStyles.subText, marginVertical: 10 }]}>{t('account_auth_expired_desc', language)}</Text>
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, width: '100%', marginTop: 8 }]} onPress={handleRegisterCode}>
+              <Text style={[s.primaryBtnText, { color: textColor }]}>{t('account_reissue_btn', language)}</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
+
+      {/* ★ 全画面操作ブロック＆リアルタイム進捗オーバーレイ */}
+      <SyncProgressBlockingOverlay
+        visible={isSyncingData}
+        progressText={syncProgressText}
+        dynamicStyles={dynamicStyles}
+        themeColor={themeColor}
+        language={language}
+      />
     </View>
   );
 };

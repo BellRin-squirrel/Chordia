@@ -392,4 +392,14 @@ export const ja: Record<string, string> = {
   stats_source_sync: 'Chordia Sync のデータを表示中',
   stats_source_local: 'このデバイス（ローカル）のデータを表示中',
   deleting_history_progress: '履歴データを削除中...',
+
+  account_resync_btn: 'データを再送信',
+  account_syncing_title: 'Chordia Sync へデータを送信中',
+  account_syncing_warning: '送信が完了するまでアプリを閉じずにお待ちください',
+  account_sync_step_work: '作業セッション履歴を送信中... ({current}/{total})',
+  account_sync_step_play: '楽曲再生履歴を送信中... ({current}/{total})',
+  account_sync_step_music: '所有楽曲一覧を送信中... ({count}曲)',
+  account_sync_step_playlist: 'プレイリスト一覧を送信中... ({count}件)',
+  account_resync_complete_title: '再送信完了',
+  account_resync_complete_desc: 'すべてのデータが Chordia Sync に正常に再送信されました。',
 };

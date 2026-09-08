@@ -392,4 +392,14 @@ export const de: Record<string, string> = {
   stats_source_sync: 'Chordia Sync Cloud-Daten werden angezeigt',
   stats_source_local: 'Lokale Gerätedaten werden angezeigt',
   deleting_history_progress: 'Verlaufsdaten werden gelöscht...',
+
+  account_resync_btn: 'Daten erneut senden',
+  account_syncing_title: 'Daten werden an Chordia Sync gesendet',
+  account_syncing_warning: 'Bitte schließen Sie die App nicht, bis der Vorgang beendet ist',
+  account_sync_step_work: 'Arbeitssitzungen werden gesendet... ({current}/{total})',
+  account_sync_step_play: 'Wiedergabeverlauf wird gesendet... ({current}/{total})',
+  account_sync_step_music: 'Mediathek wird gesendet... ({count} Titel)',
+  account_sync_step_playlist: 'Playlists werden gesendet... ({count} Listen)',
+  account_resync_complete_title: 'Erneut senden abgeschlossen',
+  account_resync_complete_desc: 'Alle Daten wurden erfolgreich erneut an Chordia Sync gesendet.',
 };

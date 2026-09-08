@@ -4,7 +4,6 @@ use tauri::{AppHandle, State};
 use crate::server::SharedAuthState;
 use std::fs;
 use std::io::Write;
-use std::time::Instant;
 use crate::utils::{get_base_dir, check_and_reload_db_if_needed, check_and_reload_playlists_if_needed, load_playlists_master};
 use crate::AppState;
 use crate::cmd_cloud_sync::auth::get_saved_cloud_sid;
@@ -221,13 +220,7 @@ pub async fn send_now_playing_to_cloud(
     let body_json = serde_json::to_string(&body_map)
         .map_err(|e| format!("JSON構築エラー: {}", e))?;
 
-    println!("{}", body_json);
-    let _ = std::io::stdout().flush();
-    eprintln!("{}", body_json);
-    let _ = std::io::stderr().flush();
-
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(4)).build().map_err(|e| e.to_string())?;
-    let request_start_time = Instant::now();
 
     let response = client
         .post("https://chordia.bellrin.f5.si/api/")
@@ -240,17 +233,6 @@ pub async fn send_now_playing_to_cloud(
         .map_err(|e| format!("通信エラー: {}", e))?;
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
-    let elapsed_ms = request_start_time.elapsed().as_millis();
-
-    println!("{}", res_text);
-    let _ = std::io::stdout().flush();
-    eprintln!("{}", res_text);
-    let _ = std::io::stderr().flush();
-
-    println!("[Chordia Relay] API Response Time: {} ms", elapsed_ms);
-    let _ = std::io::stdout().flush();
-    eprintln!("[Chordia Relay] API Response Time: {} ms", elapsed_ms);
-    let _ = std::io::stderr().flush();
 
     let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSON: {}", res_text))?;
 
@@ -262,13 +244,14 @@ pub async fn send_now_playing_to_cloud(
 }
 
 // ★ Chordia Relay: 他デバイスの再生情報一覧取得API (getNowPlaying)
+// トップ画面の雲アイコンクリック時に実行され、レスポンス内容をターミナルに出力します
 #[tauri::command]
 pub async fn fetch_relay_devices_from_cloud(
     auth: State<'_, SharedAuthState>,
 ) -> Result<Value, String> {
     let sid = match get_saved_cloud_sid(&auth).await {
         Some(s) if !s.is_empty() => s,
-        _ => return Ok(serde_json::json!([])), // 未ログイン時は空配列
+        _ => return Ok(serde_json::json!([])),
     };
 
     let payload = serde_json::json!({
@@ -292,13 +275,16 @@ pub async fn fetch_relay_devices_from_cloud(
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
 
+    // ★ ターミナルへレスポンス内容を出力
+    println!("{}", res_text);
+    let _ = std::io::stdout().flush();
+
     let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSON: {}", res_text))?;
 
     if let Some(err) = json_res.get("error").and_then(|v| v.as_str()) {
         return Err(err.to_string());
     }
 
-    // 成功時は response キー内のデバイス配列を返却
     Ok(json_res.get("response").cloned().unwrap_or(serde_json::json!([])))
 }
 

@@ -392,4 +392,14 @@ export const es: Record<string, string> = {
   stats_source_sync: 'Mostrando datos de Chordia Sync',
   stats_source_local: 'Mostrando datos del dispositivo local',
   deleting_history_progress: 'Eliminando datos del historial...',
+
+  account_resync_btn: 'Reenviar datos',
+  account_syncing_title: 'Enviando datos a Chordia Sync',
+  account_syncing_warning: 'Por favor, no cierres la app hasta completar el envío',
+  account_sync_step_work: 'Enviando sesiones de trabajo... ({current}/{total})',
+  account_sync_step_play: 'Enviando historial de reproducción... ({current}/{total})',
+  account_sync_step_music: 'Enviando biblioteca de canciones... ({count} pistas)',
+  account_sync_step_playlist: 'Enviando listas de reproducción... ({count} listas)',
+  account_resync_complete_title: 'Reenvío completado',
+  account_resync_complete_desc: 'Todos los datos se han reenviado con éxito a Chordia Sync.',
 };

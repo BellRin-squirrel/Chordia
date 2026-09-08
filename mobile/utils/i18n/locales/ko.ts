@@ -392,4 +392,14 @@ export const ko: Record<string, string> = {
   stats_source_sync: 'Chordia Sync 데이터 표시 중',
   stats_source_local: '이 기기(로컬) 데이터 표시 중',
   deleting_history_progress: '기록 데이터를 삭제하는 중...',
+
+  account_resync_btn: '데이터 다시 동기화',
+  account_syncing_title: 'Chordia Sync에 데이터 전송 중',
+  account_syncing_warning: '전송이 완료될 때까지 앱을 닫지 마세요',
+  account_sync_step_work: '작업 세션 기록 전송 중... ({current}/{total})',
+  account_sync_step_play: '음원 재생 기록 전송 중... ({current}/{total})',
+  account_sync_step_music: '보유 음원 목록 전송 중... ({count}곡)',
+  account_sync_step_playlist: '재생목록 전송 중... ({count}개)',
+  account_resync_complete_title: '다시 전송 완료',
+  account_resync_complete_desc: '모든 데이터가 Chordia Sync에 성공적으로 다시 전송되었습니다.',
 };

@@ -3,7 +3,6 @@ use tauri::{AppHandle, Emitter, State};
 use crate::server::SharedAuthState;
 use rand::{rng, Rng};
 use std::fs;
-use std::io::Write;
 use crate::utils::{get_base_dir, safe_write_file};
 
 pub fn generate_34char_auth_code() -> String {
@@ -250,11 +249,6 @@ pub async fn verify_current_cloud_session(
         }
     };
 
-    println!("{}", res_text);
-    let _ = std::io::stdout().flush();
-    eprintln!("{}", res_text);
-    let _ = std::io::stderr().flush();
-
     let json_res: Value = match serde_json::from_str(&res_text) {
         Ok(j) => j,
         Err(_) => return Ok(true),
@@ -320,11 +314,6 @@ pub async fn register_auth_code_to_cloud(
     let status = response.status();
     let res_text = response.text().await.map_err(|e| format!("レスポンスの読み取りに失敗しました: {}", e))?;
 
-    println!("{}", res_text);
-    let _ = std::io::stdout().flush();
-    eprintln!("{}", res_text);
-    let _ = std::io::stderr().flush();
-
     let json_res: serde_json::Value = serde_json::from_str(&res_text)
         .map_err(|_| format!("サーバーから不正なレスポンスが返却されました (HTTP {}): {}", status, res_text))?;
 
@@ -385,11 +374,6 @@ pub async fn check_cloud_login_status(
         .map_err(|e| format!("ポーリング通信エラー: {}", e))?;
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
-
-    println!("{}", res_text);
-    let _ = std::io::stdout().flush();
-    eprintln!("{}", res_text);
-    let _ = std::io::stderr().flush();
 
     let json_res: serde_json::Value = serde_json::from_str(&res_text)
         .map_err(|_| format!("不正なJSONレスポンスです: {}", res_text))?;
@@ -479,11 +463,6 @@ pub async fn logout_cloud_auth(auth: State<'_, SharedAuthState>) -> Result<(), S
             .map_err(|e| format!("ログアウトAPI通信エラー: {}", e))?;
 
         let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
-
-        println!("{}", res_text);
-        let _ = std::io::stdout().flush();
-        eprintln!("{}", res_text);
-        let _ = std::io::stderr().flush();
 
         let json_res: serde_json::Value = serde_json::from_str(&res_text)
             .map_err(|_| format!("不正なJSONレスポンスです: {}", res_text))?;
