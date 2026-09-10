@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Modal, 
-  TouchableWithoutFeedback, StyleSheet, ActivityIndicator 
+  TouchableWithoutFeedback, StyleSheet 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,21 +24,34 @@ export const LibraryMenuView = ({
 
   const [relayModalVisible, setRelayModalVisible] = useState(false);
   const [relayDevices, setRelayDevices] = useState<RelayDeviceItem[]>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchRelayDevices = async () => {
       try {
         const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-        if (!rawAccount) return;
+        if (!rawAccount) {
+          setIsLoggedIn(false);
+          setRelayDevices([]);
+          return;
+        }
         const account = JSON.parse(rawAccount);
-        if (!account?.sid) return;
+        if (!account?.sid) {
+          setIsLoggedIn(false);
+          setRelayDevices([]);
+          return;
+        }
 
+        setIsLoggedIn(true);
         const res = await getNowPlayingApi(account.sid);
         if (res.success && res.response) {
           setRelayDevices(res.response);
         }
-      } catch (e) {}
+      } catch (e) {
+        setIsLoggedIn(false);
+        setRelayDevices([]);
+      }
     };
 
     fetchRelayDevices();
@@ -92,11 +105,20 @@ export const LibraryMenuView = ({
           onPress={() => setRelayModalVisible(true)}
           activeOpacity={0.7}
         >
+          {/* 雲のアイコン自体の色は常にテーマカラーを維持 */}
           <Ionicons name="cloud-outline" size={24} color={themeColor} />
-          {relayDevices.length > 0 && (
-            <View style={[s.headerBadge, { backgroundColor: themeColor }]}>
-              <Text style={s.headerBadgeText}>{relayDevices.length}</Text>
+
+          {/* 未ログイン時は右上に赤い×バッジを表示、ログイン時はデバイス数バッジを表示 */}
+          {!isLoggedIn ? (
+            <View style={[s.headerBadge, { backgroundColor: '#ef4444' }]}>
+              <Ionicons name="close" size={11} color="#ffffff" />
             </View>
+          ) : (
+            relayDevices.length > 0 && (
+              <View style={[s.headerBadge, { backgroundColor: themeColor }]}>
+                <Text style={s.headerBadgeText}>{relayDevices.length}</Text>
+              </View>
+            )
           )}
         </TouchableOpacity>
       </View>
@@ -120,9 +142,7 @@ export const LibraryMenuView = ({
             recentlyPlayedCollections={recentlyPlayedCollections} 
             dynamicStyles={dynamicStyles} 
             themeColor={themeColor}
-            // ★ 最近再生した楽曲からの再生: context は渡さない（API送信しない）
             onPlaySong={(sVal: any) => startQueue([sVal], sVal, undefined, null)} 
-            // ★ 最近再生したコレクションからの再生: context を構築して渡す（API送信する）
             onPlayCollection={(item: any) => {
               let songs: any[] = [];
               let context: PlayCollectionContext | null = null;
@@ -178,13 +198,24 @@ export const LibraryMenuView = ({
                 </View>
 
                 <Text style={[s.modalDesc, { color: dynamicStyles.subText }]}>
-                  {t('relay_modal_desc', language) || 'Chordia Relay は一つのデバイスで再生していた再生リストを別のデバイスで再生を続ける機能です。\nDesktop 版から Mobile 版への同期とは異なります。'}
+                  {t('relay_modal_desc', language)}
                 </Text>
 
-                {relayDevices.length === 0 ? (
+                {/* 未ログイン状態 / デバイスなし / デバイス一覧 の3段階表示 */}
+                {!isLoggedIn ? (
+                  <View style={s.emptyBox}>
+                    <Ionicons name="cloud-offline-outline" size={44} color="#ef4444" />
+                    <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginTop: 12, textAlign: 'center' }}>
+                      {t('relay_not_logged_in_title', language)}
+                    </Text>
+                    <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 18 }}>
+                      {t('relay_not_logged_in_desc', language)}
+                    </Text>
+                  </View>
+                ) : relayDevices.length === 0 ? (
                   <View style={s.emptyBox}>
                     <Ionicons name="radio-outline" size={44} color={dynamicStyles.subText} />
-                    <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 8 }}>
+                    <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
                       {t('relay_no_devices', language)}
                     </Text>
                   </View>

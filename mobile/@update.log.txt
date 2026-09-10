@@ -1,6 +1,7 @@
 Chordia Sync の認証でコードを表示しているときに、ウェブで認証というリンクを設置する（ウェブ側未対応）
 
-v6.0.0-beta1 Now Developing
+v6.0.0-beta1
+・Chordia Relay が Chordia Sync にログインしていなくても、ログインしているかのような挙動を示すというバグを修正しました。
 
 v6.0.0-alpha1
 ・情報タブにアカウント設定というメニューを追加しました。[Chordia Sync](https://chordia.bellrin.f5.si/mypage/) というオンラインサービスとアカウントを紐づけ、他の Chordia アプリとが曲再生履歴や作業履歴を共有できるようになりました。詳しいご利用方法はREADMEをご確認ください。

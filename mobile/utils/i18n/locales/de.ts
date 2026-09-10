@@ -402,4 +402,7 @@ export const de: Record<string, string> = {
   account_sync_step_playlist: 'Playlists werden gesendet... ({count} Listen)',
   account_resync_complete_title: 'Erneut senden abgeschlossen',
   account_resync_complete_desc: 'Alle Daten wurden erfolgreich erneut an Chordia Sync gesendet.',
+
+  relay_not_logged_in_title: 'Nicht bei Chordia Sync angemeldet',
+  relay_not_logged_in_desc: 'Um Chordia Relay zu nutzen, melden Sie sich bitte in den Kontoeinstellungen im Info-Tab bei Chordia Sync an.',
 };

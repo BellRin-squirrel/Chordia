@@ -407,4 +407,6 @@ export const ja: Record<string, string> = {
   relay_type_playlist: 'プレイリスト',
   relay_modal_desc: 'Chordia Relay は一つのデバイスで再生していた再生リストを別のデバイスで再生を続ける機能です。\nDesktop 版から Mobile 版への同期とは異なります。',
   relay_no_devices: '再生中のデバイスが見つかりません',
+  relay_not_logged_in_title: 'Chordia Sync に未ログイン',
+  relay_not_logged_in_desc: 'Chordia Relay を利用するには、情報タブの「アカウント設定」から Chordia Sync にログインしてください。',
 };

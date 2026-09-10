@@ -402,4 +402,7 @@ export const ko: Record<string, string> = {
   account_sync_step_playlist: '재생목록 전송 중... ({count}개)',
   account_resync_complete_title: '다시 전송 완료',
   account_resync_complete_desc: '모든 데이터가 Chordia Sync에 성공적으로 다시 전송되었습니다.',
+
+  relay_not_logged_in_title: 'Chordia Sync 미로그인',
+  relay_not_logged_in_desc: 'Chordia Relay를 사용하려면 정보 탭의 \'계정 설정\'에서 Chordia Sync에 로그인해 주세요.',
 };
