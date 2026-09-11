@@ -405,4 +405,11 @@ export const ko: Record<string, string> = {
 
   relay_not_logged_in_title: 'Chordia Sync 미로그인',
   relay_not_logged_in_desc: 'Chordia Relay를 사용하려면 정보 탭의 \'계정 설정\'에서 Chordia Sync에 로그인해 주세요.',
+  relay_type_album: '앨범',
+  relay_type_artist: '아티스트',
+  relay_type_playlist: '재생목록',
+  relay_modal_desc: 'Chordia Relay는 한 기기에서 재생 중이던 재생목록을 다른 기기에서 이어서 재생하는 기능입니다.\nDesktop 버전에서 Mobile 버전으로 음악 파일을 동기화하는 것과는 다릅니다.',
+  relay_no_devices: '현재 재생 중인 기기를 찾을 수 없습니다',
+  account_resync_failed: '데이터 다시 전송에 실패했습니다.',
+  delete_history_failed: '기록 데이터 삭제 중 오류가 발생했습니다.',
 };

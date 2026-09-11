@@ -405,4 +405,11 @@ export const en: Record<string, string> = {
   
   relay_not_logged_in_title: 'Not Logged in to Chordia Sync',
   relay_not_logged_in_desc: 'To use Chordia Relay, please log in to Chordia Sync in Account Settings under the Info tab.',
+  relay_type_album: 'Album',
+  relay_type_artist: 'Artist',
+  relay_type_playlist: 'Playlist',
+  relay_modal_desc: 'Chordia Relay allows you to seamlessly continue playback of a playlist across different devices.\nThis is separate from music file synchronization between Desktop and Mobile.',
+  relay_no_devices: 'No playing devices found',
+  account_resync_failed: 'Failed to resync data.',
+  delete_history_failed: 'An error occurred while deleting history data.',
 };

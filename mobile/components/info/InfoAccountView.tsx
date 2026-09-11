@@ -19,7 +19,7 @@ const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
 
 type AuthStage = 'IDLE' | 'INPUT' | 'WAITING_CODE' | 'AUTHENTICATED' | 'EXPIRED';
 
-// ★ 送信中の全画面操作ブロック＆進捗表示オーバーレイ
+// 送信中の全画面操作ブロック＆進捗表示オーバーレイ
 const SyncProgressBlockingOverlay = ({ visible, progressText, dynamicStyles, themeColor, language }: any) => {
   if (!visible) return null;
   return (
@@ -85,7 +85,6 @@ export const InfoAccountView = ({
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [sid, setSid] = useState<string | null>(null);
 
-  // ★ 初期データ送信 / 再送信中の進捗状態管理
   const [isSyncingData, setIsSyncingData] = useState(false);
   const [syncProgressText, setSyncProgressText] = useState('');
 
@@ -117,7 +116,6 @@ export const InfoAccountView = ({
     return () => stopPolling();
   }, []);
 
-  // 認証完了時の一括同期フロー
   useEffect(() => {
     if (authStage === 'WAITING_CODE' && sid && username && deviceName) {
       stopPolling();
@@ -136,7 +134,6 @@ export const InfoAccountView = ({
               authenticatedAt: new Date().toISOString(),
             }));
 
-            // ★ ログイン完了時に進捗UIを表示して全データ同期を実行
             setIsSyncingData(true);
             try {
               await syncInitialLocalHistory(sid, (msg) => setSyncProgressText(msg), language);
@@ -204,7 +201,6 @@ export const InfoAccountView = ({
     }
   };
 
-  // ★ 「データを再送信」ボタン押下ハンドラー
   const handleResyncAllData = async () => {
     if (!sid) return;
 
@@ -218,7 +214,7 @@ export const InfoAccountView = ({
       }, 150);
     } catch (err: any) {
       setTimeout(() => {
-        Alert.alert(t('alert_timer_error_title', language), err?.message || '再送信に失敗しました');
+        Alert.alert(t('alert_timer_error_title', language), err?.message || t('account_resync_failed', language));
       }, 150);
     } finally {
       setIsSyncingData(false);
@@ -279,7 +275,6 @@ export const InfoAccountView = ({
           <Text style={[s.descText, { color: dynamicStyles.subText }]}>{t('account_sync_desc', language)}</Text>
         </View>
 
-        {/* ログイン中カード */}
         {authStage === 'AUTHENTICATED' && (
           <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: themeColor, marginTop: 15 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -301,7 +296,6 @@ export const InfoAccountView = ({
             </View>
 
             <View style={{ gap: 10 }}>
-              {/* ★ データを再送信ボタン */}
               <TouchableOpacity 
                 style={[s.primaryBtn, { backgroundColor: themeColor }]}
                 onPress={handleResyncAllData}
@@ -313,7 +307,6 @@ export const InfoAccountView = ({
                 </Text>
               </TouchableOpacity>
 
-              {/* ログアウトボタン */}
               <TouchableOpacity 
                 style={{ height: 46, borderRadius: 23, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
                 onPress={handleLogoutPress}
@@ -394,7 +387,6 @@ export const InfoAccountView = ({
         )}
       </ScrollView>
 
-      {/* ★ 全画面操作ブロック＆リアルタイム進捗オーバーレイ */}
       <SyncProgressBlockingOverlay
         visible={isSyncingData}
         progressText={syncProgressText}

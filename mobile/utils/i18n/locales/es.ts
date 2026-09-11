@@ -405,4 +405,11 @@ export const es: Record<string, string> = {
 
   relay_not_logged_in_title: 'No has iniciado sesión en Chordia Sync',
   relay_not_logged_in_desc: 'Para usar Chordia Relay, inicia sesión en Chordia Sync desde Ajustes de cuenta en la pestaña Información.',
+  relay_type_album: 'Álbum',
+  relay_type_artist: 'Artista',
+  relay_type_playlist: 'Lista de reproducción',
+  relay_modal_desc: 'Chordia Relay te permite continuar la reproducción de una lista en otro dispositivo sin interrupciones.\nEsto es diferente de la sincronización de archivos de música entre PC y móvil.',
+  relay_no_devices: 'No se encontraron dispositivos reproduciendo',
+  account_resync_failed: 'Error al reenviar los datos.',
+  delete_history_failed: 'Ocurrió un error al eliminar los datos del historial.',
 };

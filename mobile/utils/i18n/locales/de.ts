@@ -405,4 +405,11 @@ export const de: Record<string, string> = {
 
   relay_not_logged_in_title: 'Nicht bei Chordia Sync angemeldet',
   relay_not_logged_in_desc: 'Um Chordia Relay zu nutzen, melden Sie sich bitte in den Kontoeinstellungen im Info-Tab bei Chordia Sync an.',
+  relay_type_album: 'Album',
+  relay_type_artist: 'Künstler',
+  relay_type_playlist: 'Playlist',
+  relay_modal_desc: 'Chordia Relay ermöglicht es Ihnen, die Wiedergabe einer Playlist nahtlos auf einem anderen Gerät fortzusetzen.\nDies unterscheidet sich von der Musikdateisynchronisierung zwischen Desktop und Mobilgerät.',
+  relay_no_devices: 'Keine wiedergebenden Geräte gefunden',
+  account_resync_failed: 'Fehler beim erneuten Senden der Daten.',
+  delete_history_failed: 'Beim Löschen der Verlaufsdaten ist ein Fehler aufgetreten.',
 };

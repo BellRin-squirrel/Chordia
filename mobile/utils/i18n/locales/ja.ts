@@ -409,4 +409,6 @@ export const ja: Record<string, string> = {
   relay_no_devices: '再生中のデバイスが見つかりません',
   relay_not_logged_in_title: 'Chordia Sync に未ログイン',
   relay_not_logged_in_desc: 'Chordia Relay を利用するには、情報タブの「アカウント設定」から Chordia Sync にログインしてください。',
+  account_resync_failed: 'データの再送信に失敗しました。',
+  delete_history_failed: '履歴データの削除中にエラーが発生しました。',
 };

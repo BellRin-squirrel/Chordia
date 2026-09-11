@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MarqueeText } from '../MarqueeText';
-import { t } from '../../utils/i18n';
+import { LanguageCode, t } from '../../utils/i18n';
 import { 
   loadAllPlayHistoryApi, 
   loadAllWorkHistoryApi, 
@@ -25,6 +25,15 @@ import {
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 const GRAPH_HEIGHT = 180;
 const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
+
+const WEEKDAY_SHORT: Record<LanguageCode, string[]> = {
+  ja: ['日', '月', '火', '水', '木', '金', '土'],
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ko: ['일', '월', '화', '수', '목', '금', '토'],
+  es: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+  fr: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+};
 
 export const formatSecToHMS = (sec: number) => {
   const total = Math.round(sec);
@@ -125,7 +134,6 @@ const HistoryDeleteMenuModal = ({ visible, onClose, onSelectPeriod, dynamicStyle
   );
 };
 
-// ★ モーダル競合を防ぐ絶対配置のローディングオーバーレイ
 const DeletingBlockOverlay = ({ visible, dynamicStyles, themeColor, language }: any) => {
   if (!visible) return null;
   return (
@@ -237,6 +245,9 @@ export const InfoStatisticsView = ({
       d.setHours(0, 0, 0, 0);
       days.push(d);
     }
+
+    const dayNames = WEEKDAY_SHORT[language as LanguageCode] || WEEKDAY_SHORT.ja;
+
     return days.map(d => {
       const nextDay = new Date(d);
       nextDay.setDate(d.getDate() + 1);
@@ -247,7 +258,6 @@ export const InfoStatisticsView = ({
         })
         .reduce((sum: number, h: any) => sum + (h.duration || 0), 0);
       
-      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
       return { 
         date: d, 
         totalSec, 
@@ -511,7 +521,7 @@ export const InfoAllHistoryView = ({
           } catch (e: any) {
             setIsDeleting(false);
             setTimeout(() => {
-              Alert.alert(t('alert_timer_error_title', language), e?.message || '削除中にエラーが発生しました');
+              Alert.alert(t('alert_timer_error_title', language), e?.message || t('delete_history_failed', language));
             }, 100);
           }
         }
@@ -681,7 +691,7 @@ export const InfoPlaybackHistoryView = ({
           } catch (e: any) {
             setIsDeleting(false);
             setTimeout(() => {
-              Alert.alert(t('alert_timer_error_title', language), e?.message || '削除中にエラーが発生しました');
+              Alert.alert(t('alert_timer_error_title', language), e?.message || t('delete_history_failed', language));
             }, 100);
           }
         }
