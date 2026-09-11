@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, TouchableOpacity, ScrollView, Switch, Modal, useWindowDimensions 
+  View, Text, TouchableOpacity, ScrollView, Switch, Modal, useWindowDimensions, TextInput 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -23,7 +23,7 @@ export const InfoSettingsView = ({
   audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab,
   showSyncTab, toggleSyncTab, showPlaylistTypeIcon, toggleShowPlaylistTypeIcon,
   language = 'ja', changeLanguage,
-  renderHeader, safePadding, isLandscape
+  renderHeader, safePadding, isLandscape, pushView
 }: any) => {
   const { width } = useWindowDimensions();
   const modalContentWidth = isLandscape ? Math.min(width * 0.9, 600) : width * 0.85;
@@ -168,6 +168,25 @@ export const InfoSettingsView = ({
               thumbColor={"#f4f3f4"}
             />
           </View>
+
+          <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
+
+          {/* ★ イコライザ設定（設定画面の一番下に追加） */}
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}
+            onPress={() => pushView && pushView('EQUALIZER')}
+            activeOpacity={0.6}
+          >
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
+                {t('menu_equalizer', language)}
+              </Text>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>
+                {t('menu_equalizer_sub', language)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -184,10 +203,49 @@ export const InfoSettingsView = ({
                 <Text style={[styles.rgbText, { color: dynamicStyles.text, marginTop: 8, fontSize: 14 }]}>{themeColor}</Text>
               </View>
               <View style={{ flex: isLandscape ? 1 : 0, width: '100%' }}>
+                {/* ★ RGB各行：アルファベットの隣に数字を表示し、タップして直接入力可能 */}
                 {[{ l: 'R', v: themeR, s: setThemeR, c: '#ef4444' }, { l: 'G', v: themeG, s: setThemeG, c: '#10b981' }, { l: 'B', v: themeB, s: setThemeB, c: '#3b82f6' }].map((item, i) => (
-                  <View key={i} style={[styles.sliderRow, { marginBottom: isLandscape ? 5 : 10 }]}>
-                    <Text style={[styles.sliderLabel, { color: item.c, width: 20 }]}>{item.l}</Text>
-                    <Slider style={{ flex: 1 }} minimumValue={0} maximumValue={255} step={1} value={item.v} onValueChange={item.s} />
+                  <View key={i} style={[styles.sliderRow, { marginBottom: isLandscape ? 6 : 10, alignItems: 'center' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', width: 72, marginRight: 8 }}>
+                      <Text style={[styles.sliderLabel, { color: item.c, width: 20, fontWeight: 'bold', fontSize: 16 }]}>{item.l}</Text>
+                      <TextInput
+                        style={{
+                          width: 48,
+                          height: 32,
+                          borderRadius: 8,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+                          borderWidth: 1,
+                          borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)',
+                          color: dynamicStyles.text,
+                          fontSize: 14,
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          paddingVertical: 0,
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={3}
+                        value={String(item.v)}
+                        onChangeText={(text) => {
+                          const num = parseInt(text.replace(/[^0-9]/g, ''), 10);
+                          if (isNaN(num)) {
+                            item.s(0);
+                          } else {
+                            item.s(Math.min(255, Math.max(0, num)));
+                          }
+                        }}
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <Slider 
+                      style={{ flex: 1 }} 
+                      minimumValue={0} 
+                      maximumValue={255} 
+                      step={1} 
+                      value={item.v} 
+                      onValueChange={item.s} 
+                      minimumTrackTintColor={item.c}
+                      maximumTrackTintColor={isDark ? '#3a3a3c' : '#e5e5ea'}
+                    />
                   </View>
                 ))}
                 {recentColors.length > 0 && (

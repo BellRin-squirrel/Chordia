@@ -124,7 +124,6 @@ export const styles = StyleSheet.create({
   
   miniPlayerBlur: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 },
   miniArt: { width: 38, height: 38, borderRadius: 5 },
-  // ★ 修正: miniInfo に minWidth: 0, overflow: 'hidden' を設定
   miniInfo: { flex: 1, marginLeft: 12, minWidth: 0, overflow: 'hidden' },
   miniTitle: { fontSize: 14, fontWeight: 'bold' },
   miniArtist: { fontSize: 12 },
@@ -166,9 +165,47 @@ export const styles = StyleSheet.create({
   bottomButtonContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   lyricsScrollView: { flex: 1 },
   lyricsText: { color: 'rgba(255, 255, 255, 0.9)', fontSize: 18, fontWeight: 'bold', lineHeight: 30, textAlign: 'left' },
+  
+  // レガシー用（互換性維持）
   toastContainer: { position: 'absolute', bottom: 120, left: 20, right: 20, alignItems: 'center', zIndex: 9999 },
   toastBlur: { borderRadius: 20, overflow: 'hidden' },
   toastText: { color: '#fff', paddingHorizontal: 20, paddingVertical: 10, fontSize: 14, fontWeight: '600', textAlign: 'center' },
+
+  // ★ 新・右上トースト通知スタイル
+  toastContainerTopRight: {
+    position: 'absolute',
+    zIndex: 9999,
+    maxWidth: 360,
+    minWidth: 220,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  toastBlurNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    gap: 10,
+  },
+  toastIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toastTextNew: {
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+
   licenseCard: { width: '100%', padding: 30, borderRadius: 24, alignItems: 'center', maxWidth: 400 },
   appNameLabel: { fontSize: 20, fontWeight: 'bold' },
   appVersionLabel: { fontSize: 16, color: '#8e8e93' },

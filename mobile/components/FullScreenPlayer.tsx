@@ -168,7 +168,6 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
-  // ★ Android で NativeAirplay がスキャンされないよう、iOS 実行時のみ動的 require する
   const handleAirPlayPress = () => {
     if (Platform.OS === 'ios') {
       try {
@@ -591,7 +590,16 @@ export const FullScreenPlayer = ({
             {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
           </View>
 
-          <View style={{ flexDirection: 'row', width: '100%', marginTop: 8, paddingHorizontal: 16, justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* ★ 他のオブジェクトの配置を一切崩さず、5つのアイコンのみを少し上に配置 */}
+          <View style={{ 
+            flexDirection: 'row', 
+            width: '100%', 
+            marginTop: 8, 
+            paddingHorizontal: 16, 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            transform: [{ translateY: -12 }]
+          }}>
             
             {/* 1. シャッフル */}
             <View style={{ flex: 1, alignItems: 'center' }}>

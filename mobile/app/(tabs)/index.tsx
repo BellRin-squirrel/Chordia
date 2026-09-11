@@ -41,7 +41,6 @@ LogBox.ignoreLogs([
   'The objective-c `clearSleepTimer'
 ]);
 
-// ★ RNTP仕様: バックグラウンド実行クラッシュを防ぐため、コンポーネントの外（トップレベル）で登録
 try {
   TrackPlayer.registerPlaybackService(() => require('../../service'));
 } catch (e) {
@@ -52,6 +51,10 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<TabType>('PLAYER');
   const [focusStage, setFocusStage] = useState<FocusStageType>('SETUP');
   
+  // ★ 各タブのトップ画面リセット用シグナル
+  const [playerResetTrigger, setPlayerResetTrigger] = useState(0);
+  const [infoResetTrigger, setInfoResetTrigger] = useState(0);
+
   const [customAlert, setCustomAlert] = useState<{title: string, message?: string, buttons?: any[]} | null>(null);
 
   const insets = useSafeAreaInsets();
@@ -91,6 +94,20 @@ const AppContent = () => {
     localLibrary, setLocalLibrary, setLocalPlaylists,
     language
   });
+
+  // ★ タブ押下時のハンドラー（別タブ切り替え時、および同一タブ押下時にも必ずトップ画面へリセット）
+  const handleTabPress = (tabKey: TabType) => {
+    setActiveTab(tabKey);
+    if (tabKey === 'PLAYER') {
+      setPlayerResetTrigger(prev => prev + 1);
+    } else if (tabKey === 'INFO') {
+      setInfoResetTrigger(prev => prev + 1);
+    } else if (tabKey === 'FOCUS') {
+      if (focusStage === 'GUIDE') {
+        setFocusStage('SETUP');
+      }
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -246,6 +263,8 @@ const AppContent = () => {
             isDark={isAppDark} 
             showPlaylistTypeIcon={showPlaylistTypeIcon}
             language={language}
+            showToast={showToast}
+            resetTrigger={playerResetTrigger}
           />
         )}
         {showFocusTab && activeTab === 'FOCUS' && (
@@ -299,6 +318,7 @@ const AppContent = () => {
             setLocalPlaylists={setLocalPlaylists} 
             isDark={isAppDark} 
             isLandscape={isLandscape} 
+            resetTrigger={infoResetTrigger}
           />
         )}
       </View>
@@ -313,7 +333,7 @@ const AppContent = () => {
           <View style={isLandscape ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] : [styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
               <TabBar 
                 activeTab={activeTab} 
-                setActiveTab={setActiveTab} 
+                setActiveTab={handleTabPress} 
                 themeColor={themeColor} 
                 themeTextColor={themeTextColor} 
                 isDark={isAppDark} 
@@ -413,10 +433,46 @@ const AppContent = () => {
         canClose={false}
       />
 
+      {/* ★ 右上に表示される洗練されたリキッドグラストースト通知 */}
       {toastVisible && !isFullPlayer && (
-          <Animated.View style={[styles.toastContainer, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
-            <BlurView intensity={50} tint="dark" style={styles.toastBlur}><Text style={styles.toastText}>{toastMessage}</Text></BlurView>
-          </Animated.View>
+        <Animated.View 
+          style={[
+            styles.toastContainerTopRight, 
+            { 
+              top: insets.top + (isLandscape ? 8 : 12),
+              right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16,
+              opacity: toastAnim, 
+              transform: [
+                { translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) },
+                { scale: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }
+              ] 
+            }
+          ]}
+        >
+          <BlurView 
+            intensity={isAppDark ? 80 : 90} 
+            tint={isAppDark ? 'dark' : 'light'} 
+            style={[
+              styles.toastBlurNew, 
+              { 
+                borderColor: isAppDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                backgroundColor: isAppDark ? 'rgba(24,24,27,0.85)' : 'rgba(255,255,255,0.88)',
+              }
+            ]}
+          >
+            <View style={[styles.toastIconBox, { backgroundColor: `rgba(${themeR || 79}, ${themeG || 70}, ${themeB || 229}, 0.16)` }]}>
+              <Ionicons name="checkmark-circle" size={20} color={themeColor} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text 
+                style={[styles.toastTextNew, { color: actualDynamicStyles.text }]}
+                numberOfLines={2}
+              >
+                {toastMessage}
+              </Text>
+            </View>
+          </BlurView>
+        </Animated.View>
       )}
     </View>
   );

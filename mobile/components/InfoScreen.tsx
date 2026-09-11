@@ -17,6 +17,7 @@ import { InfoStatisticsView, InfoAllHistoryView, InfoPlaybackHistoryView } from 
 import { InfoManageDataView } from './info/InfoManageDataView';
 import { InfoEditSongView } from './info/InfoEditSongView';
 import { InfoLicenseView } from './info/InfoLicenseView';
+import { InfoEqualizerView } from './info/InfoEqualizerView';
 
 const HISTORY_KEY = 'chordia_focus_history';
 
@@ -56,7 +57,7 @@ export const InfoScreen = ({
   showSyncTab, toggleSyncTab, showPlaylistTypeIcon = true, toggleShowPlaylistTypeIcon,
   language = 'ja', changeLanguage,
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
-  isDark, isLandscape 
+  isDark, isLandscape, resetTrigger
 }: any) => {
   const { width } = useWindowDimensions();
   const textColor = themeTextColor || '#ffffff';
@@ -90,6 +91,26 @@ export const InfoScreen = ({
     { title: t('menu_manage_data', language), icon: 'server-outline' as const, view: 'MANAGE_DATA', sub: t('menu_manage_data_sub', language) },
     { title: t('menu_license', language), icon: 'document-text-outline' as const, view: 'LICENSE', sub: t('menu_license_sub', language) },
   ];
+
+  useEffect(() => {
+    if (resetTrigger && resetTrigger > 0) {
+      if (navStack.length > 1) {
+        panX.setValue(0);
+        isNavAnimating.current = true;
+        Animated.spring(navAnim, { 
+          toValue: 0, 
+          useNativeDriver: true, 
+          stiffness: 300, 
+          damping: 30, 
+          mass: 0.8, 
+          overshootClamping: true 
+        }).start(() => {
+          setNavStack(['MENU']);
+          isNavAnimating.current = false;
+        });
+      }
+    }
+  }, [resetTrigger]);
 
   useEffect(() => {
     const currentView = navStack[navStack.length - 1];
@@ -170,7 +191,6 @@ export const InfoScreen = ({
       await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
       if (setLocalLibrary) setLocalLibrary(updatedLibrary);
 
-      // ★ データ管理画面での楽曲編集保存時にクラウド自動同期
       syncMusicAndPlaylistsToCloud();
 
       popView();
@@ -292,7 +312,7 @@ export const InfoScreen = ({
                   audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab}
                   showSyncTab={showSyncTab} toggleSyncTab={toggleSyncTab} showPlaylistTypeIcon={showPlaylistTypeIcon} toggleShowPlaylistTypeIcon={toggleShowPlaylistTypeIcon}
                   language={language} changeLanguage={changeLanguage}
-                  renderHeader={renderHeader} safePadding={safePadding} isLandscape={isLandscape}
+                  renderHeader={renderHeader} safePadding={safePadding} isLandscape={isLandscape} pushView={pushView}
                 />
               )}
               {navStack[1] === 'ACCOUNT' && (
@@ -329,6 +349,12 @@ export const InfoScreen = ({
 
           {navStack.length > 2 && (
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
+              {navStack[2] === 'EQUALIZER' && (
+                <InfoEqualizerView 
+                  dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isDark={isDark}
+                  safePadding={safePadding} renderHeader={renderHeader} language={language}
+                />
+              )}
               {navStack[2] === 'STATS_ALL' && (
                 <InfoAllHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}

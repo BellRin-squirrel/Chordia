@@ -52,7 +52,8 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
 export const Library = ({ 
   dynamicStyles, themeColor, startQueue, currentSong, 
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
-  setNavStackLength, insets, isDark, showPlaylistTypeIcon = true, language = 'ja'
+  setNavStackLength, insets, isDark, showPlaylistTypeIcon = true, language = 'ja',
+  showToast, resetTrigger
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -99,6 +100,30 @@ export const Library = ({
     paddingLeft: isLandscape ? Math.max(insets?.left || 0, 16) : 0,
     paddingRight: isLandscape ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 0,
   };
+
+  // ★ タブバー押下時にトップ画面（MENU）へスムーズに戻す
+  useEffect(() => {
+    if (resetTrigger && resetTrigger > 0) {
+      if (navStack.length > 1) {
+        Keyboard.dismiss();
+        setSearchQuery('');
+        setIsSearching(false);
+        panX.setValue(0);
+        isNavAnimating.current = true;
+        Animated.spring(navAnim, { 
+          toValue: 0, 
+          useNativeDriver: true, 
+          stiffness: 300, 
+          damping: 30, 
+          mass: 0.8, 
+          overshootClamping: true 
+        }).start(() => {
+          setNavStack(['MENU']);
+          isNavAnimating.current = false;
+        });
+      }
+    }
+  }, [resetTrigger]);
 
   const openActionSheet = (song: any) => {
     setActionSheetSong(song);
@@ -316,6 +341,20 @@ export const Library = ({
     });
   };
 
+  // 指定のコレクション（プレイリスト / アルバム / アーティスト）画面へ直接遷移する関数
+  const openCollectionSongList = (category: 'PLAYLISTS' | 'ALBUMS' | 'ARTISTS', type: 'PLAYLIST' | 'ALBUM' | 'ARTIST', data: any) => {
+    setCurrentSelectionType(type);
+    if (type === 'PLAYLIST') {
+      setCurrentPlaylist(data);
+    } else if (type === 'ALBUM') {
+      setCurrentAlbum(data);
+    } else if (type === 'ARTIST') {
+      setCurrentArtist(data);
+    }
+    setNavStack(['MENU', category, 'SONG_LIST']);
+    Animated.spring(navAnim, { toValue: 2, useNativeDriver: true, stiffness: 300, damping: 30, mass: 0.8, overshootClamping: true }).start();
+  };
+
   const onGestureEvent = Animated.event([{ nativeEvent: { translationX: panX } }], { useNativeDriver: true });
   const onHandlerStateChange = (event: any) => {
     const { state, translationX, velocityX } = event.nativeEvent;
@@ -376,7 +415,6 @@ export const Library = ({
   let heroArtSource: any = DEFAULT_ICON;
   let heroTitle = "";
 
-  // ★ 現在表示しているコレクションのコンテキストを構築
   let collectionContext: PlayCollectionContext | null = null;
 
   if (currentSelectionType === 'PLAYLIST') {
@@ -423,7 +461,8 @@ export const Library = ({
             <LibraryMenuView 
               dynamicStyles={dynamicStyles} themeColor={themeColor} insets={insets} isLandscape={isLandscape} safePadding={safePadding}
               pushView={pushView} recentlyPlayedSongs={recentlyPlayedSongs} recentlyPlayedCollections={recentlyPlayedCollections}
-              localLibrary={localLibrary} startQueue={startQueue} saveCollectionToHistory={saveCollectionToHistory}
+              localLibrary={localLibrary} localPlaylists={localPlaylists} startQueue={startQueue} saveCollectionToHistory={saveCollectionToHistory}
+              openCollectionSongList={openCollectionSongList} showToast={showToast}
               language={language}
             />
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer1Darken }]} />
@@ -460,7 +499,6 @@ export const Library = ({
                   if (s && s.length > 0 && item) {
                     saveCollectionToHistory(item);
                   }
-                  // ★ context を渡して再生開始
                   startQueue(s, undefined, sh, collectionContext);
                 }}
                 openActionSheet={openActionSheet} renderFloatingBackButton={renderFloatingBackButton}

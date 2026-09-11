@@ -63,6 +63,7 @@ export const useAudioPlayer = () => {
 
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
   const isSendingNowPlayingRef = useRef(false);
+  const relayCooldownRef = useRef(false);
 
   const expoAudioPlayerRef = useRef<any>(null);
   const expoPollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -176,7 +177,6 @@ export const useAudioPlayer = () => {
         ? overrideTimeSec 
         : (audioEngine === 'rntp' ? Math.floor(rntpProgress.position) : Math.floor((playbackStatusExpo.positionMillis || 0) / 1000));
 
-      // ★ loop は文字列ではなく真偽値 (boolean) を送信
       await registerNowPlayingApi(account.sid, {
         playlistID: currentContextRef.current.playlistID,
         playlistName: currentContextRef.current.playlistName,
@@ -198,7 +198,9 @@ export const useAudioPlayer = () => {
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying && currentSong && currentContextRef.current) {
       interval = setInterval(() => {
-        sendNowPlayingUpdate();
+        if (!relayCooldownRef.current) {
+          sendNowPlayingUpdate();
+        }
       }, 1000);
     }
     return () => {
@@ -215,7 +217,7 @@ export const useAudioPlayer = () => {
         Animated.timing(toastAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
           setToastVisible(false);
         });
-      }, 2000);
+      }, 2500);
     });
   };
 
@@ -343,6 +345,7 @@ export const useAudioPlayer = () => {
     targetEngine?: 'expo-av'|'rntp'
   ) => {
     const engineToUse = targetEngine || audioEngine;
+    const targetSeconds = startPositionMs > 0 ? (startPositionMs / 1000) : 0;
 
     try {
       if (engineToUse === 'rntp') {
@@ -360,32 +363,68 @@ export const useAudioPlayer = () => {
         else if (loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
         else await TrackPlayer.setRepeatMode(RepeatMode.Off);
 
+        if (targetSeconds > 0) {
+          try { await TrackPlayer.setVolume(0); } catch(e) {}
+          try { await TrackPlayer.seekTo(targetSeconds); } catch(e) {}
+        }
+
         setTimeout(async () => {
           try {
-            if (startPositionMs > 0) await TrackPlayer.seekTo(startPositionMs / 1000);
+            if (targetSeconds > 0) {
+              await TrackPlayer.seekTo(targetSeconds);
+            }
+
             if (shouldPlay) {
               await TrackPlayer.play();
-              sendNowPlayingUpdate(Math.floor(startPositionMs / 1000));
             } else {
               setIsPlaying(false);
             }
-          } catch(e) {}
-        }, 400);
+
+            if (targetSeconds > 0) {
+              setTimeout(async () => {
+                try {
+                  const currentPos = await TrackPlayer.getPosition();
+                  if (targetSeconds > 1 && currentPos < 0.5) {
+                    await TrackPlayer.seekTo(targetSeconds);
+                  }
+                  await TrackPlayer.setVolume(1.0);
+                } catch(e) {
+                  try { await TrackPlayer.setVolume(1.0); } catch(_) {}
+                }
+              }, 120);
+            } else {
+              await TrackPlayer.setVolume(1.0);
+            }
+
+            if (shouldPlay) {
+              sendNowPlayingUpdate(Math.floor(targetSeconds));
+            }
+          } catch(e) {
+            try { await TrackPlayer.setVolume(1.0); } catch(_) {}
+          }
+        }, 200);
 
       } else {
         await clearRNTPNotification();
         const isLoopOne = loopRef.current === 'ONE';
-        await initExpoAudioPlayer(song, isLoopOne, shouldPlay); 
-        if (startPositionMs > 0) {
+
+        await initExpoAudioPlayer(song, isLoopOne, targetSeconds > 0 ? false : shouldPlay); 
+
+        if (targetSeconds > 0) {
           setTimeout(() => {
             try {
-              expoAudioPlayerRef.current?.seekTo(startPositionMs / 1000);
+              expoAudioPlayerRef.current?.seekTo(targetSeconds);
               setPlaybackStatusExpo((prev: any) => ({ ...prev, positionMillis: startPositionMs }));
+              if (shouldPlay) {
+                expoAudioPlayerRef.current?.play();
+                setIsPlaying(true);
+              }
             } catch(e) {}
-          }, 150);
+          }, 100);
         }
+
         if (shouldPlay) {
-          sendNowPlayingUpdate(Math.floor(startPositionMs / 1000));
+          sendNowPlayingUpdate(Math.floor(targetSeconds));
         }
       }
 
@@ -441,35 +480,73 @@ export const useAudioPlayer = () => {
     }
   };
 
+  // ★ customQueue が渡された場合はその順序を保持（リレー引き継ぎ時用）
   const startQueue = (
     songs: any[], 
     selectedSong?: any | null, 
     forceShuffle?: boolean,
-    context?: PlayCollectionContext | null
+    context?: PlayCollectionContext | null,
+    startPositionMs?: number,
+    initialLoop?: 'OFF' | 'ALL' | 'ONE',
+    customQueue?: any[]
   ) => {
-    if (songs.length === 0) return;
-    originalQueueRef.current = [...songs];
+    if (songs.length === 0 && (!customQueue || customQueue.length === 0)) return;
+
+    // 元の再生リスト（全曲）を保持
+    originalQueueRef.current = songs.length > 0 ? [...songs] : (customQueue ? [...customQueue] : []);
+
     const newShuffle = forceShuffle !== undefined ? forceShuffle : isShuffle;
     setIsShuffle(newShuffle);
     shuffleRef.current = newShuffle;
 
-    currentContextRef.current = context !== undefined ? context : currentContextRef.current;
-
-    let firstSong = selectedSong;
-    if (!firstSong) {
-      if (newShuffle) {
-        const shuffled = [...songs].sort(() => Math.random() - 0.5);
-        firstSong = shuffled[0];
-      } else {
-        firstSong = songs[0];
-      }
+    if (initialLoop !== undefined) {
+      setLoopMode(initialLoop);
+      loopRef.current = initialLoop;
     }
 
-    const newActiveQueue = rebuildActiveQueue(newShuffle, firstSong);
+    currentContextRef.current = context !== undefined ? context : currentContextRef.current;
+
+    if (startPositionMs && startPositionMs > 0) {
+      relayCooldownRef.current = true;
+      setTimeout(() => {
+        relayCooldownRef.current = false;
+      }, 3500);
+    }
+
+    let newActiveQueue: any[] = [];
+    let targetIndex = 0;
+
+    if (customQueue && customQueue.length > 0) {
+      // ★ 引き継ぎ時: シャッフルされた musiclist の順序をそのままキューとして使用
+      newActiveQueue = [...customQueue];
+      targetIndex = selectedSong 
+        ? newActiveQueue.findIndex(s => s.localMusicUri === selectedSong.localMusicUri)
+        : 0;
+      if (targetIndex === -1) {
+        if (selectedSong) {
+          newActiveQueue.unshift(selectedSong);
+          targetIndex = 0;
+        } else {
+          targetIndex = 0;
+        }
+      }
+    } else {
+      let firstSong = selectedSong;
+      if (!firstSong) {
+        if (newShuffle) {
+          const shuffled = [...songs].sort(() => Math.random() - 0.5);
+          firstSong = shuffled[0];
+        } else {
+          firstSong = songs[0];
+        }
+      }
+      newActiveQueue = rebuildActiveQueue(newShuffle, firstSong);
+      targetIndex = newActiveQueue.findIndex(s => s.localMusicUri === firstSong.localMusicUri);
+    }
+
     activeQueueRef.current = newActiveQueue;
-    
-    const targetIndex = newActiveQueue.findIndex(s => s.localMusicUri === firstSong.localMusicUri);
-    loadAndPlayInternal(firstSong, newActiveQueue, targetIndex, 0, true);
+    const songToPlay = newActiveQueue[targetIndex] || selectedSong || songs[0];
+    loadAndPlayInternal(songToPlay, newActiveQueue, targetIndex, startPositionMs || 0, true);
   };
 
   const toggleShuffleMode = async () => {
@@ -532,42 +609,44 @@ export const useAudioPlayer = () => {
     sendNowPlayingUpdate();
   };
 
+  // ★ 曲末尾到達時のループ処理: loopが有効なら元の再生リストをシャッフルして再開
   const handleNextInternal = async () => {
     if (isSkippingRef.current) return;
     isSkippingRef.current = true;
     setTimeout(() => { isSkippingRef.current = false; }, 600);
 
-    if (audioEngine === 'rntp') {
-      await TrackPlayer.skipToNext();
-    } else {
-      const activeQueue = activeQueueRef.current;
-      const currentSong = currentSongRef.current;
-      const mode = loopRef.current;
-      const idx = indexRef.current;
-      
-      if (mode === 'ONE' && currentSong) {
-        loadAndPlayInternal(currentSong, activeQueue, idx, 0, true);
-        return;
-      }
-      
-      const nextIdx = idx + 1;
-      if (nextIdx < activeQueue.length) {
+    const activeQueue = activeQueueRef.current;
+    const currentSong = currentSongRef.current;
+    const mode = loopRef.current;
+    const idx = indexRef.current;
+
+    if (mode === 'ONE' && currentSong) {
+      loadAndPlayInternal(currentSong, activeQueue, idx, 0, true);
+      return;
+    }
+
+    const nextIdx = idx + 1;
+    if (nextIdx < activeQueue.length) {
+      if (audioEngine === 'rntp') {
+        await TrackPlayer.skipToNext();
+      } else {
         const nextSong = activeQueue[nextIdx];
         loadAndPlayInternal(nextSong, activeQueue, nextIdx, 0, true);
-      } else {
-        if (mode === 'ALL' && activeQueue.length > 0) {
-          let nextActiveQueue = activeQueue;
-          if (shuffleRef.current) {
-            const shuffled = [...originalQueueRef.current].sort(() => Math.random() - 0.5);
-            nextActiveQueue = shuffled;
-            activeQueueRef.current = nextActiveQueue;
-          }
-          const firstSong = nextActiveQueue[0];
-          loadAndPlayInternal(firstSong, nextActiveQueue, 0, 0, true);
-        } else {
-          setIsPlaying(false);
-          sendNowPlayingUpdate();
+      }
+    } else {
+      // ★ キューの末尾に達した時
+      if (mode === 'ALL' && originalQueueRef.current.length > 0) {
+        let nextActiveQueue = originalQueueRef.current;
+        if (shuffleRef.current) {
+          // シャッフル有効時: 元の再生リスト全体をシャッフルして先頭から再生
+          nextActiveQueue = [...originalQueueRef.current].sort(() => Math.random() - 0.5);
         }
+        activeQueueRef.current = nextActiveQueue;
+        const firstSong = nextActiveQueue[0];
+        loadAndPlayInternal(firstSong, nextActiveQueue, 0, 0, true);
+      } else {
+        setIsPlaying(false);
+        sendNowPlayingUpdate();
       }
     }
   };
@@ -657,6 +736,18 @@ export const useAudioPlayer = () => {
         const activeQueue = activeQueueRef.current;
         const idx = activeQueue.findIndex(s => s.localMusicUri === newSong.localMusicUri);
         
+        // ★ RNTP で最後の曲から先頭にループした時、元の再生リストを再シャッフルして再開
+        const prevIdx = indexRef.current;
+        const lastIdx = activeQueue.length - 1;
+        if (prevIdx === lastIdx && idx === 0 && loopRef.current === 'ALL') {
+          if (shuffleRef.current && originalQueueRef.current.length > 0) {
+            const nextShuffled = [...originalQueueRef.current].sort(() => Math.random() - 0.5);
+            activeQueueRef.current = nextShuffled;
+            loadAndPlayInternal(nextShuffled[0], nextShuffled, 0, 0, true);
+            return;
+          }
+        }
+
         if (idx !== -1) {
           const newPlayQueue = activeQueue.slice(idx + 1);
           setPlayQueue(newPlayQueue);
@@ -665,10 +756,29 @@ export const useAudioPlayer = () => {
           indexRef.current = idx;
         }
         saveHistory(newSong);
-        sendNowPlayingUpdate(0);
+
+        if (!relayCooldownRef.current) {
+          sendNowPlayingUpdate(0);
+        }
       }
     });
-    return () => sub.remove();
+
+    const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
+      if (audioEngine === 'rntp' && loopRef.current === 'ALL') {
+        const queueToUse = shuffleRef.current 
+          ? [...originalQueueRef.current].sort(() => Math.random() - 0.5)
+          : [...originalQueueRef.current];
+        if (queueToUse.length > 0) {
+          activeQueueRef.current = queueToUse;
+          loadAndPlayInternal(queueToUse[0], queueToUse, 0, 0, true);
+        }
+      }
+    });
+
+    return () => {
+      sub.remove();
+      queueEndedSub.remove();
+    };
   }, [audioEngine]);
 
   return { 

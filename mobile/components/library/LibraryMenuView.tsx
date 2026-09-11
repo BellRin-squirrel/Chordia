@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Modal, 
-  TouchableWithoutFeedback, StyleSheet 
+  TouchableWithoutFeedback, StyleSheet, Alert 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,7 +19,8 @@ import { PlayCollectionContext } from '../../hooks/useAudioPlayer';
 export const LibraryMenuView = ({
   dynamicStyles, themeColor, insets, isLandscape, safePadding,
   pushView, recentlyPlayedSongs, recentlyPlayedCollections,
-  localLibrary, startQueue, saveCollectionToHistory, language = 'ja'
+  localLibrary = [], localPlaylists = [], startQueue, saveCollectionToHistory,
+  openCollectionSongList, showToast, language = 'ja'
 }: any) => {
 
   const [relayModalVisible, setRelayModalVisible] = useState(false);
@@ -71,9 +72,196 @@ export const LibraryMenuView = ({
     return t('relay_type_playlist', language);
   };
 
+  // ★ Chordia Relay デバイス項目タップ時の再生引き継ぎ処理
   const handleDevicePress = (device: RelayDeviceItem) => {
-    console.log('[Chordia Relay] 選択されたデバイス:', device);
+    const np = device.nowPlaying;
+    if (!np) {
+      setRelayModalVisible(false);
+      return;
+    }
+
+    const {
+      playlistID,
+      playlistName,
+      shuffle = false,
+      loop = false,
+      musiclist = [],
+      nowPlayingTitle = 'Untitled',
+      nowPlayingArtist = 'Unknown Artist',
+      nowPlayingAlbum = '',
+      nowPlayingTime = 0
+    } = np;
+
+    let targetSongs: any[] = [];
+    let category: 'PLAYLISTS' | 'ALBUMS' | 'ARTISTS' = 'PLAYLISTS';
+    let selectionType: 'PLAYLIST' | 'ALBUM' | 'ARTIST' = 'PLAYLIST';
+    let targetCollectionData: any = null;
+    let context: PlayCollectionContext | null = null;
+
+    // 1. 元の再生リスト（全曲コレクション）を特定
+    if (playlistID === 'album') {
+      category = 'ALBUMS';
+      selectionType = 'ALBUM';
+
+      targetSongs = localLibrary.filter((s: any) => 
+        (s.album || '').trim().toLowerCase() === (nowPlayingAlbum || playlistName || '').trim().toLowerCase()
+      );
+      if (targetSongs.length === 0 && nowPlayingArtist) {
+        targetSongs = localLibrary.filter((s: any) => 
+          (s.artist || '').trim().toLowerCase() === nowPlayingArtist.trim().toLowerCase() &&
+          (s.album || '').trim().toLowerCase() === (nowPlayingAlbum || '').trim().toLowerCase()
+        );
+      }
+      targetSongs.sort((a: any, b: any) => (a.track || 0) - (b.track || 0));
+
+      const firstCover = targetSongs.find(s => !!s.localImageUri)?.localImageUri;
+      targetCollectionData = {
+        album: nowPlayingAlbum || playlistName,
+        artist: nowPlayingArtist,
+        coverArt: firstCover
+      };
+      context = {
+        type: 'ALBUM',
+        playlistID: 'album',
+        playlistName: targetCollectionData.album,
+      };
+
+    } else if (playlistID === 'artist') {
+      category = 'ARTISTS';
+      selectionType = 'ARTIST';
+      const artistName = nowPlayingArtist || playlistName || '';
+
+      targetSongs = localLibrary.filter((s: any) => 
+        (s.artist || '').trim().toLowerCase() === artistName.trim().toLowerCase()
+      );
+      targetSongs.sort((a: any, b: any) => (a.title || '').localeCompare(b.title || '', 'ja'));
+      targetCollectionData = artistName;
+      context = {
+        type: 'ARTIST',
+        playlistID: 'artist',
+        playlistName: artistName,
+      };
+
+    } else {
+      category = 'PLAYLISTS';
+      selectionType = 'PLAYLIST';
+
+      if (playlistID === 'all_songs' || playlistName === t('all_songs_item', language)) {
+        targetCollectionData = { playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs', type: 'normal' };
+        targetSongs = getPlaylistSongs(targetCollectionData, localLibrary);
+      } else {
+        let foundPl = (localPlaylists || []).find((p: any) => p.id === playlistID);
+        if (!foundPl && playlistName) {
+          foundPl = (localPlaylists || []).find((p: any) => p.playlistName === playlistName);
+        }
+
+        if (foundPl) {
+          targetCollectionData = foundPl;
+          targetSongs = getPlaylistSongs(foundPl, localLibrary);
+        } else {
+          targetCollectionData = {
+            id: playlistID || 'pl_relay_' + Date.now(),
+            playlistName: playlistName || 'Playlist',
+            type: 'normal',
+            music: []
+          };
+          targetSongs = localLibrary;
+        }
+      }
+
+      context = {
+        type: 'PLAYLIST',
+        playlistID: targetCollectionData.id || 'all_songs',
+        playlistName: targetCollectionData.playlistName || 'Playlist',
+      };
+    }
+
+    // 2. ★ 送信されてきた musiclist の順序通りのキュー（customQueue）を構築
+    const customQueue: any[] = [];
+    const matchedUris = new Set<string>();
+
+    if (Array.isArray(musiclist) && musiclist.length > 0) {
+      for (const m of musiclist) {
+        const hit = localLibrary.find((s: any) => 
+          (s.title || '').trim().toLowerCase() === (m.title || '').trim().toLowerCase() &&
+          (!m.artist || (s.artist || '').trim().toLowerCase() === (m.artist || '').trim().toLowerCase())
+        );
+        if (hit) {
+          customQueue.push(hit);
+          matchedUris.add(hit.localMusicUri);
+        }
+      }
+    }
+
+    // 3. 現在再生中の曲を特定
+    let selectedSong = customQueue.find((s: any) => 
+      (s.title || '').trim().toLowerCase() === nowPlayingTitle.trim().toLowerCase() &&
+      (!nowPlayingArtist || (s.artist || '').trim().toLowerCase() === nowPlayingArtist.trim().toLowerCase())
+    );
+
+    if (!selectedSong) {
+      selectedSong = localLibrary.find((s: any) => 
+        (s.title || '').trim().toLowerCase() === nowPlayingTitle.trim().toLowerCase() &&
+        (!nowPlayingArtist || (s.artist || '').trim().toLowerCase() === nowPlayingArtist.trim().toLowerCase())
+      );
+      if (selectedSong && !matchedUris.has(selectedSong.localMusicUri)) {
+        customQueue.unshift(selectedSong);
+      }
+    }
+
+    if (!selectedSong && customQueue.length > 0) {
+      selectedSong = customQueue[0];
+    } else if (!selectedSong && targetSongs.length > 0) {
+      selectedSong = targetSongs[0];
+    }
+
     setRelayModalVisible(false);
+
+    // 4. 再生開始
+    const queueToPlay = customQueue.length > 0 ? customQueue : targetSongs;
+
+    if (queueToPlay.length > 0 && selectedSong) {
+      const loopModeToSet: 'OFF' | 'ALL' = loop ? 'ALL' : 'OFF';
+
+      let nowPlayingTimeSec = 0;
+      if (nowPlayingTime !== undefined && nowPlayingTime !== null) {
+        const parsedTime = typeof nowPlayingTime === 'number' 
+          ? nowPlayingTime 
+          : parseFloat(String(nowPlayingTime));
+        if (!isNaN(parsedTime) && parsedTime > 0) {
+          nowPlayingTimeSec = parsedTime;
+        }
+      }
+      const startPosMs = Math.round(nowPlayingTimeSec * 1000);
+
+      // ★ targetSongs（元の再生リスト）と customQueue（musiclist順のキュー）を渡して再生
+      startQueue(
+        targetSongs,
+        selectedSong,
+        shuffle,
+        context,
+        startPosMs,
+        loopModeToSet,
+        queueToPlay
+      );
+
+      const songName = selectedSong.title || nowPlayingTitle || 'Track';
+      const toastMsg = t('relay_synced_toast', language)
+        .replace('{device}', device.name)
+        .replace('{title}', songName);
+      if (showToast) {
+        showToast(toastMsg);
+      }
+
+      if (openCollectionSongList) {
+        openCollectionSongList(category, selectionType, targetCollectionData);
+      }
+    } else {
+      Alert.alert(
+        t('alert_timer_error_title', language),
+        t('relay_song_not_found', language)
+      );
+    }
   };
 
   const menuItems = [
@@ -105,10 +293,8 @@ export const LibraryMenuView = ({
           onPress={() => setRelayModalVisible(true)}
           activeOpacity={0.7}
         >
-          {/* 雲のアイコン自体の色は常にテーマカラーを維持 */}
           <Ionicons name="cloud-outline" size={24} color={themeColor} />
 
-          {/* 未ログイン時は右上に赤い×バッジを表示、ログイン時はデバイス数バッジを表示 */}
           {!isLoggedIn ? (
             <View style={[s.headerBadge, { backgroundColor: '#ef4444' }]}>
               <Ionicons name="close" size={11} color="#ffffff" />
@@ -201,7 +387,6 @@ export const LibraryMenuView = ({
                   {t('relay_modal_desc', language)}
                 </Text>
 
-                {/* 未ログイン状態 / デバイスなし / デバイス一覧 の3段階表示 */}
                 {!isLoggedIn ? (
                   <View style={s.emptyBox}>
                     <Ionicons name="cloud-offline-outline" size={44} color="#ef4444" />
