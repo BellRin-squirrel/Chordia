@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Alert } from 'react-native';
+import { Animated, Dimensions, Alert, Platform } from 'react-native';
 import TrackPlayer, { 
   State as RNTPState, 
   usePlaybackState, 
@@ -20,7 +20,18 @@ import {
   registerNowPlayingApi, 
   ACCOUNT_STORAGE_KEY 
 } from '../utils/chordiaSync';
-import { initEqualizer, applyEqualizerSettings } from '../utils/equalizer';
+import { 
+  initEqualizer, 
+  applyEqualizerSettings, 
+  loadAndPlayIOS, 
+  pauseIOS, 
+  playIOS, 
+  stopIOS, 
+  seekToIOS, 
+  getPositionIOS, 
+  getDurationIOS, 
+  isPlayingIOS 
+} from '../utils/equalizer';
 
 const { height } = Dimensions.get('window');
 
@@ -66,12 +77,21 @@ export const useAudioPlayer = () => {
   const isSendingNowPlayingRef = useRef(false);
   const relayCooldownRef = useRef(false);
 
+  const isIOSEQActiveRef = useRef(false);
+  const iosEQPollingRef = useRef<NodeJS.Timeout | null>(null);
+
   const expoAudioPlayerRef = useRef<any>(null);
   const expoPollingRef = useRef<NodeJS.Timeout | null>(null);
   const expoStatusSubscriptionRef = useRef<any>(null);
   const isSkippingRef = useRef<boolean>(false);
 
   const [playbackStatusExpo, setPlaybackStatusExpo] = useState<any>({
+    positionMillis: 0,
+    durationMillis: 0,
+    isPlaying: false,
+  });
+
+  const [playbackStatusIOSEQ, setPlaybackStatusIOSEQ] = useState<any>({
     positionMillis: 0,
     durationMillis: 0,
     isPlaying: false,
@@ -88,13 +108,14 @@ export const useAudioPlayer = () => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
 
-    // イコライザーセッションの初期同期
+    // イコライザーセッションの初期化と保存値の復元
     (async () => {
       try {
         await initEqualizer(0);
         const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
         if (eqJson) {
           const parsed = JSON.parse(eqJson);
+          isIOSEQActiveRef.current = Platform.OS === 'ios' && !!parsed.isEnabled;
           applyEqualizerSettings({
             enabled: !!parsed.isEnabled,
             preamp: parsed.preamp || 0,
@@ -104,7 +125,10 @@ export const useAudioPlayer = () => {
       } catch (e) {}
     })();
 
-    return () => clearExpoResources();
+    return () => {
+      clearExpoResources();
+      clearIOSEQPolling();
+    };
   }, []);
 
   const configureExpoAudioMode = async () => {
@@ -159,14 +183,16 @@ export const useAudioPlayer = () => {
   const rntpState = usePlaybackState();
   const rntpProgress = useProgress(250); 
 
-  const playbackStatus = audioEngine === 'rntp' ? {
-    positionMillis: rntpProgress.position * 1000,
-    durationMillis: rntpProgress.duration * 1000,
-    isPlaying: rntpState.state === RNTPState.Playing,
-  } : playbackStatusExpo;
+  const playbackStatus = isIOSEQActiveRef.current 
+    ? playbackStatusIOSEQ 
+    : (audioEngine === 'rntp' ? {
+        positionMillis: rntpProgress.position * 1000,
+        durationMillis: rntpProgress.duration * 1000,
+        isPlaying: rntpState.state === RNTPState.Playing,
+      } : playbackStatusExpo);
 
   useEffect(() => {
-    if (audioEngine === 'rntp') {
+    if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
       if (rntpState.state === RNTPState.Playing) setIsPlaying(true);
       else if (rntpState.state === RNTPState.Paused || rntpState.state === RNTPState.Stopped) setIsPlaying(false);
     }
@@ -193,7 +219,9 @@ export const useAudioPlayer = () => {
 
       const currentTimeSec = overrideTimeSec !== undefined 
         ? overrideTimeSec 
-        : (audioEngine === 'rntp' ? Math.floor(rntpProgress.position) : Math.floor((playbackStatusExpo.positionMillis || 0) / 1000));
+        : (isIOSEQActiveRef.current 
+            ? Math.floor((playbackStatusIOSEQ.positionMillis || 0) / 1000)
+            : (audioEngine === 'rntp' ? Math.floor(rntpProgress.position) : Math.floor((playbackStatusExpo.positionMillis || 0) / 1000)));
 
       await registerNowPlayingApi(account.sid, {
         playlistID: currentContextRef.current.playlistID,
@@ -272,6 +300,35 @@ export const useAudioPlayer = () => {
         }
       }
     } catch(e){}
+  };
+
+  const clearIOSEQPolling = () => {
+    if (iosEQPollingRef.current) {
+      clearInterval(iosEQPollingRef.current);
+      iosEQPollingRef.current = null;
+    }
+  };
+
+  const startIOSEQPolling = () => {
+    clearIOSEQPolling();
+    iosEQPollingRef.current = setInterval(() => {
+      if (!isIOSEQActiveRef.current) return;
+      const posSec = getPositionIOS();
+      const durSec = getDurationIOS();
+      const playing = isPlayingIOS();
+
+      setPlaybackStatusIOSEQ({
+        positionMillis: posSec * 1000,
+        durationMillis: durSec * 1000,
+        isPlaying: playing,
+      });
+      setIsPlaying(playing);
+
+      // 曲の終了検知
+      if (durSec > 0 && posSec >= durSec - 0.25) {
+        handleNextRef.current();
+      }
+    }, 250);
   };
 
   const clearExpoResources = () => {
@@ -362,8 +419,51 @@ export const useAudioPlayer = () => {
     shouldPlay: boolean = true,
     targetEngine?: 'expo-av'|'rntp'
   ) => {
-    const engineToUse = targetEngine || audioEngine;
     const targetSeconds = startPositionMs > 0 ? (startPositionMs / 1000) : 0;
+
+    // 最新のイコライザー設定状態を確認
+    let isEQEnabled = false;
+    try {
+      const eqRaw = await AsyncStorage.getItem('chordia_equalizer_settings');
+      if (eqRaw) {
+        const parsed = JSON.parse(eqRaw);
+        isEQEnabled = !!parsed.isEnabled;
+      }
+    } catch (e) {}
+
+    // ★ iOS かつ イコライザーが有効な場合は ChordiaEqualizer (AVAudioEngine + AVAudioUnitEQ) を使用
+    if (Platform.OS === 'ios' && isEQEnabled) {
+      isIOSEQActiveRef.current = true;
+      clearExpoResources();
+      await clearRNTPNotification();
+
+      loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
+      setIsPlaying(shouldPlay);
+      startIOSEQPolling();
+
+      if (shouldPlay) {
+        sendNowPlayingUpdate(Math.floor(targetSeconds));
+      }
+
+      setCurrentSong(song);
+      currentSongRef.current = song;
+      
+      const appQueue = activeQueue.slice(startIndex + 1);
+      setPlayQueue(appQueue);
+      queueRef.current = appQueue;
+      setCurrentIndex(startIndex);
+      indexRef.current = startIndex;
+      
+      saveHistory(song);
+      return;
+    }
+
+    // iOS イコライザー無効時、または Android (AndroidはOS標準Equalizerが透過的に効く)
+    isIOSEQActiveRef.current = false;
+    clearIOSEQPolling();
+    stopIOS();
+
+    const engineToUse = targetEngine || audioEngine;
 
     try {
       if (engineToUse === 'rntp') {
@@ -465,7 +565,10 @@ export const useAudioPlayer = () => {
     const currentSongToRestore = currentSongRef.current;
     let currentPosition = 0;
     
-    if (audioEngine === 'rntp') {
+    if (isIOSEQActiveRef.current) {
+      currentPosition = (getPositionIOS() || 0) * 1000;
+      stopIOS();
+    } else if (audioEngine === 'rntp') {
       try { 
         currentPosition = (await TrackPlayer.getPosition()) * 1000;
         await clearRNTPNotification();
@@ -582,7 +685,7 @@ export const useAudioPlayer = () => {
     setCurrentIndex(targetIndex);
     indexRef.current = targetIndex;
 
-    if (audioEngine === 'rntp') {
+    if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
       try {
         const queue = await TrackPlayer.getQueue();
         const activeIndex = await TrackPlayer.getActiveTrackIndex();
@@ -611,11 +714,11 @@ export const useAudioPlayer = () => {
     setLoopMode(nextLoop);
     loopRef.current = nextLoop;
     
-    if (audioEngine === 'rntp') {
+    if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
       if (nextLoop === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
       else if (nextLoop === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
       else await TrackPlayer.setRepeatMode(RepeatMode.Off);
-    } else {
+    } else if (!isIOSEQActiveRef.current) {
       if (expoAudioPlayerRef.current) {
         expoAudioPlayerRef.current.loop = (nextLoop === 'ONE');
         expoAudioPlayerRef.current.isLooping = (nextLoop === 'ONE');
@@ -641,7 +744,7 @@ export const useAudioPlayer = () => {
 
     const nextIdx = idx + 1;
     if (nextIdx < activeQueue.length) {
-      if (audioEngine === 'rntp') {
+      if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
         await TrackPlayer.skipToNext();
       } else {
         const nextSong = activeQueue[nextIdx];
@@ -667,6 +770,20 @@ export const useAudioPlayer = () => {
   const handleNext = () => handleNextInternal();
   
   const handlePrev = async () => {
+    if (isIOSEQActiveRef.current) {
+      const currentPos = (getPositionIOS() || 0) * 1000;
+      if (currentPos > 3000) {
+        seekToIOS(0);
+        sendNowPlayingUpdate(0);
+        return;
+      }
+      let prevIdx = indexRef.current - 1;
+      if (prevIdx < 0) prevIdx = loopRef.current === 'ALL' ? activeQueueRef.current.length - 1 : 0;
+      const prevSong = activeQueueRef.current[prevIdx];
+      loadAndPlayInternal(prevSong, activeQueueRef.current, prevIdx, 0, true);
+      return;
+    }
+
     if (audioEngine === 'rntp') {
       const currentPos = await TrackPlayer.getPosition();
       if (currentPos > 3) await TrackPlayer.seekTo(0);
@@ -695,6 +812,18 @@ export const useAudioPlayer = () => {
   };
 
   const togglePlayPause = async () => {
+    if (isIOSEQActiveRef.current) {
+      if (isPlaying) {
+        pauseIOS();
+        setIsPlaying(false);
+      } else {
+        playIOS();
+        setIsPlaying(true);
+      }
+      sendNowPlayingUpdate();
+      return;
+    }
+
     if (audioEngine === 'rntp') {
       const state = await TrackPlayer.getState();
       if (state === RNTPState.Playing) {
@@ -721,7 +850,10 @@ export const useAudioPlayer = () => {
   };
 
   const setPositionAsync = async (v: number) => {
-    if (audioEngine === 'rntp') {
+    if (isIOSEQActiveRef.current) {
+      seekToIOS(v / 1000);
+      setPlaybackStatusIOSEQ((prev: any) => ({ ...prev, positionMillis: v }));
+    } else if (audioEngine === 'rntp') {
       await TrackPlayer.seekTo(v / 1000);
     } else {
       try {
@@ -740,7 +872,7 @@ export const useAudioPlayer = () => {
 
   useEffect(() => {
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
-      if (audioEngine === 'rntp' && event.track && event.track.originalData) {
+      if (!isIOSEQActiveRef.current && audioEngine === 'rntp' && event.track && event.track.originalData) {
         const newSong = event.track.originalData;
         setCurrentSong(newSong);
         currentSongRef.current = newSong;
@@ -775,7 +907,7 @@ export const useAudioPlayer = () => {
     });
 
     const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-      if (audioEngine === 'rntp' && loopRef.current === 'ALL') {
+      if (!isIOSEQActiveRef.current && audioEngine === 'rntp' && loopRef.current === 'ALL') {
         const queueToUse = shuffleRef.current 
           ? [...originalQueueRef.current].sort(() => Math.random() - 0.5)
           : [...originalQueueRef.current];
