@@ -63,7 +63,7 @@ jobs:
             archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_IDENTITY="" \
             ENABLE_USER_SCRIPT_SANDBOXING=NO 2>&1 | xcpretty
 
       - name: Make Payload Folder and Make It IPA file
@@ -219,11 +219,25 @@ jobs:
           }
           '
 
-      - name: Build Android APK (Debug)
+      # ★ 通信瞬断時に最大3回自動リトライして確実にビルドするステップ
+      - name: Build Android APK (Debug) with Retry
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+             ./gradlew assembleDebug && break
+             n=$((n+1)) 
+             echo "⚠️ Gradle download/build failed. Retrying in 10 seconds... ($n/3)"
+             sleep 10
+          done
+          
+          if [ "$n" -ge 3 ]; then
+             echo "❌ Build failed after 3 attempts."
+             exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
