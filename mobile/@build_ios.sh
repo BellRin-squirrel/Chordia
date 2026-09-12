@@ -16,7 +16,7 @@ npm install
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
-# 3. ChordiaEqualizer を Podfile に確実にリンクして pod install
+# 3. 外部ファイル非依存の Podspec を生成して pod install
 echo "⚙️ 3/5 ChordiaEqualizer を Podfile に結合中..."
 node -e '
 const fs = require("fs");
@@ -27,13 +27,9 @@ if (!fs.existsSync(iosDir)) {
   fs.mkdirSync(iosDir, { recursive: true });
 }
 
-const podspecContent = `require "json"
-
-package = JSON.parse(File.read(File.join(__dir__, "..", "package.json")))
-
-Pod::Spec.new do |s|
+const podspecContent = `Pod::Spec.new do |s|
   s.name           = "ChordiaEqualizer"
-  s.version        = package["version"]
+  s.version        = "0.1.0"
   s.summary        = "Chordia Equalizer Module"
   s.description    = "Native Equalizer DSP module for Chordia Mobile"
   s.license        = "MIT"
@@ -51,7 +47,7 @@ end
 `;
 
 fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspecContent);
-console.log("Successfully placed ChordiaEqualizer.podspec in modules/chordia-equalizer/ios/");
+console.log("   --> Successfully placed self-contained ChordiaEqualizer.podspec in ios/");
 
 const podfile = "ios/Podfile";
 if (fs.existsSync(podfile)) {
@@ -59,7 +55,7 @@ if (fs.existsSync(podfile)) {
   if (!content.includes("ChordiaEqualizer")) {
     content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
     fs.writeFileSync(podfile, content);
-    console.log("Successfully injected ChordiaEqualizer into ios/Podfile");
+    console.log("   --> Successfully injected ChordiaEqualizer into ios/Podfile");
   }
 }
 '
