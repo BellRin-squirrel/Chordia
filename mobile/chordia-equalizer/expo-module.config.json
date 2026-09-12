@@ -2,6 +2,7 @@
   "name": "chordia-equalizer",
   "platforms": ["ios", "android"],
   "ios": {
+    "podspecPath": "ios/ChordiaEqualizer.podspec",
     "modules": ["ChordiaEqualizerModule"]
   },
   "android": {
