@@ -49,7 +49,25 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
   } catch (e) {}
 };
 
-// --- iOS ネイティブEQプレイヤー用ブリッジ関数 ---
+export const getEqualizerDebugInfo = (): any => {
+  if (!NativeModule?.getDebugInfo) {
+    return {
+      isNativeConnected: false,
+      platform: Platform.OS,
+      lastError: 'Native module ChordiaEqualizer not found in binary',
+    };
+  }
+  try {
+    return NativeModule.getDebugInfo();
+  } catch (e: any) {
+    return {
+      isNativeConnected: false,
+      platform: Platform.OS,
+      lastError: e?.message || 'Error fetching debug info',
+    };
+  }
+};
+
 export const loadAndPlayIOS = (filePath: string, startSeconds: number, autoPlay: boolean = true): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.loadAndPlay) return false;
   try {
@@ -127,6 +145,7 @@ export default {
   setEqualizerEnabled,
   setEqualizerBands,
   applyEqualizerSettings,
+  getEqualizerDebugInfo,
   loadAndPlayIOS,
   pauseIOS,
   playIOS,

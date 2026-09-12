@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
-import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled } from '../../utils/equalizer';
+import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled, getEqualizerDebugInfo } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -117,8 +117,18 @@ export const InfoEqualizerView = ({
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
   const [sliderVersion, setSliderVersion] = useState(0);
 
+  // ★ リアルタイム・デバッグステータス
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
+
+  const refreshDebugInfo = () => {
+    try {
+      const info = getEqualizerDebugInfo();
+      setDebugInfo(info);
+    } catch (e) {}
+  };
 
   useEffect(() => {
     (async () => {
@@ -149,8 +159,13 @@ export const InfoEqualizerView = ({
         if (savedPresets) {
           setCustomPresets(JSON.parse(savedPresets));
         }
+
+        refreshDebugInfo();
       } catch (e) {}
     })();
+
+    const timer = setInterval(refreshDebugInfo, 2000);
+    return () => clearInterval(timer);
   }, []);
 
   const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
@@ -162,9 +177,9 @@ export const InfoEqualizerView = ({
         activePresetId: newActivePresetId 
       }));
 
-      // ★ ネイティブDSPへ即座にリアルタイム適用
       setEqualizerEnabled(newEnabled);
       setEqualizerBands(newBands.map(b => b.gain), newPreamp);
+      refreshDebugInfo();
     } catch (e) {}
   };
 
@@ -301,10 +316,18 @@ export const InfoEqualizerView = ({
     );
   };
 
+  const showDetailedDebugAlert = () => {
+    const raw = debugInfo ? JSON.stringify(debugInfo, null, 2) : 'No debug info';
+    Alert.alert('Equalizer Native DSP Status', raw, [{ text: 'OK' }]);
+  };
+
   const formatDbText = (val: number) => {
     const str = Number.isInteger(val) ? String(val) : val.toFixed(1);
     return val > 0 ? `+${str}dB` : `${str}dB`;
   };
+
+  const isNativeConnected = debugInfo?.isNativeConnected !== false;
+  const isActuallyPlaying = debugInfo?.isPlayerPlaying || isEnabled;
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
@@ -312,6 +335,33 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
+        {/* ★ リアルタイム・デバッグステータス・パネル */}
+        <TouchableOpacity 
+          style={[
+            s.debugPanel, 
+            { 
+              backgroundColor: isNativeConnected ? (isEnabled ? 'rgba(52, 199, 89, 0.12)' : 'rgba(79, 70, 229, 0.08)') : 'rgba(239, 68, 68, 0.12)',
+              borderColor: isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444' 
+            }
+          ]}
+          onPress={showDetailedDebugAlert}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons 
+              name={isNativeConnected ? (isEnabled ? "checkmark-circle" : "information-circle") : "alert-circle"} 
+              size={18} 
+              color={isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444'} 
+            />
+            <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }}>
+              {isNativeConnected 
+                ? (isEnabled ? `Native DSP: ACTIVE (${debugInfo?.platform || Platform.OS})` : `Native DSP: Standby (${debugInfo?.platform || Platform.OS})`)
+                : `Native DSP: Disconnected (Tap for details)`}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />
+        </TouchableOpacity>
+
         {/* 1. 有効/無効 スイッチ */}
         <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: isEnabled ? themeColor : dynamicStyles.border, marginBottom: 15 }]}>
           <View style={s.rowBetween}>
@@ -323,7 +373,7 @@ export const InfoEqualizerView = ({
                 </Text>
                 {isEnabled && (
                   <Text style={{ color: themeColor, fontSize: 11, fontWeight: 'bold', marginTop: 2 }}>
-                    ● DSP ACTIVE
+                    ● DSP FILTER ACTIVE
                   </Text>
                 )}
               </View>
@@ -588,6 +638,7 @@ export const InfoEqualizerView = ({
 
 const s = StyleSheet.create({
   card: { borderRadius: 20, padding: 18, borderWidth: 1 },
+  debugPanel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
   presetTile: { width: '48%', height: 42, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, position: 'relative' },
