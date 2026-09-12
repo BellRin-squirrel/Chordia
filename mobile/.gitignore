@@ -69,6 +69,6 @@ expo-env.d.ts
 .expo/
 
 node_modules/
-ios/
-build/
-android/
+./ios/
+./build/
+./android/
