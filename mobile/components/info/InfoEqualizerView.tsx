@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
-import { applyEqualizerSettings, initEqualizer } from '../../utils/equalizer';
+import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -115,6 +115,7 @@ export const InfoEqualizerView = ({
   const [preamp, setPreamp] = useState<number>(0);
   const [activePresetId, setActivePresetId] = useState<string | null>('flat');
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
+  const [sliderVersion, setSliderVersion] = useState(0);
 
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
@@ -135,6 +136,7 @@ export const InfoEqualizerView = ({
           setBands(loadedBands);
           setPreamp(loadedPreamp);
           if (parsed.activePresetId !== undefined) setActivePresetId(parsed.activePresetId);
+          setSliderVersion(prev => prev + 1);
 
           applyEqualizerSettings({
             enabled: loadedEnabled,
@@ -160,11 +162,9 @@ export const InfoEqualizerView = ({
         activePresetId: newActivePresetId 
       }));
 
-      applyEqualizerSettings({
-        enabled: newEnabled,
-        preamp: newPreamp,
-        gains: newBands.map(b => b.gain),
-      });
+      // ★ ネイティブDSPへ即座にリアルタイム適用
+      setEqualizerEnabled(newEnabled);
+      setEqualizerBands(newBands.map(b => b.gain), newPreamp);
     } catch (e) {}
   };
 
@@ -200,6 +200,7 @@ export const InfoEqualizerView = ({
     setPreamp(newPreamp);
     setActivePresetId(preset.id);
     setIsEnabled(true);
+    setSliderVersion(prev => prev + 1);
     saveAndSyncHardware(true, newBands, newPreamp, preset.id);
   };
 
@@ -208,17 +209,24 @@ export const InfoEqualizerView = ({
     setBands(flat);
     setPreamp(0);
     setActivePresetId('flat');
+    setSliderVersion(prev => prev + 1);
     saveAndSyncHardware(isEnabled, flat, 0, 'flat');
   };
 
   const handleSaveCustomPreset = async () => {
     if (!presetNameInput.trim()) return;
     const name = presetNameInput.trim();
+
+    const clonedBands: EqualizerBand[] = bands.map(b => ({
+      freq: b.freq,
+      gain: Number(b.gain) || 0,
+    }));
+
     const newPreset: CustomPreset = {
       id: 'custom_' + Date.now(),
       name,
-      bands: JSON.parse(JSON.stringify(bands)),
-      preamp,
+      bands: clonedBands,
+      preamp: Number(preamp) || 0,
     };
 
     const updatedList = [newPreset, ...customPresets];
@@ -228,17 +236,46 @@ export const InfoEqualizerView = ({
 
     setPresetNameInput('');
     setSaveModalVisible(false);
+    setSliderVersion(prev => prev + 1);
 
     Alert.alert(t('confirm', language), t('equalizer_saved_alert', language).replace('{name}', name));
   };
 
   const handleApplyCustomPreset = (preset: CustomPreset) => {
-    const newBands = JSON.parse(JSON.stringify(preset.bands));
-    const newPreamp = preset.preamp !== undefined ? preset.preamp : 0;
+    let newBands: EqualizerBand[] = [];
+
+    if (Array.isArray(preset.bands) && preset.bands.length > 0) {
+      if (typeof preset.bands[0] === 'number') {
+        newBands = DEFAULT_BANDS.map((b, i) => ({
+          ...b,
+          gain: Number((preset.bands as any)[i]) || 0,
+        }));
+      } else {
+        newBands = DEFAULT_BANDS.map((b, i) => {
+          const matched = preset.bands.find(pb => pb.freq === b.freq) || preset.bands[i];
+          return {
+            ...b,
+            gain: Number(matched?.gain) || 0,
+          };
+        });
+      }
+    } else if ((preset as any).gains && Array.isArray((preset as any).gains)) {
+      newBands = DEFAULT_BANDS.map((b, i) => ({
+        ...b,
+        gain: Number((preset as any).gains[i]) || 0,
+      }));
+    } else {
+      newBands = DEFAULT_BANDS.map(b => ({ ...b, gain: 0 }));
+    }
+
+    const newPreamp = preset.preamp !== undefined ? Number(preset.preamp) || 0 : 0;
+
     setBands(newBands);
     setPreamp(newPreamp);
     setActivePresetId(preset.id);
     setIsEnabled(true);
+    setSliderVersion(prev => prev + 1);
+
     saveAndSyncHardware(true, newBands, newPreamp, preset.id);
   };
 
@@ -276,13 +313,20 @@ export const InfoEqualizerView = ({
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
         {/* 1. 有効/無効 スイッチ */}
-        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 15 }]}>
+        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: isEnabled ? themeColor : dynamicStyles.border, marginBottom: 15 }]}>
           <View style={s.rowBetween}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Ionicons name="options-outline" size={22} color={themeColor} />
-              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
-                {t('equalizer_enable', language)}
-              </Text>
+              <View>
+                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
+                  {t('equalizer_enable', language)}
+                </Text>
+                {isEnabled && (
+                  <Text style={{ color: themeColor, fontSize: 11, fontWeight: 'bold', marginTop: 2 }}>
+                    ● DSP ACTIVE
+                  </Text>
+                )}
+              </View>
             </View>
             <Switch 
               value={isEnabled} 
@@ -334,7 +378,7 @@ export const InfoEqualizerView = ({
                 {customPresets.map((preset) => {
                   const isCustomActive = isEnabled && activePresetId === preset.id;
                   return (
-                    <View 
+                    <TouchableOpacity 
                       key={preset.id} 
                       style={[
                         s.presetItem, 
@@ -343,22 +387,25 @@ export const InfoEqualizerView = ({
                           borderColor: isCustomActive ? themeColor : dynamicStyles.border 
                         }
                       ]}
+                      onPress={() => handleApplyCustomPreset(preset)}
+                      activeOpacity={0.7}
                     >
-                      <TouchableOpacity 
-                        style={{ flex: 1, paddingVertical: 4 }}
-                        onPress={() => handleApplyCustomPreset(preset)}
-                      >
-                        <Text style={{ color: isCustomActive ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: 'bold' }}>
+                      <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
+                        <Text style={{ color: isCustomActive ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: 'bold' }} numberOfLines={1}>
                           {preset.name}
                         </Text>
-                      </TouchableOpacity>
+                      </View>
                       <TouchableOpacity 
-                        onPress={() => handleDeleteCustomPreset(preset)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handleDeleteCustomPreset(preset);
+                        }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={{ padding: 4 }}
                       >
                         <Ionicons name="trash-outline" size={17} color="#ef4444" />
                       </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -439,6 +486,7 @@ export const InfoEqualizerView = ({
           <View style={[s.bandRow, { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border, marginBottom: 12 }]}>
             <Text style={[s.bandLabel, { color: themeColor }]}>{t('equalizer_preamp', language)}</Text>
             <Slider
+              key={`preamp-${sliderVersion}`}
               style={{ flex: 1 }}
               minimumValue={-12}
               maximumValue={12}
@@ -461,6 +509,7 @@ export const InfoEqualizerView = ({
               <View key={band.freq} style={s.bandRow}>
                 <Text style={[s.bandLabel, { color: dynamicStyles.text }]}>{band.freq}</Text>
                 <Slider
+                  key={`${band.freq}-${sliderVersion}`}
                   style={{ flex: 1 }}
                   minimumValue={-12}
                   maximumValue={12}
@@ -550,7 +599,7 @@ const s = StyleSheet.create({
   gainLabel: { width: 56, fontSize: 12, fontWeight: 'bold', textAlign: 'right', fontVariant: ['tabular-nums'] },
   saveSmallBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   saveFullBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 44, borderRadius: 22 },
-  presetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  presetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, borderWidth: 1.5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' },
