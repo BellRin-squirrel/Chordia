@@ -1,0 +1,10 @@
+{
+  "name": "chordia-equalizer",
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["ChordiaEqualizerModule"]
+  },
+  "android": {
+    "modules": ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"]
+  }
+}

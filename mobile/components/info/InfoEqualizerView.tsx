@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
+import { applyEqualizerSettings, initEqualizer } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -30,7 +31,6 @@ export interface BuiltInPreset {
   preamp: number;
 }
 
-// ★ プリセット一覧（Flatを含めた計10個）
 export const BUILTIN_PRESETS: BuiltInPreset[] = [
   {
     id: "flat",
@@ -110,7 +110,6 @@ const DEFAULT_BANDS: EqualizerBand[] = [
 export const InfoEqualizerView = ({
   dynamicStyles, themeColor, textColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
-  const { width } = useWindowDimensions();
   const [isEnabled, setIsEnabled] = useState(false);
   const [bands, setBands] = useState<EqualizerBand[]>(DEFAULT_BANDS);
   const [preamp, setPreamp] = useState<number>(0);
@@ -123,13 +122,25 @@ export const InfoEqualizerView = ({
   useEffect(() => {
     (async () => {
       try {
+        initEqualizer(0);
+
         const savedSettings = await AsyncStorage.getItem(STORAGE_EQ_KEY);
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
-          if (parsed.isEnabled !== undefined) setIsEnabled(parsed.isEnabled);
-          if (Array.isArray(parsed.bands)) setBands(parsed.bands);
-          if (parsed.preamp !== undefined) setPreamp(parsed.preamp);
+          const loadedEnabled = parsed.isEnabled !== undefined ? parsed.isEnabled : false;
+          const loadedBands = Array.isArray(parsed.bands) ? parsed.bands : DEFAULT_BANDS;
+          const loadedPreamp = parsed.preamp !== undefined ? parsed.preamp : 0;
+
+          setIsEnabled(loadedEnabled);
+          setBands(loadedBands);
+          setPreamp(loadedPreamp);
           if (parsed.activePresetId !== undefined) setActivePresetId(parsed.activePresetId);
+
+          applyEqualizerSettings({
+            enabled: loadedEnabled,
+            preamp: loadedPreamp,
+            gains: loadedBands.map((b: EqualizerBand) => b.gain),
+          });
         }
 
         const savedPresets = await AsyncStorage.getItem(STORAGE_CUSTOM_PRESETS_KEY);
@@ -140,7 +151,7 @@ export const InfoEqualizerView = ({
     })();
   }, []);
 
-  const saveSettings = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
+  const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
     try {
       await AsyncStorage.setItem(STORAGE_EQ_KEY, JSON.stringify({ 
         isEnabled: newEnabled, 
@@ -148,12 +159,18 @@ export const InfoEqualizerView = ({
         preamp: newPreamp,
         activePresetId: newActivePresetId 
       }));
+
+      applyEqualizerSettings({
+        enabled: newEnabled,
+        preamp: newPreamp,
+        gains: newBands.map(b => b.gain),
+      });
     } catch (e) {}
   };
 
   const handleToggleEnable = (val: boolean) => {
     setIsEnabled(val);
-    saveSettings(val, bands, preamp, activePresetId);
+    saveAndSyncHardware(val, bands, preamp, activePresetId);
   };
 
   const handleGainChange = (index: number, val: number) => {
@@ -162,17 +179,16 @@ export const InfoEqualizerView = ({
     updated[index] = { ...updated[index], gain: rounded };
     setBands(updated);
     setActivePresetId(null);
-    saveSettings(isEnabled, updated, preamp, null);
+    saveAndSyncHardware(isEnabled, updated, preamp, null);
   };
 
   const handlePreampChange = (val: number) => {
     const rounded = Math.round(val * 2) / 2;
     setPreamp(rounded);
     setActivePresetId(null);
-    saveSettings(isEnabled, bands, rounded, null);
+    saveAndSyncHardware(isEnabled, bands, rounded, null);
   };
 
-  // ビルトインプリセットを選択・適用
   const handleSelectBuiltInPreset = (preset: BuiltInPreset) => {
     const newBands = DEFAULT_BANDS.map((b, i) => ({
       ...b,
@@ -184,19 +200,17 @@ export const InfoEqualizerView = ({
     setPreamp(newPreamp);
     setActivePresetId(preset.id);
     setIsEnabled(true);
-    saveSettings(true, newBands, newPreamp, preset.id);
+    saveAndSyncHardware(true, newBands, newPreamp, preset.id);
   };
 
-  // フラット (リセット)
   const handleResetFlat = () => {
     const flat = DEFAULT_BANDS.map(b => ({ ...b, gain: 0 }));
     setBands(flat);
     setPreamp(0);
     setActivePresetId('flat');
-    saveSettings(isEnabled, flat, 0, 'flat');
+    saveAndSyncHardware(isEnabled, flat, 0, 'flat');
   };
 
-  // カスタム設定保存
   const handleSaveCustomPreset = async () => {
     if (!presetNameInput.trim()) return;
     const name = presetNameInput.trim();
@@ -218,7 +232,6 @@ export const InfoEqualizerView = ({
     Alert.alert(t('confirm', language), t('equalizer_saved_alert', language).replace('{name}', name));
   };
 
-  // カスタム設定適用
   const handleApplyCustomPreset = (preset: CustomPreset) => {
     const newBands = JSON.parse(JSON.stringify(preset.bands));
     const newPreamp = preset.preamp !== undefined ? preset.preamp : 0;
@@ -226,10 +239,9 @@ export const InfoEqualizerView = ({
     setPreamp(newPreamp);
     setActivePresetId(preset.id);
     setIsEnabled(true);
-    saveSettings(true, newBands, newPreamp, preset.id);
+    saveAndSyncHardware(true, newBands, newPreamp, preset.id);
   };
 
-  // カスタム設定削除
   const handleDeleteCustomPreset = (preset: CustomPreset) => {
     Alert.alert(
       t('delete', language),
@@ -280,7 +292,7 @@ export const InfoEqualizerView = ({
           </View>
         </View>
 
-        {/* 2. ★ イコライザアセット一覧（カスタムアセット ＋ プリセット一覧 10個） */}
+        {/* 2. イコライザアセット一覧 */}
         <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 20 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Ionicons name="layers-outline" size={22} color={themeColor} />
@@ -289,7 +301,7 @@ export const InfoEqualizerView = ({
             </Text>
           </View>
 
-          {/* (A) カスタムアセット サブセクション */}
+          {/* (A) カスタムアセット */}
           <View style={{ marginBottom: 18 }}>
             <View style={[s.rowBetween, { marginBottom: 10 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -353,10 +365,9 @@ export const InfoEqualizerView = ({
             )}
           </View>
 
-          {/* セパレータ */}
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 16 }} />
 
-          {/* (B) プリセット一覧 サブセクション（10個のグリッド表示） */}
+          {/* (B) プリセット一覧 (10個) */}
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <Ionicons name="musical-notes-outline" size={16} color={themeColor} />
@@ -404,7 +415,7 @@ export const InfoEqualizerView = ({
           </View>
         </View>
 
-        {/* 3. イコライザ調節 (Preamp + 10バンド周波数スライダー) */}
+        {/* 3. イコライザ調節 */}
         <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, opacity: isEnabled ? 1 : 0.5, marginBottom: 20 }]}>
           <View style={[s.rowBetween, { marginBottom: 15 }]}>
             <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
@@ -424,7 +435,7 @@ export const InfoEqualizerView = ({
             </TouchableOpacity>
           </View>
 
-          {/* プリアンプ (Preamp) */}
+          {/* プリアンプ */}
           <View style={[s.bandRow, { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border, marginBottom: 12 }]}>
             <Text style={[s.bandLabel, { color: themeColor }]}>{t('equalizer_preamp', language)}</Text>
             <Slider

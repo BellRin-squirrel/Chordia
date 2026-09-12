@@ -20,6 +20,7 @@ import {
   registerNowPlayingApi, 
   ACCOUNT_STORAGE_KEY 
 } from '../utils/chordiaSync';
+import { initEqualizer, applyEqualizerSettings } from '../utils/equalizer';
 
 const { height } = Dimensions.get('window');
 
@@ -86,6 +87,23 @@ export const useAudioPlayer = () => {
     AsyncStorage.getItem('audioEngine').then(val => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
+
+    // イコライザーセッションの初期同期
+    (async () => {
+      try {
+        await initEqualizer(0);
+        const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
+        if (eqJson) {
+          const parsed = JSON.parse(eqJson);
+          applyEqualizerSettings({
+            enabled: !!parsed.isEnabled,
+            preamp: parsed.preamp || 0,
+            gains: Array.isArray(parsed.bands) ? parsed.bands.map((b: any) => b.gain) : [],
+          });
+        }
+      } catch (e) {}
+    })();
+
     return () => clearExpoResources();
   }, []);
 
@@ -480,7 +498,6 @@ export const useAudioPlayer = () => {
     }
   };
 
-  // ★ customQueue が渡された場合はその順序を保持（リレー引き継ぎ時用）
   const startQueue = (
     songs: any[], 
     selectedSong?: any | null, 
@@ -492,7 +509,6 @@ export const useAudioPlayer = () => {
   ) => {
     if (songs.length === 0 && (!customQueue || customQueue.length === 0)) return;
 
-    // 元の再生リスト（全曲）を保持
     originalQueueRef.current = songs.length > 0 ? [...songs] : (customQueue ? [...customQueue] : []);
 
     const newShuffle = forceShuffle !== undefined ? forceShuffle : isShuffle;
@@ -517,7 +533,6 @@ export const useAudioPlayer = () => {
     let targetIndex = 0;
 
     if (customQueue && customQueue.length > 0) {
-      // ★ 引き継ぎ時: シャッフルされた musiclist の順序をそのままキューとして使用
       newActiveQueue = [...customQueue];
       targetIndex = selectedSong 
         ? newActiveQueue.findIndex(s => s.localMusicUri === selectedSong.localMusicUri)
@@ -609,7 +624,6 @@ export const useAudioPlayer = () => {
     sendNowPlayingUpdate();
   };
 
-  // ★ 曲末尾到達時のループ処理: loopが有効なら元の再生リストをシャッフルして再開
   const handleNextInternal = async () => {
     if (isSkippingRef.current) return;
     isSkippingRef.current = true;
@@ -634,11 +648,9 @@ export const useAudioPlayer = () => {
         loadAndPlayInternal(nextSong, activeQueue, nextIdx, 0, true);
       }
     } else {
-      // ★ キューの末尾に達した時
       if (mode === 'ALL' && originalQueueRef.current.length > 0) {
         let nextActiveQueue = originalQueueRef.current;
         if (shuffleRef.current) {
-          // シャッフル有効時: 元の再生リスト全体をシャッフルして先頭から再生
           nextActiveQueue = [...originalQueueRef.current].sort(() => Math.random() - 0.5);
         }
         activeQueueRef.current = nextActiveQueue;
@@ -736,7 +748,6 @@ export const useAudioPlayer = () => {
         const activeQueue = activeQueueRef.current;
         const idx = activeQueue.findIndex(s => s.localMusicUri === newSong.localMusicUri);
         
-        // ★ RNTP で最後の曲から先頭にループした時、元の再生リストを再シャッフルして再開
         const prevIdx = indexRef.current;
         const lastIdx = activeQueue.length - 1;
         if (prevIdx === lastIdx && idx === 0 && loopRef.current === 'ALL') {
