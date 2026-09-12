@@ -37,6 +37,23 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
+      # ★ ChordiaEqualizer を Podfile に確実にリンクしてコンパイル対象に含める
+      - name: Link ChordiaEqualizer in Podfile
+        run: |
+          node -e '
+          const fs = require("fs");
+          const file = "ios/Podfile";
+          if (fs.existsSync(file)) {
+            let content = fs.readFileSync(file, "utf8");
+            if (!content.includes("ChordiaEqualizer")) {
+              content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
+              fs.writeFileSync(file, content);
+              console.log("Successfully linked ChordiaEqualizer into ios/Podfile");
+            }
+          }
+          '
+          cd ios && pod install
+
       - name: Give execute permission to all shell scripts in node_modules
         run: |
           find node_modules -type f -name "*.sh" -exec chmod +x {} \;
@@ -219,7 +236,6 @@ jobs:
           }
           '
 
-      # ★ 通信瞬断時に最大3回自動リトライして確実にビルドするステップ
       - name: Build Android APK (Debug) with Retry
         run: |
           cd android
