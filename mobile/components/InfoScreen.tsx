@@ -224,7 +224,13 @@ export const InfoScreen = ({
     });
   };
 
-  const onGestureEvent = Animated.event([{ nativeEvent: { translationX: panX } }], { useNativeDriver: true });
+  // ★ New Architecture (Fabric) 互換の関数型ジェスチャーハンドラー
+  const onGestureEvent = (event: any) => {
+    if (event?.nativeEvent?.translationX !== undefined) {
+      panX.setValue(event.nativeEvent.translationX);
+    }
+  };
+
   const onHandlerStateChange = (event: any) => {
     const { state, translationX, velocityX } = event.nativeEvent;
     if (state === State.END || state === State.CANCELLED) {
