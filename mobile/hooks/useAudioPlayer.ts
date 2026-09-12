@@ -108,7 +108,6 @@ export const useAudioPlayer = () => {
       if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
     });
 
-    // イコライザーセッションの初期化と保存値の復元
     (async () => {
       try {
         await initEqualizer(0);
@@ -324,7 +323,7 @@ export const useAudioPlayer = () => {
       });
       setIsPlaying(playing);
 
-      // 曲の終了検知
+      // 曲末尾到達の検知
       if (durSec > 0 && posSec >= durSec - 0.25) {
         handleNextRef.current();
       }
@@ -421,7 +420,6 @@ export const useAudioPlayer = () => {
   ) => {
     const targetSeconds = startPositionMs > 0 ? (startPositionMs / 1000) : 0;
 
-    // 最新のイコライザー設定状態を確認
     let isEQEnabled = false;
     try {
       const eqRaw = await AsyncStorage.getItem('chordia_equalizer_settings');
@@ -431,34 +429,40 @@ export const useAudioPlayer = () => {
       }
     } catch (e) {}
 
-    // ★ iOS かつ イコライザーが有効な場合は ChordiaEqualizer (AVAudioEngine + AVAudioUnitEQ) を使用
+    // ★ iOS かつ イコライザーが有効な場合
     if (Platform.OS === 'ios' && isEQEnabled) {
-      isIOSEQActiveRef.current = true;
       clearExpoResources();
       await clearRNTPNotification();
 
-      loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
-      setIsPlaying(shouldPlay);
-      startIOSEQPolling();
+      const success = loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
+      if (success) {
+        isIOSEQActiveRef.current = true;
+        setIsPlaying(shouldPlay);
+        startIOSEQPolling();
 
-      if (shouldPlay) {
-        sendNowPlayingUpdate(Math.floor(targetSeconds));
+        if (shouldPlay) {
+          sendNowPlayingUpdate(Math.floor(targetSeconds));
+        }
+
+        setCurrentSong(song);
+        currentSongRef.current = song;
+        
+        const appQueue = activeQueue.slice(startIndex + 1);
+        setPlayQueue(appQueue);
+        queueRef.current = appQueue;
+        setCurrentIndex(startIndex);
+        indexRef.current = startIndex;
+        
+        saveHistory(song);
+        return;
+      } else {
+        // 万一のオープン失敗時は標準プレイヤーに自動フォールバックして停止を防ぐ
+        console.warn('[Equalizer] iOS native EQ engine load failed, falling back to standard engine');
+        isIOSEQActiveRef.current = false;
       }
-
-      setCurrentSong(song);
-      currentSongRef.current = song;
-      
-      const appQueue = activeQueue.slice(startIndex + 1);
-      setPlayQueue(appQueue);
-      queueRef.current = appQueue;
-      setCurrentIndex(startIndex);
-      indexRef.current = startIndex;
-      
-      saveHistory(song);
-      return;
     }
 
-    // iOS イコライザー無効時、または Android (AndroidはOS標準Equalizerが透過的に効く)
+    // イコライザー無効時、または Android (OS標準イコライザー使用)
     isIOSEQActiveRef.current = false;
     clearIOSEQPolling();
     stopIOS();
