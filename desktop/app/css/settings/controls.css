@@ -154,6 +154,25 @@
     font-weight: 500;
 }
 
+/* ドロップダウン内のカテゴリーグループヘッダー */
+.custom-group-header {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--text-sub);
+    padding: 8px 10px 4px 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+    margin-bottom: 4px;
+    user-select: none;
+}
+
+.custom-group-header:not(:first-child) {
+    margin-top: 6px;
+    border-top: 1px solid rgba(128, 128, 128, 0.15);
+    padding-top: 10px;
+}
+
 /* --- トグルスイッチ --- */
 .toggle-switch {
     position: relative;
@@ -271,4 +290,113 @@
 }
 .btn-small.secondary-btn:hover {
     background: rgba(128, 128, 128, 0.3);
+}
+
+/* =======================================================
+   ★ イコライザ設定用スタイル
+======================================================= */
+.eq-container {
+    background: var(--bg-color);
+    border-radius: 16px;
+    padding: 24px 20px;
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    margin-top: 10px;
+    transition: opacity 0.2s;
+    box-sizing: border-box;
+}
+
+.eq-container.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.eq-preamp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.eq-val-badge {
+    font-family: monospace;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    min-width: 65px;
+    text-align: right;
+}
+
+.eq-range-horizontal {
+    -webkit-appearance: none;
+    height: 6px;
+    background: rgba(128, 128, 128, 0.25);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.eq-range-horizontal::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.eq-bands-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 10px;
+    align-items: center;
+    justify-items: center;
+}
+
+.eq-band-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.eq-gain-val {
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: monospace;
+    color: var(--primary-color);
+    min-height: 1.2em;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.eq-slider-vertical-wrap {
+    height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+}
+
+.eq-slider-vertical {
+    -webkit-appearance: slider-vertical;
+    writing-mode: bt-lr;
+    width: 20px;
+    height: 150px;
+    cursor: pointer;
+    background: transparent;
+    accent-color: var(--primary-color);
+}
+
+.eq-freq-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    white-space: nowrap;
+    text-align: center;
 }

@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 各コントローラーの初期化
     await window.SettingsGeneral.init();
+    if (window.SettingsEqualizer) window.SettingsEqualizer.init();
     await window.SettingsSync.init();
 
     window.addEventListener('beforeunload', () => {

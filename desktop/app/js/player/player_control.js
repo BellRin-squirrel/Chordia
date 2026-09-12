@@ -8,6 +8,13 @@
         _nowPlayingTimer: null,
         _isSendingNowPlaying: false,
 
+        // ★ Web Audio イコライザー関連ノード
+        audioCtx: null,
+        sourceNode: null,
+        preampGainNode: null,
+        eqFilterNodes: [],
+        eqFreqs: [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
+
         init: function() {
             this.audio = document.getElementById('mainAudio');
             this.seekBar = document.getElementById('hpSeekBar');
@@ -36,6 +43,7 @@
             }
 
             this.initAirPlay();
+            this.initWebAudioEqualizer();
 
             const btnPlayPause = document.getElementById('hdrBtnPlayPause');
             if (btnPlayPause) btnPlayPause.addEventListener('click', () => this.togglePlayPause());
@@ -161,12 +169,101 @@
                             this.sendNowPlayingUpdate();
                         }
                     } catch(err) { console.error(err); }
+                } else if (e.key === 'chordia_equalizer_update' || e.key === 'chordia_equalizer_settings') {
+                    this.applyEqualizerSettings();
                 }
             });
 
             window.addEventListener('beforeunload', () => {
                 this.stopNowPlayingSyncTimer();
             });
+        },
+
+        // ★ Web Audio API イコライザーグラフの初期化
+        initWebAudioEqualizer: function() {
+            if (!this.audio) return;
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+
+                this.audioCtx = new AudioContextClass();
+                this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
+
+                // プリアンプゲインノード
+                this.preampGainNode = this.audioCtx.createGain();
+
+                // 10バンドのBiquadFilterノード構築
+                this.eqFilterNodes = this.eqFreqs.map((freq, idx) => {
+                    const filter = this.audioCtx.createBiquadFilter();
+                    filter.frequency.value = freq;
+                    if (idx === 0) {
+                        filter.type = 'lowshelf';
+                    } else if (idx === this.eqFreqs.length - 1) {
+                        filter.type = 'highshelf';
+                    } else {
+                        filter.type = 'peaking';
+                        filter.Q.value = 1.4;
+                    }
+                    filter.gain.value = 0;
+                    return filter;
+                });
+
+                // カスケード接続: Source -> Preamp -> Filter[0] -> ... -> Filter[9] -> Destination
+                let lastNode = this.sourceNode;
+                lastNode.connect(this.preampGainNode);
+                lastNode = this.preampGainNode;
+
+                this.eqFilterNodes.forEach(filter => {
+                    lastNode.connect(filter);
+                    lastNode = filter;
+                });
+
+                lastNode.connect(this.audioCtx.destination);
+                this.applyEqualizerSettings();
+            } catch(e) {
+                console.warn("Web Audio Equalizer initialization warning:", e);
+            }
+        },
+
+        // ★ イコライザー設定のリアルタイム適用
+        applyEqualizerSettings: function() {
+            if (!this.audioCtx || this.eqFilterNodes.length === 0) return;
+
+            let eqConfig = {
+                enabled: false,
+                preamp: 0,
+                gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            };
+
+            const raw = localStorage.getItem('chordia_equalizer_settings');
+            if (raw) {
+                try {
+                    eqConfig = Object.assign({}, eqConfig, JSON.parse(raw));
+                } catch(e) {}
+            }
+
+            if (eqConfig.enabled) {
+                // プリアンプ反映
+                const pDb = parseFloat(eqConfig.preamp) || 0;
+                const pGain = Math.pow(10, pDb / 20);
+                if (this.preampGainNode) {
+                    this.preampGainNode.gain.setValueAtTime(pGain, this.audioCtx.currentTime);
+                }
+
+                // 各バンドのゲイン反映
+                this.eqFilterNodes.forEach((filter, idx) => {
+                    const gVal = parseFloat(eqConfig.gains[idx]) || 0;
+                    filter.gain.setValueAtTime(gVal, this.audioCtx.currentTime);
+                });
+            } else {
+                // 無効時はフラット＆プリアンプ0dB
+                if (this.preampGainNode) {
+                    this.preampGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+                }
+                this.eqFilterNodes.forEach(filter => {
+                    filter.gain.setValueAtTime(0, this.audioCtx.currentTime);
+                });
+            }
         },
 
         initAirPlay: function() {
@@ -442,6 +539,10 @@
                 return;
             }
 
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+
             this.audio.pause();
             this.audio.src = song.streamUrl;
             this.audio.load();
@@ -450,6 +551,7 @@
             if (playPromise !== undefined) {
                 playPromise.then(() => {
                     this.applyVolume();
+                    this.applyEqualizerSettings();
 
                     s.isPlaying = true;
                     if (window.HeaderController) window.HeaderController.updatePlayIcons(true);
@@ -500,6 +602,10 @@
 
         togglePlayPause: function() {
             if (s.queue.length === 0 || !this.audio || !this.audio.src) return;
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+
             if (this.audio.paused) {
                 this.audio.play().then(() => {
                     s.isPlaying = true;
@@ -712,7 +818,6 @@
 
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
-            // 1. 全ライブラリがロードされていなければロード
             if (!s.fullLibrary) {
                 try {
                     s.fullLibrary = await invoke("get_library_chunk", {
@@ -721,7 +826,6 @@
                 } catch(e) {}
             }
 
-            // 2. プレイリスト / アルバム / アーティストの特定と選択
             let targetPlIndex = -1;
             if (plId === "album") {
                 if (window.SidebarController) {
@@ -749,21 +853,18 @@
                 }
             }
 
-            // 3. 対象プレイリストの楽曲リストを取得し、元の全曲ソート順リスト（originalList）を保持
             const isVirtual = s.currentPlaylistType === 'virtual';
             const currentPl = isVirtual ? s.currentVirtualPlaylist : (targetPlIndex !== -1 ? s.playlists[targetPlIndex] : null);
             let poolSongs = currentPl && currentPl.songs && currentPl.songs.length > 0 ? currentPl.songs : (s.fullLibrary || []);
             const sortedOriginal = currentPl ? u.sortSongs(poolSongs, currentPl.sortBy || 'title', currentPl.sortDesc || false) : [...poolSongs];
             s.originalList = [...sortedOriginal];
 
-            // 4. ローカル楽曲プールからタイトル・アーティスト・アルバムで楽曲オブジェクトを探す関数
             const findSongObject = (mItem) => {
                 if (!mItem) return null;
                 const t = (mItem.title || "").trim().toLowerCase();
                 const a = (mItem.artist || "").trim().toLowerCase();
                 const al = (mItem.album || "").trim().toLowerCase();
 
-                // 優先度1: タイトル + アーティスト + アルバム
                 let found = poolSongs.find(song => {
                     const sT = (song.title || "").trim().toLowerCase();
                     const sA = (song.artist || "").trim().toLowerCase();
@@ -772,7 +873,6 @@
                 });
                 if (found) return found;
 
-                // 優先度2: タイトル + アーティスト
                 found = poolSongs.find(song => {
                     const sT = (song.title || "").trim().toLowerCase();
                     const sA = (song.artist || "").trim().toLowerCase();
@@ -780,11 +880,9 @@
                 });
                 if (found) return found;
 
-                // 優先度3: タイトルのみ
                 found = poolSongs.find(song => (song.title || "").trim().toLowerCase() === t);
                 if (found) return found;
 
-                // 優先度4: fullLibrary 全体からフォールバック検索
                 if (poolSongs !== s.fullLibrary && s.fullLibrary) {
                     found = s.fullLibrary.find(song => {
                         const sT = (song.title || "").trim().toLowerCase();
@@ -806,13 +904,11 @@
                 return null;
             };
 
-            // 5. ★ 渡された musiclist の順序通りに再生キュー（s.queue）を構築
             let handoverQueue = [];
             if (Array.isArray(now.musiclist) && now.musiclist.length > 0) {
                 handoverQueue = now.musiclist.map(mItem => findSongObject(mItem)).filter(Boolean);
             }
 
-            // 6. nowPlayingTitle, nowPlayingArtist, nowPlayingAlbum に合致する楽曲を特定
             const targetNowItem = {
                 title: now.nowPlayingTitle,
                 artist: now.nowPlayingArtist,
@@ -829,7 +925,6 @@
                 return;
             }
 
-            // 7. handoverQueue 内での対象楽曲の位置（currentIndex）を特定
             let currentIdxInQueue = -1;
             if (handoverQueue.length > 0) {
                 currentIdxInQueue = handoverQueue.findIndex(song => song.musicFilename === targetSong.musicFilename);
@@ -850,7 +945,6 @@
                 currentIdxInQueue = 0;
             }
 
-            // 8. セッション情報とキュー・シャッフル・ループ設定の確定
             s.activeSessionInfo = {
                 playlistID: isVirtual ? (s.currentVirtualField || "album") : (currentPl ? currentPl.id : "normal"),
                 playlistName: isVirtual ? (s.currentVirtualName || "Untitled") : (currentPl ? currentPl.playlistName : "Untitled")
@@ -872,7 +966,6 @@
                 window.HeaderController.updateToggleButtons();
             }
 
-            // 9. 再生開始と秒数シーク
             this.playCurrentIndex();
 
             if (startTime > 0) {

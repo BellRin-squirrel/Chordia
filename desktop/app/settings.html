@@ -42,6 +42,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
                     <span>デザイン</span>
                 </button>
+                <button class="settings-nav-btn" data-target="sec-equalizer">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5v3m4.5-7.5v12m4.5-9v6m4.5-10.5v15m4.5-7.5v3" /></svg>
+                    <span>イコライザ設定</span>
+                </button>
                 <button class="settings-nav-btn" data-target="sec-artwork">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
                     <span>アルバムアート</span>
@@ -77,6 +81,10 @@
                     <button class="settings-nav-btn" data-target="sec-design">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M16.5 10.5L13.5 7.5M16.5 10.5L19.5 13.5M16.5 10.5l-3-3m0 0l-6.402 6.402a3.75 3.75 0 000 5.304M13.5 7.5l3 3" /></svg>
                         <span>デザイン</span>
+                    </button>
+                    <button class="settings-nav-btn" data-target="sec-equalizer">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10.5v3m4.5-7.5v12m4.5-9v6m4.5-10.5v15m4.5-7.5v3" /></svg>
+                        <span>イコライザ設定</span>
                     </button>
                     <button class="settings-nav-btn" data-target="sec-artwork">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
@@ -204,7 +212,61 @@
                         </div>
                     </section>
 
-                    <!-- 3. 初期アルバムアート -->
+                    <!-- 3. イコライザ設定 -->
+                    <section id="sec-equalizer" class="settings-section">
+                        <h2 class="section-title">イコライザ設定</h2>
+
+                        <!-- イコライザ有効/無効トグル -->
+                        <div class="settings-list" style="margin-bottom: 24px;">
+                            <div class="settings-row">
+                                <div class="row-text">
+                                    <span class="row-title">イコライザを有効にする</span>
+                                    <span class="row-desc">音楽再生時に周波数ごとの音質調整を適用します</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggleEqualizer">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- イコライザアセット選択 -->
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label>イコライザアセット</label>
+                            <div style="display: flex; gap: 10px; align-items: center; position: relative;">
+                                <div class="custom-select-wrapper" id="eqAssetWrapper" style="flex: 1;">
+                                    <button class="custom-select-trigger" id="eqAssetTrigger" type="button">
+                                        <span id="eqAssetValue">Flat</span>
+                                        <svg class="custom-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
+                                    </button>
+                                    <div class="custom-select-dropdown" id="eqAssetDropdown"></div>
+                                </div>
+
+                                <button type="button" id="btnSaveOriginalEqAsset" class="btn-small" style="white-space: nowrap;">オリジナルアセットとして保存</button>
+                                <button type="button" id="btnDeleteOriginalEqAsset" class="btn-small" style="display: none; white-space: nowrap; background-color: #ef4444;">アセットを削除</button>
+                            </div>
+                        </div>
+
+                        <!-- 10バンド グラフィカルEQ & プリアンプ -->
+                        <div id="eqControlArea" class="eq-container">
+                            <div class="eq-preamp-row">
+                                <div class="row-text">
+                                    <span class="row-title" style="font-size:0.95rem;">プリアンプ (Preamp)</span>
+                                    <span class="row-desc">全体の音量ゲインを調整します</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 12px; width: 260px;">
+                                    <input type="range" id="eqPreampSlider" min="-12" max="12" step="0.5" value="0" class="eq-range-horizontal" style="flex: 1;">
+                                    <span id="eqPreampValue" class="eq-val-badge">0.0 dB</span>
+                                </div>
+                            </div>
+
+                            <div class="eq-bands-grid" id="eqBandsGrid">
+                                <!-- 10バンドのスライダーが動的生成されます -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 4. 初期アルバムアート -->
                     <section id="sec-artwork" class="settings-section">
                         <h2 class="section-title">初期アルバムアート</h2>
                         <div class="config-box" style="display: flex; align-items: center; gap: 24px; padding: 16px; border-radius: 12px;">
@@ -220,7 +282,7 @@
                         </div>
                     </section>
 
-                    <!-- 4. 表示タグ設定 -->
+                    <!-- 5. 表示タグ設定 -->
                     <section id="sec-tags" class="settings-section">
                         <h2 class="section-title">表示タグ設定</h2>
                         <div class="tag-control-area">
@@ -233,7 +295,7 @@
                         </div>
                     </section>
 
-                    <!-- 5. アカウント設定 (Chordia Sync) -->
+                    <!-- 6. アカウント設定 (Chordia Sync) -->
                     <section id="sec-account" class="settings-section">
                         <h2 class="section-title" style="display: flex; align-items: center; gap: 10px;">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 24px; height: 24px; color: var(--primary-color);"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" /></svg>
@@ -315,7 +377,7 @@
                         </div>
                     </section>
 
-                    <!-- 6. 楽曲再生統計 -->
+                    <!-- 7. 楽曲再生統計 -->
                     <section id="sec-music-stats" class="settings-section">
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(128, 128, 128, 0.2); padding-bottom: 8px; margin-bottom: 20px;">
                             <h2 class="section-title" style="margin: 0; border: none; padding: 0;">楽曲再生統計</h2>
@@ -351,7 +413,7 @@
                         </div>
                     </section>
 
-                    <!-- 7. 作業統計 -->
+                    <!-- 8. 作業統計 -->
                     <section id="sec-work-stats" class="settings-section">
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(128, 128, 128, 0.2); padding-bottom: 8px; margin-bottom: 20px;">
                             <h2 class="section-title" style="margin: 0; border: none; padding: 0;">作業統計</h2>
@@ -390,7 +452,7 @@
                         </div>
                     </section>
 
-                    <!-- 8. ライセンス -->
+                    <!-- 9. ライセンス -->
                     <section id="sec-license" class="settings-section">
                         <h2 class="section-title">ライセンス・アプリ情報</h2>
                         <div class="license-display-card">
@@ -412,6 +474,7 @@
         </div>
     </div>
 
+    <!-- テーマ保存モーダル -->
     <div id="themeModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
         <div style="background: var(--card-bg); padding: 32px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid rgba(128,128,128,0.2);">
             <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 16px;">テーマの保存</h3>
@@ -420,6 +483,19 @@
             <div style="display: flex; gap: 12px;">
                 <button id="btnCancelTheme" class="btn-small secondary-btn" style="flex: 1; padding: 12px;">キャンセル</button>
                 <button id="btnConfirmTheme" class="btn-small" style="flex: 1; padding: 12px;">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ★ イコライザカスタムアセット保存モーダル -->
+    <div id="eqAssetModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(4px);">
+        <div style="background: var(--card-bg); padding: 32px; border-radius: 20px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid rgba(128,128,128,0.2);">
+            <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 16px;">カスタムアセットの保存</h3>
+            <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px;">このイコライザアセットに名前を付けてください。</p>
+            <input type="text" id="newEqAssetName" placeholder="アセット名を入力" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-color); color: var(--text-main); margin-bottom: 24px; outline: none; box-sizing: border-box;">
+            <div style="display: flex; gap: 12px;">
+                <button type="button" id="btnCancelEqAssetModal" class="btn-small secondary-btn" style="flex: 1; padding: 12px;">キャンセル</button>
+                <button type="button" id="btnConfirmEqAssetModal" class="btn-small" style="flex: 1; padding: 12px;">保存</button>
             </div>
         </div>
     </div>
@@ -453,6 +529,7 @@
 
     <!-- 分割された設定画面用JS -->
     <script src="js/settings/general.js"></script>
+    <script src="js/settings/equalizer.js"></script>
     <script src="js/settings/sync.js"></script>
     <script src="js/settings/stats.js"></script>
     <script src="js/settings/main.js"></script>
