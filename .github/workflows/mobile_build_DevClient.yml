@@ -59,12 +59,9 @@ jobs:
             android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
           }, null, 2));
 
-          const podspec = `require "json"
-          package = JSON.parse(File.read(File.join(__dir__, "package.json")))
-
-          Pod::Spec.new do |s|
-            s.name           = "chordia-equalizer"
-            s.version        = package["version"]
+          const podspec = `Pod::Spec.new do |s|
+            s.name           = "ChordiaEqualizer"
+            s.version        = "0.1.0"
             s.summary        = "Chordia Equalizer Module"
             s.description    = "Native Equalizer DSP module for Chordia Mobile"
             s.license        = "MIT"
@@ -75,9 +72,9 @@ jobs:
             s.source         = { :git => "" }
             s.static_framework = true
             s.dependency "ExpoModulesCore"
-            s.source_files = "ios/**/*.{h,m,mm,swift,hpp,cpp}"
+            s.source_files = "**/*.swift"
           end`;
-          fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec.trim());
+          fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspec.trim());
 
           const gradle = `apply plugin: "com.android.library"
           group = "com.bellrin.chordia.equalizer"
@@ -119,6 +116,43 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
+      # ★ ChordiaEqualizer を Podfile に結合し、Xcode 16 / fmt の consteval エラーを解消する
+      - name: Configure Podfile and Patch fmt for Xcode 16
+        run: |
+          node -e '
+          const fs = require("fs");
+          const podfile = "ios/Podfile";
+          if (fs.existsSync(podfile)) {
+            let content = fs.readFileSync(podfile, "utf8");
+            if (!content.includes("ChordiaEqualizer")) {
+              content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
+              fs.writeFileSync(podfile, content);
+              console.log("Successfully injected ChordiaEqualizer into ios/Podfile");
+            }
+          }
+          '
+          cd ios && pod install
+
+          # ★ Xcode 16 / Clang での fmt ライブラリの consteval コンパイルエラーを直接修復
+          node -e '
+          const fs = require("fs");
+          const fmtBase = "ios/Pods/fmt/include/fmt/base.h";
+          if (fs.existsSync(fmtBase)) {
+            let content = fs.readFileSync(fmtBase, "utf8");
+            content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+            fs.writeFileSync(fmtBase, content);
+            console.log("Successfully patched fmt/base.h (disabled consteval for Xcode 16)");
+          }
+
+          const fmtInl = "ios/Pods/fmt/include/fmt/format-inl.h";
+          if (fs.existsSync(fmtInl)) {
+            let content = fs.readFileSync(fmtInl, "utf8");
+            content = content.replace(/FMT_STRING\(/g, "(");
+            fs.writeFileSync(fmtInl, content);
+            console.log("Successfully patched fmt/format-inl.h for Xcode 16");
+          }
+          '
+
       - name: Give execute permission to all shell scripts in node_modules
         run: find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
@@ -133,7 +167,6 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ xcpretty でエラーが隠蔽されないよう、生ログ保存＆失敗時詳細出力パイプライン
       - name: Make archive for iOS Dev Client (Unsigned)
         run: |
           set -o pipefail
@@ -319,7 +352,8 @@ jobs:
           const propFile = "android/gradle.properties";
           if (fs.existsSync(propFile)) {
             let content = fs.readFileSync(propFile, "utf8");
-            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\norg.gradle.parallel=true\n";
+            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
+            content += "org.gradle.parallel=true\n";
             fs.writeFileSync(propFile, content);
           }
           const manifestFile = "android/app/src/main/AndroidManifest.xml";
