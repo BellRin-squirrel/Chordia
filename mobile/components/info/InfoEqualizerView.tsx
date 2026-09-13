@@ -14,7 +14,7 @@ const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
 
 export interface EqualizerBand {
   freq: string;
-  gain: number; // -12 ~ +12 dB
+  gain: number;
 }
 
 export interface CustomPreset {
@@ -32,66 +32,16 @@ export interface BuiltInPreset {
 }
 
 export const BUILTIN_PRESETS: BuiltInPreset[] = [
-  {
-    id: "flat",
-    name: "Flat",
-    gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    preamp: 0
-  },
-  {
-    id: "rock",
-    name: "Rock",
-    gains: [4.5, 3.0, 1.5, 0, -1.5, -1.0, 1.0, 2.5, 4.0, 4.5],
-    preamp: -1.5
-  },
-  {
-    id: "pop",
-    name: "Pop",
-    gains: [-1.0, 1.0, 2.5, 3.5, 3.0, 1.0, -1.0, -1.5, 1.5, 2.5],
-    preamp: -1.0
-  },
-  {
-    id: "bass_boost",
-    name: "Bass Boost",
-    gains: [6.0, 5.0, 4.0, 2.5, 1.0, 0, 0, 0, 0, 0],
-    preamp: -3.0
-  },
-  {
-    id: "vocal",
-    name: "Vocal / Podcast",
-    gains: [-3.0, -2.0, -1.0, 1.5, 3.5, 4.0, 3.0, 1.5, 0, -1.5],
-    preamp: -1.0
-  },
-  {
-    id: "acoustic_jazz",
-    name: "Acoustic & Jazz",
-    gains: [3.0, 2.5, 1.5, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.0],
-    preamp: -1.0
-  },
-  {
-    id: "electronic",
-    name: "Electronic",
-    gains: [5.0, 4.0, 2.0, 0, -2.0, 1.5, 2.0, 3.0, 4.5, 5.0],
-    preamp: -2.5
-  },
-  {
-    id: "treble_boost",
-    name: "Treble Boost",
-    gains: [0, 0, 0, 0, 0, 1.0, 2.5, 4.0, 5.5, 6.0],
-    preamp: -2.0
-  },
-  {
-    id: "night_mode",
-    name: "Night Mode",
-    gains: [-4.0, -3.0, -2.0, 0, 1.0, 1.0, 1.0, 0, -2.0, -3.5],
-    preamp: 0
-  },
-  {
-    id: "classical",
-    name: "Classical",
-    gains: [4.0, 3.0, 2.0, 1.5, -1.0, -1.0, 0, 1.5, 2.5, 3.5],
-    preamp: -1.0
-  }
+  { id: "flat", name: "Flat", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], preamp: 0 },
+  { id: "rock", name: "Rock", gains: [4.5, 3.0, 1.5, 0, -1.5, -1.0, 1.0, 2.5, 4.0, 4.5], preamp: -1.5 },
+  { id: "pop", name: "Pop", gains: [-1.0, 1.0, 2.5, 3.5, 3.0, 1.0, -1.0, -1.5, 1.5, 2.5], preamp: -1.0 },
+  { id: "bass_boost", name: "Bass Boost", gains: [6.0, 5.0, 4.0, 2.5, 1.0, 0, 0, 0, 0, 0], preamp: -3.0 },
+  { id: "vocal", name: "Vocal / Podcast", gains: [-3.0, -2.0, -1.0, 1.5, 3.5, 4.0, 3.0, 1.5, 0, -1.5], preamp: -1.0 },
+  { id: "acoustic_jazz", name: "Acoustic & Jazz", gains: [3.0, 2.5, 1.5, 1.0, 1.5, 1.5, 2.0, 2.5, 3.0, 3.0], preamp: -1.0 },
+  { id: "electronic", name: "Electronic", gains: [5.0, 4.0, 2.0, 0, -2.0, 1.5, 2.0, 3.0, 4.5, 5.0], preamp: -2.5 },
+  { id: "treble_boost", name: "Treble Boost", gains: [0, 0, 0, 0, 0, 1.0, 2.5, 4.0, 5.5, 6.0], preamp: -2.0 },
+  { id: "night_mode", name: "Night Mode", gains: [-4.0, -3.0, -2.0, 0, 1.0, 1.0, 1.0, 0, -2.0, -3.5], preamp: 0 },
+  { id: "classical", name: "Classical", gains: [4.0, 3.0, 2.0, 1.5, -1.0, -1.0, 0, 1.5, 2.5, 3.5], preamp: -1.0 }
 ];
 
 const DEFAULT_BANDS: EqualizerBand[] = [
@@ -117,8 +67,8 @@ export const InfoEqualizerView = ({
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
   const [sliderVersion, setSliderVersion] = useState(0);
 
-  // ★ リアルタイム・デバッグステータス
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugModalVisible, setDebugModalVisible] = useState(false);
 
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
@@ -164,7 +114,7 @@ export const InfoEqualizerView = ({
       } catch (e) {}
     })();
 
-    const timer = setInterval(refreshDebugInfo, 2000);
+    const timer = setInterval(refreshDebugInfo, 2500);
     return () => clearInterval(timer);
   }, []);
 
@@ -316,18 +266,12 @@ export const InfoEqualizerView = ({
     );
   };
 
-  const showDetailedDebugAlert = () => {
-    const raw = debugInfo ? JSON.stringify(debugInfo, null, 2) : 'No debug info';
-    Alert.alert('Equalizer Native DSP Status', raw, [{ text: 'OK' }]);
-  };
-
   const formatDbText = (val: number) => {
     const str = Number.isInteger(val) ? String(val) : val.toFixed(1);
     return val > 0 ? `+${str}dB` : `${str}dB`;
   };
 
-  const isNativeConnected = debugInfo?.isNativeConnected !== false;
-  const isActuallyPlaying = debugInfo?.isPlayerPlaying || isEnabled;
+  const isNativeConnected = debugInfo?.isNativeConnected === true;
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
@@ -335,7 +279,7 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* ★ リアルタイム・デバッグステータス・パネル */}
+        {/* ★ デバッグステータス・パネル（タップで詳細ログモーダルを表示） */}
         <TouchableOpacity 
           style={[
             s.debugPanel, 
@@ -344,19 +288,19 @@ export const InfoEqualizerView = ({
               borderColor: isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444' 
             }
           ]}
-          onPress={showDetailedDebugAlert}
+          onPress={() => setDebugModalVisible(true)}
           activeOpacity={0.7}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
             <Ionicons 
               name={isNativeConnected ? (isEnabled ? "checkmark-circle" : "information-circle") : "alert-circle"} 
               size={18} 
               color={isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444'} 
             />
-            <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }}>
+            <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
               {isNativeConnected 
-                ? (isEnabled ? `Native DSP: ACTIVE (${debugInfo?.platform || Platform.OS})` : `Native DSP: Standby (${debugInfo?.platform || Platform.OS})`)
-                : `Native DSP: Disconnected (Tap for details)`}
+                ? (isEnabled ? `Native DSP: ACTIVE (${debugInfo?.detectedModuleName || debugInfo?.platform})` : `Native DSP: Standby (${debugInfo?.platform})`)
+                : `Native DSP: Disconnected (Tap for full log)`}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />
@@ -592,6 +536,46 @@ export const InfoEqualizerView = ({
         </View>
       </ScrollView>
 
+      {/* ★ 詳細デバッグ情報モーダル（全文スクロール可能） */}
+      <Modal visible={debugModalVisible} transparent animationType="fade">
+        <View style={s.modalOverlay}>
+          <View style={[s.debugModalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
+            <View style={s.rowBetween}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="terminal-outline" size={20} color={themeColor} />
+                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
+                  Equalizer Full Debug Log
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setDebugModalVisible(false)}>
+                <Ionicons name="close-circle" size={24} color={dynamicStyles.subText} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 420, marginVertical: 14 }} showsVerticalScrollIndicator={true}>
+              <Text 
+                style={{ 
+                  color: isDark ? '#34c759' : '#047857', 
+                  fontSize: 11, 
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', 
+                  lineHeight: 16 
+                }}
+                selectable={true}
+              >
+                {JSON.stringify(debugInfo, null, 2)}
+              </Text>
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={[s.modalBtn, { backgroundColor: themeColor, height: 42 }]} 
+              onPress={() => setDebugModalVisible(false)}
+            >
+              <Text style={{ color: textColor, fontWeight: 'bold' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* カスタム設定 保存モーダル */}
       <Modal visible={saveModalVisible} transparent animationType="none">
         <KeyboardAvoidingView 
@@ -653,6 +637,7 @@ const s = StyleSheet.create({
   presetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, borderWidth: 1.5 },
+  debugModalCard: { width: '100%', maxWidth: 460, borderRadius: 24, padding: 20, borderWidth: 1.5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' },
   modalDesc: { fontSize: 13, marginBottom: 16, textAlign: 'center' },
   input: { height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, borderWidth: 1, marginBottom: 18 },

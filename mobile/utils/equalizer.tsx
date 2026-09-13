@@ -2,10 +2,23 @@ import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
 
 let NativeModule: any = null;
-try {
-  NativeModule = requireNativeModule('ChordiaEqualizer');
-} catch (e) {
-  NativeModule = null;
+let detectedModuleName: string | null = null;
+let rawErrorDetails: any = {};
+
+// ★ 3つの登録名パターンをすべて自動試行
+const candidateNames = ['ChordiaEqualizer', 'chordia-equalizer', 'ChordiaEqualizerModule'];
+
+for (const name of candidateNames) {
+  try {
+    const mod = requireNativeModule(name);
+    if (mod) {
+      NativeModule = mod;
+      detectedModuleName = name;
+      break;
+    }
+  } catch (e: any) {
+    rawErrorDetails[name] = e?.message || String(e);
+  }
 }
 
 export interface EqualizerApplyPayload {
@@ -49,21 +62,47 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
   } catch (e) {}
 };
 
+// ★ バイナリに登録されている全モジュールを探索して詳細ログを生成
 export const getEqualizerDebugInfo = (): any => {
-  if (!NativeModule?.getDebugInfo) {
+  const globalExpoModules = (global as any).ExpoModules 
+    ? Object.keys((global as any).ExpoModules) 
+    : [];
+
+  const modulesProxyKeys = (global as any).expo?.modulesProxy 
+    ? Object.keys((global as any).expo.modulesProxy) 
+    : [];
+
+  if (!NativeModule) {
     return {
       isNativeConnected: false,
       platform: Platform.OS,
-      lastError: 'Native module ChordiaEqualizer not found in binary',
+      detectedModuleName: null,
+      attemptedModuleNames: candidateNames,
+      connectionErrors: rawErrorDetails,
+      totalRegisteredModulesInBinary: globalExpoModules.length,
+      registeredModulesList: globalExpoModules,
+      proxyModulesList: modulesProxyKeys,
     };
   }
+
   try {
-    return NativeModule.getDebugInfo();
+    const nativeInternalInfo = NativeModule.getDebugInfo ? NativeModule.getDebugInfo() : {};
+    return {
+      isNativeConnected: true,
+      platform: Platform.OS,
+      detectedModuleName,
+      ...nativeInternalInfo,
+      totalRegisteredModulesInBinary: globalExpoModules.length,
+      registeredModulesList: globalExpoModules,
+    };
   } catch (e: any) {
     return {
-      isNativeConnected: false,
+      isNativeConnected: true,
       platform: Platform.OS,
-      lastError: e?.message || 'Error fetching debug info',
+      detectedModuleName,
+      errorCallingDebugInfo: e?.message || String(e),
+      totalRegisteredModulesInBinary: globalExpoModules.length,
+      registeredModulesList: globalExpoModules,
     };
   }
 };
