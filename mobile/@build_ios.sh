@@ -1,9 +1,34 @@
 #!/bin/bash
-
 set -e
 cd "$(dirname "$0")"
 
 echo "🚀 --- iOS Release app ローカルビルドを開始します ---"
+
+echo "⚙️ 0/4 削除された必須ファイル(podspec)の自動復元..."
+node -e '
+const fs = require("fs");
+const path = require("path");
+
+const modDir = path.resolve("modules/chordia-equalizer");
+const iosDir = path.join(modDir, "ios");
+if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
+
+const podspec = `Pod::Spec.new do |s|
+  s.name           = "chordia-equalizer"
+  s.version        = "1.0.0"
+  s.summary        = "Chordia Equalizer"
+  s.description    = "Chordia Equalizer"
+  s.author         = "Chordia"
+  s.homepage       = "https://github.com"
+  s.platform       = :ios, "13.0"
+  s.swift_version  = "5.4"
+  s.source         = { :git => "" }
+  s.static_framework = true
+  s.dependency "ExpoModulesCore"
+  s.source_files = "**/*.{h,m,swift}"
+end`;
+fs.writeFileSync(path.join(iosDir, "chordia-equalizer.podspec"), podspec.trim());
+'
 
 echo "📦 1/4 依存関係を確認中..."
 npm install
@@ -33,5 +58,3 @@ xcodebuild -workspace "ios/$PROJECT_NAME.xcworkspace" \
 
 echo ""
 echo "🎉 --- ビルドが完了しました！ ---"
-echo "📂 生成されたappの場所:"
-echo "   $(pwd)/build/Build/Products/Release-iphoneos/$PROJECT_NAME.app"

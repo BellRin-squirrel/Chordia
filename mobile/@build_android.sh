@@ -1,15 +1,50 @@
 #!/bin/bash
-
 set -e
 cd "$(dirname "$0")"
 
 echo "🚀 --- Android Release APK ローカルビルドを開始します ---"
 
-echo "📦 1/4 依存関係を確認中..."
+echo "⚙️ 0/5 削除された必須ファイル(build.gradle)の自動復元..."
+node -e '
+const fs = require("fs");
+const path = require("path");
+
+const modDir = path.resolve("modules/chordia-equalizer");
+const androidDir = path.join(modDir, "android");
+if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
+
+const gradle = `apply plugin: "com.android.library"
+group = "com.bellrin.chordia.equalizer"
+version = "1.0.0"
+
+buildscript {
+  def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+  if (expoModulesCorePlugin.exists()) {
+    apply from: expoModulesCorePlugin
+    applyKotlinExpoModulesCorePlugin()
+  }
+}
+
+apply plugin: "org.jetbrains.kotlin.android"
+
+android {
+  compileSdkVersion 34
+  namespace "com.bellrin.chordia.equalizer"
+  defaultConfig { minSdkVersion 24 }
+}
+
+dependencies {
+  implementation project(":expo-modules-core")
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}`;
+fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+'
+
+echo "📦 1/5 依存関係を確認中..."
 rm -rf node_modules/react-native-track-player
 npm install
 
-echo "🛠️ 2/4 TrackPlayer パッチを適用中..."
+echo "🛠️ 2/5 TrackPlayer パッチを適用中..."
 node -e '
 const fs = require("fs");
 const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
@@ -46,10 +81,10 @@ if (fs.existsSync(file)) {
 }
 '
 
-echo "🏗️ 3/4 Expo Prebuild を実行中..."
+echo "🏗️ 3/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform android --clean
 
-echo "⚙️ 4/4 ABI & メモリパッチ適用中..."
+echo "⚙️ 4/5 ABI & メモリパッチ適用中..."
 node -e '
 const fs = require("fs");
 const gradleFile = "android/app/build.gradle";

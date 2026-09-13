@@ -28,6 +28,68 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ★ 削除してしまった必須ファイル (podspec と build.gradle) を自動復元する
+      - name: Restore Native Module Configs
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const modDir = path.resolve("modules/chordia-equalizer");
+          
+          const iosDir = path.join(modDir, "ios");
+          if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
+          const podspec = `
+          Pod::Spec.new do |s|
+            s.name           = "chordia-equalizer"
+            s.version        = "1.0.0"
+            s.summary        = "Chordia Equalizer"
+            s.description    = "Chordia Equalizer"
+            s.author         = "Chordia"
+            s.homepage       = "https://github.com"
+            s.platform       = :ios, "13.0"
+            s.swift_version  = "5.4"
+            s.source         = { :git => "" }
+            s.static_framework = true
+            s.dependency "ExpoModulesCore"
+            s.source_files = "**/*.{h,m,swift}"
+          end
+          `;
+          fs.writeFileSync(path.join(iosDir, "chordia-equalizer.podspec"), podspec.trim());
+
+          const androidDir = path.join(modDir, "android");
+          if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
+          const gradle = `
+          apply plugin: "com.android.library"
+          group = "com.bellrin.chordia.equalizer"
+          version = "1.0.0"
+
+          buildscript {
+            def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+            if (expoModulesCorePlugin.exists()) {
+              apply from: expoModulesCorePlugin
+              applyKotlinExpoModulesCorePlugin()
+            }
+          }
+
+          apply plugin: "org.jetbrains.kotlin.android"
+
+          android {
+            compileSdkVersion 34
+            namespace "com.bellrin.chordia.equalizer"
+            defaultConfig {
+              minSdkVersion 24
+            }
+          }
+
+          dependencies {
+            implementation project(":expo-modules-core")
+            implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+          }
+          `;
+          fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+          '
+
       - name: Install dependencies
         run: npm install
 
@@ -38,21 +100,19 @@ jobs:
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
       - name: Give execute permission to all shell scripts in node_modules
-        run: |
-          find node_modules -type f -name "*.sh" -exec chmod +x {} \;
+        run: find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
       - name: Configure Node for Xcode Build
         run: |
           NODE_PATH=$(which node)
           echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
-          cat ios/.xcode.env.local
 
       - name: Get Workspace Name
         run: |
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      - name: Make archive for iOS Dev Client (Unsigned)
+      - name: Make archive for iOS Dev Client
         run: |
           set -o pipefail
           xcodebuild -workspace "./ios/$PROJECT_NAME.xcworkspace" \
@@ -105,6 +165,68 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ★ Android 側でも同様に必須ファイルを自動復元する
+      - name: Restore Native Module Configs
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const modDir = path.resolve("modules/chordia-equalizer");
+          
+          const iosDir = path.join(modDir, "ios");
+          if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
+          const podspec = `
+          Pod::Spec.new do |s|
+            s.name           = "chordia-equalizer"
+            s.version        = "1.0.0"
+            s.summary        = "Chordia Equalizer"
+            s.description    = "Chordia Equalizer"
+            s.author         = "Chordia"
+            s.homepage       = "https://github.com"
+            s.platform       = :ios, "13.0"
+            s.swift_version  = "5.4"
+            s.source         = { :git => "" }
+            s.static_framework = true
+            s.dependency "ExpoModulesCore"
+            s.source_files = "**/*.{h,m,swift}"
+          end
+          `;
+          fs.writeFileSync(path.join(iosDir, "chordia-equalizer.podspec"), podspec.trim());
+
+          const androidDir = path.join(modDir, "android");
+          if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
+          const gradle = `
+          apply plugin: "com.android.library"
+          group = "com.bellrin.chordia.equalizer"
+          version = "1.0.0"
+
+          buildscript {
+            def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+            if (expoModulesCorePlugin.exists()) {
+              apply from: expoModulesCorePlugin
+              applyKotlinExpoModulesCorePlugin()
+            }
+          }
+
+          apply plugin: "org.jetbrains.kotlin.android"
+
+          android {
+            compileSdkVersion 34
+            namespace "com.bellrin.chordia.equalizer"
+            defaultConfig {
+              minSdkVersion 24
+            }
+          }
+
+          dependencies {
+            implementation project(":expo-modules-core")
+            implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+          }
+          `;
+          fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+          '
+
       - name: Install dependencies
         run: |
           rm -rf node_modules/react-native-track-player
@@ -113,7 +235,7 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
-      - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
+      - name: Patch react-native-track-player
         run: |
           node -e '
           const fs = require("fs");
@@ -154,7 +276,7 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform android --clean --non-interactive
 
-      - name: Enable All Architectures for Emulator Support
+      - name: Enable All Architectures
         run: |
           node -e '
           const fs = require("fs");
@@ -168,15 +290,14 @@ jobs:
           }
           '
 
-      - name: Increase Gradle Memory Limit & Inject Android 14 ForegroundService
+      - name: Increase Gradle Memory Limit & Inject ForegroundService
         run: |
           node -e '
           const fs = require("fs");
           const propFile = "android/gradle.properties";
           if (fs.existsSync(propFile)) {
             let content = fs.readFileSync(propFile, "utf8");
-            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
-            content += "org.gradle.parallel=true\n";
+            content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\norg.gradle.parallel=true\n";
             fs.writeFileSync(propFile, content);
           }
           const manifestFile = "android/app/src/main/AndroidManifest.xml";
@@ -197,18 +318,14 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          
           n=0
           until [ "$n" -ge 3 ]
           do
              ./gradlew assembleDebug && break
              n=$((n+1)) 
-             echo "⚠️ Gradle download/build failed. Retrying in 10 seconds... ($n/3)"
              sleep 10
           done
-          
           if [ "$n" -ge 3 ]; then
-             echo "❌ Build failed after 3 attempts."
              exit 1
           fi
 
