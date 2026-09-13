@@ -9,26 +9,27 @@ public class ChordiaEqualizerModule: Module {
   
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
-  private var audioEngine: AVAudioEngine = AVAudioEngine()
-  private var playerNode: AVAudioPlayerNode = AVAudioPlayerNode()
-  private var equalizerUnit: AVAudioUnitEQ = AVAudioUnitEQ(numberOfBands: 10)
+  private let audioEngine = AVAudioEngine()
+  private let playerNode = AVAudioPlayerNode()
+  private let equalizerUnit = AVAudioUnitEQ(numberOfBands: 10)
   private var currentAudioFile: AVAudioFile?
   
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
   private var seekOffsetSeconds: Double = 0.0
   private var isNodePlaying: Bool = false
+  private var isNodesAttached: Bool = false
   private var lastErrorMessage: String = "None"
 
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
     OnCreate {
-      self.initEqualizerUnit()
+      self.setupAudioEngineNodes()
     }
 
     Function("initEqualizer") { (audioSessionId: Int) -> Bool in
-      self.initEqualizerUnit()
+      self.setupAudioEngineNodes()
       return true
     }
 
@@ -94,7 +95,6 @@ public class ChordiaEqualizerModule: Module {
       return self.isNodePlaying
     }
 
-    // ★ デバッグ情報取得関数
     Function("getDebugInfo") { () -> [String: Any] in
       return [
         "platform": "iOS",
@@ -106,13 +106,15 @@ public class ChordiaEqualizerModule: Module {
         "gains": self.currentGains,
         "hasAudioFile": self.currentAudioFile != nil,
         "sampleRate": self.fileSampleRate,
-        "totalFrames": self.fileTotalFrames,
+        "totalFrames": Double(self.fileTotalFrames),
         "lastError": self.lastErrorMessage
       ]
     }
   }
 
-  private func initEqualizerUnit() {
+  private func setupAudioEngineNodes() {
+    if isNodesAttached { return }
+
     for i in 0..<10 {
       let band = equalizerUnit.bands[i]
       band.frequency = centerFrequencies[i]
@@ -129,6 +131,18 @@ public class ChordiaEqualizerModule: Module {
     }
     equalizerUnit.globalGain = 0.0
     equalizerUnit.bypass = !isEQEnabled
+
+    audioEngine.attach(playerNode)
+    audioEngine.attach(equalizerUnit)
+    isNodesAttached = true
+
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
+      try session.setActive(true)
+    } catch {
+      self.lastErrorMessage = "AudioSession error: \(error.localizedDescription)"
+    }
   }
 
   private func updateEqualizerHardware() {
@@ -142,11 +156,9 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ アプリ再ビルドに伴うコンテナUUID変更にも対応した最強のファイル解決
   private func resolveFileURL(filePath: String) -> URL? {
     let fname = URL(fileURLWithPath: filePath).lastPathComponent
 
-    // 1. 直のURL指定
     if filePath.hasPrefix("file://"), let url = URL(string: filePath), FileManager.default.fileExists(atPath: url.path) {
       return url
     }
@@ -158,7 +170,6 @@ public class ChordiaEqualizerModule: Module {
       return URL(fileURLWithPath: rawPath)
     }
 
-    // 2. 現在の Documents/chordia/ ディレクトリからファイル名で自動特定
     if let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
       let chordiaUrl = docDir.appendingPathComponent("chordia").appendingPathComponent(fname)
       if FileManager.default.fileExists(atPath: chordiaUrl.path) {
@@ -173,35 +184,26 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
+    setupAudioEngineNodes()
+
     guard let url = resolveFileURL(filePath: filePath) else {
       self.lastErrorMessage = "File not found: \(filePath)"
       return false
     }
 
     do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
-      try session.setActive(true)
-
       let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate
       self.fileTotalFrames = file.length
 
+      if playerNode.isPlaying {
+        playerNode.stop()
+      }
       if audioEngine.isRunning {
         audioEngine.stop()
       }
-      audioEngine.reset()
 
-      audioEngine = AVAudioEngine()
-      playerNode = AVAudioPlayerNode()
-      equalizerUnit = AVAudioUnitEQ(numberOfBands: 10)
-      initEqualizerUnit()
-
-      audioEngine.attach(playerNode)
-      audioEngine.attach(equalizerUnit)
-
-      // Float32 標準フォーマットを作成
       guard let processingFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: file.processingFormat.sampleRate,
@@ -211,6 +213,9 @@ public class ChordiaEqualizerModule: Module {
         self.lastErrorMessage = "Invalid processing format"
         return false
       }
+
+      audioEngine.disconnectNodeOutput(playerNode)
+      audioEngine.disconnectNodeOutput(equalizerUnit)
 
       audioEngine.connect(playerNode, to: equalizerUnit, format: processingFormat)
       audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: processingFormat)
@@ -242,7 +247,7 @@ public class ChordiaEqualizerModule: Module {
 
     let sampleRate = file.processingFormat.sampleRate
     let totalFrames = file.length
-    let targetFrame = AVAudioFramePosition(max(0, seconds) * sampleRate)
+    let targetFrame = AVAudioFramePosition(max(0.0, seconds) * sampleRate)
 
     if targetFrame >= totalFrames {
       seekOffsetSeconds = Double(totalFrames) / sampleRate
@@ -250,7 +255,10 @@ public class ChordiaEqualizerModule: Module {
     }
 
     seekOffsetSeconds = Double(targetFrame) / sampleRate
-    let remainingFrames = AVAudioFrameCount(totalFrames - targetFrame)
+    
+    // ★ Int64 から UInt32 (AVAudioFrameCount) への安全な型キャスト
+    let rawRemaining = max(0, totalFrames - targetFrame)
+    let remainingFrames = AVAudioFrameCount(clamping: rawRemaining)
 
     playerNode.scheduleSegment(file, startingFrame: targetFrame, frameCount: remainingFrames, at: nil) { [weak self] in
       DispatchQueue.main.async {
@@ -279,6 +287,6 @@ public class ChordiaEqualizerModule: Module {
       return seekOffsetSeconds
     }
     let playedSeconds = Double(playerTime.sampleTime) / playerTime.sampleRate
-    return max(0, seekOffsetSeconds + playedSeconds)
+    return max(0.0, seekOffsetSeconds + playedSeconds)
   }
 }
