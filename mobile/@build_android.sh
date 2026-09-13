@@ -4,33 +4,52 @@ cd "$(dirname "$0")"
 
 echo "🚀 --- Android Release APK ローカルビルドを開始します ---"
 
-echo "⚙️ 0/5 削除された必須ファイル(build.gradle)の自動復元..."
+echo "⚙️ 0/5 ローカルモジュール構成の自動セットアップ..."
 node -e '
 const fs = require("fs");
 const path = require("path");
 
 const modDir = path.resolve("modules/chordia-equalizer");
 const androidDir = path.join(modDir, "android");
-if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
+const ktDir = path.join(androidDir, "src/main/java/com/bellrin/chordia/equalizer");
+if (!fs.existsSync(ktDir)) fs.mkdirSync(ktDir, { recursive: true });
+
+fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
+  name: "chordia-equalizer",
+  version: "0.1.0",
+  main: "index.ts"
+}, null, 2));
+
+fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
+  name: "chordia-equalizer",
+  platforms: ["apple", "android"],
+  apple: { modules: ["ChordiaEqualizerModule"] },
+  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+}, null, 2));
 
 const gradle = `apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+
 group = "com.bellrin.chordia.equalizer"
 version = "1.0.0"
 
-buildscript {
-  def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
-  if (expoModulesCorePlugin.exists()) {
-    apply from: expoModulesCorePlugin
-    applyKotlinExpoModulesCorePlugin()
-  }
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+if (expoModulesCorePlugin.exists()) {
+  apply from: expoModulesCorePlugin
+  applyKotlinExpoModulesCorePlugin()
 }
-
-apply plugin: "org.jetbrains.kotlin.android"
 
 android {
   compileSdkVersion 34
   namespace "com.bellrin.chordia.equalizer"
   defaultConfig { minSdkVersion 24 }
+
+  sourceSets {
+    main {
+      java.srcDirs += "src/main/java"
+      kotlin.srcDirs += "src/main/java"
+    }
+  }
 }
 
 dependencies {
@@ -38,6 +57,13 @@ dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }`;
 fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+
+const mainPkgPath = path.resolve("package.json");
+let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
+if (!pkg.dependencies["chordia-equalizer"]) {
+   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
+   fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
+}
 '
 
 echo "📦 1/5 依存関係を確認中..."

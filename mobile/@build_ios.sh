@@ -65,7 +65,7 @@ npm install
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
-# 3. 正しいループ構文で Xcode 16 設定を Podfile に適用
+# 3. Xcode 16 の fmt 設定を Podfile に適用
 echo "⚙️ 3/5 Xcode 16 設定を Podfile に適用中..."
 node -e '
 const fs = require("fs");
@@ -94,7 +94,8 @@ cd ios
 pod install
 cd ..
 
-# 4. fmt ヘッダーの確実なパッチ
+# 4. fmt ヘッダーの確実なパッチ (書き込み権限を付与してから実行)
+chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
 const path = require("path");
@@ -105,6 +106,10 @@ if (fs.existsSync(fmtDir)) {
   files.forEach(f => {
     if (f.endsWith(".h")) {
       const filePath = path.join(fmtDir, f);
+      try {
+        fs.chmodSync(filePath, 0o666);
+      } catch(e) {}
+
       let content = fs.readFileSync(filePath, "utf8");
       let modified = false;
 

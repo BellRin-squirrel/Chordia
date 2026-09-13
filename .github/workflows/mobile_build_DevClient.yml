@@ -98,7 +98,6 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # ★ 正しい Ruby ループ構文で Xcode 16 の fmt パッチを注入
       - name: Configure Podfile for Xcode 16
         run: |
           node -e '
@@ -133,6 +132,7 @@ jobs:
 
       - name: Patch fmt library for Xcode 16
         run: |
+          chmod -R u+w ios/Pods || true
           node -e '
           const fs = require("fs");
           const path = require("path");
@@ -143,6 +143,10 @@ jobs:
             files.forEach(f => {
               if (f.endsWith(".h")) {
                 const filePath = path.join(fmtDir, f);
+                try {
+                  fs.chmodSync(filePath, 0o666);
+                } catch(e) {}
+
                 let content = fs.readFileSync(filePath, "utf8");
                 let modified = false;
 
@@ -237,7 +241,7 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # ★ Android 側の build.gradle を Kotlin コンパイラが確実に動作する正しい構成で生成
+      # ★ build.gradle と Kotlinコード実体を100%確実に配置・保証する
       - name: Ensure Expo Local Module and Dependencies
         run: |
           node -e '
@@ -246,7 +250,8 @@ jobs:
 
           const modDir = path.resolve("modules/chordia-equalizer");
           const androidDir = path.join(modDir, "android");
-          if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
+          const ktDir = path.join(androidDir, "src/main/java/com/bellrin/chordia/equalizer");
+          if (!fs.existsSync(ktDir)) fs.mkdirSync(ktDir, { recursive: true });
 
           fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
             name: "chordia-equalizer",
@@ -261,7 +266,7 @@ jobs:
             android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
           }, null, 2));
 
-          // ★ 正しい Expo Local Module 用 build.gradle
+          // ★ 正しい Expo Local Module 用 build.gradle (sourceSets を明記)
           const gradle = `apply plugin: "com.android.library"
           apply plugin: "kotlin-android"
 
@@ -278,6 +283,13 @@ jobs:
             compileSdkVersion 34
             namespace "com.bellrin.chordia.equalizer"
             defaultConfig { minSdkVersion 24 }
+
+            sourceSets {
+              main {
+                java.srcDirs += "src/main/java"
+                kotlin.srcDirs += "src/main/java"
+              }
+            }
           }
 
           dependencies {
@@ -285,6 +297,131 @@ jobs:
             implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
           }`;
           fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+
+          // ★ Kotlin コードの完全な実体を直接配置
+          const ktCode = `package com.bellrin.chordia.equalizer
+
+          import android.media.audiofx.Equalizer
+          import expo.modules.kotlin.modules.Module
+          import expo.modules.kotlin.modules.ModuleDefinition
+          import kotlin.math.abs
+
+          public class ChordiaEqualizerModule : Module() {
+            private var equalizer: Equalizer? = null
+            private var isEQEnabled: Boolean = false
+            private var currentPreamp: Double = 0.0
+            private var currentGains: List<Double> = List(10) { 0.0 }
+            private var lastErrorMessage: String = "None"
+
+            private val targetFrequencies = intArrayOf(
+              32000, 64000, 125000, 250000, 500000,
+              1000000, 2000000, 4000000, 8000000, 16000000
+            )
+
+            override fun definition() = ModuleDefinition {
+              Name("ChordiaEqualizer")
+
+              OnCreate {
+                initHardwareEqualizer(0)
+              }
+
+              Function("initEqualizer") { audioSessionId: Int ->
+                initHardwareEqualizer(audioSessionId)
+                return@Function true
+              }
+
+              Function("setEnabled") { enabled: Boolean ->
+                isEQEnabled = enabled
+                equalizer?.enabled = enabled
+                applyGainsToHardware()
+              }
+
+              Function("setBands") { gains: List<Double>, preamp: Double ->
+                currentGains = gains
+                currentPreamp = preamp
+                applyGainsToHardware()
+              }
+
+              Function("applySettings") { enabled: Boolean, preamp: Double, gains: List<Double> ->
+                isEQEnabled = enabled
+                currentPreamp = preamp
+                currentGains = gains
+                equalizer?.enabled = enabled
+                applyGainsToHardware()
+              }
+
+              Function("getDebugInfo") {
+                val eq = equalizer
+                mapOf(
+                  "platform" to "Android",
+                  "isNativeConnected" to (eq != null),
+                  "isEQEnabled" to isEQEnabled,
+                  "numBands" to (eq?.numberOfBands?.toInt() ?: 0),
+                  "preamp" to currentPreamp,
+                  "gains" to currentGains,
+                  "lastError" to lastErrorMessage
+                )
+              }
+
+              Function("loadAndPlay") { _: String, _: Double, _: Boolean -> false }
+              Function("pause") { false }
+              Function("play") { false }
+              Function("stop") { false }
+              Function("seekTo") { _: Double -> false }
+              Function("getPosition") { 0.0 }
+              Function("getDuration") { 0.0 }
+              Function("isPlaying") { false }
+            }
+
+            private fun initHardwareEqualizer(sessionId: Int) {
+              try {
+                equalizer?.release()
+                val sid = if (sessionId > 0) sessionId else 0
+                equalizer = Equalizer(1000, sid).apply {
+                  enabled = isEQEnabled
+                }
+                applyGainsToHardware()
+                lastErrorMessage = "None (Initialized successfully)"
+              } catch (e: Exception) {
+                lastErrorMessage = e.message ?: "Equalizer init error"
+              }
+            }
+
+            private fun applyGainsToHardware() {
+              val eq = equalizer ?: return
+              try {
+                eq.enabled = isEQEnabled
+                if (!isEQEnabled) return
+
+                val numBands = eq.numberOfBands.toInt()
+                val bandRange = eq.bandLevelRange
+                val minLevel = bandRange[0]
+                val maxLevel = bandRange[1]
+
+                for (b in 0 until numBands) {
+                  val centerFreq = eq.getCenterFreq(b.toShort())
+
+                  var bestIdx = 0
+                  var minDiff = abs(centerFreq - targetFrequencies[0])
+                  for (i in 1 until targetFrequencies.size) {
+                    val diff = abs(centerFreq - targetFrequencies[i])
+                    if (diff < minDiff) {
+                      minDiff = diff
+                      bestIdx = i
+                    }
+                  }
+
+                  val gainDb = (currentGains.getOrNull(bestIdx) ?: 0.0) + currentPreamp
+                  val levelMb = (gainDb * 100.0).toInt().coerceIn(minLevel.toInt(), maxLevel.toInt()).toShort()
+                  eq.setBandLevel(b.toShort(), levelMb)
+                }
+              } catch (e: Exception) {
+                lastErrorMessage = e.message ?: "Apply gains error"
+              }
+            }
+          }
+          `;
+          fs.writeFileSync(path.join(ktDir, "ChordiaEqualizerModule.kt"), ktCode.trim());
 
           const mainPkgPath = path.resolve("package.json");
           let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
