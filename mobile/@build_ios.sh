@@ -65,7 +65,7 @@ npm install
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
-# 3. Xcode 16 の fmt 設定を Podfile に適用
+# 3. 正しいループ構文で Xcode 16 設定を Podfile に適用
 echo "⚙️ 3/5 Xcode 16 設定を Podfile に適用中..."
 node -e '
 const fs = require("fs");
@@ -73,6 +73,7 @@ const podfile = "ios/Podfile";
 if (fs.existsSync(podfile)) {
   let content = fs.readFileSync(podfile, "utf8");
   const fmtPatch = `
+    installer.pods_project.targets.each do |target|
       if target.name == "fmt"
         target.build_configurations.each do |config|
           config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
@@ -80,6 +81,7 @@ if (fs.existsSync(podfile)) {
           config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] << "FMT_USE_CONSTEVAL=0"
         end
       end
+    end
   `;
   if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
     content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
