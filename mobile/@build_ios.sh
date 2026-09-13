@@ -13,16 +13,13 @@ npm install
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
-# 3. Podfile の設定と CocoaPods インストール
-echo "⚙️ 3/5 ChordiaEqualizer を結合＆Xcode 16 設定を適用中..."
+# 3. Xcode 16 の fmt 設定のみ Podfile に適用 (手動の pod 注入は削除)
+echo "⚙️ 3/5 Xcode 16 設定を Podfile に適用中..."
 node -e '
 const fs = require("fs");
 const podfile = "ios/Podfile";
 if (fs.existsSync(podfile)) {
   let content = fs.readFileSync(podfile, "utf8");
-  if (!content.includes("ChordiaEqualizer")) {
-    content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
-  }
   const fmtPatch = `
       if target.name == "fmt"
         target.build_configurations.each do |config|
@@ -32,7 +29,7 @@ if (fs.existsSync(podfile)) {
         end
       end
   `;
-  if (content.includes("post_install do |installer|")) {
+  if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
     content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
   }
   fs.writeFileSync(podfile, content);

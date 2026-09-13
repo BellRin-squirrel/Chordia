@@ -63,7 +63,7 @@ jobs:
           package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
           Pod::Spec.new do |s|
-            s.name           = "ChordiaEqualizer"
+            s.name           = "chordia-equalizer"
             s.version        = package["version"]
             s.summary        = "Chordia Equalizer Module"
             s.description    = "Native Equalizer DSP module for Chordia Mobile"
@@ -119,19 +119,15 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # ★ ChordiaEqualizer を Podfile に確実に注入し、Xcode 16 ビルド設定を追加
-      - name: Inject Podfile Configuration
+      # ★ Xcode 16 の C++ fmt コンパイル設定のみ注入 (競合していた手動pod注入は削除！)
+      - name: Configure Podfile for Xcode 16
         run: |
           node -e '
           const fs = require("fs");
           const podfile = "ios/Podfile";
           if (fs.existsSync(podfile)) {
             let content = fs.readFileSync(podfile, "utf8");
-            if (!content.includes("ChordiaEqualizer")) {
-              content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
-            }
             
-            // post_install 内で fmt に C++17 と FMT_USE_CONSTEVAL=0 を強制
             const fmtPatch = `
                 if target.name == "fmt"
                   target.build_configurations.each do |config|
@@ -141,11 +137,11 @@ jobs:
                   end
                 end
             `;
-            if (content.includes("post_install do |installer|")) {
+            if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
               content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
             }
             fs.writeFileSync(podfile, content);
-            console.log("Successfully configured ios/Podfile for ChordiaEqualizer and Xcode 16");
+            console.log("Successfully configured ios/Podfile for Xcode 16");
           }
           '
 
@@ -154,7 +150,7 @@ jobs:
           cd ios
           pod install
 
-      # ★ 正しいパスで fmt ライブラリのヘッダーを書き換えて consteval エラーを完全根絶
+      # ★ fmt ヘッダーの consteval 修復
       - name: Patch fmt library for Xcode 16
         run: |
           node -e '
@@ -185,8 +181,6 @@ jobs:
                 }
               }
             });
-          } else {
-            console.warn("fmt directory not found at:", fmtDir);
           }
           '
 
@@ -204,7 +198,6 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ xcpretty でエラーが隠蔽されないよう、生ログ保存＆失敗時詳細出力パイプライン
       - name: Make archive for iOS Dev Client (Unsigned)
         run: |
           set -o pipefail
