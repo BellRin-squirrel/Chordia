@@ -1,32 +1,15 @@
 #!/bin/bash
 
-# エラーが発生したら即座に処理を中断する
 set -e
-
-# 確実に mobile ディレクトリに移動する
 cd "$(dirname "$0")"
 
 echo "🚀 --- Android Release APK ローカルビルドを開始します ---"
 
-echo "⚙️ 0/5 ローカルモジュール構成の自動セットアップ..."
-node -e '
-const fs = require("fs");
-const path = require("path");
-const modDir = path.resolve("modules/chordia-equalizer");
-const iosDir = path.join(modDir, "ios");
-if (!fs.existsSync(iosDir)) { fs.mkdirSync(iosDir, { recursive: true }); }
-fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({ name: "chordia-equalizer", version: "0.1.0", main: "index.ts" }, null, 2));
-fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({ name: "chordia-equalizer", platforms: ["apple", "android"], apple: { modules: ["ChordiaEqualizerModule"] }, android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] } }, null, 2));
-const mainPkgPath = path.resolve("package.json");
-let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
-if (!pkg.dependencies["chordia-equalizer"]) { pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer"; fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2)); }
-'
-
-echo "📦 1/5 依存関係を確認中..."
+echo "📦 1/4 依存関係を確認中..."
 rm -rf node_modules/react-native-track-player
 npm install
 
-echo "🛠️ 2/5 TrackPlayer パッチを適用中..."
+echo "🛠️ 2/4 TrackPlayer パッチを適用中..."
 node -e '
 const fs = require("fs");
 const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
@@ -63,10 +46,10 @@ if (fs.existsSync(file)) {
 }
 '
 
-echo "🏗️ 3/5 Expo Prebuild を実行中..."
+echo "🏗️ 3/4 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform android --clean
 
-echo "⚙️ 4/5 ABI パッチ ＆ メモリ上限パッチ ＆ Android 14 バックグラウンド維持パッチを適用中..."
+echo "⚙️ 4/4 ABI & メモリパッチ適用中..."
 node -e '
 const fs = require("fs");
 const gradleFile = "android/app/build.gradle";
@@ -104,5 +87,3 @@ chmod +x ./gradlew
 
 echo ""
 echo "🎉 --- ビルドが完了しました！ ---"
-echo "📂 生成されたAPKの場所:"
-echo "   $(pwd)/app/build/outputs/apk/release/app-release.apk"
