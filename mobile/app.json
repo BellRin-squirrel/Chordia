@@ -84,7 +84,8 @@
           "photosPermission": "プレイリストのカバー画像を選択するために写真へのアクセスを許可してください。",
           "cameraPermission": "カバー写真を撮影するためにカメラへのアクセスを許可してください。"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
