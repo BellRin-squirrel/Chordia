@@ -1,4 +1,5 @@
 Chordia Sync の認証でコードを表示しているときに、ウェブで認証というリンクを設置する（ウェブ側未対応）
+イコライザ機能導入中 （GitHubActionsでDevClientのビルド中）
 
 v6.0.0-beta1
 ・Chordia Relay が Chordia Sync にログインしていなくても、ログインしているかのような挙動を示すというバグを修正しました。
