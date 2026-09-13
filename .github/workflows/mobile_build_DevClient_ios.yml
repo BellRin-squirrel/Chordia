@@ -1,6 +1,6 @@
 name: Build Dev Client (iOS & Android Debug)
 on:
-  workflow_dispatch: # 手動実行ボタンを有効化
+  workflow_dispatch:
 
 defaults:
   run:
@@ -28,6 +28,62 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ★ 古い配置ミスを自動クリーンアップし、正しい場所に Podspec を生成する
+      - name: Ensure Expo Local Module exists
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const modDir = path.resolve("modules/chordia-equalizer");
+          const iosDir = path.join(modDir, "ios");
+          if (!fs.existsSync(iosDir)) {
+            fs.mkdirSync(iosDir, { recursive: true });
+          }
+
+          // 過去の誤った場所にある podspec を削除 (クリーンアップ)
+          const oldPodspec = path.join(iosDir, "ChordiaEqualizer.podspec");
+          if (fs.existsSync(oldPodspec)) {
+            fs.unlinkSync(oldPodspec);
+          }
+
+          fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
+            name: "chordia-equalizer",
+            version: "0.1.0",
+            main: "index.ts"
+          }, null, 2));
+
+          fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
+            name: "chordia-equalizer",
+            platforms: ["apple", "android"],
+            apple: { modules: ["ChordiaEqualizerModule"] },
+            android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+          }, null, 2));
+
+          // ★ Expoが自動認識する正しい場所 (モジュールのルート) に生成
+          const podspec = `Pod::Spec.new do |s|
+            s.name           = "chordia-equalizer"
+            s.version        = "0.1.0"
+            s.summary        = "Chordia Equalizer"
+            s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
+            s.author         = "Chordia"
+            s.license        = "MIT"
+            s.platforms      = { :ios => "15.1" }
+            s.source         = { :git => "" }
+            s.static_framework = true
+            s.dependency "ExpoModulesCore"
+            s.source_files = "ios/**/*.swift"
+          end`;
+          fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec);
+
+          const mainPkgPath = path.resolve("package.json");
+          let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
+          if (!pkg.dependencies["chordia-equalizer"]) {
+             pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
+             fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
+          }
+          '
+
       - name: Install dependencies
         run: npm install
 
@@ -36,54 +92,6 @@ jobs:
 
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
-
-      # ★ 外部ファイル読み込み不要の自己完結型 Podspec を生成して結合
-      - name: Setup Self-contained Podspec & Link in Podfile
-        run: |
-          node -e '
-          const fs = require("fs");
-          const path = require("path");
-
-          const iosDir = path.resolve("modules/chordia-equalizer/ios");
-          if (!fs.existsSync(iosDir)) {
-            fs.mkdirSync(iosDir, { recursive: true });
-          }
-
-          // 外部 package.json の読み込みを完全撤廃した自己完結型 Podspec
-          const podspecContent = `Pod::Spec.new do |s|
-            s.name           = "ChordiaEqualizer"
-            s.version        = "0.1.0"
-            s.summary        = "Chordia Equalizer Module"
-            s.description    = "Native Equalizer DSP module for Chordia Mobile"
-            s.license        = "MIT"
-            s.author         = "Chordia"
-            s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
-            s.platforms      = { :ios => "15.1" }
-            s.swift_version  = "5.0"
-            s.source         = { :git => "" }
-            s.static_framework = true
-
-            s.dependency "ExpoModulesCore"
-
-            s.source_files = "**/*.swift"
-          end
-          `;
-
-          fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspecContent);
-          console.log("Successfully placed self-contained ChordiaEqualizer.podspec in ios/");
-
-          // Podfile に確実に追加
-          const podfile = "ios/Podfile";
-          if (fs.existsSync(podfile)) {
-            let content = fs.readFileSync(podfile, "utf8");
-            if (!content.includes("ChordiaEqualizer")) {
-              content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
-              fs.writeFileSync(podfile, content);
-              console.log("Successfully injected ChordiaEqualizer into ios/Podfile");
-            }
-          }
-          '
-          cd ios && pod install
 
       - name: Give execute permission to all shell scripts in node_modules
         run: |
@@ -125,13 +133,6 @@ jobs:
         with:
           name: Chordia-DevClient-iOS-IPA
           path: mobile/Chordia-DevClient.ipa
-          
-      - name: Upload build log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-dev-build-log
-          path: mobile/build.log
 
   # ==========================================
   # Android Dev Clientビルド (Debug)
@@ -159,6 +160,39 @@ jobs:
         with:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Ensure Expo Local Module exists
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const modDir = path.resolve("modules/chordia-equalizer");
+          const iosDir = path.join(modDir, "ios");
+          if (!fs.existsSync(iosDir)) {
+            fs.mkdirSync(iosDir, { recursive: true });
+          }
+
+          fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
+            name: "chordia-equalizer",
+            version: "0.1.0",
+            main: "index.ts"
+          }, null, 2));
+
+          fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
+            name: "chordia-equalizer",
+            platforms: ["apple", "android"],
+            apple: { modules: ["ChordiaEqualizerModule"] },
+            android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+          }, null, 2));
+
+          const mainPkgPath = path.resolve("package.json");
+          let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
+          if (!pkg.dependencies["chordia-equalizer"]) {
+             pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
+             fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
+          }
+          '
 
       - name: Install dependencies
         run: |
@@ -212,9 +246,7 @@ jobs:
                     regex.lastIndex = 0;
                 }
             }
-
             fs.writeFileSync(file, content);
-            console.log("Successfully patched MusicModule.kt for Kotlin 2.x & New Architecture");
           }
           '
 
@@ -231,7 +263,6 @@ jobs:
             if (!content.includes("abiFilters")) {
               content = content.replace(/defaultConfig\s*\{/, "defaultConfig {\n        ndk {\n            abiFilters \"armeabi-v7a\", \"arm64-v8a\", \"x86\", \"x86_64\"\n        }");
               fs.writeFileSync(file, content);
-              console.log("Successfully added abiFilters for x86/x86_64/ARM");
             }
           }
           '
@@ -240,29 +271,24 @@ jobs:
         run: |
           node -e '
           const fs = require("fs");
-          
           const propFile = "android/gradle.properties";
           if (fs.existsSync(propFile)) {
             let content = fs.readFileSync(propFile, "utf8");
             content += "\norg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+HeapDumpOnOutOfMemoryError\n";
             content += "org.gradle.parallel=true\n";
             fs.writeFileSync(propFile, content);
-            console.log("Successfully increased Gradle JVM memory limit to 4GB");
           }
 
           const manifestFile = "android/app/src/main/AndroidManifest.xml";
           if (fs.existsSync(manifestFile)) {
             let manifest = fs.readFileSync(manifestFile, "utf8");
-            
             if (!manifest.includes("xmlns:tools=")) {
               manifest = manifest.replace("<manifest", "<manifest xmlns:tools=\"http://schemas.android.com/tools\"");
             }
-
             if (!manifest.includes("android:foregroundServiceType=\"mediaPlayback\"")) {
               const serviceTag = "<service android:name=\"com.doublesymmetry.trackplayer.service.MusicService\" android:exported=\"true\" android:foregroundServiceType=\"mediaPlayback\" tools:replace=\"android:exported,android:foregroundServiceType\" />";
               manifest = manifest.replace("</application>", "    " + serviceTag + "\n  </application>");
               fs.writeFileSync(manifestFile, manifest);
-              console.log("Successfully injected foregroundServiceType=mediaPlayback with tools:replace");
             }
           }
           '

@@ -8,73 +8,73 @@ cd "$(dirname "$0")"
 
 echo "🚀 --- iOS Release app ローカルビルドを開始します ---"
 
-# 1. 依存関係のインストール
-echo "📦 1/5 依存関係を確認中..."
-npm install
-
-# 2. Expo Prebuild (ネイティブコードの生成)
-echo "🏗️ 2/5 Expo Prebuild を実行中..."
-CI=1 npx expo prebuild --platform ios --clean
-
-# 3. 外部ファイル非依存の Podspec を生成して pod install
-echo "⚙️ 3/5 ChordiaEqualizer を Podfile に結合中..."
+echo "⚙️ 0/4 ローカルモジュール構成の自動セットアップ..."
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const iosDir = path.resolve("modules/chordia-equalizer/ios");
+const modDir = path.resolve("modules/chordia-equalizer");
+const iosDir = path.join(modDir, "ios");
 if (!fs.existsSync(iosDir)) {
   fs.mkdirSync(iosDir, { recursive: true });
 }
 
-const podspecContent = `Pod::Spec.new do |s|
-  s.name           = "ChordiaEqualizer"
+const oldPodspec = path.join(iosDir, "ChordiaEqualizer.podspec");
+if (fs.existsSync(oldPodspec)) {
+  fs.unlinkSync(oldPodspec);
+}
+
+fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
+  name: "chordia-equalizer",
+  version: "0.1.0",
+  main: "index.ts"
+}, null, 2));
+
+fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
+  name: "chordia-equalizer",
+  platforms: ["apple", "android"],
+  apple: { modules: ["ChordiaEqualizerModule"] },
+  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+}, null, 2));
+
+const podspec = `Pod::Spec.new do |s|
+  s.name           = "chordia-equalizer"
   s.version        = "0.1.0"
-  s.summary        = "Chordia Equalizer Module"
-  s.description    = "Native Equalizer DSP module for Chordia Mobile"
-  s.license        = "MIT"
-  s.author         = "Chordia"
+  s.summary        = "Chordia Equalizer"
   s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
+  s.author         = "Chordia"
+  s.license        = "MIT"
   s.platforms      = { :ios => "15.1" }
-  s.swift_version  = "5.0"
   s.source         = { :git => "" }
   s.static_framework = true
-
   s.dependency "ExpoModulesCore"
+  s.source_files = "ios/**/*.swift"
+end`;
+fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec);
 
-  s.source_files = "**/*.swift"
-end
-`;
-
-fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspecContent);
-console.log("   --> Successfully placed self-contained ChordiaEqualizer.podspec in ios/");
-
-const podfile = "ios/Podfile";
-if (fs.existsSync(podfile)) {
-  let content = fs.readFileSync(podfile, "utf8");
-  if (!content.includes("ChordiaEqualizer")) {
-    content = content.replace("use_expo_modules!", "use_expo_modules!\n  pod \"ChordiaEqualizer\", :path => \"../modules/chordia-equalizer/ios\"");
-    fs.writeFileSync(podfile, content);
-    console.log("   --> Successfully injected ChordiaEqualizer into ios/Podfile");
-  }
+const mainPkgPath = path.resolve("package.json");
+let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
+if (!pkg.dependencies["chordia-equalizer"]) {
+   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
+   fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
 }
 '
-cd ios
-pod install
-cd ..
 
-# 4. Xcodeビルド用スクリプト権限 ＆ Node環境変数の設定
-echo "⚙️ 4/5 Xcode ビルド環境を準備中..."
+echo "📦 1/4 依存関係を確認中..."
+npm install
+
+echo "🏗️ 2/4 Expo Prebuild を実行中..."
+CI=1 npx expo prebuild --platform ios --clean
+
+echo "⚙️ 3/4 Xcode ビルド環境を準備中..."
 find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
 NODE_PATH=$(which node)
 echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
 
-# プロジェクト名(.xcworkspace)の自動取得
 PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
 
-# 5. xcodebuild による未署名ビルド実行
-echo "🔨 5/5 app をビルド中 (xcodebuild)..."
+echo "🔨 4/4 app をビルド中 (xcodebuild)..."
 xcodebuild -workspace "ios/$PROJECT_NAME.xcworkspace" \
            -scheme "$PROJECT_NAME" \
            -configuration Release \
