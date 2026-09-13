@@ -1,5 +1,5 @@
 {
-  "name": "chordia-equalizer",
+  "name": "ChordiaEqualizer",
   "platforms": ["apple", "android"],
   "apple": {
     "modules": ["ChordiaEqualizerModule"]
