@@ -60,6 +60,7 @@ window.SettingsEqualizer = {
     ],
 
     customAssets: {},
+    pendingSaveName: "",
 
     currentConfig: {
         enabled: false,
@@ -83,6 +84,9 @@ window.SettingsEqualizer = {
         if (raw) {
             try {
                 this.currentConfig = Object.assign({}, this.currentConfig, JSON.parse(raw));
+                if (this.currentConfig.presetId && !this.currentConfig.selectedAssetId) {
+                    this.currentConfig.selectedAssetId = this.currentConfig.presetId;
+                }
             } catch(e) {
                 console.error("Failed to parse equalizer settings:", e);
             }
@@ -145,7 +149,6 @@ window.SettingsEqualizer = {
         this.rebuildAssetOptions();
     },
 
-    // ★ プリセットと保存済みカスタムアセットのみを描画（未保存のカスタム項目は選択肢に追加しない）
     rebuildAssetOptions: function() {
         const dropdown = document.getElementById('eqAssetDropdown');
         const displayVal = document.getElementById('eqAssetValue');
@@ -297,99 +300,176 @@ window.SettingsEqualizer = {
         });
     },
 
+    // ★ HTMLモーダルによるポップアップ（Ctrl+Enter / Cmd+Enter で確定）
     setupCustomAssetModals: function() {
         const btnSaveOriginal = document.getElementById('btnSaveOriginalEqAsset');
         const btnDeleteOriginal = document.getElementById('btnDeleteOriginalEqAsset');
-        const modal = document.getElementById('eqAssetModal');
+        
+        const saveModal = document.getElementById('eqAssetModal');
         const newNameInput = document.getElementById('newEqAssetName');
-        const btnConfirm = document.getElementById('btnConfirmEqAssetModal');
-        const btnCancel = document.getElementById('btnCancelEqAssetModal');
+        const btnConfirmSave = document.getElementById('btnConfirmEqAssetModal');
+        const btnCancelSave = document.getElementById('btnCancelEqAssetModal');
 
+        const overwriteModal = document.getElementById('eqAssetOverwriteModal');
+        const overwriteMsg = document.getElementById('eqAssetOverwriteMessage');
+        const btnConfirmOverwrite = document.getElementById('btnConfirmEqAssetOverwrite');
+        const btnCancelOverwrite = document.getElementById('btnCancelEqAssetOverwrite');
+
+        const deleteModal = document.getElementById('eqAssetDeleteModal');
+        const deleteMsg = document.getElementById('eqAssetDeleteMessage');
+        const btnConfirmDelete = document.getElementById('btnConfirmEqAssetDelete');
+        const btnCancelDelete = document.getElementById('btnCancelEqAssetDelete');
+
+        const openModal = (m) => {
+            if (!m) return;
+            m.style.display = 'flex';
+            setTimeout(() => m.classList.add('show'), 10);
+        };
+
+        const closeModal = (m) => {
+            if (!m) return;
+            m.classList.remove('show');
+            setTimeout(() => { m.style.display = 'none'; }, 200);
+        };
+
+        // 1. 保存モーダルを開く
         if (btnSaveOriginal) {
-            btnSaveOriginal.addEventListener('click', () => {
+            btnSaveOriginal.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (newNameInput) newNameInput.value = "";
-                if (modal) {
-                    modal.style.display = 'flex';
-                    setTimeout(() => {
-                        if (newNameInput) newNameInput.focus();
-                    }, 50);
-                }
+                openModal(saveModal);
+                setTimeout(() => {
+                    if (newNameInput) newNameInput.focus();
+                }, 50);
             });
         }
 
-        if (btnCancel && modal) {
-            btnCancel.addEventListener('click', () => {
-                modal.style.display = 'none';
-            });
+        if (btnCancelSave && saveModal) {
+            btnCancelSave.addEventListener('click', () => closeModal(saveModal));
         }
 
-        const handleSaveConfirm = () => {
+        const handleSaveExecute = () => {
             const name = (newNameInput ? newNameInput.value.trim() : "");
-            if (!name) return;
-
-            if (this.presets.some(p => p.id === name || p.name === name) || name === "custom") {
-                alert("プリセットと同じ名前は使用できません。");
+            if (!name) {
+                window.SettingsGeneral.showToast("アセット名を入力してください", true);
+                if (newNameInput) newNameInput.focus();
                 return;
             }
 
-            if (this.customAssets[name]) {
-                if (!confirm(`カスタムアセット "${name}" は既に存在します。上書きしますか？`)) {
-                    return;
-                }
+            if (this.presets.some(p => p.id === name || p.name === name) || name.toLowerCase() === "custom") {
+                window.SettingsGeneral.showToast("プリセットと同じ名前は使用できません", true);
+                if (newNameInput) newNameInput.focus();
+                return;
             }
 
-            // 現在のプリアンプおよび10バンドゲインをオリジナルカスタムアセットとして保存
-            this.customAssets[name] = {
-                preamp: this.currentConfig.preamp,
-                gains: [...this.currentConfig.gains]
-            };
+            // 同名のアセットが既に存在する場合は上書き確認モーダルを表示
+            if (this.customAssets[name]) {
+                this.pendingSaveName = name;
+                closeModal(saveModal);
+                if (overwriteMsg) {
+                    overwriteMsg.textContent = `アセット「${name}」は既に存在します。上書きしますか？`;
+                }
+                openModal(overwriteModal);
+                return;
+            }
 
-            localStorage.setItem('chordia_custom_eq_assets', JSON.stringify(this.customAssets));
-
-            this.currentConfig.selectedAssetId = name;
-            this.currentConfig.isEditing = false;
-            
-            if (modal) modal.style.display = 'none';
-            this.rebuildAssetOptions();
-            this.updateUI();
-            this.saveSettings();
-            window.SettingsGeneral.showToast(`イコライザアセット "${name}" を保存しました`);
+            this.commitSaveAsset(name);
+            closeModal(saveModal);
         };
 
-        if (btnConfirm && modal) {
-            btnConfirm.addEventListener('click', handleSaveConfirm);
+        if (btnConfirmSave && saveModal) {
+            btnConfirmSave.addEventListener('click', handleSaveExecute);
         }
 
+        // ★ Windows: Ctrl + Enter / Mac: Command(Meta) + Enter でのみ確定
         if (newNameInput) {
             newNameInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                // 日本語入力変換中のEnterを確実にスルー
+                if (e.isComposing || e.keyCode === 229) return;
+
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
-                    handleSaveConfirm();
-                } else if (e.key === 'Escape' && modal) {
-                    modal.style.display = 'none';
+                    handleSaveExecute();
+                } else if (e.key === 'Enter') {
+                    // 通常のEnter単体では確定させない
+                    e.preventDefault();
+                } else if (e.key === 'Escape' && saveModal) {
+                    closeModal(saveModal);
                 }
             });
         }
 
+        // 2. 上書き保存確認
+        if (btnConfirmOverwrite && overwriteModal) {
+            btnConfirmOverwrite.addEventListener('click', () => {
+                if (this.pendingSaveName) {
+                    this.commitSaveAsset(this.pendingSaveName);
+                    this.pendingSaveName = "";
+                }
+                closeModal(overwriteModal);
+            });
+        }
+
+        if (btnCancelOverwrite && overwriteModal) {
+            btnCancelOverwrite.addEventListener('click', () => {
+                this.pendingSaveName = "";
+                closeModal(overwriteModal);
+            });
+        }
+
+        // 3. 削除確認
         if (btnDeleteOriginal) {
             btnDeleteOriginal.addEventListener('click', () => {
                 const currentId = this.currentConfig.selectedAssetId;
                 if (!this.customAssets[currentId]) return;
 
-                if (confirm(`カスタムアセット "${currentId}" を削除してもよろしいですか？`)) {
+                if (deleteMsg) {
+                    deleteMsg.textContent = `カスタムアセット「${currentId}」を削除してもよろしいですか？`;
+                }
+                openModal(deleteModal);
+            });
+        }
+
+        if (btnConfirmDelete && deleteModal) {
+            btnConfirmDelete.addEventListener('click', () => {
+                const currentId = this.currentConfig.selectedAssetId;
+                if (this.customAssets[currentId]) {
                     delete this.customAssets[currentId];
                     localStorage.setItem('chordia_custom_eq_assets', JSON.stringify(this.customAssets));
-                    
+
                     this.currentConfig.selectedAssetId = "flat";
                     this.currentConfig.isEditing = false;
                     this.applyAsset("flat", false);
                     this.rebuildAssetOptions();
                     this.updateUI();
                     this.saveSettings();
-                    window.SettingsGeneral.showToast(`アセット "${currentId}" を削除しました`);
+                    window.SettingsGeneral.showToast(`アセット「${currentId}」を削除しました`);
                 }
+                closeModal(deleteModal);
             });
         }
+
+        if (btnCancelDelete && deleteModal) {
+            btnCancelDelete.addEventListener('click', () => closeModal(deleteModal));
+        }
+    },
+
+    commitSaveAsset: function(name) {
+        this.customAssets[name] = {
+            preamp: this.currentConfig.preamp,
+            gains: [...this.currentConfig.gains]
+        };
+
+        localStorage.setItem('chordia_custom_eq_assets', JSON.stringify(this.customAssets));
+
+        this.currentConfig.selectedAssetId = name;
+        this.currentConfig.isEditing = false;
+
+        this.rebuildAssetOptions();
+        this.updateUI();
+        this.saveSettings();
+        window.SettingsGeneral.showToast(`イコライザアセット「${name}」を保存しました`);
     },
 
     updateButtonVisibility: function() {

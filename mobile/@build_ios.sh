@@ -14,47 +14,58 @@ const modDir = path.resolve("modules/chordia-equalizer");
 const iosDir = path.join(modDir, "ios");
 if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
 
+const wrongPod1 = path.join(iosDir, "chordia-equalizer.podspec");
+const wrongPod2 = path.join(iosDir, "ChordiaEqualizer.podspec");
+if (fs.existsSync(wrongPod1)) fs.unlinkSync(wrongPod1);
+if (fs.existsSync(wrongPod2)) fs.unlinkSync(wrongPod2);
+
 fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
   name: "chordia-equalizer",
-  version: "0.1.0",
-  main: "index.ts"
+  version: "0.1.0"
 }, null, 2));
 
 fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
   name: "chordia-equalizer",
-  platforms: ["apple", "android"],
-  apple: { modules: ["ChordiaEqualizerModule"] },
-  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+  platforms: ["ios", "apple", "android"],
+  apple: {
+    podspecPath: "ios/ChordiaEqualizer.podspec",
+    modules: ["ChordiaEqualizerModule"]
+  },
+  ios: {
+    podspecPath: "ios/ChordiaEqualizer.podspec",
+    modules: ["ChordiaEqualizerModule"]
+  },
+  android: {
+    modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"]
+  }
 }, null, 2));
 
-const podspec = `require "json"
-package = JSON.parse(File.read(File.join(__dir__, "package.json")))
-
-Pod::Spec.new do |s|
-  s.name           = "chordia-equalizer"
-  s.version        = package["version"]
+const podspec = `Pod::Spec.new do |s|
+  s.name           = "ChordiaEqualizer"
+  s.version        = "0.1.0"
   s.summary        = "Chordia Equalizer Module"
   s.description    = "Native Equalizer DSP module for Chordia Mobile"
   s.license        = "MIT"
   s.author         = "Chordia"
   s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
   s.platforms      = { :ios => "15.1" }
-  s.swift_version  = "5.4"
+  s.swift_version  = "5.0"
   s.source         = { :git => "" }
   s.static_framework = true
   s.dependency "ExpoModulesCore"
-  s.source_files = "ios/**/*.{h,m,mm,swift,hpp,cpp}"
+  s.source_files = "**/*.swift"
 end`;
-
-fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec.trim());
-fs.writeFileSync(path.join(modDir, "ChordiaEqualizer.podspec"), podspec.trim());
+fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspec.trim());
 
 const mainPkgPath = path.resolve("package.json");
 let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
-if (!pkg.dependencies["chordia-equalizer"]) {
-   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
-   fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
+if (!pkg.expo) pkg.expo = {};
+if (!pkg.expo.autolinking) pkg.expo.autolinking = {};
+pkg.expo.autolinking.nativeModulesDir = "./modules";
+if (pkg.dependencies && pkg.dependencies["chordia-equalizer"]) {
+   delete pkg.dependencies["chordia-equalizer"];
 }
+fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
 '
 
 # 1. 依存関係のインストール
@@ -92,7 +103,7 @@ cd ios
 pod install
 cd ..
 
-# 4. fmt ヘッダーの確実なパッチ (FMT_STRING を (s) に完全オーバーライド)
+# 4. fmt ヘッダーの確実なパッチ
 chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
