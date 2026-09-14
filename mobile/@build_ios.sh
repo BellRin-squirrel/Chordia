@@ -94,39 +94,31 @@ cd ios
 pod install
 cd ..
 
-# 4. fmt ヘッダーの確実なパッチ (書き込み権限を付与してから実行)
+# 4. fmt ヘッダーの確実なパッチ
 chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const fmtDir = path.resolve("ios/Pods/fmt/include/fmt");
-if (fs.existsSync(fmtDir)) {
-  const files = fs.readdirSync(fmtDir);
-  files.forEach(f => {
-    if (f.endsWith(".h")) {
-      const filePath = path.join(fmtDir, f);
-      try {
-        fs.chmodSync(filePath, 0o666);
-      } catch(e) {}
+const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
+if (fs.existsSync(fmtBase)) {
+  let content = fs.readFileSync(fmtBase, "utf8");
+  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+  fs.writeFileSync(fmtBase, content);
+}
 
-      let content = fs.readFileSync(filePath, "utf8");
-      let modified = false;
+const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
+if (fs.existsSync(fmtHeader)) {
+  let content = fs.readFileSync(fmtHeader, "utf8");
+  content = content.replace(/#define\s+FMT_STRING\(s\)\s+FMT_STRING_IMPL[^\n]+/g, "#define FMT_STRING(s) (s)");
+  fs.writeFileSync(fmtHeader, content);
+}
 
-      if (content.includes("FMT_USE_CONSTEVAL 1")) {
-        content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
-        modified = true;
-      }
-      if (content.includes("FMT_STRING(")) {
-        content = content.replace(/FMT_STRING\(/g, "(");
-        modified = true;
-      }
-
-      if (modified) {
-        fs.writeFileSync(filePath, content);
-      }
-    }
-  });
+const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
+if (fs.existsSync(fmtInl)) {
+  let content = fs.readFileSync(fmtInl, "utf8");
+  content = content.replace(/FMT_STRING\(([^)]+)\)/g, "($1)");
+  fs.writeFileSync(fmtInl, content);
 }
 '
 

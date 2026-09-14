@@ -28,6 +28,7 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      # ★ 正しいモジュールルートに chordia-equalizer.podspec を生成する
       - name: Ensure Expo Local Module and Dependencies
         run: |
           node -e '
@@ -39,11 +40,6 @@ jobs:
           const androidDir = path.join(modDir, "android");
           if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
           if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
-
-          const wrongPod1 = path.join(iosDir, "chordia-equalizer.podspec");
-          const wrongPod2 = path.join(iosDir, "ChordiaEqualizer.podspec");
-          if (fs.existsSync(wrongPod1)) fs.unlinkSync(wrongPod1);
-          if (fs.existsSync(wrongPod2)) fs.unlinkSync(wrongPod2);
 
           fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
             name: "chordia-equalizer",
@@ -80,6 +76,37 @@ jobs:
           fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec.trim());
           fs.writeFileSync(path.join(modDir, "ChordiaEqualizer.podspec"), podspec.trim());
 
+          const gradle = `apply plugin: "com.android.library"
+          apply plugin: "kotlin-android"
+
+          group = "com.bellrin.chordia.equalizer"
+          version = "1.0.0"
+
+          def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+          if (expoModulesCorePlugin.exists()) {
+            apply from: expoModulesCorePlugin
+            applyKotlinExpoModulesCorePlugin()
+          }
+
+          android {
+            compileSdkVersion 34
+            namespace "com.bellrin.chordia.equalizer"
+            defaultConfig { minSdkVersion 24 }
+
+            sourceSets {
+              main {
+                java.srcDirs += "src/main/java"
+                kotlin.srcDirs += "src/main/java"
+              }
+            }
+          }
+
+          dependencies {
+            implementation project(":expo-modules-core")
+            implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+          }`;
+          fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
+
           const mainPkgPath = path.resolve("package.json");
           let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
           if (!pkg.dependencies["chordia-equalizer"]) {
@@ -98,6 +125,7 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
+      # ★ Xcode 16 の C++ fmt コンパイル設定を注入
       - name: Configure Podfile for Xcode 16
         run: |
           node -e '
@@ -130,6 +158,7 @@ jobs:
           cd ios
           pod install
 
+      # ★ マクロ構文を破壊しない安全な fmt パッチ
       - name: Patch fmt library for Xcode 16
         run: |
           chmod -R u+w ios/Pods || true
@@ -137,34 +166,31 @@ jobs:
           const fs = require("fs");
           const path = require("path");
 
-          const fmtDir = path.resolve("ios/Pods/fmt/include/fmt");
-          if (fs.existsSync(fmtDir)) {
-            const files = fs.readdirSync(fmtDir);
-            files.forEach(f => {
-              if (f.endsWith(".h")) {
-                const filePath = path.join(fmtDir, f);
-                try {
-                  fs.chmodSync(filePath, 0o666);
-                } catch(e) {}
+          // 1. base.h の FMT_USE_CONSTEVAL を無効化
+          const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
+          if (fs.existsSync(fmtBase)) {
+            let content = fs.readFileSync(fmtBase, "utf8");
+            content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+            fs.writeFileSync(fmtBase, content);
+            console.log("Patched base.h: FMT_USE_CONSTEVAL 0");
+          }
 
-                let content = fs.readFileSync(filePath, "utf8");
-                let modified = false;
+          // 2. format.h のマクロ定義を安全な (s) に変更（マクロ名は破壊しない）
+          const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
+          if (fs.existsSync(fmtHeader)) {
+            let content = fs.readFileSync(fmtHeader, "utf8");
+            content = content.replace(/#define\s+FMT_STRING\(s\)\s+FMT_STRING_IMPL[^\n]+/g, "#define FMT_STRING(s) (s)");
+            fs.writeFileSync(fmtHeader, content);
+            console.log("Patched format.h: #define FMT_STRING(s) (s)");
+          }
 
-                if (content.includes("FMT_USE_CONSTEVAL 1")) {
-                  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
-                  modified = true;
-                }
-                if (content.includes("FMT_STRING(")) {
-                  content = content.replace(/FMT_STRING\(/g, "(");
-                  modified = true;
-                }
-
-                if (modified) {
-                  fs.writeFileSync(filePath, content);
-                  console.log("Patched fmt header:", f);
-                }
-              }
-            });
+          // 3. format-inl.h の問題箇所をピンポイントで置換
+          const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
+          if (fs.existsSync(fmtInl)) {
+            let content = fs.readFileSync(fmtInl, "utf8");
+            content = content.replace(/FMT_STRING\(([^)]+)\)/g, "($1)");
+            fs.writeFileSync(fmtInl, content);
+            console.log("Patched format-inl.h calls");
           }
           '
 
@@ -182,6 +208,7 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
+      # ★ 生ログ保存＆失敗時詳細出力パイプライン
       - name: Make archive for iOS Dev Client (Unsigned)
         run: |
           set -o pipefail
@@ -241,7 +268,6 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # ★ build.gradle と Kotlinコード実体を100%確実に配置・保証する
       - name: Ensure Expo Local Module and Dependencies
         run: |
           node -e '
@@ -266,7 +292,6 @@ jobs:
             android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
           }, null, 2));
 
-          // ★ 正しい Expo Local Module 用 build.gradle (sourceSets を明記)
           const gradle = `apply plugin: "com.android.library"
           apply plugin: "kotlin-android"
 
@@ -298,7 +323,6 @@ jobs:
           }`;
           fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
 
-          // ★ Kotlin コードの完全な実体を直接配置
           const ktCode = `package com.bellrin.chordia.equalizer
 
           import android.media.audiofx.Equalizer
@@ -529,7 +553,6 @@ jobs:
           do
              ./gradlew assembleDebug && break
              n=$((n+1)) 
-             echo "⚠️ Gradle download/build failed. Retrying in 10 seconds... ($n/3)"
              sleep 10
           done
           if [ "$n" -ge 3 ]; then
