@@ -1,16 +1,22 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
 
-// ★ TrackPlayer と同じ React Native 標準の NativeModules から優先取得
-let NativeModule: any = NativeModules.ChordiaEqualizer || NativeModules.chordia_equalizer;
+let NativeModule: any = null;
+let detectedModuleName: string | null = null;
+let rawErrorDetails: any = {};
 
-if (!NativeModule) {
+const candidateNames = ['ChordiaEqualizer', 'chordia-equalizer'];
+
+for (const name of candidateNames) {
   try {
-    NativeModule = requireNativeModule('ChordiaEqualizer');
-  } catch (e1) {
-    try {
-      NativeModule = requireNativeModule('chordia-equalizer');
-    } catch (e2) {}
+    const mod = requireNativeModule(name);
+    if (mod) {
+      NativeModule = mod;
+      detectedModuleName = name;
+      break;
+    }
+  } catch (e: any) {
+    rawErrorDetails[name] = e?.message || String(e);
   }
 }
 
@@ -57,15 +63,14 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
 };
 
 export const getEqualizerDebugInfo = (): any => {
-  const registeredNativeModules = Object.keys(NativeModules || {});
-
   if (!NativeModule) {
     return {
       isNativeConnected: false,
       platform: Platform.OS,
-      searchRoute: 'NativeModules & ExpoModules',
-      availableNativeModulesInApp: registeredNativeModules,
-      note: 'ChordiaEqualizer was not found in NativeModules or ExpoModules',
+      detectedModuleName: null,
+      attemptedModuleNames: candidateNames,
+      connectionErrors: rawErrorDetails,
+      note: 'Waiting for ExpoModulesProvider registration',
     };
   }
 
@@ -74,15 +79,15 @@ export const getEqualizerDebugInfo = (): any => {
     return {
       isNativeConnected: true,
       platform: Platform.OS,
+      detectedModuleName,
       ...info,
-      availableNativeModulesInApp: registeredNativeModules,
     };
   } catch (e: any) {
     return {
       isNativeConnected: true,
       platform: Platform.OS,
+      detectedModuleName,
       errorCallingDebug: e?.message || String(e),
-      availableNativeModulesInApp: registeredNativeModules,
     };
   }
 };
@@ -90,8 +95,7 @@ export const getEqualizerDebugInfo = (): any => {
 export const loadAndPlayIOS = (filePath: string, startSeconds: number, autoPlay: boolean = true): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.loadAndPlay) return false;
   try {
-    NativeModule.loadAndPlay(filePath, startSeconds, autoPlay);
-    return true;
+    return NativeModule.loadAndPlay(filePath, startSeconds, autoPlay);
   } catch (e) {
     return false;
   }
@@ -100,8 +104,7 @@ export const loadAndPlayIOS = (filePath: string, startSeconds: number, autoPlay:
 export const pauseIOS = (): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.pause) return false;
   try {
-    NativeModule.pause();
-    return true;
+    return NativeModule.pause();
   } catch (e) {
     return false;
   }
@@ -110,8 +113,7 @@ export const pauseIOS = (): boolean => {
 export const playIOS = (): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.play) return false;
   try {
-    NativeModule.play();
-    return true;
+    return NativeModule.play();
   } catch (e) {
     return false;
   }
@@ -120,8 +122,7 @@ export const playIOS = (): boolean => {
 export const stopIOS = (): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.stop) return false;
   try {
-    NativeModule.stop();
-    return true;
+    return NativeModule.stop();
   } catch (e) {
     return false;
   }
@@ -130,8 +131,7 @@ export const stopIOS = (): boolean => {
 export const seekToIOS = (seconds: number): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.seekTo) return false;
   try {
-    NativeModule.seekTo(seconds);
-    return true;
+    return NativeModule.seekTo(seconds);
   } catch (e) {
     return false;
   }

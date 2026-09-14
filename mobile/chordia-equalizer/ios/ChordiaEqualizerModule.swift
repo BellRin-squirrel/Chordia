@@ -1,19 +1,8 @@
-import Foundation
+import ExpoModulesCore
 import AVFoundation
 import MediaPlayer
-import React
-import ExpoModulesCore
 
-@objc(ChordiaEqualizer)
-public class ChordiaEqualizerModule: Module, RCTBridgeModule {
-  public static func moduleName() -> String! {
-    return "ChordiaEqualizer"
-  }
-
-  @objc public static func requiresMainQueueSetup() -> Bool {
-    return true
-  }
-
+public class ChordiaEqualizerModule: Module {
   private var isEQEnabled: Bool = false
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
@@ -32,7 +21,6 @@ public class ChordiaEqualizerModule: Module, RCTBridgeModule {
   private var isNodesAttached: Bool = false
   private var lastErrorMessage: String = "None"
 
-  // MARK: - Expo Module Definition (Expo用)
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
@@ -108,116 +96,22 @@ public class ChordiaEqualizerModule: Module, RCTBridgeModule {
     }
 
     Function("getDebugInfo") { () -> [String: Any] in
-      return self.getDebugInfoDictionary()
+      return [
+        "platform": "iOS",
+        "isNativeConnected": true,
+        "isEngineRunning": self.audioEngine.isRunning,
+        "isPlayerPlaying": self.playerNode.isPlaying,
+        "isEQEnabled": self.isEQEnabled,
+        "preamp": self.currentPreamp,
+        "gains": self.currentGains,
+        "hasAudioFile": self.currentAudioFile != nil,
+        "sampleRate": self.fileSampleRate,
+        "totalFrames": Double(self.fileTotalFrames),
+        "lastError": self.lastErrorMessage
+      ]
     }
   }
 
-  // MARK: - React Native Bridge Methods (RCTBridgeModule用)
-  @objc(initEqualizer:resolve:reject:)
-  public func initEqualizerBridge(_ audioSessionId: Int, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    setupAudioEngineNodes()
-    resolve(true)
-  }
-
-  @objc(setEnabled:)
-  public func setEnabledBridge(_ enabled: Bool) {
-    self.isEQEnabled = enabled
-    self.updateEqualizerHardware()
-  }
-
-  @objc(setBands:preamp:)
-  public func setBandsBridge(_ gains: [Double], preamp: Double) {
-    self.currentPreamp = Float(preamp)
-    self.currentGains = gains.map { Float($0) }
-    self.updateEqualizerHardware()
-  }
-
-  @objc(applySettings:preamp:gains:)
-  public func applySettingsBridge(_ enabled: Bool, preamp: Double, gains: [Double]) {
-    self.isEQEnabled = enabled
-    self.currentPreamp = Float(preamp)
-    self.currentGains = gains.map { Float($0) }
-    self.updateEqualizerHardware()
-  }
-
-  @objc(loadAndPlay:startSeconds:autoPlay:resolve:reject:)
-  public func loadAndPlayBridge(_ filePath: String, startSeconds: Double, autoPlay: Bool, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    let result = loadAndPlayFile(filePath: filePath, startSeconds: startSeconds, autoPlay: autoPlay)
-    resolve(result)
-  }
-
-  @objc(pause:reject:)
-  public func pauseBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    self.playerNode.pause()
-    self.isNodePlaying = false
-    resolve(true)
-  }
-
-  @objc(play:reject:)
-  public func playBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    if !self.audioEngine.isRunning {
-      try? self.audioEngine.start()
-    }
-    self.playerNode.play()
-    self.isNodePlaying = true
-    resolve(true)
-  }
-
-  @objc(stop:reject:)
-  public func stopBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    self.playerNode.stop()
-    self.isNodePlaying = false
-    resolve(true)
-  }
-
-  @objc(seekTo:resolve:reject:)
-  public func seekToBridge(_ seconds: Double, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    let result = seek(to: seconds)
-    resolve(result)
-  }
-
-  @objc(getPosition:reject:)
-  public func getPositionBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    resolve(getCurrentPosition())
-  }
-
-  @objc(getDuration:reject:)
-  public func getDurationBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    if self.fileSampleRate > 0 && self.fileTotalFrames > 0 {
-      resolve(Double(self.fileTotalFrames) / self.fileSampleRate)
-    } else {
-      resolve(0.0)
-    }
-  }
-
-  @objc(isPlaying:reject:)
-  public func isPlayingBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    resolve(self.isNodePlaying)
-  }
-
-  @objc(getDebugInfo:reject:)
-  public func getDebugInfoBridge(_ resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
-    resolve(getDebugInfoDictionary())
-  }
-
-  private func getDebugInfoDictionary() -> [String: Any] {
-    return [
-      "platform": "iOS",
-      "isNativeConnected": true,
-      "bridgeType": "RCTBridgeModule & ExpoModule",
-      "isEngineRunning": self.audioEngine.isRunning,
-      "isPlayerPlaying": self.playerNode.isPlaying,
-      "isEQEnabled": self.isEQEnabled,
-      "preamp": self.currentPreamp,
-      "gains": self.currentGains,
-      "hasAudioFile": self.currentAudioFile != nil,
-      "sampleRate": self.fileSampleRate,
-      "totalFrames": Double(self.fileTotalFrames),
-      "lastError": self.lastErrorMessage
-    ]
-  }
-
-  // MARK: - Internal Audio Engine
   private func setupAudioEngineNodes() {
     if isNodesAttached { return }
 
@@ -361,7 +255,6 @@ public class ChordiaEqualizerModule: Module, RCTBridgeModule {
     }
 
     seekOffsetSeconds = Double(targetFrame) / sampleRate
-    
     let rawRemaining = max(0, totalFrames - targetFrame)
     let remainingFrames = AVAudioFrameCount(clamping: rawRemaining)
 

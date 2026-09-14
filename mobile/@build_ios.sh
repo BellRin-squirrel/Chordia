@@ -16,43 +16,42 @@ if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
 
 fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
   name: "chordia-equalizer",
-  version: "0.1.0",
-  main: "index.ts"
+  version: "0.1.0"
 }, null, 2));
 
 fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
   name: "chordia-equalizer",
-  platforms: ["apple", "android"],
-  apple: { modules: ["ChordiaEqualizerModule"] },
-  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+  platforms: ["ios", "android"],
+  ios: {
+    podspecPath: "ios/ChordiaEqualizer.podspec",
+    modules: ["ChordiaEqualizerModule"]
+  },
+  android: {
+    modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"]
+  }
 }, null, 2));
 
-const podspec = `require "json"
-package = JSON.parse(File.read(File.join(__dir__, "package.json")))
-
-Pod::Spec.new do |s|
-  s.name           = "chordia-equalizer"
-  s.version        = package["version"]
+const podspec = `Pod::Spec.new do |s|
+  s.name           = "ChordiaEqualizer"
+  s.version        = "0.1.0"
   s.summary        = "Chordia Equalizer Module"
   s.description    = "Native Equalizer DSP module for Chordia Mobile"
   s.license        = "MIT"
   s.author         = "Chordia"
   s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
   s.platforms      = { :ios => "15.1" }
-  s.swift_version  = "5.4"
+  s.swift_version  = "5.0"
   s.source         = { :git => "" }
   s.static_framework = true
   s.dependency "ExpoModulesCore"
-  s.source_files = "ios/**/*.{h,m,mm,swift,hpp,cpp}"
+  s.source_files = "**/*.swift"
 end`;
-
-fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec.trim());
-fs.writeFileSync(path.join(modDir, "ChordiaEqualizer.podspec"), podspec.trim());
+fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspec.trim());
 
 const mainPkgPath = path.resolve("package.json");
 let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
-if (!pkg.dependencies["chordia-equalizer"]) {
-   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
+if (pkg.dependencies && pkg.dependencies["chordia-equalizer"]) {
+   delete pkg.dependencies["chordia-equalizer"];
    fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
 }
 '
@@ -73,7 +72,6 @@ const podfile = "ios/Podfile";
 if (fs.existsSync(podfile)) {
   let content = fs.readFileSync(podfile, "utf8");
   const fmtPatch = `
-    installer.pods_project.targets.each do |target|
       if target.name == "fmt"
         target.build_configurations.each do |config|
           config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
@@ -81,7 +79,6 @@ if (fs.existsSync(podfile)) {
           config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] << "FMT_USE_CONSTEVAL=0"
         end
       end
-    end
   `;
   if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
     content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
