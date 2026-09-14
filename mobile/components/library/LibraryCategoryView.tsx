@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { styles } from '../../styles/styles';
@@ -172,7 +172,6 @@ export const LibraryCategoryView = ({
       const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
       if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
-      // ★ カバー画像変更時にクラウド同期
       syncMusicAndPlaylistsToCloud();
 
       Alert.alert(t('confirm', language), sourceUri ? t('cover_updated', language) : t('cover_reset', language));
@@ -269,7 +268,6 @@ export const LibraryCategoryView = ({
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
     if (setLocalPlaylists) setLocalPlaylists(updated);
 
-    // ★ 通常プレイリスト新規作成時にクラウド同期
     syncMusicAndPlaylistsToCloud();
 
     setSelectSongsModalVisible(false);
@@ -293,7 +291,6 @@ export const LibraryCategoryView = ({
       if (setLocalPlaylists) setLocalPlaylists(updated);
       setSmartEditorConfig({ visible: false, mode: 'CREATE', targetPlaylist: null });
 
-      // ★ スマートプレイリスト作成時にクラウド同期
       syncMusicAndPlaylistsToCloud();
 
       Alert.alert(t('confirm', language), t('smart_playlist_created_alert', language).replace('{name}', name));
@@ -315,7 +312,6 @@ export const LibraryCategoryView = ({
 
       setSmartEditorConfig({ visible: false, mode: 'EDIT', targetPlaylist: null });
 
-      // ★ スマートプレイリスト編集時にクラウド同期
       syncMusicAndPlaylistsToCloud();
 
       Alert.alert(t('confirm', language), t('rules_saved_alert', language).replace('{name}', target.playlistName));
@@ -356,7 +352,6 @@ export const LibraryCategoryView = ({
               const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
               if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
 
-              // ★ 通常プレイリスト変換時にクラウド同期
               syncMusicAndPlaylistsToCloud();
 
               Alert.alert(t('confirm', language), t('convert_smart_done', language).replace('{name}', targetPl.playlistName));
@@ -402,7 +397,6 @@ export const LibraryCategoryView = ({
 
     setEditSongsTargetPl(null);
 
-    // ★ 収録曲更新時にクラウド同期
     syncMusicAndPlaylistsToCloud();
 
     Alert.alert(t('confirm', language), t('tracks_updated_alert', language).replace('{name}', editSongsTargetPl.playlistName));
@@ -419,7 +413,6 @@ export const LibraryCategoryView = ({
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
     if (setLocalPlaylists) setLocalPlaylists(updated);
 
-    // ★ プレイリスト複製時にクラウド同期
     syncMusicAndPlaylistsToCloud();
 
     Alert.alert(t('confirm', language), t('playlist_duplicated_alert', language).replace('{name}', newPl.playlistName));
@@ -441,7 +434,6 @@ export const LibraryCategoryView = ({
     setRenameTarget(null);
     setRenameInput('');
 
-    // ★ プレイリスト名変更時にクラウド同期
     syncMusicAndPlaylistsToCloud();
   };
 
@@ -459,7 +451,6 @@ export const LibraryCategoryView = ({
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
             if (setLocalPlaylists) setLocalPlaylists(updated);
 
-            // ★ プレイリスト削除時にクラウド同期
             syncMusicAndPlaylistsToCloud();
           }
         }
@@ -580,7 +571,6 @@ export const LibraryCategoryView = ({
         contentContainerStyle={safePadding}
       />
 
-      {/* 1. ヘッダー3点メニュー（通常 / スマートプレイリスト新規作成） */}
       <Modal visible={headerMenuVisible} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeHeaderMenu()}>
           <Animated.View style={{ 
@@ -627,7 +617,6 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 2. 各プレイリスト行の3点メニュー */}
       <Modal visible={!!rowActionTarget} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeRowActionSheet()}>
           <Animated.View style={{ 
@@ -647,7 +636,6 @@ export const LibraryCategoryView = ({
                     </View>
                   </View>
 
-                  {/* 1. 名前を変更 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -663,7 +651,6 @@ export const LibraryCategoryView = ({
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
                   </TouchableOpacity>
 
-                  {/* 2. カバー画像を変更 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -678,7 +665,6 @@ export const LibraryCategoryView = ({
 
                   {rowActionTarget?.type === 'smart' ? (
                     <>
-                      {/* 3. ルールを編集 */}
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
@@ -693,7 +679,6 @@ export const LibraryCategoryView = ({
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_rules', language)}</Text>
                       </TouchableOpacity>
 
-                      {/* 4. 通常のプレイリストに変更 */}
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
@@ -708,7 +693,6 @@ export const LibraryCategoryView = ({
                     </>
                   ) : (
                     <>
-                      {/* 3. プレイリストの曲を編集 */}
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
@@ -723,7 +707,6 @@ export const LibraryCategoryView = ({
                     </>
                   )}
 
-                  {/* 5. プレイリストを複製 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
@@ -736,7 +719,6 @@ export const LibraryCategoryView = ({
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
                   </TouchableOpacity>
 
-                  {/* 6. 削除 */}
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                     onPress={() => {
@@ -757,7 +739,6 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 3. カバー画像選択ポップアップ */}
       <Modal visible={!!coverPickerTarget} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeCoverPickerSheet()}>
           <Animated.View style={{ 
@@ -832,7 +813,6 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 4. 新規プレイリスト名 入力モーダル */}
       <Modal visible={createNameModalVisible} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -876,7 +856,6 @@ export const LibraryCategoryView = ({
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 5. 新規プレイリストの楽曲選択モーダル */}
       <Modal visible={selectSongsModalVisible} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -962,7 +941,6 @@ export const LibraryCategoryView = ({
         </View>
       </Modal>
 
-      {/* 6. プレイリストの収録曲編集モーダル */}
       <Modal visible={!!editSongsTargetPl} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -1048,7 +1026,6 @@ export const LibraryCategoryView = ({
         </View>
       </Modal>
 
-      {/* 7. プレイリスト名 変更モーダル */}
       <Modal visible={!!renameTarget} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -1089,7 +1066,6 @@ export const LibraryCategoryView = ({
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* 8. スマートプレイリスト作成・編集モーダル */}
       <SmartPlaylistEditorModal 
         visible={smartEditorConfig.visible}
         mode={smartEditorConfig.mode}

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { MarqueeText } from '../MarqueeText';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
@@ -89,7 +89,6 @@ export const InfoManageDataView = ({
       await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
       if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
       
-      // ★ プレイリスト更新時にクラウド自動同期
       syncMusicAndPlaylistsToCloud();
 
       closeAddToPlaylistModal();
@@ -141,7 +140,6 @@ export const InfoManageDataView = ({
       if (setLocalLibrary) setLocalLibrary(remainingLibrary);
       if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
 
-      // ★ 楽曲・プレイリスト削除時にクラウド自動同期
       syncMusicAndPlaylistsToCloud();
 
       setSelectedSongUris(new Set());
@@ -306,7 +304,6 @@ export const InfoManageDataView = ({
         }}
       />
 
-      {/* アクションメニュー */}
       <Modal visible={!!actionSheetTargetSongs} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeActionSheet()}>
           <Animated.View style={{ 
@@ -407,7 +404,6 @@ export const InfoManageDataView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* タグ情報ポップアップ */}
       <Modal visible={!!songInfoModalTargetSongs} transparent animationType="none">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ width: '100%', maxWidth: 440, maxHeight: isLandscape ? '85%' : '70%', flexShrink: 1, backgroundColor: dynamicStyles.card, borderRadius: 24, padding: 22, borderWidth: 1.5, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
@@ -468,7 +464,6 @@ export const InfoManageDataView = ({
         </View>
       </Modal>
 
-      {/* プレイリスト選択モーダル */}
       <Modal visible={!!addToPlaylistTargetSongs} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',

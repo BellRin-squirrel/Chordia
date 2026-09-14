@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { LanguageCode } from '../utils/i18n';
 
 export const useLibraryData = () => {
@@ -20,7 +20,6 @@ export const useLibraryData = () => {
   const [showSyncTab, setShowSyncTab] = useState(true);
   const [showPlaylistTypeIcon, setShowPlaylistTypeIcon] = useState(true);
 
-  // ★ 言語設定用 State
   const [language, setLanguage] = useState<LanguageCode>('ja');
   const [isLanguageSelected, setIsLanguageSelected] = useState<boolean | null>(null);
 
@@ -85,7 +84,6 @@ export const useLibraryData = () => {
         if (syncState !== null) setShowSyncTab(syncState === 'true');
         if (iconState !== null) setShowPlaylistTypeIcon(iconState === 'true');
 
-        // 言語設定の確認
         if (savedLang) {
           setLanguage(savedLang as LanguageCode);
           setIsLanguageSelected(true);
@@ -130,7 +128,6 @@ export const useLibraryData = () => {
     await AsyncStorage.setItem('show_playlist_type_icon', newValue ? 'true' : 'false');
   };
 
-  // ★ 言語変更・保存処理
   const changeLanguage = async (newLang: LanguageCode) => {
     setLanguage(newLang);
     setIsLanguageSelected(true);

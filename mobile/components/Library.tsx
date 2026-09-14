@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -101,7 +101,6 @@ export const Library = ({
     paddingRight: isLandscape ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 0,
   };
 
-  // ★ タブバー押下時にトップ画面（MENU）へスムーズに戻す
   useEffect(() => {
     if (resetTrigger && resetTrigger > 0) {
       if (navStack.length > 1) {
@@ -283,7 +282,7 @@ export const Library = ({
             const remainingLibrary = localLibrary.filter((s: any) => s.localMusicUri !== song.localMusicUri);
             const targetFname = song.musicFilename?.split(/[\\/]/).pop();
             const updatedPlaylists = localPlaylists.map((pl: any) => pl.isAll || !pl.music ? pl : { ...pl, music: pl.music.filter((m: string) => m.split(/[\\/]/).pop() !== targetFname) });
-            await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
+            await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalLibrary) setLocalLibrary(remainingLibrary);
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
@@ -319,7 +318,7 @@ export const Library = ({
   const layer1Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -width * 0.25, -width * 0.25], extrapolate: 'clamp' });
   const layer1Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0.4, 0.4], extrapolate: 'clamp' });
   const layer2Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.25], extrapolate: 'clamp' });
-  const layer2Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0, 0.4], extrapolate: 'clamp' });
+  const layer2Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0.4, 0.4], extrapolate: 'clamp' });
   const layer3Translate = currentProgress.interpolate({ inputRange: [1, 2], outputRange: [width, 0], extrapolate: 'clamp' });
 
   const pushView = (view: string) => {
@@ -341,7 +340,6 @@ export const Library = ({
     });
   };
 
-  // 指定のコレクション（プレイリスト / アルバム / アーティスト）画面へ直接遷移する関数
   const openCollectionSongList = (category: 'PLAYLISTS' | 'ALBUMS' | 'ARTISTS', type: 'PLAYLIST' | 'ALBUM' | 'ARTIST', data: any) => {
     setCurrentSelectionType(type);
     if (type === 'PLAYLIST') {
@@ -355,7 +353,12 @@ export const Library = ({
     Animated.spring(navAnim, { toValue: 2, useNativeDriver: true, stiffness: 300, damping: 30, mass: 0.8, overshootClamping: true }).start();
   };
 
-  const onGestureEvent = Animated.event([{ nativeEvent: { translationX: panX } }], { useNativeDriver: true });
+  const onGestureEvent = (event: any) => {
+    if (event?.nativeEvent?.translationX !== undefined) {
+      panX.setValue(event.nativeEvent.translationX);
+    }
+  };
+
   const onHandlerStateChange = (event: any) => {
     const { state, translationX, velocityX } = event.nativeEvent;
     if (state === State.END || state === State.CANCELLED) {

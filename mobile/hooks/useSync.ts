@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
 import * as Device from 'expo-device';
@@ -473,7 +473,6 @@ export const useSync = ({
 
         let currentLocal = Array.isArray(localLibrary) ? [...localLibrary] : [];
 
-        // ★ 同一曲（重複）判定キー: cleanStr(title) ::: cleanStr(artist) ::: cleanStr(album)
         const targetTitleArtistAlbums = new Set<string>();
         for (const tg of targets) {
             if (tg && tg.title && tg.artist) {
@@ -537,7 +536,6 @@ export const useSync = ({
             currentLocal = updatedLocalList;
         }
 
-        // ★ ライブラリ照合用マップ（曲名 + アーティスト + アルバム）
         const libraryMap = new Map();
         for (const s of currentLocal) {
             if (s && s.title && s.artist) {
