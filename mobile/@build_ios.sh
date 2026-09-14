@@ -16,55 +16,53 @@ if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
 
 fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
   name: "chordia-equalizer",
-  version: "0.1.0"
+  version: "0.1.0",
+  main: "index.ts"
 }, null, 2));
 
 fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
   name: "chordia-equalizer",
-  platforms: ["ios", "android"],
-  ios: {
-    podspecPath: "ios/ChordiaEqualizer.podspec",
-    modules: ["ChordiaEqualizerModule"]
-  },
-  android: {
-    modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"]
-  }
+  platforms: ["apple", "android"],
+  apple: { modules: ["ChordiaEqualizerModule"] },
+  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
 }, null, 2));
 
-const podspec = `Pod::Spec.new do |s|
-  s.name           = "ChordiaEqualizer"
-  s.version        = "0.1.0"
+const podspec = `require "json"
+package = JSON.parse(File.read(File.join(__dir__, "package.json")))
+
+Pod::Spec.new do |s|
+  s.name           = "chordia-equalizer"
+  s.version        = package["version"]
   s.summary        = "Chordia Equalizer Module"
   s.description    = "Native Equalizer DSP module for Chordia Mobile"
   s.license        = "MIT"
   s.author         = "Chordia"
   s.homepage       = "https://github.com/BellRin-squirrel/Chordia"
   s.platforms      = { :ios => "15.1" }
-  s.swift_version  = "5.0"
+  s.swift_version  = "5.4"
   s.source         = { :git => "" }
   s.static_framework = true
   s.dependency "ExpoModulesCore"
-  s.source_files = "**/*.swift"
+  s.source_files = "ios/**/*.{h,m,mm,swift,hpp,cpp}"
 end`;
-fs.writeFileSync(path.join(iosDir, "ChordiaEqualizer.podspec"), podspec.trim());
+
+fs.writeFileSync(path.join(modDir, "chordia-equalizer.podspec"), podspec.trim());
+fs.writeFileSync(path.join(modDir, "ChordiaEqualizer.podspec"), podspec.trim());
 
 const mainPkgPath = path.resolve("package.json");
 let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
-if (pkg.dependencies && pkg.dependencies["chordia-equalizer"]) {
-   delete pkg.dependencies["chordia-equalizer"];
+if (!pkg.dependencies["chordia-equalizer"]) {
+   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
    fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
 }
 '
 
-# 1. 依存関係のインストール
 echo "📦 1/5 依存関係を確認中..."
 npm install
 
-# 2. Expo Prebuild (ネイティブコードの生成)
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
-# 3. Xcode 16 の fmt 設定を Podfile に適用
 echo "⚙️ 3/5 Xcode 16 設定を Podfile に適用中..."
 node -e '
 const fs = require("fs");
@@ -91,35 +89,30 @@ cd ios
 pod install
 cd ..
 
-# 4. fmt ヘッダーの確実なパッチ
+# ★ 安全な先頭追記方式
 chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
-if (fs.existsSync(fmtBase)) {
-  let content = fs.readFileSync(fmtBase, "utf8");
-  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
-  fs.writeFileSync(fmtBase, content);
-}
+const filesToPrepend = [
+  "ios/Pods/fmt/include/fmt/core.h",
+  "ios/Pods/fmt/include/fmt/format.h",
+  "ios/Pods/fmt/include/fmt/base.h"
+];
 
-const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
-if (fs.existsSync(fmtHeader)) {
-  let content = fs.readFileSync(fmtHeader, "utf8");
-  content = content.replace(/#define\s+FMT_STRING\(s\)\s+FMT_STRING_IMPL[^\n]+/g, "#define FMT_STRING(s) (s)");
-  fs.writeFileSync(fmtHeader, content);
-}
-
-const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
-if (fs.existsSync(fmtInl)) {
-  let content = fs.readFileSync(fmtInl, "utf8");
-  content = content.replace(/FMT_STRING\(([^)]+)\)/g, "($1)");
-  fs.writeFileSync(fmtInl, content);
-}
+filesToPrepend.forEach(file => {
+  const p = path.resolve(file);
+  if (fs.existsSync(p)) {
+    let content = fs.readFileSync(p, "utf8");
+    if (!content.includes("FMT_USE_CONSTEVAL 0")) {
+      content = "#ifndef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n#endif\n" + content;
+      fs.writeFileSync(p, content);
+    }
+  }
+});
 '
 
-# 5. Xcodeビルド用スクリプト権限 ＆ Node環境変数の設定
 echo "⚙️ 4/5 Xcode ビルド環境を準備中..."
 find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
@@ -128,7 +121,6 @@ echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
 
 PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
 
-# 6. xcodebuild による未署名ビルド実行
 echo "🔨 5/5 app をビルド中 (xcodebuild)..."
 xcodebuild -workspace "ios/$PROJECT_NAME.xcworkspace" \
            -scheme "$PROJECT_NAME" \
