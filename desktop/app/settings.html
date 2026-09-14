@@ -52,7 +52,7 @@
                 </button>
                 <button class="settings-nav-btn" data-target="sec-tags">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-                    <span>表示タグ</span>
+                    <span>表示タグ設定</span>
                 </button>
                 <button class="settings-nav-btn" data-target="sec-account">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" /></svg>
@@ -255,12 +255,12 @@
                                     <span class="row-desc">全体の音量ゲインを調整します</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 12px; width: 260px;">
-                                    <input type="range" id="eqPreampSlider" min="-12" max="12" step="0.5" value="0" class="eq-range-horizontal" style="flex: 1;">
+                                    <input type="range" id="eqPreampSlider" min="-12" max="12" step="0.5" value="0" class="eq-slider-horizontal" style="flex: 1;">
                                     <span id="eqPreampValue" class="eq-val-badge">0.0 dB</span>
                                 </div>
                             </div>
 
-                            <div class="eq-bands-grid" id="eqBandsGrid">
+                            <div class="eq-bands-layout" id="eqBandsGrid">
                                 <!-- 10バンドのスライダーが動的生成されます -->
                             </div>
                         </div>

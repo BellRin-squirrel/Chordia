@@ -158,7 +158,7 @@ jobs:
           cd ios
           pod install
 
-      # ★ 正規表現置換ではなく、ファイルの先頭に安全にマクロ定義を追記する確実なパッチ
+      # ★ FMT_STRING マクロを確実に (s) にオーバーライドして consteval エラーを完全解消
       - name: Patch fmt headers for Xcode 16
         run: |
           chmod -R u+w ios/Pods || true
@@ -166,23 +166,37 @@ jobs:
           const fs = require("fs");
           const path = require("path");
 
-          const filesToPrepend = [
-            "ios/Pods/fmt/include/fmt/core.h",
-            "ios/Pods/fmt/include/fmt/format.h",
-            "ios/Pods/fmt/include/fmt/base.h"
-          ];
+          // 1. base.h の FMT_USE_CONSTEVAL を 0 に変更
+          const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
+          if (fs.existsSync(fmtBase)) {
+            let content = fs.readFileSync(fmtBase, "utf8");
+            content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+            fs.writeFileSync(fmtBase, content);
+            console.log("Patched base.h: FMT_USE_CONSTEVAL 0");
+          }
 
-          filesToPrepend.forEach(file => {
-            const p = path.resolve(file);
-            if (fs.existsSync(p)) {
-              let content = fs.readFileSync(p, "utf8");
-              if (!content.includes("FMT_USE_CONSTEVAL 0")) {
-                content = "#ifndef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n#endif\n" + content;
-                fs.writeFileSync(p, content);
-                console.log("Safely prepended FMT_USE_CONSTEVAL 0 to:", file);
-              }
+          // 2. format.h のマクロ定義を #define FMT_STRING(s) (s) に置換
+          const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
+          if (fs.existsSync(fmtHeader)) {
+            let content = fs.readFileSync(fmtHeader, "utf8");
+            content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
+            content += "\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n";
+            fs.writeFileSync(fmtHeader, content);
+            console.log("Patched format.h: override FMT_STRING(s) (s)");
+          }
+
+          // 3. format-inl.h 内でも format.h 読込直後に FMT_STRING をプレーン文字列に強制上書き
+          const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
+          if (fs.existsSync(fmtInl)) {
+            let content = fs.readFileSync(fmtInl, "utf8");
+            if (content.includes("#include \"format.h\"")) {
+              content = content.replace("#include \"format.h\"", "#include \"format.h\"\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n");
+            } else {
+              content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
             }
-          });
+            fs.writeFileSync(fmtInl, content);
+            console.log("Patched format-inl.h: override FMT_STRING(s) (s)");
+          }
           '
 
       - name: Give execute permission to all shell scripts in node_modules
@@ -199,7 +213,7 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ Broken pipe を防ぎ、失敗時には最後の120行と失敗コマンドを100%出力するパイプライン
+      # ★ 生ログ保存＆失敗時詳細出力パイプライン
       - name: Make archive for iOS Dev Client (Unsigned)
         run: |
           set -o pipefail

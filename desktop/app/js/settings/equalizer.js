@@ -1,6 +1,6 @@
 window.SettingsEqualizer = {
     freqs: [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000],
-    freqLabels: ['32Hz', '64Hz', '125Hz', '250Hz', '500Hz', '1kHz', '2kHz', '4kHz', '8kHz', '16kHz'],
+    freqLabels: ['32 Hz', '64 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', '8 kHz', '16 kHz'],
     
     presets: [
         {
@@ -64,6 +64,7 @@ window.SettingsEqualizer = {
     currentConfig: {
         enabled: false,
         selectedAssetId: "flat",
+        isEditing: false,
         preamp: 0,
         gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     },
@@ -82,9 +83,6 @@ window.SettingsEqualizer = {
         if (raw) {
             try {
                 this.currentConfig = Object.assign({}, this.currentConfig, JSON.parse(raw));
-                if (this.currentConfig.presetId && !this.currentConfig.selectedAssetId) {
-                    this.currentConfig.selectedAssetId = this.currentConfig.presetId;
-                }
             } catch(e) {
                 console.error("Failed to parse equalizer settings:", e);
             }
@@ -111,21 +109,21 @@ window.SettingsEqualizer = {
         grid.innerHTML = '';
 
         this.freqs.forEach((freq, idx) => {
-            const col = document.createElement('div');
-            col.className = 'eq-band-col';
+            const row = document.createElement('div');
+            row.className = 'eq-band-row';
             
             const gainVal = this.currentConfig.gains[idx] || 0;
             const sign = gainVal > 0 ? '+' : '';
 
-            col.innerHTML = `
-                <span class="eq-gain-val" id="eqGainVal_${idx}">${sign}${gainVal.toFixed(1)} dB</span>
-                <div class="eq-slider-vertical-wrap">
-                    <input type="range" class="eq-slider-vertical" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}">
+            row.innerHTML = `
+                <span class="eq-band-label">${this.freqLabels[idx]}</span>
+                <div class="eq-slider-horizontal-wrap">
+                    <input type="range" class="eq-slider-horizontal" id="eqSlider_${idx}" min="-12" max="12" step="0.5" value="${gainVal}">
                 </div>
-                <span class="eq-freq-label">${this.freqLabels[idx]}</span>
+                <span class="eq-val-badge" id="eqGainVal_${idx}">${sign}${gainVal.toFixed(1)} dB</span>
             `;
 
-            grid.appendChild(col);
+            grid.appendChild(row);
         });
     },
 
@@ -147,6 +145,7 @@ window.SettingsEqualizer = {
         this.rebuildAssetOptions();
     },
 
+    // ★ プリセットと保存済みカスタムアセットのみを描画（未保存のカスタム項目は選択肢に追加しない）
     rebuildAssetOptions: function() {
         const dropdown = document.getElementById('eqAssetDropdown');
         const displayVal = document.getElementById('eqAssetValue');
@@ -162,7 +161,7 @@ window.SettingsEqualizer = {
 
         this.presets.forEach(p => {
             const item = document.createElement('div');
-            const isActive = (p.id === this.currentConfig.selectedAssetId);
+            const isActive = (!this.currentConfig.isEditing && p.id === this.currentConfig.selectedAssetId);
             item.className = 'custom-option' + (isActive ? ' active' : '');
             item.innerHTML = `
                 <svg class="custom-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -184,66 +183,48 @@ window.SettingsEqualizer = {
             dropdown.appendChild(item);
         });
 
-        // 2. カスタムアセットグループ
-        const customHeader = document.createElement('div');
-        customHeader.className = 'custom-group-header';
-        customHeader.textContent = 'カスタムアセット';
-        dropdown.appendChild(customHeader);
+        // 2. カスタムアセットグループ（ユーザー保存アセットが1件以上ある場合のみ表示）
+        const customNames = Object.keys(this.customAssets);
+        if (customNames.length > 0) {
+            const customHeader = document.createElement('div');
+            customHeader.className = 'custom-group-header';
+            customHeader.textContent = 'カスタムアセット';
+            dropdown.appendChild(customHeader);
 
-        // ユーザー保存アセット一覧
-        for (const assetName in this.customAssets) {
-            const item = document.createElement('div');
-            const isCustomActive = (assetName === this.currentConfig.selectedAssetId);
-            item.className = 'custom-option' + (isCustomActive ? ' active' : '');
-            item.innerHTML = `
-                <svg class="custom-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <path d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-                <span>${assetName}</span>
-            `;
+            customNames.forEach(assetName => {
+                const item = document.createElement('div');
+                const isCustomActive = (!this.currentConfig.isEditing && assetName === this.currentConfig.selectedAssetId);
+                item.className = 'custom-option' + (isCustomActive ? ' active' : '');
+                item.innerHTML = `
+                    <svg class="custom-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <path d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    <span>${assetName}</span>
+                `;
 
-            if (isCustomActive && displayVal) {
-                displayVal.textContent = assetName;
-            }
+                if (isCustomActive && displayVal) {
+                    displayVal.textContent = assetName;
+                }
 
-            item.onclick = (e) => {
-                e.stopPropagation();
-                dropdown.classList.remove('show');
-                this.applyAsset(assetName, true);
-            };
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    dropdown.classList.remove('show');
+                    this.applyAsset(assetName, true);
+                };
 
-            dropdown.appendChild(item);
+                dropdown.appendChild(item);
+            });
         }
 
-        // 手動調整中（未保存カスタム）
-        const unSavedItem = document.createElement('div');
-        const isUnsavedActive = (this.currentConfig.selectedAssetId === "custom");
-        unSavedItem.className = 'custom-option' + (isUnsavedActive ? ' active' : '');
-        unSavedItem.innerHTML = `
-            <svg class="custom-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-            <span>Custom (カスタム)</span>
-        `;
-
-        if (isUnsavedActive && displayVal) {
-            displayVal.textContent = "Custom (カスタム)";
+        // 編集中（手動変更時）のトリガーラベル表示
+        if (this.currentConfig.isEditing && displayVal) {
+            displayVal.textContent = "Custom (編集中)";
         }
-
-        unSavedItem.onclick = (e) => {
-            e.stopPropagation();
-            dropdown.classList.remove('show');
-            this.currentConfig.selectedAssetId = "custom";
-            this.updateButtonVisibility();
-            this.rebuildAssetOptions();
-            this.saveSettings();
-        };
-
-        dropdown.appendChild(unSavedItem);
     },
 
     applyAsset: function(assetId, isUserCustom = false) {
         this.currentConfig.selectedAssetId = assetId;
+        this.currentConfig.isEditing = false;
 
         if (isUserCustom) {
             const customData = this.customAssets[assetId];
@@ -282,7 +263,8 @@ window.SettingsEqualizer = {
             preampSlider.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
                 this.currentConfig.preamp = val;
-                this.currentConfig.selectedAssetId = "custom";
+                this.currentConfig.isEditing = true;
+                
                 const badge = document.getElementById('eqPreampValue');
                 if (badge) {
                     const sign = val > 0 ? '+' : '';
@@ -300,7 +282,7 @@ window.SettingsEqualizer = {
                 slider.addEventListener('input', (e) => {
                     const val = parseFloat(e.target.value);
                     this.currentConfig.gains[idx] = val;
-                    this.currentConfig.selectedAssetId = "custom";
+                    this.currentConfig.isEditing = true;
                     
                     const valDisplay = document.getElementById(`eqGainVal_${idx}`);
                     if (valDisplay) {
@@ -315,7 +297,6 @@ window.SettingsEqualizer = {
         });
     },
 
-    // ★ カスタムアセット保存ポップアップと削除処理の管理
     setupCustomAssetModals: function() {
         const btnSaveOriginal = document.getElementById('btnSaveOriginalEqAsset');
         const btnDeleteOriginal = document.getElementById('btnDeleteOriginalEqAsset');
@@ -357,7 +338,7 @@ window.SettingsEqualizer = {
                 }
             }
 
-            // 現在のプリアンプおよび10バンドゲインをカスタムアセットとして保存
+            // 現在のプリアンプおよび10バンドゲインをオリジナルカスタムアセットとして保存
             this.customAssets[name] = {
                 preamp: this.currentConfig.preamp,
                 gains: [...this.currentConfig.gains]
@@ -366,6 +347,8 @@ window.SettingsEqualizer = {
             localStorage.setItem('chordia_custom_eq_assets', JSON.stringify(this.customAssets));
 
             this.currentConfig.selectedAssetId = name;
+            this.currentConfig.isEditing = false;
+            
             if (modal) modal.style.display = 'none';
             this.rebuildAssetOptions();
             this.updateUI();
@@ -398,6 +381,7 @@ window.SettingsEqualizer = {
                     localStorage.setItem('chordia_custom_eq_assets', JSON.stringify(this.customAssets));
                     
                     this.currentConfig.selectedAssetId = "flat";
+                    this.currentConfig.isEditing = false;
                     this.applyAsset("flat", false);
                     this.rebuildAssetOptions();
                     this.updateUI();
@@ -411,7 +395,7 @@ window.SettingsEqualizer = {
     updateButtonVisibility: function() {
         const btnDeleteOriginal = document.getElementById('btnDeleteOriginalEqAsset');
         const currentId = this.currentConfig.selectedAssetId;
-        const isSavedUserAsset = Boolean(this.customAssets[currentId]);
+        const isSavedUserAsset = !this.currentConfig.isEditing && Boolean(this.customAssets[currentId]);
 
         if (btnDeleteOriginal) {
             btnDeleteOriginal.style.display = isSavedUserAsset ? 'block' : 'none';

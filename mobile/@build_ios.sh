@@ -57,12 +57,15 @@ if (!pkg.dependencies["chordia-equalizer"]) {
 }
 '
 
+# 1. 依存関係のインストール
 echo "📦 1/5 依存関係を確認中..."
 npm install
 
+# 2. Expo Prebuild (ネイティブコードの生成)
 echo "🏗️ 2/5 Expo Prebuild を実行中..."
 CI=1 npx expo prebuild --platform ios --clean
 
+# 3. Xcode 16 の fmt 設定を Podfile に適用
 echo "⚙️ 3/5 Xcode 16 設定を Podfile に適用中..."
 node -e '
 const fs = require("fs");
@@ -89,30 +92,40 @@ cd ios
 pod install
 cd ..
 
-# ★ 安全な先頭追記方式
+# 4. fmt ヘッダーの確実なパッチ (FMT_STRING を (s) に完全オーバーライド)
 chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const filesToPrepend = [
-  "ios/Pods/fmt/include/fmt/core.h",
-  "ios/Pods/fmt/include/fmt/format.h",
-  "ios/Pods/fmt/include/fmt/base.h"
-];
+const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
+if (fs.existsSync(fmtBase)) {
+  let content = fs.readFileSync(fmtBase, "utf8");
+  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+  fs.writeFileSync(fmtBase, content);
+}
 
-filesToPrepend.forEach(file => {
-  const p = path.resolve(file);
-  if (fs.existsSync(p)) {
-    let content = fs.readFileSync(p, "utf8");
-    if (!content.includes("FMT_USE_CONSTEVAL 0")) {
-      content = "#ifndef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n#endif\n" + content;
-      fs.writeFileSync(p, content);
-    }
+const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
+if (fs.existsSync(fmtHeader)) {
+  let content = fs.readFileSync(fmtHeader, "utf8");
+  content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
+  content += "\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n";
+  fs.writeFileSync(fmtHeader, content);
+}
+
+const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
+if (fs.existsSync(fmtInl)) {
+  let content = fs.readFileSync(fmtInl, "utf8");
+  if (content.includes("#include \"format.h\"")) {
+    content = content.replace("#include \"format.h\"", "#include \"format.h\"\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n");
+  } else {
+    content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
   }
-});
+  fs.writeFileSync(fmtInl, content);
+}
 '
 
+# 5. Xcodeビルド用スクリプト権限 ＆ Node環境変数の設定
 echo "⚙️ 4/5 Xcode ビルド環境を準備中..."
 find node_modules -type f -name "*.sh" -exec chmod +x {} \;
 
@@ -121,6 +134,7 @@ echo "export NODE_BINARY=$NODE_PATH" > ios/.xcode.env.local
 
 PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
 
+# 6. xcodebuild による未署名ビルド実行
 echo "🔨 5/5 app をビルド中 (xcodebuild)..."
 xcodebuild -workspace "ios/$PROJECT_NAME.xcworkspace" \
            -scheme "$PROJECT_NAME" \
