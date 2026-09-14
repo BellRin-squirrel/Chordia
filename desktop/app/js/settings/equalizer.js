@@ -186,7 +186,7 @@ window.SettingsEqualizer = {
             dropdown.appendChild(item);
         });
 
-        // 2. カスタムアセットグループ（ユーザー保存アセットが1件以上ある場合のみ表示）
+        // 2. カスタムアセットグループ
         const customNames = Object.keys(this.customAssets);
         if (customNames.length > 0) {
             const customHeader = document.createElement('div');
@@ -300,13 +300,14 @@ window.SettingsEqualizer = {
         });
     },
 
-    // ★ HTMLモーダルによるポップアップ（Ctrl+Enter / Cmd+Enter で確定）
+    // ★ HTMLモーダルによるポップアップ（ショートカットキー案内表示付き）
     setupCustomAssetModals: function() {
         const btnSaveOriginal = document.getElementById('btnSaveOriginalEqAsset');
         const btnDeleteOriginal = document.getElementById('btnDeleteOriginalEqAsset');
         
         const saveModal = document.getElementById('eqAssetModal');
         const newNameInput = document.getElementById('newEqAssetName');
+        const shortcutHintEl = document.getElementById('eqAssetShortcutHint');
         const btnConfirmSave = document.getElementById('btnConfirmEqAssetModal');
         const btnCancelSave = document.getElementById('btnCancelEqAssetModal');
 
@@ -319,6 +320,13 @@ window.SettingsEqualizer = {
         const deleteMsg = document.getElementById('eqAssetDeleteMessage');
         const btnConfirmDelete = document.getElementById('btnConfirmEqAssetDelete');
         const btnCancelDelete = document.getElementById('btnCancelEqAssetDelete');
+
+        // ★ OSに応じたショートカットキー案内の初期設定
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
+        if (shortcutHintEl) {
+            const keyBadge = isMac ? '<kbd>⌘ Command</kbd> + <kbd>Enter</kbd>' : '<kbd>Ctrl</kbd> + <kbd>Enter</kbd>';
+            shortcutHintEl.innerHTML = `保存ショートカット: ${keyBadge}`;
+        }
 
         const openModal = (m) => {
             if (!m) return;
@@ -363,7 +371,6 @@ window.SettingsEqualizer = {
                 return;
             }
 
-            // 同名のアセットが既に存在する場合は上書き確認モーダルを表示
             if (this.customAssets[name]) {
                 this.pendingSaveName = name;
                 closeModal(saveModal);
@@ -385,14 +392,12 @@ window.SettingsEqualizer = {
         // ★ Windows: Ctrl + Enter / Mac: Command(Meta) + Enter でのみ確定
         if (newNameInput) {
             newNameInput.addEventListener('keydown', (e) => {
-                // 日本語入力変換中のEnterを確実にスルー
                 if (e.isComposing || e.keyCode === 229) return;
 
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     handleSaveExecute();
                 } else if (e.key === 'Enter') {
-                    // 通常のEnter単体では確定させない
                     e.preventDefault();
                 } else if (e.key === 'Escape' && saveModal) {
                     closeModal(saveModal);

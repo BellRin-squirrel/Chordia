@@ -102,8 +102,8 @@ public class ChordiaEqualizerModule: Module {
         "isEngineRunning": self.audioEngine.isRunning,
         "isPlayerPlaying": self.playerNode.isPlaying,
         "isEQEnabled": self.isEQEnabled,
-        "preamp": self.currentPreamp,
-        "gains": self.currentGains,
+        "preamp": Double(self.currentPreamp),
+        "gains": self.currentGains.map { Double($0) },
         "hasAudioFile": self.currentAudioFile != nil,
         "sampleRate": self.fileSampleRate,
         "totalFrames": Double(self.fileTotalFrames),
@@ -136,10 +136,12 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
+    // ★ 高音質ステレオ再生 (A2DP) と AirPlay に最適化
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetooth])
+      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
       try session.setActive(true)
+      self.lastErrorMessage = "None"
     } catch {
       self.lastErrorMessage = "AudioSession error: \(error.localizedDescription)"
     }
@@ -192,6 +194,10 @@ public class ChordiaEqualizerModule: Module {
     }
 
     do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
+      try session.setActive(true)
+
       let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate

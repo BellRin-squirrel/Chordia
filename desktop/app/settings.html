@@ -492,7 +492,13 @@
         <div class="modal-content" style="width: 380px;">
             <h3 style="margin-top: 0; color: var(--text-main); margin-bottom: 14px;">カスタムアセットの保存</h3>
             <p style="color: var(--text-sub); font-size: 0.9rem; margin-bottom: 20px; text-align: left;">このイコライザアセットに名前を付けてください。</p>
-            <input type="text" id="newEqAssetName" placeholder="アセット名を入力" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-color); color: var(--text-main); margin-bottom: 24px; outline: none; box-sizing: border-box;">
+            <input type="text" id="newEqAssetName" placeholder="アセット名を入力" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.3); background: var(--bg-color); color: var(--text-main); margin-bottom: 8px; outline: none; box-sizing: border-box;">
+            
+            <!-- ★ 保存ショートカットキー案内表示 -->
+            <div id="eqAssetShortcutHint" class="eq-shortcut-hint">
+                <!-- JSでOS別に動的生成されます -->
+            </div>
+
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
                 <button type="button" id="btnCancelEqAssetModal" class="btn-small secondary-btn" style="flex: 1; padding: 12px;">キャンセル</button>
                 <button type="button" id="btnConfirmEqAssetModal" class="btn-small" style="flex: 1; padding: 12px;">保存</button>
