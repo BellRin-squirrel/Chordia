@@ -136,7 +136,7 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    // ★ 高音質ステレオ再生 (A2DP) と AirPlay に最適化
+    // ★ OSStatus -50 回避: .playback カテゴリでは .allowBluetooth ではなく高音質ステレオ音楽用の .allowBluetoothA2DP を指定
     do {
       let session = AVAudioSession.sharedInstance()
       try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
