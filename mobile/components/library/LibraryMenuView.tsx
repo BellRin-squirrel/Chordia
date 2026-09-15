@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Modal, 
-  TouchableWithoutFeedback, StyleSheet, Alert 
+  TouchableWithoutFeedback, StyleSheet, Alert, AppState 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,6 +23,9 @@ export const LibraryMenuView = ({
   openCollectionSongList, showToast, language = 'ja'
 }: any) => {
 
+  const isDark = dynamicStyles.bg === '#000000';
+  const libraryBgColor = isDark ? '#000000' : '#ffffff';
+
   const [relayModalVisible, setRelayModalVisible] = useState(false);
   const [relayDevices, setRelayDevices] = useState<RelayDeviceItem[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,6 +33,8 @@ export const LibraryMenuView = ({
 
   useEffect(() => {
     const fetchRelayDevices = async () => {
+      if (AppState.currentState !== 'active') return;
+
       try {
         const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
         if (!rawAccount) {
@@ -72,7 +77,6 @@ export const LibraryMenuView = ({
     return t('relay_type_playlist', language);
   };
 
-  // ★ Chordia Relay デバイス項目タップ時の再生引き継ぎ処理
   const handleDevicePress = (device: RelayDeviceItem) => {
     const np = device.nowPlaying;
     if (!np) {
@@ -98,7 +102,6 @@ export const LibraryMenuView = ({
     let targetCollectionData: any = null;
     let context: PlayCollectionContext | null = null;
 
-    // 1. 元の再生リスト（全曲コレクション）を特定
     if (playlistID === 'album') {
       category = 'ALBUMS';
       selectionType = 'ALBUM';
@@ -176,7 +179,6 @@ export const LibraryMenuView = ({
       };
     }
 
-    // 2. ★ 送信されてきた musiclist の順序通りのキュー（customQueue）を構築
     const customQueue: any[] = [];
     const matchedUris = new Set<string>();
 
@@ -193,7 +195,6 @@ export const LibraryMenuView = ({
       }
     }
 
-    // 3. 現在再生中の曲を特定
     let selectedSong = customQueue.find((s: any) => 
       (s.title || '').trim().toLowerCase() === nowPlayingTitle.trim().toLowerCase() &&
       (!nowPlayingArtist || (s.artist || '').trim().toLowerCase() === nowPlayingArtist.trim().toLowerCase())
@@ -217,7 +218,6 @@ export const LibraryMenuView = ({
 
     setRelayModalVisible(false);
 
-    // 4. 再生開始
     const queueToPlay = customQueue.length > 0 ? customQueue : targetSongs;
 
     if (queueToPlay.length > 0 && selectedSong) {
@@ -234,7 +234,6 @@ export const LibraryMenuView = ({
       }
       const startPosMs = Math.round(nowPlayingTimeSec * 1000);
 
-      // ★ targetSongs（元の再生リスト）と customQueue（musiclist順のキュー）を渡して再生
       startQueue(
         targetSongs,
         selectedSong,
@@ -271,8 +270,8 @@ export const LibraryMenuView = ({
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
-      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+    <View style={{ flex: 1, backgroundColor: libraryBgColor }}>
+      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: libraryBgColor, zIndex: -1 }} />
       
       <View style={[
         styles.headerBar, 

@@ -58,6 +58,9 @@ export const Library = ({
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
+  // ★ 再生タブ専用の背景色 (ライト: #ffffff / ダーク: #000000)
+  const libraryBgColor = isDark ? '#000000' : '#ffffff';
+
   const [navStack, setNavStack] = useState<string[]>(['MENU']);
   const navAnim = useRef(new Animated.Value(0)).current;
   const isNavAnimating = useRef(false);
@@ -318,7 +321,7 @@ export const Library = ({
   const layer1Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, -width * 0.25, -width * 0.25], extrapolate: 'clamp' });
   const layer1Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0.4, 0.4], extrapolate: 'clamp' });
   const layer2Translate = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [width, 0, -width * 0.25], extrapolate: 'clamp' });
-  const layer2Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0.4, 0.4], extrapolate: 'clamp' });
+  const layer2Darken = currentProgress.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 0, 0.4], extrapolate: 'clamp' });
   const layer3Translate = currentProgress.interpolate({ inputRange: [1, 2], outputRange: [width, 0], extrapolate: 'clamp' });
 
   const pushView = (view: string) => {
@@ -455,12 +458,12 @@ export const Library = ({
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
-      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: libraryBgColor }}>
+      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: libraryBgColor, zIndex: -1 }} />
 
       <PanGestureHandler activeOffsetX={[-500, 10]} failOffsetY={[-15, 15]} enabled={navStack.length > 1} onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
         <View style={{ flex: 1 }}>
-          <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: libraryBgColor, transform: [{ translateX: layer1Translate }] }]}>
             <LibraryMenuView 
               dynamicStyles={dynamicStyles} themeColor={themeColor} insets={insets} isLandscape={isLandscape} safePadding={safePadding}
               pushView={pushView} recentlyPlayedSongs={recentlyPlayedSongs} recentlyPlayedCollections={recentlyPlayedCollections}
@@ -472,7 +475,7 @@ export const Library = ({
           </Animated.View>
 
           {navStack.length > 1 && (
-            <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer2Translate }] }]}>
+            <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 2, backgroundColor: libraryBgColor, transform: [{ translateX: layer2Translate }] }]}>
               <LibraryCategoryView 
                 category={navStack[1]} dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} insets={insets}
                 localPlaylists={localPlaylists} setLocalPlaylists={setLocalPlaylists} albumsList={albumsList} artistsList={artistsList} localLibrary={localLibrary}
@@ -485,7 +488,7 @@ export const Library = ({
           )}
 
           {navStack.length > 2 && (
-            <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
+            <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: libraryBgColor, transform: [{ translateX: layer3Translate }] }]}>
               <LibrarySongListView 
                 dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} isLandscape={isLandscape} height={height} insets={insets}
                 songs={songs} heroArtSource={heroArtSource} heroTitle={heroTitle} hasBlurBackground={heroArtSource !== DEFAULT_ICON}

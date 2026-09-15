@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Alert, Platform } from 'react-native';
+import { Animated, Dimensions, Alert, Platform, AppState } from 'react-native';
 import TrackPlayer, { 
   State as RNTPState, 
   usePlaybackState, 
@@ -239,18 +239,31 @@ export const useAudioPlayer = () => {
     }
   };
 
+  // ★ 1. バックグラウンド時はOSクラッシュ防止のため定期送信を停止する（フォアグラウンド時のみ3秒間隔で送信）
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying && currentSong && currentContextRef.current) {
       interval = setInterval(() => {
-        if (!relayCooldownRef.current) {
+        if (AppState.currentState === 'active' && !relayCooldownRef.current) {
           sendNowPlayingUpdate();
         }
-      }, 1000);
+      }, 3000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
+  }, [isPlaying, currentSong]);
+
+  // ★ 2. バックグラウンド移行時、およびフォアグラウンド復帰時に確実に最新位置を1回だけ送信
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'active') {
+        if (isPlaying && currentSong && currentContextRef.current) {
+          sendNowPlayingUpdate();
+        }
+      }
+    });
+    return () => subscription.remove();
   }, [isPlaying, currentSong]);
 
   const showToast = (message: string) => {
@@ -323,7 +336,6 @@ export const useAudioPlayer = () => {
       });
       setIsPlaying(playing);
 
-      // 曲末尾到達の検知
       if (durSec > 0 && posSec >= durSec - 0.25) {
         handleNextRef.current();
       }
@@ -429,7 +441,6 @@ export const useAudioPlayer = () => {
       }
     } catch (e) {}
 
-    // ★ iOS かつ イコライザーが有効な場合
     if (Platform.OS === 'ios' && isEQEnabled) {
       clearExpoResources();
       await clearRNTPNotification();
@@ -456,13 +467,11 @@ export const useAudioPlayer = () => {
         saveHistory(song);
         return;
       } else {
-        // 万一のオープン失敗時は標準プレイヤーに自動フォールバックして停止を防ぐ
         console.warn('[Equalizer] iOS native EQ engine load failed, falling back to standard engine');
         isIOSEQActiveRef.current = false;
       }
     }
 
-    // イコライザー無効時、または Android (OS標準イコライザー使用)
     isIOSEQActiveRef.current = false;
     clearIOSEQPolling();
     stopIOS();

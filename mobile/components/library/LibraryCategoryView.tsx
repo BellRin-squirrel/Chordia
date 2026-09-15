@@ -72,6 +72,9 @@ export const LibraryCategoryView = ({
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
+  // ★ 音楽ライブラリ専用のピュア背景色 (ライト: #ffffff / ダーク: #000000)
+  const libraryBgColor = isDark ? '#000000' : '#ffffff';
+
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [rowActionTarget, setRowActionTarget] = useState<any>(null);
   const [coverPickerTarget, setCoverPickerTarget] = useState<any>(null);
@@ -489,8 +492,8 @@ export const LibraryCategoryView = ({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
-      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+    <View style={{ flex: 1, backgroundColor: libraryBgColor }}>
+      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: libraryBgColor, zIndex: -1 }} />
 
       {renderHeader(getHeaderTitle(), headerRightButton)}
 
@@ -525,7 +528,7 @@ export const LibraryCategoryView = ({
           const isLast = index === data.length - 1;
 
           return (
-            <View>
+            <View style={{ backgroundColor: libraryBgColor }}>
               <TouchableOpacity 
                 style={[styles.checkRow, { borderBottomWidth: 0, paddingVertical: 14 }]} 
                 onPress={() => { 
@@ -571,6 +574,7 @@ export const LibraryCategoryView = ({
         contentContainerStyle={safePadding}
       />
 
+      {/* 1. ヘッダー3点メニュー */}
       <Modal visible={headerMenuVisible} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeHeaderMenu()}>
           <Animated.View style={{ 
@@ -617,6 +621,7 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* 2. 各プレイリスト行の3点メニュー */}
       <Modal visible={!!rowActionTarget} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeRowActionSheet()}>
           <Animated.View style={{ 
@@ -655,7 +660,7 @@ export const LibraryCategoryView = ({
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       const target = rowActionTarget;
-                      closeRowActionSheet(() => openCoverPickerSheet(target));
+                      closeCoverPickerSheet(target);
                     }}
                     activeOpacity={0.6}
                   >
@@ -739,6 +744,7 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* 3. カバー画像選択ポップアップ */}
       <Modal visible={!!coverPickerTarget} transparent animationType="none">
         <TouchableWithoutFeedback onPress={() => closeCoverPickerSheet()}>
           <Animated.View style={{ 
@@ -813,6 +819,7 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* 4. 新規プレイリスト名 入力モーダル */}
       <Modal visible={createNameModalVisible} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -856,6 +863,7 @@ export const LibraryCategoryView = ({
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* 5. 新規プレイリストの楽曲選択モーダル */}
       <Modal visible={selectSongsModalVisible} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -941,6 +949,7 @@ export const LibraryCategoryView = ({
         </View>
       </Modal>
 
+      {/* 6. プレイリストの収録曲編集モーダル */}
       <Modal visible={!!editSongsTargetPl} transparent animationType="none">
         <View style={{ 
           flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center',
@@ -1026,6 +1035,7 @@ export const LibraryCategoryView = ({
         </View>
       </Modal>
 
+      {/* 7. プレイリスト名 変更モーダル */}
       <Modal visible={!!renameTarget} transparent animationType="none">
         <KeyboardAvoidingView 
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}
@@ -1066,6 +1076,7 @@ export const LibraryCategoryView = ({
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* 8. スマートプレイリスト作成・編集モーダル */}
       <SmartPlaylistEditorModal 
         visible={smartEditorConfig.visible}
         mode={smartEditorConfig.mode}
