@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Alert, Platform, AppState } from 'react-native';
+import { Animated, Dimensions, Alert, Platform, AppState, NativeModules } from 'react-native';
 import TrackPlayer, { 
   State as RNTPState, 
   usePlaybackState, 
@@ -102,6 +102,22 @@ export const useAudioPlayer = () => {
   useEffect(() => { indexRef.current = currentIndex; }, [currentIndex]);
   useEffect(() => { loopRef.current = loopMode; }, [loopMode]);
   useEffect(() => { shuffleRef.current = isShuffle; }, [isShuffle]);
+
+  // ★ Android で ExoPlayer の本物の audioSessionId を取得してイコライザーにアタッチする関数
+  const syncAndroidEqualizerSession = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const TrackPlayerModule = NativeModules.TrackPlayerModule;
+        if (TrackPlayerModule?.getAudioSessionId) {
+          const sid = await TrackPlayerModule.getAudioSessionId();
+          if (sid && sid > 0) {
+            console.log('[Equalizer] Attached to real ExoPlayer audioSessionId:', sid);
+            await initEqualizer(sid);
+          }
+        }
+      } catch (e) {}
+    }
+  };
 
   useEffect(() => {
     AsyncStorage.getItem('audioEngine').then(val => {
@@ -239,7 +255,6 @@ export const useAudioPlayer = () => {
     }
   };
 
-  // ★ 1. バックグラウンド時はOSクラッシュ防止のため定期送信を停止する（フォアグラウンド時のみ3秒間隔で送信）
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying && currentSong && currentContextRef.current) {
@@ -254,7 +269,6 @@ export const useAudioPlayer = () => {
     };
   }, [isPlaying, currentSong]);
 
-  // ★ 2. バックグラウンド移行時、およびフォアグラウンド復帰時に確実に最新位置を1回だけ送信
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'active') {
@@ -441,6 +455,7 @@ export const useAudioPlayer = () => {
       }
     } catch (e) {}
 
+    // ★ iOS かつ イコライザーが有効な場合
     if (Platform.OS === 'ios' && isEQEnabled) {
       clearExpoResources();
       await clearRNTPNotification();
@@ -507,28 +522,31 @@ export const useAudioPlayer = () => {
 
             if (shouldPlay) {
               await TrackPlayer.play();
+
+              // ★ Android の場合、再生開始後に ExoPlayer の実際の audioSessionId を取得してイコライザーに接続
+              if (Platform.OS === 'android') {
+                setTimeout(syncAndroidEqualizerSession, 200);
+              }
+
+              if (targetSeconds > 0) {
+                setTimeout(async () => {
+                  try {
+                    const currentPos = await TrackPlayer.getPosition();
+                    if (targetSeconds > 1 && currentPos < 0.5) {
+                      await TrackPlayer.seekTo(targetSeconds);
+                    }
+                    await TrackPlayer.setVolume(1.0);
+                  } catch(e) {
+                    try { await TrackPlayer.setVolume(1.0); } catch(_) {}
+                  }
+                }, 120);
+              } else {
+                await TrackPlayer.setVolume(1.0);
+              }
+
+              sendNowPlayingUpdate(Math.floor(targetSeconds));
             } else {
               setIsPlaying(false);
-            }
-
-            if (targetSeconds > 0) {
-              setTimeout(async () => {
-                try {
-                  const currentPos = await TrackPlayer.getPosition();
-                  if (targetSeconds > 1 && currentPos < 0.5) {
-                    await TrackPlayer.seekTo(targetSeconds);
-                  }
-                  await TrackPlayer.setVolume(1.0);
-                } catch(e) {
-                  try { await TrackPlayer.setVolume(1.0); } catch(_) {}
-                }
-              }, 120);
-            } else {
-              await TrackPlayer.setVolume(1.0);
-            }
-
-            if (shouldPlay) {
-              sendNowPlayingUpdate(Math.floor(targetSeconds));
             }
           } catch(e) {
             try { await TrackPlayer.setVolume(1.0); } catch(_) {}
@@ -912,6 +930,11 @@ export const useAudioPlayer = () => {
           indexRef.current = idx;
         }
         saveHistory(newSong);
+
+        // ★ Android で曲が変わった際にも ExoPlayer のオーディオセッションを再アタッチ
+        if (Platform.OS === 'android') {
+          setTimeout(syncAndroidEqualizerSession, 200);
+        }
 
         if (!relayCooldownRef.current) {
           sendNowPlayingUpdate(0);

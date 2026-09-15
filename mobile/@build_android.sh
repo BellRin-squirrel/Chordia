@@ -16,15 +16,19 @@ if (!fs.existsSync(ktDir)) fs.mkdirSync(ktDir, { recursive: true });
 
 fs.writeFileSync(path.join(modDir, "package.json"), JSON.stringify({
   name: "chordia-equalizer",
-  version: "0.1.0",
-  main: "index.ts"
+  version: "0.1.0"
 }, null, 2));
 
 fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
   name: "chordia-equalizer",
   platforms: ["apple", "android"],
-  apple: { modules: ["ChordiaEqualizerModule"] },
-  android: { modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"] }
+  apple: {
+    podspecPath: "ios/ChordiaEqualizer.podspec",
+    modules: ["ChordiaEqualizerModule"]
+  },
+  android: {
+    modules: ["com.bellrin.chordia.equalizer.ChordiaEqualizerModule"]
+  }
 }, null, 2));
 
 const gradle = `apply plugin: "com.android.library"
@@ -60,17 +64,20 @@ fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
 
 const mainPkgPath = path.resolve("package.json");
 let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
-if (!pkg.dependencies["chordia-equalizer"]) {
-   pkg.dependencies["chordia-equalizer"] = "file:./modules/chordia-equalizer";
-   fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
+if (!pkg.expo) pkg.expo = {};
+if (!pkg.expo.autolinking) pkg.expo.autolinking = {};
+pkg.expo.autolinking.nativeModulesDir = "./modules";
+if (pkg.dependencies && pkg.dependencies["chordia-equalizer"]) {
+   delete pkg.dependencies["chordia-equalizer"];
 }
+fs.writeFileSync(mainPkgPath, JSON.stringify(pkg, null, 2));
 '
 
 echo "📦 1/5 依存関係を確認中..."
 rm -rf node_modules/react-native-track-player
 npm install
 
-echo "🛠️ 2/5 TrackPlayer パッチを適用中..."
+echo "🛠️ 2/5 TrackPlayer パッチ (getAudioSessionId 追加) を適用中..."
 node -e '
 const fs = require("fs");
 const file = "node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt";
@@ -80,7 +87,21 @@ if (fs.existsSync(file)) {
   if (!content.includes("fun fromBundleSafe")) {
     const lastBraceIndex = content.lastIndexOf("}");
     if (lastBraceIndex !== -1) {
-      const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n`;
+      const helper = `
+    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {
+        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()
+    }
+
+    @com.facebook.react.bridge.ReactMethod
+    fun getAudioSessionId(promise: com.facebook.react.bridge.Promise) {
+        try {
+            val sid = musicService?.player?.player?.audioSessionId ?: 0
+            promise.resolve(sid)
+        } catch (e: Exception) {
+            promise.resolve(0)
+        }
+    }
+`;
       content = content.slice(0, lastBraceIndex) + helper + content.slice(lastBraceIndex);
     }
   }
