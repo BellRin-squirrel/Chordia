@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native';
 
 const SIDE_MARGIN = 16;
-export const TAB_BAR_HEIGHT = 58;
+export const TAB_BAR_HEIGHT = 64;
 const MINI_PLAYER_HEIGHT = 58;
-export const LANDSCAPE_TAB_BAR_WIDTH = 70;
+export const LANDSCAPE_TAB_BAR_WIDTH = 74;
 
 export const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -83,13 +83,13 @@ export const styles = StyleSheet.create({
   },
   tabBarContainer: { 
     width: '100%', maxWidth: 800, height: TAB_BAR_HEIGHT, 
-    borderRadius: 29, 
+    borderRadius: 40, 
     flexDirection: 'row', overflow: 'hidden', 
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
+    borderWidth: 1,
+    position: 'relative',
   },
-  tabItem: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  tabText: { fontSize: 10, fontWeight: 'bold', marginTop: 2 },
+  tabItem: { justifyContent: 'center', alignItems: 'center', zIndex: 2 },
+  tabText: { fontSize: 10, letterSpacing: -0.1 },
 
   tabBarWrapperLandscape: { 
     position: 'absolute', right: SIDE_MARGIN, top: SIDE_MARGIN, bottom: SIDE_MARGIN, 
@@ -97,13 +97,13 @@ export const styles = StyleSheet.create({
   },
   tabBarContainerLandscape: { 
     width: '100%', height: '100%', maxHeight: 400,
-    borderRadius: 35, 
+    borderRadius: 40, 
     flexDirection: 'column', overflow: 'hidden', 
-    borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
+    borderWidth: 1,
+    position: 'relative',
   },
-  tabItemLandscape: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1, paddingVertical: 10 },
-  tabTextLandscape: { fontSize: 9, fontWeight: 'bold', marginTop: 4 },
+  tabItemLandscape: { justifyContent: 'center', alignItems: 'center', zIndex: 2, paddingVertical: 4 },
+  tabTextLandscape: { fontSize: 9, letterSpacing: -0.1 },
 
   miniPlayerPosLandscape: {
     position: 'absolute',
@@ -166,12 +166,10 @@ export const styles = StyleSheet.create({
   lyricsScrollView: { flex: 1 },
   lyricsText: { color: 'rgba(255, 255, 255, 0.9)', fontSize: 18, fontWeight: 'bold', lineHeight: 30, textAlign: 'left' },
   
-  // レガシー用（互換性維持）
   toastContainer: { position: 'absolute', bottom: 120, left: 20, right: 20, alignItems: 'center', zIndex: 9999 },
   toastBlur: { borderRadius: 20, overflow: 'hidden' },
   toastText: { color: '#fff', paddingHorizontal: 20, paddingVertical: 10, fontSize: 14, fontWeight: '600', textAlign: 'center' },
 
-  // ★ 新・右上トースト通知スタイル
   toastContainerTopRight: {
     position: 'absolute',
     zIndex: 9999,
