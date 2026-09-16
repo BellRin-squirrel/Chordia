@@ -29,9 +29,9 @@ import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../../ut
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
 
-// ★ ノッチ（insets.bottom）を無視し、画面最下部に近づけて配置
-const TAB_BAR_BOTTOM = 12;
-const MINI_PLAYER_GAP = 8;
+// ★ ノッチやセーフエリアを完全に無視し、画面の物理的最下端に配置
+const TAB_BAR_BOTTOM = 0;
+const MINI_PLAYER_GAP = 6;
 const MINI_PLAYER_HEIGHT = 58;
 
 LogBox.ignoreLogs([
@@ -324,13 +324,13 @@ const AppContent = () => {
 
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
-          {/* ミニプレイヤー：タブバーの少し上に自然に連動配置 */}
+          {/* ミニプレイヤー：タブバーの直上に連動配置 */}
           {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
             <Animated.View style={[
               isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], 
               { 
                 bottom: isLandscape 
-                  ? (15 + insets.bottom) 
+                  ? 10 
                   : (TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + MINI_PLAYER_GAP), 
                 left: isLandscape ? miniPlayerLeft : 16, 
                 right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, 
@@ -342,10 +342,10 @@ const AppContent = () => {
             </Animated.View>
           )}
 
-          {/* ★ タブバー：ノッチ（insets.bottom）を無視し、画面最下部に近づけて配置 */}
+          {/* ★ タブバー：画面最下端 (bottom: 0) に完全接地配置 */}
           <View style={
             isLandscape 
-              ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] 
+              ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 10 }] 
               : [styles.commonWrapperPortrait, { bottom: TAB_BAR_BOTTOM, height: TAB_BAR_HEIGHT }]
           }>
               <TabBar 

@@ -136,10 +136,10 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    // ★ OSStatus -50 回避: .playback カテゴリでは .allowBluetooth ではなく高音質ステレオ音楽用の .allowBluetoothA2DP を指定
+    // ★ OSStatus -50 修正: .playback カテゴリではシステムが自動的に A2DP / Bluetooth ステレオ出力へルーティングするため、余計なオプションを渡さず設定する
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
+      try session.setCategory(.playback, mode: .default)
       try session.setActive(true)
       self.lastErrorMessage = "None"
     } catch {
@@ -195,7 +195,7 @@ public class ChordiaEqualizerModule: Module {
 
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default, options: [.allowAirPlay, .allowBluetoothA2DP])
+      try session.setCategory(.playback, mode: .default)
       try session.setActive(true)
 
       let file = try AVAudioFile(forReading: url)
