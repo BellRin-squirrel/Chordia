@@ -442,7 +442,6 @@
             <li id="menuEditSmartRules" data-i18n="Player.menu_edit_rules">ルールを編集</li>
             <li id="menuShowInExplorer">エクスプローラーで表示</li>
             <li class="menu-divider"></li>
-            <!-- ★ 修正：ホバー処理制御用にID付与、テキストノードを<span>でラップ -->
             <li style="position: relative;" id="menuAddToPlaylistParent">
                 <span data-i18n="Player.menu_add_to_pl">プレイリストに追加</span>
                 <div id="playlistSubmenu" class="submenu"></div>
@@ -460,7 +459,14 @@
     <script src="js/player/header.js"></script>
     <script src="js/player/sidebar_core.js"></script>
     <script src="js/player/sidebar_smart.js"></script>
-    <script src="js/player/player_control.js"></script>
+    
+    <!-- ★ 分割された PlayerController モジュール群 -->
+    <script src="js/player/control_core.js"></script>
+    <script src="js/player/control_equalizer.js"></script>
+    <script src="js/player/control_airplay.js"></script>
+    <script src="js/player/control_relay.js"></script>
+    <script src="js/player/control_events.js"></script>
+
     <script src="js/player/main_view.js"></script>
     <script src="js/player/modal_song_select_core.js"></script>
     <script src="js/player/modal_song_select_ui.js"></script>

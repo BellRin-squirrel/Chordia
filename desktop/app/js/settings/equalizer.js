@@ -186,7 +186,7 @@ window.SettingsEqualizer = {
             dropdown.appendChild(item);
         });
 
-        // 2. カスタムアセットグループ
+        // 2. カスタムアセットグループ（ユーザー保存アセットが1件以上ある場合のみ表示）
         const customNames = Object.keys(this.customAssets);
         if (customNames.length > 0) {
             const customHeader = document.createElement('div');
@@ -300,7 +300,6 @@ window.SettingsEqualizer = {
         });
     },
 
-    // ★ HTMLモーダルによるポップアップ（ショートカットキー案内表示付き）
     setupCustomAssetModals: function() {
         const btnSaveOriginal = document.getElementById('btnSaveOriginalEqAsset');
         const btnDeleteOriginal = document.getElementById('btnDeleteOriginalEqAsset');
@@ -321,7 +320,6 @@ window.SettingsEqualizer = {
         const btnConfirmDelete = document.getElementById('btnConfirmEqAssetDelete');
         const btnCancelDelete = document.getElementById('btnCancelEqAssetDelete');
 
-        // ★ OSに応じたショートカットキー案内の初期設定
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
         if (shortcutHintEl) {
             const keyBadge = isMac ? '<kbd>⌘ Command</kbd> + <kbd>Enter</kbd>' : '<kbd>Ctrl</kbd> + <kbd>Enter</kbd>';
@@ -340,7 +338,6 @@ window.SettingsEqualizer = {
             setTimeout(() => { m.style.display = 'none'; }, 200);
         };
 
-        // 1. 保存モーダルを開く
         if (btnSaveOriginal) {
             btnSaveOriginal.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -389,7 +386,6 @@ window.SettingsEqualizer = {
             btnConfirmSave.addEventListener('click', handleSaveExecute);
         }
 
-        // ★ Windows: Ctrl + Enter / Mac: Command(Meta) + Enter でのみ確定
         if (newNameInput) {
             newNameInput.addEventListener('keydown', (e) => {
                 if (e.isComposing || e.keyCode === 229) return;
@@ -405,7 +401,6 @@ window.SettingsEqualizer = {
             });
         }
 
-        // 2. 上書き保存確認
         if (btnConfirmOverwrite && overwriteModal) {
             btnConfirmOverwrite.addEventListener('click', () => {
                 if (this.pendingSaveName) {
@@ -423,7 +418,6 @@ window.SettingsEqualizer = {
             });
         }
 
-        // 3. 削除確認
         if (btnDeleteOriginal) {
             btnDeleteOriginal.addEventListener('click', () => {
                 const currentId = this.currentConfig.selectedAssetId;
