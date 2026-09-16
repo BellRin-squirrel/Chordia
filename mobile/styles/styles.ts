@@ -76,16 +76,17 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'box-none',
+    overflow: 'visible',
   },
 
   tabBarWrapper: { 
-    position: 'absolute', left: SIDE_MARGIN, right: SIDE_MARGIN, alignItems: 'center' 
+    position: 'absolute', left: SIDE_MARGIN, right: SIDE_MARGIN, alignItems: 'center', overflow: 'visible' 
   },
   tabBarContainer: { 
     width: '100%', maxWidth: 800, height: TAB_BAR_HEIGHT, 
     borderRadius: 40, 
-    flexDirection: 'row', overflow: 'hidden', 
-    borderWidth: 1,
+    flexDirection: 'row',
+    overflow: 'visible',
     position: 'relative',
   },
   tabItem: { justifyContent: 'center', alignItems: 'center', zIndex: 2 },
@@ -93,13 +94,13 @@ export const styles = StyleSheet.create({
 
   tabBarWrapperLandscape: { 
     position: 'absolute', right: SIDE_MARGIN, top: SIDE_MARGIN, bottom: SIDE_MARGIN, 
-    width: LANDSCAPE_TAB_BAR_WIDTH, justifyContent: 'center' 
+    width: LANDSCAPE_TAB_BAR_WIDTH, justifyContent: 'center', overflow: 'visible' 
   },
   tabBarContainerLandscape: { 
     width: '100%', height: '100%', maxHeight: 400,
     borderRadius: 40, 
-    flexDirection: 'column', overflow: 'hidden', 
-    borderWidth: 1,
+    flexDirection: 'column',
+    overflow: 'visible',
     position: 'relative',
   },
   tabItemLandscape: { justifyContent: 'center', alignItems: 'center', zIndex: 2, paddingVertical: 4 },

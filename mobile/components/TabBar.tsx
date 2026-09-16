@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   View, Text, Animated, StyleSheet, useWindowDimensions, 
   PanResponder, Platform 
@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { t } from '../utils/i18n';
 
 interface TabBarProps {
@@ -24,6 +24,7 @@ interface TabBarProps {
 const PILL_PADDING = 6;
 const EXPANDED_SCALE = 1.40;
 const TABBAR_MAX_SCALE = 1.020;
+const DRAG_THRESHOLD = 5;
 
 // 物理補間係数（HTML準拠）
 const DRAG_LERP = 0.40;
@@ -42,7 +43,8 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
-  const textColor = themeTextColor || '#ffffff';
+
+  const containerRef = useRef<View>(null);
 
   const tabs = useMemo(() => [
     ...(showSyncTab !== false ? [{ key: 'SYNC', label: t('tab_sync', language), icon: 'cloud-download' }] : []),
@@ -53,35 +55,33 @@ export const TabBar: React.FC<TabBarProps> = ({
 
   const tabCount = tabs.length;
 
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const barMetricsRef = useRef({ pageX: 0, pageY: 0, width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState({ 
+    width: isLandscape ? LANDSCAPE_TAB_BAR_WIDTH : Math.min(width - 32, 800), 
+    height: isLandscape ? 400 : TAB_BAR_HEIGHT 
+  });
 
-  // 物理演算用 Refs
   const currentPosRef = useRef(0);
+  const prevPosRef = useRef(0);
   const targetPosRef = useRef(0);
   const currentScaleRef = useRef(1.0);
   const targetScaleRef = useRef(1.0);
   const isDraggingRef = useRef(false);
   const isPointerDownRef = useRef(false);
+  const startCoordRef = useRef(0);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  // プカプカ揺動（Wobble）用 Refs
   const wobbleTimeRef = useRef(0);
   const wobbleIntensityRef = useRef(0);
 
-  // 指の接触位置（Specular Glow）
-  const [touchCoords, setTouchCoords] = useState<{ x: number; y: number } | null>(null);
-
-  // Animated Values
   const pillPosAnim = useRef(new Animated.Value(0)).current;
   const pillScaleAnim = useRef(new Animated.Value(1.0)).current;
   const pillWobbleXAnim = useRef(new Animated.Value(0)).current;
   const pillWobbleYAnim = useRef(new Animated.Value(0)).current;
   const pillWobbleRotateAnim = useRef(new Animated.Value(0)).current;
   const tabbarScaleAnim = useRef(new Animated.Value(1.0)).current;
-  const dynamicAlphaAnim = useRef(new Animated.Value(0.44)).current;
   const prismOpacityAnim = useRef(new Animated.Value(0)).current;
 
-  // アイコン個別スケール
   const iconScaleAnims = useRef(tabs.map(() => new Animated.Value(1.0))).current;
 
   const activeIndex = useMemo(() => {
@@ -90,11 +90,9 @@ export const TabBar: React.FC<TabBarProps> = ({
   }, [activeTab, tabs]);
 
   const tabSlotSize = useMemo(() => {
-    if (isLandscape) {
-      return containerSize.height > 0 ? (containerSize.height - (PILL_PADDING * 2)) / tabCount : 0;
-    } else {
-      return containerSize.width > 0 ? (containerSize.width - (PILL_PADDING * 2)) / tabCount : 0;
-    }
+    const totalSpan = isLandscape ? containerSize.height : containerSize.width;
+    const usableSpan = Math.max(0, totalSpan - (PILL_PADDING * 2));
+    return tabCount > 0 ? usableSpan / tabCount : 0;
   }, [containerSize, isLandscape, tabCount]);
 
   const pillWidth = isLandscape 
@@ -105,59 +103,59 @@ export const TabBar: React.FC<TabBarProps> = ({
     ? (tabSlotSize > 0 ? tabSlotSize : 52)
     : TAB_BAR_HEIGHT - (PILL_PADDING * 2);
 
-  // アクティブタブ変更時のターゲット更新
-  useEffect(() => {
-    if (tabSlotSize > 0) {
-      const nextTarget = activeIndex * tabSlotSize;
-      targetPosRef.current = nextTarget;
-      startPhysicsLoop();
+  const measureBar = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.measureInWindow((x, y, w, h) => {
+        if (w > 0 && h > 0) {
+          barMetricsRef.current = { pageX: x, pageY: y, width: w, height: h };
+          setContainerSize({ width: w, height: h });
+        }
+      });
     }
-  }, [activeIndex, tabSlotSize]);
+  }, []);
 
-  // アイコンのアニメーション更新
-  const updateIconHighlights = (closestIdx: number) => {
+  const updateIconHighlights = useCallback((closestIdx: number) => {
     tabs.forEach((_, i) => {
       if (iconScaleAnims[i]) {
         Animated.timing(iconScaleAnims[i], {
           toValue: i === closestIdx ? 1.08 : 1.0,
-          duration: 180,
+          duration: 160,
           useNativeDriver: true,
         }).start();
       }
     });
-  };
+  }, [tabs, iconScaleAnims]);
 
-  // 単一物理演算エンジン（HTML updatePhysics の完全移植）
-  const updatePhysics = () => {
+  // ★ 速度感応型プカプカ物理演算
+  const updatePhysics = useCallback(() => {
     const lerpRate = isDraggingRef.current ? DRAG_LERP : SNAP_LERP;
     
     currentPosRef.current += (targetPosRef.current - currentPosRef.current) * lerpRate;
     currentScaleRef.current += (targetScaleRef.current - currentScaleRef.current) * SCALE_LERP;
 
+    const instantVelocity = Math.abs(currentPosRef.current - prevPosRef.current);
+    prevPosRef.current = currentPosRef.current;
+
     const scaleProgress = Math.max(0, Math.min(1, (currentScaleRef.current - 1.0) / (EXPANDED_SCALE - 1.0)));
+    prismOpacityAnim.setValue(Math.pow(scaleProgress, 2.0) * 0.12);
 
-    // 透明度＆プリズム光彩の補間
-    const pillAlpha = 0.44 - (scaleProgress * 0.36);
-    dynamicAlphaAnim.setValue(pillAlpha);
-    prismOpacityAnim.setValue(Math.pow(scaleProgress, 2.0) * 0.45);
-
-    // 移動中のみプカプカ揺動（Wobble）
-    const dist = Math.abs(targetPosRef.current - currentPosRef.current);
-    const scaleDiff = Math.abs(targetScaleRef.current - currentScaleRef.current);
-    const isActuallyMoving = dist > 1.2;
-    const targetWobble = isActuallyMoving ? 1.0 : 0.0;
+    const targetWobble = instantVelocity > 0.20 
+      ? Math.min(Math.pow(instantVelocity / 5.5, 0.85), 1.5)
+      : 0.0;
     
-    wobbleIntensityRef.current += (targetWobble - wobbleIntensityRef.current) * 0.18;
+    wobbleIntensityRef.current += (targetWobble - wobbleIntensityRef.current) * 0.20;
 
     let wobbleX = 0;
     let wobbleY = 0;
     let wobbleRotate = 0;
 
     if (wobbleIntensityRef.current > 0.005) {
-      wobbleTimeRef.current += 0.14;
-      wobbleY = Math.sin(wobbleTimeRef.current * 2.4) * (2.4 * wobbleIntensityRef.current);
-      wobbleX = Math.cos(wobbleTimeRef.current * 1.8) * (1.6 * wobbleIntensityRef.current);
-      wobbleRotate = Math.sin(wobbleTimeRef.current * 2.0) * (1.9 * wobbleIntensityRef.current);
+      const freqStep = 0.11 + Math.min(instantVelocity * 0.008, 0.12);
+      wobbleTimeRef.current += freqStep;
+
+      wobbleY = Math.sin(wobbleTimeRef.current * 2.3) * (2.1 * wobbleIntensityRef.current);
+      wobbleX = Math.cos(wobbleTimeRef.current * 1.7) * (1.3 * wobbleIntensityRef.current);
+      wobbleRotate = Math.sin(wobbleTimeRef.current * 1.9) * (1.3 * wobbleIntensityRef.current);
     }
 
     pillPosAnim.setValue(currentPosRef.current);
@@ -166,7 +164,6 @@ export const TabBar: React.FC<TabBarProps> = ({
     pillWobbleYAnim.setValue(wobbleY);
     pillWobbleRotateAnim.setValue(wobbleRotate);
 
-    // タブバー全体の同期スケール連動
     const tabbarScale = 1.0 + scaleProgress * (TABBAR_MAX_SCALE - 1.0);
     tabbarScaleAnim.setValue(tabbarScale);
 
@@ -175,10 +172,14 @@ export const TabBar: React.FC<TabBarProps> = ({
       updateIconHighlights(closest);
     }
 
+    const dist = Math.abs(targetPosRef.current - currentPosRef.current);
+    const scaleDiff = Math.abs(targetScaleRef.current - currentScaleRef.current);
+
     if (isPointerDownRef.current || dist > 0.1 || scaleDiff > 0.005 || wobbleIntensityRef.current > 0.005) {
       animationFrameIdRef.current = requestAnimationFrame(updatePhysics);
     } else {
       currentPosRef.current = targetPosRef.current;
+      prevPosRef.current = targetPosRef.current;
       currentScaleRef.current = targetScaleRef.current;
       wobbleIntensityRef.current = 0;
       pillPosAnim.setValue(currentPosRef.current);
@@ -189,87 +190,115 @@ export const TabBar: React.FC<TabBarProps> = ({
       tabbarScaleAnim.setValue(targetScaleRef.current === 1.0 ? 1.0 : TABBAR_MAX_SCALE);
       animationFrameIdRef.current = null;
     }
-  };
+  }, [tabSlotSize, tabCount, updateIconHighlights, pillPosAnim, pillScaleAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, tabbarScaleAnim, prismOpacityAnim]);
 
-  const startPhysicsLoop = () => {
+  const startPhysicsLoop = useCallback(() => {
     if (!animationFrameIdRef.current) {
       animationFrameIdRef.current = requestAnimationFrame(updatePhysics);
     }
-  };
+  }, [updatePhysics]);
 
-  const getClosestIndexFromCoord = (coord: number): number => {
+  useEffect(() => {
+    if (tabSlotSize > 0) {
+      const nextTarget = activeIndex * tabSlotSize;
+      targetPosRef.current = nextTarget;
+      startPhysicsLoop();
+    }
+  }, [activeIndex, tabSlotSize, startPhysicsLoop]);
+
+  const getRelativeCoord = useCallback((evt: any) => {
+    const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
+    if (isLandscape) {
+      if (barMetricsRef.current.height > 0 && barMetricsRef.current.pageY > 0) {
+        return pageY - barMetricsRef.current.pageY;
+      }
+      return locationY;
+    } else {
+      if (barMetricsRef.current.width > 0 && barMetricsRef.current.pageX > 0) {
+        return pageX - barMetricsRef.current.pageX;
+      }
+      return locationX;
+    }
+  }, [isLandscape]);
+
+  const getClosestIndexFromRelative = useCallback((rel: number): number => {
     if (tabSlotSize <= 0) return 0;
-    const rel = coord - PILL_PADDING;
-    const idx = Math.round((rel - (tabSlotSize / 2)) / tabSlotSize);
+    const innerCoord = rel - PILL_PADDING;
+    const idx = Math.floor(innerCoord / tabSlotSize);
     return Math.max(0, Math.min(tabCount - 1, idx));
-  };
+  }, [tabSlotSize, tabCount]);
 
-  const getPillPosFromCoord = (coord: number): number => {
+  const getPillPosFromRelative = useCallback((rel: number): number => {
     if (tabSlotSize <= 0) return 0;
-    const rel = coord - PILL_PADDING;
-    const rawPos = rel - (tabSlotSize / 2);
+    const innerCoord = rel - PILL_PADDING;
+    const rawPos = innerCoord - (tabSlotSize / 2);
     const maxPos = (tabCount - 1) * tabSlotSize;
     return Math.max(0, Math.min(maxPos, rawPos));
-  };
+  }, [tabSlotSize, tabCount]);
 
-  // PanResponder によるドラッグ＆タップの完全捕捉
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
+
       onPanResponderGrant: (evt) => {
         isPointerDownRef.current = true;
         isDraggingRef.current = false;
-        
-        const { locationX, locationY } = evt.nativeEvent;
-        setTouchCoords({ x: locationX, y: locationY });
+        measureBar();
 
-        const coord = isLandscape ? locationY : locationX;
-        const targetIdx = getClosestIndexFromCoord(coord);
+        const rel = getRelativeCoord(evt);
+        startCoordRef.current = rel;
 
+        const targetIdx = getClosestIndexFromRelative(rel);
         targetPosRef.current = targetIdx * tabSlotSize;
         targetScaleRef.current = EXPANDED_SCALE;
-        setActiveTab(tabs[targetIdx].key);
+
+        if (tabs[targetIdx]) {
+          setActiveTab(tabs[targetIdx].key);
+        }
         startPhysicsLoop();
       },
-      onPanResponderMove: (evt, gesture) => {
-        const { locationX, locationY } = evt.nativeEvent;
-        setTouchCoords({ x: locationX, y: locationY });
 
-        const moveDist = isLandscape ? Math.abs(gesture.dy) : Math.abs(gesture.dx);
-        if (moveDist > 4) {
+      onPanResponderMove: (evt) => {
+        const rel = getRelativeCoord(evt);
+        const moveDist = Math.abs(rel - startCoordRef.current);
+
+        if (moveDist > DRAG_THRESHOLD) {
           isDraggingRef.current = true;
-          const coord = isLandscape ? locationY : locationX;
-          targetPosRef.current = getPillPosFromCoord(coord);
+          targetPosRef.current = getPillPosFromRelative(rel);
           targetScaleRef.current = EXPANDED_SCALE;
           startPhysicsLoop();
         }
       },
+
       onPanResponderRelease: (evt) => {
         isPointerDownRef.current = false;
-        isDraggingRef.current = false;
-        setTouchCoords(null);
 
-        const { locationX, locationY } = evt.nativeEvent;
-        const coord = isLandscape ? locationY : locationX;
-        const finalIdx = getClosestIndexFromCoord(coord);
+        const rel = getRelativeCoord(evt);
+        const finalIdx = getClosestIndexFromRelative(rel);
 
         targetPosRef.current = finalIdx * tabSlotSize;
         targetScaleRef.current = 1.0;
-        setActiveTab(tabs[finalIdx].key);
+        isDraggingRef.current = false;
+
+        if (tabs[finalIdx]) {
+          setActiveTab(tabs[finalIdx].key);
+        }
         startPhysicsLoop();
       },
+
       onPanResponderTerminate: () => {
         isPointerDownRef.current = false;
         isDraggingRef.current = false;
-        setTouchCoords(null);
         targetScaleRef.current = 1.0;
         startPhysicsLoop();
       },
     })
   ).current;
 
-  // ピル変形スタイル
   const pillTransform = isLandscape ? [
     { translateY: Animated.add(pillPosAnim, pillWobbleYAnim) },
     { translateX: pillWobbleXAnim },
@@ -282,51 +311,55 @@ export const TabBar: React.FC<TabBarProps> = ({
     { rotate: pillWobbleRotateAnim.interpolate({ inputRange: [-5, 5], outputRange: ['-5deg', '5deg'] }) }
   ];
 
+  const pillRadius = Math.min(pillWidth, pillHeight) / 2;
+
   return (
     <Animated.View 
+      ref={containerRef}
       style={[
         isLandscape ? styles.tabBarContainerLandscape : styles.tabBarContainer,
         {
           transform: [{ scale: tabbarScaleAnim }],
-          backgroundColor: isDark ? 'rgba(20, 20, 25, 0.45)' : 'rgba(255, 255, 255, 0.24)',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.65)',
+          overflow: 'visible',
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 16 },
-          shadowOpacity: isDark ? 0.45 : 0.18,
-          shadowRadius: 28,
+          shadowOffset: { width: 0, height: 14 },
+          shadowOpacity: isDark ? 0.45 : 0.16,
+          shadowRadius: 26,
           elevation: 12,
         }
       ]}
-      onLayout={(e) => {
-        const { width: w, height: h } = e.nativeEvent.layout;
-        setContainerSize({ width: w, height: h });
-      }}
+      onLayout={() => measureBar()}
       {...panResponder.panHandlers}
     >
-      <BlurView 
-        intensity={Platform.OS === 'ios' ? 70 : 100} 
-        tint={isDark ? 'dark' : 'light'} 
-        style={StyleSheet.absoluteFill} 
-      />
-
-      {/* 1. ガラス内部の環境光（指位置追従 Specular Glow） */}
-      {touchCoords && (
-        <View 
-          pointerEvents="none" 
-          style={[
-            s.specularGlow, 
-            { 
-              left: touchCoords.x - 50, 
-              top: touchCoords.y - 50 
-            }
-          ]} 
+      {/* 1. タブバー本体のすりガラス背景 */}
+      <View 
+        pointerEvents="none" 
+        style={[
+          StyleSheet.absoluteFill, 
+          {
+            borderRadius: 40, 
+            overflow: 'hidden',
+            backgroundColor: isDark 
+              ? 'rgba(20, 20, 25, 0.55)' 
+              : 'rgba(25, 25, 30, 0.085)',
+            borderWidth: 1,
+            borderColor: isDark 
+              ? 'rgba(255, 255, 255, 0.22)' 
+              : 'rgba(0, 0, 0, 0.12)',
+          }
+        ]}
+      >
+        <BlurView 
+          intensity={Platform.OS === 'ios' ? 65 : 95} 
+          tint={isDark ? 'dark' : 'light'} 
+          style={StyleSheet.absoluteFill} 
         />
-      )}
+        
+        {/* ガラス天面のインナーハイライト光沢境界線 */}
+        <View style={s.topEdgeHighlight} />
+      </View>
 
-      {/* 2. ガラス天面のインナーハイライト光沢境界線 */}
-      <View pointerEvents="none" style={s.topEdgeHighlight} />
-
-      {/* 3. Liquid Active Pill（タブカーソル本体） */}
+      {/* 2. Liquid Active Pill（タブカーソル本体） */}
       {tabSlotSize > 0 && (
         <Animated.View
           pointerEvents="none"
@@ -335,47 +368,54 @@ export const TabBar: React.FC<TabBarProps> = ({
             {
               width: pillWidth,
               height: pillHeight,
-              borderRadius: Math.min(pillWidth, pillHeight) / 2,
+              borderRadius: pillRadius,
               top: PILL_PADDING,
               left: PILL_PADDING,
               transform: pillTransform,
-              backgroundColor: isDark 
-                ? dynamicAlphaAnim.interpolate({ inputRange: [0.08, 0.44], outputRange: ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.22)'] })
-                : dynamicAlphaAnim.interpolate({ inputRange: [0.08, 0.44], outputRange: ['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.52)'] }),
-              borderColor: isDark ? 'rgba(255,255,255,0.40)' : 'rgba(255,255,255,0.85)',
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.40)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.95)',
             }
           ]}
         >
-          {/* 微細なプリズム光彩レイヤー */}
+          {/* 白光沢主体の淡いクリスタル光彩レイヤー */}
           <Animated.View 
             style={[
               StyleSheet.absoluteFill, 
               s.prismBorder, 
-              { opacity: prismOpacityAnim, borderRadius: Math.min(pillWidth, pillHeight) / 2 }
+              { opacity: prismOpacityAnim, borderRadius: pillRadius }
             ]}
           >
             <LinearGradient
-              colors={['rgba(255,80,120,0.5)', 'rgba(255,180,50,0.4)', 'rgba(0,240,255,0.5)', 'rgba(80,255,140,0.4)', 'rgba(255,90,240,0.5)']}
+              colors={[
+                'rgba(255,255,255,0.4)',
+                'rgba(0,240,255,0.08)',
+                'rgba(255,255,255,0.6)',
+                'rgba(255,120,180,0.08)',
+                'rgba(255,255,255,0.4)'
+              ]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[StyleSheet.absoluteFill, { borderRadius: Math.min(pillWidth, pillHeight) / 2 }]}
+              style={[StyleSheet.absoluteFill, { borderRadius: pillRadius }]}
             />
           </Animated.View>
 
-          {/* ピル内部のインナーベベル（厚みと光沢フチ） */}
+          {/* ピル内部のインナーベベル（厚みとクリアな光沢フチ） */}
           <View 
             style={[
               s.pillInnerBevel, 
-              { borderRadius: Math.min(pillWidth, pillHeight) / 2 }
+              { borderRadius: pillRadius }
             ]} 
           />
         </Animated.View>
       )}
 
-      {/* 4. 各タブアイテム */}
+      {/* 3. 各タブアイテム（★アクティブ時は themeColor を適用） */}
       {tabs.map((tab, idx) => {
         const isActive = activeTab === tab.key;
         const iconScale = iconScaleAnims[idx] || 1.0;
+        const tabItemColor = isActive 
+          ? themeColor 
+          : (isDark ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.58)');
 
         return (
           <View
@@ -383,7 +423,11 @@ export const TabBar: React.FC<TabBarProps> = ({
             pointerEvents="none"
             style={[
               isLandscape ? styles.tabItemLandscape : styles.tabItem,
-              { width: isLandscape ? '100%' : tabSlotSize, height: isLandscape ? tabSlotSize : '100%' }
+              { 
+                width: isLandscape ? '100%' : tabSlotSize, 
+                height: isLandscape ? tabSlotSize : '100%',
+                zIndex: 2,
+              }
             ]}
           >
             <Animated.View
@@ -399,7 +443,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               <Ionicons 
                 name={tab.icon as any} 
                 size={22} 
-                color={isActive ? textColor : (isDark ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.45)')} 
+                color={tabItemColor} 
               />
             </Animated.View>
 
@@ -407,7 +451,7 @@ export const TabBar: React.FC<TabBarProps> = ({
               style={[
                 isLandscape ? styles.tabTextLandscape : styles.tabText,
                 {
-                  color: isActive ? textColor : (isDark ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.45)'),
+                  color: tabItemColor,
                   fontWeight: isActive ? '700' : '500',
                   marginTop: 3,
                 }
@@ -424,33 +468,25 @@ export const TabBar: React.FC<TabBarProps> = ({
 };
 
 const s = StyleSheet.create({
-  specularGlow: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.28)',
-    transform: [{ scale: 1.2 }],
-    opacity: 0.8,
-  },
   topEdgeHighlight: {
     position: 'absolute',
     top: 0,
     left: 20,
     right: 20,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.80)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderRadius: 0.5,
   },
   activePillBase: {
     position: 'absolute',
     borderWidth: 0.5,
     overflow: 'hidden',
+    zIndex: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.20,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 15,
   },
   prismBorder: {
     padding: 1.5,
@@ -458,7 +494,7 @@ const s = StyleSheet.create({
   pillInnerBevel: {
     ...StyleSheet.absoluteFillObject,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.70)',
+    borderColor: 'rgba(255, 255, 255, 0.75)',
     borderBottomColor: 'rgba(0, 0, 0, 0.12)',
   },
 });

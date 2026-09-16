@@ -29,7 +29,8 @@ import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../../ut
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
 
-const TAB_BAR_MARGIN = 25;
+// ★ ノッチ（insets.bottom）を無視し、画面最下部に近づけて配置
+const TAB_BAR_BOTTOM = 12;
 const MINI_PLAYER_GAP = 8;
 const MINI_PLAYER_HEIGHT = 58;
 
@@ -51,7 +52,6 @@ const AppContent = () => {
   const [activeTab, setActiveTab] = useState<TabType>('PLAYER');
   const [focusStage, setFocusStage] = useState<FocusStageType>('SETUP');
   
-  // ★ 各タブのトップ画面リセット用シグナル
   const [playerResetTrigger, setPlayerResetTrigger] = useState(0);
   const [infoResetTrigger, setInfoResetTrigger] = useState(0);
 
@@ -95,7 +95,6 @@ const AppContent = () => {
     language
   });
 
-  // ★ タブ押下時のハンドラー（別タブ切り替え時、および同一タブ押下時にも必ずトップ画面へリセット）
   const handleTabPress = (tabKey: TabType) => {
     setActiveTab(tabKey);
     if (tabKey === 'PLAYER') {
@@ -325,12 +324,30 @@ const AppContent = () => {
 
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
+          {/* ミニプレイヤー：タブバーの少し上に自然に連動配置 */}
           {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
-            <Animated.View style={[isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], { bottom: isLandscape ? (15 + insets.bottom) : (TAB_BAR_MARGIN + TAB_BAR_HEIGHT + MINI_PLAYER_GAP + insets.bottom), left: isLandscape ? miniPlayerLeft : 16, right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, shadowOpacity: 0.1, elevation: 10 }]}>
+            <Animated.View style={[
+              isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], 
+              { 
+                bottom: isLandscape 
+                  ? (15 + insets.bottom) 
+                  : (TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + MINI_PLAYER_GAP), 
+                left: isLandscape ? miniPlayerLeft : 16, 
+                right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, 
+                shadowOpacity: 0.1, 
+                elevation: 10 
+              }
+            ]}>
               <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={() => { setIsFullPlayer(true); Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start(); }} togglePlayPause={togglePlayPause} handleNext={handleNext} />
             </Animated.View>
           )}
-          <View style={isLandscape ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] : [styles.commonWrapperPortrait, { bottom: TAB_BAR_MARGIN + insets.bottom, height: TAB_BAR_HEIGHT }]}>
+
+          {/* ★ タブバー：ノッチ（insets.bottom）を無視し、画面最下部に近づけて配置 */}
+          <View style={
+            isLandscape 
+              ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 16 + insets.bottom }] 
+              : [styles.commonWrapperPortrait, { bottom: TAB_BAR_BOTTOM, height: TAB_BAR_HEIGHT }]
+          }>
               <TabBar 
                 activeTab={activeTab} 
                 setActiveTab={handleTabPress} 
@@ -433,7 +450,6 @@ const AppContent = () => {
         canClose={false}
       />
 
-      {/* ★ 右上に表示される洗練されたリキッドグラストースト通知 */}
       {toastVisible && !isFullPlayer && (
         <Animated.View 
           style={[
