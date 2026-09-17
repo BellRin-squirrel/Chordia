@@ -20,6 +20,7 @@ public class ChordiaEqualizerModule: Module {
   private var isNodePlaying: Bool = false
   private var isNodesAttached: Bool = false
   private var lastErrorMessage: String = "None"
+  private var debugDiagnostics: [String: Any] = [:]
 
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
@@ -63,7 +64,12 @@ public class ChordiaEqualizerModule: Module {
 
     Function("play") { () -> Bool in
       if !self.audioEngine.isRunning {
-        try? self.audioEngine.start()
+        do {
+          try self.audioEngine.start()
+        } catch {
+          self.lastErrorMessage = "AudioEngine start error: \(error.localizedDescription)"
+          return false
+        }
       }
       self.playerNode.play()
       self.isNodePlaying = true
@@ -96,6 +102,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("getDebugInfo") { () -> [String: Any] in
+      let session = AVAudioSession.sharedInstance()
       return [
         "platform": "iOS",
         "isNativeConnected": true,
@@ -107,6 +114,10 @@ public class ChordiaEqualizerModule: Module {
         "hasAudioFile": self.currentAudioFile != nil,
         "sampleRate": self.fileSampleRate,
         "totalFrames": Double(self.fileTotalFrames),
+        "currentSessionCategory": session.category.rawValue,
+        "currentSessionMode": session.mode.rawValue,
+        "currentSessionOptions": session.categoryOptions.rawValue,
+        "diagnostics": self.debugDiagnostics,
         "lastError": self.lastErrorMessage
       ]
     }
@@ -136,14 +147,32 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    // ★ OSStatus -50 修正: .playback カテゴリではシステムが自動的に A2DP / Bluetooth ステレオ出力へルーティングするため、余計なオプションを渡さず設定する
+    // ★ ステップ別セッション設定 ＆ 詳細エラー分解
+    var diagSteps: [String] = []
+    let session = AVAudioSession.sharedInstance()
+    diagSteps.append("Initial: cat=\(session.category.rawValue), mode=\(session.mode.rawValue), opt=\(session.categoryOptions.rawValue)")
+
+    // 1. setCategory 単体テスト
     do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default)
+      try session.setCategory(.playback, mode: .default, options: [])
+      diagSteps.append("setCategory(.playback, .default, []): SUCCESS")
+    } catch let err as NSError {
+      diagSteps.append("setCategory FAILED: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription), userInfo=\(err.userInfo)")
+    }
+
+    // 2. setActive 単体テスト（初期化時に失敗してもエンジンノード構築は継続）
+    do {
       try session.setActive(true)
-      self.lastErrorMessage = "None"
-    } catch {
-      self.lastErrorMessage = "AudioSession error: \(error.localizedDescription)"
+      diagSteps.append("setActive(true): SUCCESS")
+    } catch let err as NSError {
+      diagSteps.append("setActive(true) FAILED: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription), userInfo=\(err.userInfo)")
+    }
+
+    self.debugDiagnostics["setupSessionSteps"] = diagSteps
+    if diagSteps.contains(where: { $0.contains("FAILED") }) {
+      self.lastErrorMessage = diagSteps.filter { $0.contains("FAILED") }.joined(separator: " | ")
+    } else {
+      self.lastErrorMessage = "None (AudioSession initialized successfully)"
     }
   }
 
@@ -195,7 +224,7 @@ public class ChordiaEqualizerModule: Module {
 
     do {
       let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default)
+      try session.setCategory(.playback, mode: .default, options: [])
       try session.setActive(true)
 
       let file = try AVAudioFile(forReading: url)
@@ -241,8 +270,8 @@ public class ChordiaEqualizerModule: Module {
 
       self.lastErrorMessage = "None (Playing successfully)"
       return true
-    } catch {
-      self.lastErrorMessage = error.localizedDescription
+    } catch let err as NSError {
+      self.lastErrorMessage = "LoadAndPlay Error: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription)"
       return false
     }
   }
