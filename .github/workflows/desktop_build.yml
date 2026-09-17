@@ -1,7 +1,11 @@
-name: Build Chordia Desktop v5.0.0-alpha1
+name: Build Chordia Desktop
 
 on:
   workflow_dispatch: # 手動実行用
+
+# ★ ここでバージョン文字列を定義（各ファイル名の <version> に代入されます）
+env:
+  VERSION: "v5.0.0-beta1"
 
 defaults:
   run:
@@ -23,15 +27,51 @@ jobs:
       - name: Build Tauri app (Windows)
         run: cargo tauri build
 
-      - name: Upload Windows Artifacts
+      # ★ 成果物の整理・ポータブルZIPの作成
+      - name: Prepare Windows Artifacts
+        shell: pwsh
+        run: |
+          $ver = "${{ env.VERSION }}"
+          
+          # 出力用ディレクトリを作成
+          New-Item -ItemType Directory -Path "dist_portable/Chordia_windows_portable" -Force | Out-Null
+          New-Item -ItemType Directory -Path "dist_nsis" -Force | Out-Null
+          New-Item -ItemType Directory -Path "dist_msi" -Force | Out-Null
+
+          # 1. Chordia.exe を Chordia_windows_portable フォルダに格納し、ZIP圧縮
+          Copy-Item "src-tauri/target/release/Chordia.exe" -Destination "dist_portable/Chordia_windows_portable/"
+          Compress-Archive -Path "dist_portable/Chordia_windows_portable" -DestinationPath "dist_portable/Chordia${ver}windows_portable.zip" -Force
+
+          # 2. bundle/nsis の中の全ファイルをコピー
+          if (Test-Path "src-tauri/target/release/bundle/nsis") {
+            Copy-Item "src-tauri/target/release/bundle/nsis/*" -Destination "dist_nsis/" -Recurse -Force
+          }
+
+          # 3. bundle/msi の中の全ファイルをコピー
+          if (Test-Path "src-tauri/target/release/bundle/msi") {
+            Copy-Item "src-tauri/target/release/bundle/msi/*" -Destination "dist_msi/" -Recurse -Force
+          }
+
+      # 1. ポータブル ZIP のアップロード
+      - name: Upload Windows Portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia-Windows
-          # ★ upload-artifact はリポジトリルート基準のため先頭に desktop/ を指定
-          path: |
-            desktop/src-tauri/target/release/*.exe
-            desktop/src-tauri/target/release/bundle/nsis/*.exe
-            desktop/src-tauri/target/release/bundle/msi/*.msi
+          name: Chordia${{ env.VERSION }}windows_portable.zip
+          path: desktop/dist_portable/Chordia${{ env.VERSION }}windows_portable.zip
+
+      # 2. NSIS インストーラーのアップロード
+      - name: Upload Windows NSIS
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chordia-Windows-NSIS
+          path: desktop/dist_nsis/*
+
+      # 3. MSI インストーラーのアップロード
+      - name: Upload Windows MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chordia-Windows-MSI
+          path: desktop/dist_msi/*
   
   build_macos_latest:
     runs-on: macos-latest
@@ -42,7 +82,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          # Macの場合は、IntelとApple Silicon両方のターゲットを追加する
           targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
 
       - name: Install Tauri CLI
@@ -51,17 +90,31 @@ jobs:
       - name: Build Tauri app (Mac - Universal)
         run: cargo tauri build --target universal-apple-darwin
 
-      # ★ コメントアウトを解除し、.app ファイルを .tar.gz に圧縮
-      - name: Compress Mac .app to tar.gz
+      # ★ 成果物の整理・リネーム
+      - name: Prepare Mac Artifacts
         run: |
-          cd src-tauri/target/universal-apple-darwin/release/bundle/macos
-          tar -czf Chordia_app.tar.gz Chordia.app
+          ver="${{ env.VERSION }}"
+          mkdir -p dist_mac_app
+          mkdir -p dist_mac_dmg
 
-      - name: Upload Mac Artifacts
+          # 4. .app を Chordia<version>app.tar.gz として圧縮
+          cd src-tauri/target/universal-apple-darwin/release/bundle/macos
+          tar -czf ../../../../../dist_mac_app/Chordia${ver}app.tar.gz Chordia.app
+          cd ../../../../../
+
+          # 5. dmg ファイルを Chordia_<version>_universal.dmg としてコピー
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg dist_mac_dmg/Chordia_${ver}_universal.dmg
+
+      # 4. Mac .app tar.gz のアップロード
+      - name: Upload Mac App TarGz
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia-Mac
-          # ★ upload-artifact はリポジトリルート基準のため先頭に desktop/ を指定
-          path: |
-            desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/Chordia_app.tar.gz
+          name: Chordia${{ env.VERSION }}app.tar.gz
+          path: desktop/dist_mac_app/Chordia${{ env.VERSION }}app.tar.gz
+
+      # 5. Mac Universal DMG のアップロード
+      - name: Upload Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chordia_${{ env.VERSION }}_universal.dmg
+          path: desktop/dist_mac_dmg/Chordia_${{ env.VERSION }}_universal.dmg
