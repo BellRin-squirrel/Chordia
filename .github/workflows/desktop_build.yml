@@ -1,4 +1,4 @@
-name: Build Chordia Desktop
+name: Build Chordia Desktop v5.0.0-alpha1
 
 on:
   workflow_dispatch: # 手動実行用
@@ -90,17 +90,15 @@ jobs:
       - name: Build Tauri app (Mac - Universal)
         run: cargo tauri build --target universal-apple-darwin
 
-      # ★ 成果物の整理・リネーム
+      # ★ 成果物の整理・リネーム（tar -C によりパスの不整合を解消）
       - name: Prepare Mac Artifacts
         run: |
           ver="${{ env.VERSION }}"
           mkdir -p dist_mac_app
           mkdir -p dist_mac_dmg
 
-          # 4. .app を Chordia<version>app.tar.gz として圧縮
-          cd src-tauri/target/universal-apple-darwin/release/bundle/macos
-          tar -czf ../../../../../dist_mac_app/Chordia${ver}app.tar.gz Chordia.app
-          cd ../../../../../
+          # 4. .app を Chordia<version>app.tar.gz として圧縮 (-C で安全に実行)
+          tar -C src-tauri/target/universal-apple-darwin/release/bundle/macos -czf dist_mac_app/Chordia${ver}app.tar.gz Chordia.app
 
           # 5. dmg ファイルを Chordia_<version>_universal.dmg としてコピー
           cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg dist_mac_dmg/Chordia_${ver}_universal.dmg
