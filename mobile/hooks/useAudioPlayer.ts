@@ -43,6 +43,26 @@ export interface PlayCollectionContext {
   playlistName: string;
 }
 
+const isStatePlaying = (stateValOrObj: any): boolean => {
+  if (stateValOrObj === undefined || stateValOrObj === null) return false;
+  const s = (typeof stateValOrObj === 'object' && stateValOrObj !== null)
+    ? (stateValOrObj.state ?? stateValOrObj)
+    : stateValOrObj;
+  return s === RNTPState.Playing || s === 'playing';
+};
+
+const resolveExpoAudioSource = (rawUri: string): any => {
+  if (!rawUri) return '';
+  if (rawUri.startsWith('http://') || rawUri.startsWith('https://')) {
+    return { uri: rawUri };
+  }
+  if (Platform.OS === 'android') {
+    const cleanPath = rawUri.replace(/^file:\/+/i, '/');
+    return cleanPath;
+  }
+  return { uri: rawUri };
+};
+
 export const useAudioPlayer = () => {
   const [audioEngine, setAudioEngine] = useState<'expo-av'|'rntp'>('rntp');
 
@@ -103,16 +123,27 @@ export const useAudioPlayer = () => {
   useEffect(() => { loopRef.current = loopMode; }, [loopMode]);
   useEffect(() => { shuffleRef.current = isShuffle; }, [isShuffle]);
 
-  // ★ Android で ExoPlayer の本物の audioSessionId を取得してイコライザーにアタッチする関数
+  // ★ Android ExoPlayer の実際の AudioSessionId を取得してイコライザーへアタッチ
   const syncAndroidEqualizerSession = async () => {
     if (Platform.OS === 'android') {
       try {
-        const TrackPlayerModule = NativeModules.TrackPlayerModule;
+        const TrackPlayerModule = NativeModules.TrackPlayerModule || NativeModules.TrackPlayer;
         if (TrackPlayerModule?.getAudioSessionId) {
           const sid = await TrackPlayerModule.getAudioSessionId();
           if (sid && sid > 0) {
-            console.log('[Equalizer] Attached to real ExoPlayer audioSessionId:', sid);
+            console.log('[Equalizer] Successfully attached to real ExoPlayer audioSessionId:', sid);
             await initEqualizer(sid);
+
+            // アタッチ後に現在のイコライザ設定（ゲイン・プリセット）を直ちに再送信
+            const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
+            if (eqJson) {
+              const parsed = JSON.parse(eqJson);
+              applyEqualizerSettings({
+                enabled: !!parsed.isEnabled,
+                preamp: parsed.preamp || 0,
+                gains: Array.isArray(parsed.bands) ? parsed.bands.map((b: any) => b.gain) : [],
+              });
+            }
           }
         }
       } catch (e) {}
@@ -150,15 +181,7 @@ export const useAudioPlayer = () => {
     try {
       await setAudioModeAsync({
         playsInSilentMode: true,
-        playsInSilentModeIOS: true,
-        shouldPlayInBackground: true,
-        staysActiveInBackground: true,
-        interruptionMode: 'mixWithOthers',
-        interruptionModeIOS: 'mixWithOthers',
-        interruptionModeAndroid: 'duckOthers',
-        allowsRecording: false,
-        allowsRecordingIOS: false,
-      } as any);
+      });
     } catch (e) {}
   };
 
@@ -198,20 +221,31 @@ export const useAudioPlayer = () => {
   const rntpState = usePlaybackState();
   const rntpProgress = useProgress(250); 
 
+  const isRNTPPlaying = isStatePlaying(rntpState);
+
   const playbackStatus = isIOSEQActiveRef.current 
     ? playbackStatusIOSEQ 
     : (audioEngine === 'rntp' ? {
         positionMillis: rntpProgress.position * 1000,
         durationMillis: rntpProgress.duration * 1000,
-        isPlaying: rntpState.state === RNTPState.Playing,
+        isPlaying: isRNTPPlaying,
       } : playbackStatusExpo);
 
   useEffect(() => {
     if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
-      if (rntpState.state === RNTPState.Playing) setIsPlaying(true);
-      else if (rntpState.state === RNTPState.Paused || rntpState.state === RNTPState.Stopped) setIsPlaying(false);
+      setIsPlaying(isRNTPPlaying);
     }
-  }, [rntpState.state, audioEngine]);
+  }, [rntpState, audioEngine, isRNTPPlaying]);
+
+  useEffect(() => {
+    const sub = TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+      if (!isIOSEQActiveRef.current && audioEngine === 'rntp') {
+        const playing = isStatePlaying(event);
+        setIsPlaying(playing);
+      }
+    });
+    return () => sub.remove();
+  }, [audioEngine]);
 
   const sendNowPlayingUpdate = async (overrideTimeSec?: number) => {
     if (!currentContextRef.current) return;
@@ -366,7 +400,11 @@ export const useAudioPlayer = () => {
     }
     if (expoPollingRef.current) { clearInterval(expoPollingRef.current); expoPollingRef.current = null; }
     if (expoAudioPlayerRef.current) {
-      try { expoAudioPlayerRef.current.pause?.(); expoAudioPlayerRef.current.remove?.(); } catch (e) {}
+      try { 
+        expoAudioPlayerRef.current.pause?.(); 
+        expoAudioPlayerRef.current.remove?.(); 
+        expoAudioPlayerRef.current.release?.(); 
+      } catch (e) {}
       expoAudioPlayerRef.current = null;
     }
   };
@@ -417,8 +455,21 @@ export const useAudioPlayer = () => {
   const initExpoAudioPlayer = async (song: any, isLoopOne: boolean, autoPlay: boolean = true) => {
     clearExpoResources();
     await configureExpoAudioMode();
+
     try {
-      const player = createAudioPlayer({ uri: song.localMusicUri });
+      let player: any = null;
+      const source = resolveExpoAudioSource(song.localMusicUri);
+
+      try {
+        player = createAudioPlayer(source);
+      } catch (e1) {
+        try {
+          player = createAudioPlayer({ uri: typeof source === 'string' ? source : song.localMusicUri });
+        } catch (e2) {
+          player = createAudioPlayer(song.localMusicUri);
+        }
+      }
+
       expoAudioPlayerRef.current = player;
       if (player) {
         player.loop = isLoopOne;
@@ -433,7 +484,9 @@ export const useAudioPlayer = () => {
         }
         startExpoPolling(player);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[ExpoAudio] initExpoAudioPlayer failed:', e);
+    }
   };
 
   const loadAndPlayInternal = async (
@@ -455,7 +508,6 @@ export const useAudioPlayer = () => {
       }
     } catch (e) {}
 
-    // ★ iOS かつ イコライザーが有効な場合
     if (Platform.OS === 'ios' && isEQEnabled) {
       clearExpoResources();
       await clearRNTPNotification();
@@ -522,10 +574,12 @@ export const useAudioPlayer = () => {
 
             if (shouldPlay) {
               await TrackPlayer.play();
+              setIsPlaying(true);
 
-              // ★ Android の場合、再生開始後に ExoPlayer の実際の audioSessionId を取得してイコライザーに接続
+              // ★ Android: 再生開始直後および少し安定した後に2段構えで ExoPlayer セッションIDを同期
               if (Platform.OS === 'android') {
-                setTimeout(syncAndroidEqualizerSession, 200);
+                setTimeout(syncAndroidEqualizerSession, 250);
+                setTimeout(syncAndroidEqualizerSession, 800);
               }
 
               if (targetSeconds > 0) {
@@ -857,11 +911,17 @@ export const useAudioPlayer = () => {
 
     if (audioEngine === 'rntp') {
       const state = await TrackPlayer.getState();
-      if (state === RNTPState.Playing) {
+      const playing = isStatePlaying(state);
+      if (playing) {
+        setIsPlaying(false);
         await TrackPlayer.pause();
         sendNowPlayingUpdate();
       } else {
+        setIsPlaying(true);
         await TrackPlayer.play();
+        if (Platform.OS === 'android') {
+          setTimeout(syncAndroidEqualizerSession, 250);
+        }
         sendNowPlayingUpdate();
       }
     } else {
@@ -931,9 +991,9 @@ export const useAudioPlayer = () => {
         }
         saveHistory(newSong);
 
-        // ★ Android で曲が変わった際にも ExoPlayer のオーディオセッションを再アタッチ
         if (Platform.OS === 'android') {
-          setTimeout(syncAndroidEqualizerSession, 200);
+          setTimeout(syncAndroidEqualizerSession, 250);
+          setTimeout(syncAndroidEqualizerSession, 800);
         }
 
         if (!relayCooldownRef.current) {

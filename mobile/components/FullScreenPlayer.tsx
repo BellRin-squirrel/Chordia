@@ -283,7 +283,7 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        <View style={{ width: 50, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
+        <View style={{ width: 50, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 10 }}>
           <BounceButton
             onPress={toggleLyrics}
             underlayColor="rgba(255,255,255,0.15)"
@@ -321,6 +321,14 @@ export const FullScreenPlayer = ({
                 <Text style={{ color: activeIconColor, fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
               )}
             </View>
+          </BounceButton>
+
+          <BounceButton
+            onPress={toggleQueue}
+            underlayColor="rgba(255,255,255,0.15)"
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: showQueue ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Ionicons name="list" size={24} color={showQueue ? activeIconColor : '#fff'} />
           </BounceButton>
         </View>
 
@@ -590,19 +598,19 @@ export const FullScreenPlayer = ({
             {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
           </View>
 
-          {/* ★ 他のオブジェクトの配置を一切崩さず、5つのアイコンのみを少し上に配置 */}
+          {/* ★ iOS（5つ）でも Android（AirPlay非表示で4つ）でも常に完全均等配置されるボトムバー */}
           <View style={{ 
             flexDirection: 'row', 
             width: '100%', 
             marginTop: 8, 
             paddingHorizontal: 16, 
-            justifyContent: 'space-between', 
+            justifyContent: 'space-around', 
             alignItems: 'center',
             transform: [{ translateY: -12 }]
           }}>
             
             {/* 1. シャッフル */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleShuffleMode}
                 underlayColor="rgba(255,255,255,0.15)"
@@ -617,7 +625,7 @@ export const FullScreenPlayer = ({
             </View>
 
             {/* 2. ループ */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleLoopMode}
                 underlayColor="rgba(255,255,255,0.15)"
@@ -636,7 +644,7 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. AirPlay ボタン (iOS のみ表示) */}
+            {/* 3. AirPlay ボタン (iOS のみ等幅 flex アイテムとして挿入) */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <BounceButton
@@ -656,7 +664,7 @@ export const FullScreenPlayer = ({
             )}
 
             {/* 4. 歌詞 */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleLyrics}
                 underlayColor="rgba(255,255,255,0.15)"
@@ -671,7 +679,7 @@ export const FullScreenPlayer = ({
             </View>
 
             {/* 5. キュー */}
-            <View style={{ flex: 1, alignItems: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleQueue}
                 underlayColor="rgba(255,255,255,0.15)"

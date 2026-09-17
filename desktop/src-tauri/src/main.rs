@@ -29,7 +29,7 @@ use cmd_cloud_sync::trigger_background_sync;
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
-pub const APP_VERSION: &str = "v5.0.0-beta1";
+pub const APP_VERSION: &str = "v5.0.0-beta2";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,

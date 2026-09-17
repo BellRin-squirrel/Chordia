@@ -1,6 +1,7 @@
 package com.bellrin.chordia.equalizer
 
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.Equalizer
@@ -68,12 +69,27 @@ public class ChordiaEqualizerModule : Module() {
     Function("getDebugInfo") {
       val eq = equalizer
       val bandCount = try { eq?.numberOfBands?.toInt() ?: 0 } catch (e: Exception) { 0 }
+      val hasCtrl = try { eq?.hasControl() ?: false } catch (e: Exception) { false }
+      val range = try { eq?.bandLevelRange?.map { it.toInt() } ?: listOf(0, 0) } catch (e: Exception) { listOf(0, 0) }
+
+      val currentHwLevels = mutableListOf<Int>()
+      if (eq != null && bandCount > 0) {
+        for (b in 0 until bandCount) {
+          try {
+            currentHwLevels.add(eq.getBandLevel(b.toShort()).toInt())
+          } catch (e: Exception) {}
+        }
+      }
+
       mapOf(
         "platform" to "Android",
         "isNativeConnected" to (eq != null),
         "activeSessionId" to activeSessionId,
         "isEQEnabled" to isEQEnabled,
+        "hasControl" to hasCtrl,
         "numBands" to bandCount,
+        "bandRangeMb" to range,
+        "hardwareLevelsMb" to currentHwLevels,
         "preamp" to currentPreamp,
         "gains" to currentGains,
         "lastError" to lastErrorMessage
@@ -90,47 +106,74 @@ public class ChordiaEqualizerModule : Module() {
     Function("isPlaying") { false }
   }
 
+  private fun notifyAudioEffectSessionOpen(sessionId: Int) {
+    try {
+      val ctx = appContext.reactContext ?: return
+      val intent = Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
+      intent.putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
+      intent.putExtra(AudioEffect.EXTRA_PACKAGE_NAME, ctx.packageName)
+      intent.putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+      ctx.sendBroadcast(intent)
+    } catch (e: Exception) {}
+  }
+
   private fun initHardwareEqualizer(requestedSessionId: Int) {
     try {
-      equalizer?.release()
+      try {
+        equalizer?.enabled = false
+        equalizer?.release()
+      } catch (e: Exception) {}
       equalizer = null
 
       var targetSid = requestedSessionId
 
-      // 1. まず要求されたセッションID (または 0) で試行
-      try {
-        val eq = Equalizer(1000, targetSid)
-        equalizer = eq
-        activeSessionId = targetSid
-        eq.enabled = isEQEnabled
-        applyGainsToHardware()
-        lastErrorMessage = "None (Connected to session $targetSid)"
-        return
-      } catch (e1: Exception) {
-        // エミュレーター等で sessionId=0 が拒否された場合
-        lastErrorMessage = "Session $targetSid failed: ${e1.message}"
+      // 1. 指定されたセッションID (または 0) で初期化
+      if (targetSid > 0) {
+        notifyAudioEffectSessionOpen(targetSid)
+        try {
+          val eq = Equalizer(1000, targetSid)
+          equalizer = eq
+          activeSessionId = targetSid
+          eq.enabled = isEQEnabled
+          applyGainsToHardware()
+          lastErrorMessage = "None (Connected directly to ExoPlayer session $targetSid, hasControl=${eq.hasControl()})"
+          return
+        } catch (e: Exception) {
+          lastErrorMessage = "Direct session $targetSid failed: ${e.message}"
+        }
       }
 
-      // 2. フォールバック: AudioManager から新規セッションIDを取得して試行
+      // 2. セッション 0 で試行
+      try {
+        notifyAudioEffectSessionOpen(0)
+        val eq = Equalizer(1000, 0)
+        equalizer = eq
+        activeSessionId = 0
+        eq.enabled = isEQEnabled
+        applyGainsToHardware()
+        lastErrorMessage = "None (Connected to global session 0, hasControl=${eq.hasControl()})"
+        return
+      } catch (e: Exception) {}
+
+      // 3. フォールバック: AudioManager のセッションID
       val audioManager = appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
       if (audioManager != null) {
         val generatedSid = audioManager.generateAudioSessionId()
         if (generatedSid > 0) {
+          notifyAudioEffectSessionOpen(generatedSid)
           try {
             val eq = Equalizer(1000, generatedSid)
             equalizer = eq
             activeSessionId = generatedSid
             eq.enabled = isEQEnabled
             applyGainsToHardware()
-            lastErrorMessage = "None (Connected via generated session $generatedSid)"
+            lastErrorMessage = "None (Connected via generated session $generatedSid, hasControl=${eq.hasControl()})"
             return
-          } catch (e2: Exception) {
-            lastErrorMessage = "Generated session failed: ${e2.message}"
-          }
+          } catch (e: Exception) {}
         }
       }
 
-      lastErrorMessage = "Equalizer engine unavailable on this device/emulator"
+      lastErrorMessage = "Equalizer engine unavailable on this device"
     } catch (e: Exception) {
       lastErrorMessage = e.message ?: "Equalizer init critical error"
     }
@@ -139,7 +182,10 @@ public class ChordiaEqualizerModule : Module() {
   private fun applyGainsToHardware() {
     val eq = equalizer ?: return
     try {
-      if (!isEQEnabled) return
+      if (!isEQEnabled) {
+        eq.enabled = false
+        return
+      }
       eq.enabled = true
 
       val numBands = eq.numberOfBands.toInt()
@@ -160,6 +206,7 @@ public class ChordiaEqualizerModule : Module() {
           }
         }
 
+        // dB からミリベル (mB = dB * 100) への確実な変換
         val gainDb = (currentGains.getOrNull(bestIdx) ?: 0.0) + currentPreamp
         val levelMb = (gainDb * 100.0).toInt().coerceIn(minLevel.toInt(), maxLevel.toInt()).toShort()
         eq.setBandLevel(b.toShort(), levelMb)

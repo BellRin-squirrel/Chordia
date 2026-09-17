@@ -1,11 +1,11 @@
-name: Build Chordia Desktop v5.0.0-beta1
+name: Build Chordia Desktop
 
 on:
   workflow_dispatch: # 手動実行用
 
 # ★ ここでバージョン文字列を定義（各ファイル名の <version> に代入されます）
 env:
-  VERSION: "v5.0.0-beta1"
+  VERSION: "v5.0.0-beta2"
 
 defaults:
   run:
@@ -27,51 +27,68 @@ jobs:
       - name: Build Tauri app (Windows)
         run: cargo tauri build
 
-      # ★ 成果物の整理・ポータブルZIPの作成
+      # ★ 成果物の整理・ポータブルZIP作成・ファイル名特定
       - name: Prepare Windows Artifacts
+        id: prep_win
         shell: pwsh
         run: |
           $ver = "${{ env.VERSION }}"
           
-          # 出力用ディレクトリを作成
-          New-Item -ItemType Directory -Path "dist_portable/Chordia_windows_portable" -Force | Out-Null
-          New-Item -ItemType Directory -Path "dist_nsis" -Force | Out-Null
-          New-Item -ItemType Directory -Path "dist_msi" -Force | Out-Null
-
           # 1. Chordia.exe を Chordia_windows_portable フォルダに格納し、ZIP圧縮
+          New-Item -ItemType Directory -Path "dist_portable/Chordia_windows_portable" -Force | Out-Null
           Copy-Item "src-tauri/target/release/Chordia.exe" -Destination "dist_portable/Chordia_windows_portable/"
-          Compress-Archive -Path "dist_portable/Chordia_windows_portable" -DestinationPath "dist_portable/Chordia${ver}windows_portable.zip" -Force
+          $zipName = "Chordia_${ver}_windows_portable.zip"
+          Compress-Archive -Path "dist_portable/Chordia_windows_portable" -DestinationPath "dist_portable/$zipName" -Force
+          echo "portable_zip_name=$zipName" >> $env:GITHUB_OUTPUT
 
-          # 2. bundle/nsis の中の全ファイルをコピー
-          if (Test-Path "src-tauri/target/release/bundle/nsis") {
-            Copy-Item "src-tauri/target/release/bundle/nsis/*" -Destination "dist_nsis/" -Recurse -Force
+          # 2. NSIS setup.exe のファイル名とパスを特定
+          $nsisFiles = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis/*.exe" -ErrorAction SilentlyContinue
+          if ($nsisFiles) {
+            $nsisMain = $nsisFiles[0]
+            echo "nsis_name=$($nsisMain.Name)" >> $env:GITHUB_OUTPUT
+            echo "nsis_path=desktop/$($nsisMain.FullName.Substring((Get-Location).Path.Length + 1).Replace('\', '/'))" >> $env:GITHUB_OUTPUT
           }
 
-          # 3. bundle/msi の中の全ファイルをコピー
-          if (Test-Path "src-tauri/target/release/bundle/msi") {
-            Copy-Item "src-tauri/target/release/bundle/msi/*" -Destination "dist_msi/" -Recurse -Force
+          # 3. MSI のファイル群を特定して個別出力用に配置
+          New-Item -ItemType Directory -Path "dist_msi_files" -Force | Out-Null
+          $msiFiles = Get-ChildItem -Path "src-tauri/target/release/bundle/msi/*.msi" -ErrorAction SilentlyContinue
+          if ($msiFiles) {
+            foreach ($f in $msiFiles) {
+              Copy-Item $f.FullName -Destination "dist_msi_files/$($f.Name)" -Force
+            }
           }
 
-      # 1. ポータブル ZIP のアップロード
+      # 1. ポータブル ZIP のアップロード (Chordia_<version>_windows_portable.zip)
       - name: Upload Windows Portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia${{ env.VERSION }}windows_portable.zip
-          path: desktop/dist_portable/Chordia${{ env.VERSION }}windows_portable.zip
+          name: ${{ steps.prep_win.outputs.portable_zip_name }}
+          path: desktop/dist_portable/${{ steps.prep_win.outputs.portable_zip_name }}
 
-      # 2. NSIS インストーラーのアップロード
-      - name: Upload Windows NSIS
+      # 2. NSIS インストーラー (.exe ファイル名そのまま登録)
+      - name: Upload Windows NSIS Setup
+        if: steps.prep_win.outputs.nsis_name != ''
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia-Windows-NSIS
-          path: desktop/dist_nsis/*
+          name: ${{ steps.prep_win.outputs.nsis_name }}
+          path: ${{ steps.prep_win.outputs.nsis_path }}
 
-      # 3. MSI インストーラーのアップロード
-      - name: Upload Windows MSI
+      # 3. MSI インストーラー (.msi ファイル名そのまま登録)
+      - name: Upload Windows MSI Installers
+        shell: pwsh
+        run: |
+          $msiList = Get-ChildItem -Path "dist_msi_files/*.msi" -ErrorAction SilentlyContinue
+          foreach ($m in $msiList) {
+            # GitHub CLI / Action環境でmsiファイルごとにアップロード
+            Write-Host "Found MSI: $($m.Name)"
+          }
+
+      - name: Upload MSI Package
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia-Windows-MSI
-          path: desktop/dist_msi/*
+          # 生成された.msiが単一の場合はそのファイル名、複数ある場合はmsi直下を展開
+          name: Chordia-MSI-Package
+          path: desktop/dist_msi_files/*.msi
   
   build_macos_latest:
     runs-on: macos-latest
@@ -90,27 +107,27 @@ jobs:
       - name: Build Tauri app (Mac - Universal)
         run: cargo tauri build --target universal-apple-darwin
 
-      # ★ 成果物の整理・リネーム（tar -C によりパスの不整合を解消）
+      # ★ 成果物の整理・リネーム（Chordia_<version>_... に統一）
       - name: Prepare Mac Artifacts
         run: |
           ver="${{ env.VERSION }}"
           mkdir -p dist_mac_app
           mkdir -p dist_mac_dmg
 
-          # 4. .app を Chordia<version>app.tar.gz として圧縮 (-C で安全に実行)
-          tar -C src-tauri/target/universal-apple-darwin/release/bundle/macos -czf dist_mac_app/Chordia${ver}app.tar.gz Chordia.app
+          # 4. .app を Chordia_<version>_app.tar.gz として圧縮 (-C で安全に実行)
+          tar -C src-tauri/target/universal-apple-darwin/release/bundle/macos -czf dist_mac_app/Chordia_${ver}_app.tar.gz Chordia.app
 
           # 5. dmg ファイルを Chordia_<version>_universal.dmg としてコピー
           cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg dist_mac_dmg/Chordia_${ver}_universal.dmg
 
-      # 4. Mac .app tar.gz のアップロード
+      # 4. Mac .app tar.gz のアップロード (Chordia_<version>_app.tar.gz)
       - name: Upload Mac App TarGz
         uses: actions/upload-artifact@v4
         with:
-          name: Chordia${{ env.VERSION }}app.tar.gz
-          path: desktop/dist_mac_app/Chordia${{ env.VERSION }}app.tar.gz
+          name: Chordia_${{ env.VERSION }}app.tar.gz
+          path: desktop/dist_mac_app/Chordia_${{ env.VERSION }}_app.tar.gz
 
-      # 5. Mac Universal DMG のアップロード
+      # 5. Mac Universal DMG のアップロード (Chordia_<version>_universal.dmg)
       - name: Upload Mac DMG
         uses: actions/upload-artifact@v4
         with:

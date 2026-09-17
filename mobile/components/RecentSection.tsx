@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { styles } from '../styles/styles';
 import { MarqueeText } from './MarqueeText';
 import { t } from '../utils/i18n';
@@ -29,10 +29,8 @@ export const RecentSection = ({
   ) : [];
 
   const uniqueCollections = recentlyPlayedCollections ? recentlyPlayedCollections.filter((col: any, index: number, self: any[]) => {
-    // 重複除外
     if (index !== self.findIndex((c: any) => c.id === col.id)) return false;
     
-    // ★ 「すべての楽曲」コレクションは、所持楽曲がある場合のみ表示
     const isAllSongs = col.id === 'all_songs' || col.data?.id === 'all_songs' || col.data?.isAll;
     if (isAllSongs && (!localLibrary || localLibrary.length === 0)) {
       return false;
@@ -57,20 +55,24 @@ export const RecentSection = ({
               return (
                 <TouchableOpacity 
                   key={itemKey} 
-                  style={styles.recentSongItem} 
+                  style={s.itemWrapper} 
                   onPress={() => onPlaySong(item)}
+                  activeOpacity={0.7}
                 >
-                  <Image 
-                    source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
-                    style={styles.recentSongImage} 
-                  />
+                  <View style={s.imageContainer}>
+                    <Image 
+                      source={item.localImageUri ? { uri: item.localImageUri } : DEFAULT_ICON} 
+                      style={s.fixedImage} 
+                      resizeMode="cover"
+                    />
+                  </View>
                   <MarqueeText 
                     text={item.title} 
-                    style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 
+                    style={[styles.recentSongTitle, { color: dynamicStyles.text, width: 120 }]} 
                   />
                   <MarqueeText 
                     text={item.artist} 
-                    style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2 }]} 
+                    style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2, width: 120 }]} 
                   />
                 </TouchableOpacity>
               );
@@ -94,24 +96,27 @@ export const RecentSection = ({
                 imageSource = typeof item.art === 'string' ? { uri: item.art } : item.art;
               }
 
+              const isArtist = item.type === 'ARTIST';
+
               return (
                 <TouchableOpacity 
                   key={itemKey} 
-                  style={styles.recentSongItem} 
+                  style={s.itemWrapper} 
                   onPress={() => onPlayCollection(item)}
+                  activeOpacity={0.7}
                 >
-                  <Image 
-                    source={imageSource} 
-                    style={[
-                      styles.recentSongImage, 
-                      item.type === 'ARTIST' && { borderRadius: 60 }
-                    ]} 
-                  />
+                  <View style={[s.imageContainer, isArtist && { borderRadius: 60 }]}>
+                    <Image 
+                      source={imageSource} 
+                      style={[s.fixedImage, isArtist && { borderRadius: 60 }]} 
+                      resizeMode="cover"
+                    />
+                  </View>
                   <MarqueeText 
                     text={title} 
-                    style={[styles.recentSongTitle, { color: dynamicStyles.text }]} 
+                    style={[styles.recentSongTitle, { color: dynamicStyles.text, width: 120 }]} 
                   />
-                  <Text style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2 }]} numberOfLines={1}>
+                  <Text style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2, width: 120 }]} numberOfLines={1}>
                     {subtitle}
                   </Text>
                 </TouchableOpacity>
@@ -123,3 +128,25 @@ export const RecentSection = ({
     </View>
   );
 };
+
+const s = StyleSheet.create({
+  itemWrapper: {
+    width: 120,
+    maxWidth: 120,
+    marginRight: 14,
+    overflow: 'hidden',
+  },
+  imageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    marginBottom: 8,
+  },
+  fixedImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+  },
+});

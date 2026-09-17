@@ -31,8 +31,8 @@ export const styles = StyleSheet.create({
   
   recentContainer: { marginTop: 30 },
   recentHeader: { fontSize: 22, fontWeight: 'bold', marginLeft: 20, marginBottom: 15 },
-  recentSongItem: { width: 120, marginRight: 10 },
-  recentSongImage: { width: '100%', aspectRatio: 1, borderRadius: 8, marginBottom: 8 },
+  recentSongItem: { width: 120, maxWidth: 120, marginRight: 14, overflow: 'hidden' },
+  recentSongImage: { width: 120, height: 120, borderRadius: 12, marginBottom: 8 },
   recentSongTitle: { fontSize: 14, fontWeight: '600' },
   recentSongArtist: { fontSize: 12 },
   
