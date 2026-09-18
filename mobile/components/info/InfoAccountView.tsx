@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Clipboard from 'expo-clipboard';
 import { t } from '../../utils/i18n';
 import { 
   generateAuthCode, 
@@ -212,32 +211,41 @@ export const InfoAccountView = ({
     }
   };
 
+  // ★ 認証コードを直接クリップボードに格納する処理
   const handleCopyCode = async () => {
     if (!generatedCode) return;
 
     try {
-      await Clipboard.setStringAsync(generatedCode);
-      setIsCopied(true);
-      setTimeout(() => {
-        setIsCopied(false);
-      }, 2500);
-    } catch (e) {
+      const Clipboard = require('expo-clipboard');
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(generatedCode);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2500);
+        return;
+      }
+    } catch (e: any) {
       console.warn('[Clipboard Error]', e);
-      setIsCopied(true);
-      setTimeout(() => {
-        setIsCopied(false);
-      }, 2500);
     }
+
+    // ネイティブモジュールがまだバイナリに含まれていない（再ビルド前）場合
+    setIsCopied(false);
+    Alert.alert(
+      t('alert_timer_error_title', language),
+      t('account_clipboard_rebuild_required', language)
+    );
   };
 
-  // ★ ブラウザで認証を開く（コードを自動コピーし、URLにパラメータとして付加して開く）
+  // ★ ブラウザで認証を開く（コードを自動コピー試行し、URLパラメータとして渡してブラウザ起動）
   const handleOpenBrowserAuth = async () => {
     if (!generatedCode) return;
 
     try {
-      await Clipboard.setStringAsync(generatedCode);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2500);
+      const Clipboard = require('expo-clipboard');
+      if (Clipboard?.setStringAsync) {
+        await Clipboard.setStringAsync(generatedCode);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2500);
+      }
     } catch (e) {}
 
     const encodedCode = encodeURIComponent(generatedCode);
@@ -415,7 +423,7 @@ export const InfoAccountView = ({
             </View>
             <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>{t('account_code_issued_desc', language)}</Text>
             
-            {/* タップして直接クリップボードにコピーされるコードボックス */}
+            {/* ★ タップして直接クリップボードにコピーされるコードボックス */}
             <TouchableOpacity 
               style={[
                 s.codeBox, 
@@ -427,7 +435,12 @@ export const InfoAccountView = ({
               onPress={handleCopyCode}
               activeOpacity={0.7}
             >
-              <Text style={[s.codeText, { color: isCopied ? '#34c759' : themeColor }]}>{generatedCode}</Text>
+              <Text 
+                style={[s.codeText, { color: isCopied ? '#34c759' : themeColor }]}
+                selectable={true}
+              >
+                {generatedCode}
+              </Text>
               
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
                 <Ionicons 

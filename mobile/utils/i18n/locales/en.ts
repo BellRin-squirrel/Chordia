@@ -448,4 +448,5 @@ export const en: Record<string, string> = {
   account_code_copied: 'Authentication code copied to clipboard.',
   account_code_tap_to_copy: 'Tap to copy',
   account_auth_in_browser_btn: 'Authenticate in Browser',
+  account_clipboard_rebuild_required: 'Rebuilding and reinstalling the app (@build_ios.sh) is required to use the clipboard feature.',
 };

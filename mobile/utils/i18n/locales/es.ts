@@ -448,4 +448,5 @@ export const es: Record<string, string> = {
   account_code_copied: 'Código de autenticación copiado al portapapeles.',
   account_code_tap_to_copy: 'Toca para copiar',
   account_auth_in_browser_btn: 'Autenticar en el navegador',
+  account_clipboard_rebuild_required: 'Se requiere recompilar y reinstalar la aplicación (@build_ios.sh) para usar el portapapeles.',
 };

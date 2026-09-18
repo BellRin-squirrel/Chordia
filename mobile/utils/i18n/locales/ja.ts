@@ -447,4 +447,5 @@ export const ja: Record<string, string> = {
   account_code_copied: '認証コードをクリップボードにコピーしました。',
   account_code_tap_to_copy: 'タップしてコピー',
   account_auth_in_browser_btn: 'ブラウザで認証',
+  account_clipboard_rebuild_required: 'クリップボード機能を使用するには、アプリの再ビルドと再インストール（@build_ios.sh）が必要です。',
 };

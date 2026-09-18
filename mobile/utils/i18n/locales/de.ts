@@ -448,4 +448,5 @@ export const de: Record<string, string> = {
   account_code_copied: 'Authentifizierungscode in die Zwischenablage kopiert.',
   account_code_tap_to_copy: 'Tippen zum Kopieren',
   account_auth_in_browser_btn: 'Im Browser authentifizieren',
+  account_clipboard_rebuild_required: 'Ein erneutes Erstellen und Installieren der App (@build_ios.sh) ist erforderlich, um die Zwischenablage zu verwenden.',
 };

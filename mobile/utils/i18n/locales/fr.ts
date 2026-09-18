@@ -447,4 +447,5 @@ export const fr: Record<string, string> = {
   account_code_copied: 'Code d\'authentification copié dans le presse-papiers.',
   account_code_tap_to_copy: 'Appuyer pour copier',
   account_auth_in_browser_btn: 'S\'authentifier dans le navigateur',
+  account_clipboard_rebuild_required: 'La recompilation et la réinstallation de l\'application (@build_ios.sh) sont requises pour utiliser le presse-papiers.',
 };

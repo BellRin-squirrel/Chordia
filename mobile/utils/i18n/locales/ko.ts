@@ -448,4 +448,5 @@ export const ko: Record<string, string> = {
   account_code_copied: '인증 코드가 클립보드에 복사되었습니다.',
   account_code_tap_to_copy: '탭하여 복사',
   account_auth_in_browser_btn: '브라우저에서 인증',
+  account_clipboard_rebuild_required: '클립보드 기능을 사용하려면 앱을 다시 빌드하고 재설치(@build_ios.sh)해야 합니다.',
 };
