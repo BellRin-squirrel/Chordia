@@ -58,6 +58,7 @@
 
             document.addEventListener("DOMContentLoaded", async() => {
                 /* バージョン名一覧取得 */
+                /*
                 // desktop
                 let desktopVersions = []; // 配列形式でバージョン一覧が格納される
                 let desktopVersionMany = 0;
@@ -72,12 +73,16 @@
                     mobileVersions.push(key);
                     mobileVersionMany++;
                 }
+                */
+                /*
+                バージョン名一覧はdesktopVersions, mobileVersionsに定義済み
+                */
                 
                 /* show table */
-                for(i = -1; i < desktopVersionMany; i++){
+                for(i = -1; i < desktopVersions.length; i++){
                     const tr = document.createElement("tr");
                     compatibilityTable.appendChild(tr);
-                    for(j = -1; j < mobileVersionMany; j++){
+                    for(j = -1; j < mobileVersions.length; j++){
                         let cell;
                         if(i == -1){
                             // ヘッダー行
@@ -89,8 +94,11 @@
                                 // ヘッダーカラム
                                 cell = document.createElement("th");
                                 if(mobileVersions[j].includes("#")){
-                                    // プレリリース
+                                    // プレリリース beta
                                     cell.innerHTML = "v" + mobileVersions[j].split("#")[0] + "<br>#" + mobileVersions[j].split("#")[1];
+                                } else if(mobileVersions[j].includes("@")){
+                                    // プレリリース alpha
+                                    cell.innerHTML = "v" + mobileVersions[j].split("@")[0] + "<br>@" + mobileVersions[j].split("@")[1];
                                 } else{
                                     // 正規リリース
                                     cell.innerHTML = "v" + mobileVersions[j];
@@ -106,8 +114,8 @@
                             } else{
                                 // 通常のセル
                                 cell = document.createElement("td");
-                                let data = compatibility[desktopVersions[i]][mobileVersions[j]];
-                                cell.textContent = formatDataDisplay(data);
+                                let data = compatibility[i][j];
+                                cell.textContent = formatDataDisplay(data, false);
                                 cell.style.textAlign = "center";
                             }
                         }
@@ -118,13 +126,13 @@
                 await MathJax.typesetPromise([compatibilityTable]); // LaTex表記を適用
 
                 // 検索機能のoption追加
-                for(i = mobileVersionMany - 1; i >= 0; i--){
+                for(i = mobileVersions.length - 1; i >= 0; i--){
                     const option = document.createElement("option");
                     option.value = mobileVersions[i];
                     option.textContent = mobileVersions[i].replaceAll("<br>", "");
                     mobileVersionSelector.appendChild(option);
                 }
-                for(i = desktopVersionMany - 1; i >= 0; i--){
+                for(i = desktopVersions.length - 1; i >= 0; i--){
                     const option = document.createElement("option");
                     option.value = desktopVersions[i];
                     option.textContent = desktopVersions[i];
@@ -142,27 +150,61 @@
                 if(mobileVersion == "noSelected" || desktopVersion == "noSelected"){
                     searchResultContainer.innerHTML = "選択してください";
                 } else{
-                    searchResultContainer.innerHTML = "検索システムは作成中です";
+                    searchResultContainer.innerHTML = "検索処理中です。";
+                    // 内部システム
+                    for(i = desktopVersions.length - 1 > mobileVersions.length - 1 ? desktopVersions.length - 1 : mobileVersions.length; i >= 0; i--){
+                        if(desktopVersions[i] == desktopVersion){
+                            // バージョンを見つけた
+                            desktopVersionIndex = i;
+                        }
+                        if(mobileVersions[i] == mobileVersion){
+                            // バージョンを見つけた
+                            mobileVersionIndex = i;
+                        }
+                    }
+                    // バージョンインデックスから互換性を取得
+                    result = compatibility[desktopVersionIndex][mobileVersionIndex];
+                    searchResultContainer.innerHTML = formatDataDisplay(result, true);
                 }
             }
 
             // compatibilityのdataを表示する形式に変形する関数
-            function formatDataDisplay(data){
+            function formatDataDisplay(data, discription){
                 switch(data[0]){
                     case 0:
-                        return "〇";
+                        if(discription == true){
+                            return "〇（特筆するべき事項なく同期することができます）";
+                        } else{
+                            return "〇";
+                        }
                         break;
                     case 1:
-                        return "$$△^{※" + data[1] + "}$$";
+                        if(discription == true){
+                            return "$$△^{※" + data[1] + "}$$（注意点あり）";
+                        } else{
+                            return "$$△^{※" + data[1] + "}$$";
+                        }
                         break;
                     case 2:
-                        return "$$×^{※" + data[1] + "}$$";
+                        if(discription == true){
+                            return "$$×^{※" + data[1] + "}$$（同期できません）";
+                        } else{
+                            return "$$×^{※" + data[1] + "}$$";
+                        }
                         break;
                     case 3:
-                        return "?";
+                        if(discription == true){
+                            return "?（開発者が検証結果を公開していません）";
+                        } else{
+                            return "?";
+                        }
                         break;
                     default:
-                        return "";
+                        if(discription == true){
+                            return "（データがありません）";
+                        } else{
+                            return "-";
+                        }
                         break;
                 }
             }
@@ -170,7 +212,7 @@
 
         <p>
             vx.y.z #wとはvx.y.z-beta wを意味します。（例えばv2.0.0 #1はv2.0.0-beta1を意味します）<br>
-            vx.y.z $wとはvx.y.z-alpha wを意味します。（例えばv2.0.0 $1はv2.0.0-alpha1を意味します）<br>
+            vx.y.z @wとはvx.y.z-alpha wを意味します。（例えばv2.0.0 @1はv2.0.0-alpha1を意味します）<br>
             ○ は特筆するべき事項なく同期することができることを意味します。<br>
             △ は特筆するべき事項がありますが、同期することはできることを意味します。<br>
             × は同期できないことを意味します。<br>
