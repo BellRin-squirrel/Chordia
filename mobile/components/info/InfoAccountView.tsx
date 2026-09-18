@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, TextInput, 
-  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking 
+  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking, NativeModules 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -211,7 +211,6 @@ export const InfoAccountView = ({
     }
   };
 
-  // ★ 認証コードを直接クリップボードに格納する処理
   const handleCopyCode = async () => {
     if (!generatedCode) return;
 
@@ -227,7 +226,6 @@ export const InfoAccountView = ({
       console.warn('[Clipboard Error]', e);
     }
 
-    // ネイティブモジュールがまだバイナリに含まれていない（再ビルド前）場合
     setIsCopied(false);
     Alert.alert(
       t('alert_timer_error_title', language),
@@ -235,7 +233,6 @@ export const InfoAccountView = ({
     );
   };
 
-  // ★ ブラウザで認証を開く（コードを自動コピー試行し、URLパラメータとして渡してブラウザ起動）
   const handleOpenBrowserAuth = async () => {
     if (!generatedCode) return;
 
@@ -423,7 +420,26 @@ export const InfoAccountView = ({
             </View>
             <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>{t('account_code_issued_desc', language)}</Text>
             
-            {/* ★ タップして直接クリップボードにコピーされるコードボックス */}
+            {/* ★ ログイン対象のアカウント名とデバイス名を表示 */}
+            <View style={{ 
+              width: '100%', 
+              backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', 
+              padding: 12, 
+              borderRadius: 14, 
+              gap: 6, 
+              marginBottom: 16 
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>{t('account_username_label', language)}</Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 13, fontWeight: 'bold' }}>{username}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: dynamicStyles.subText, fontSize: 13 }}>{t('account_devicename_label', language)}</Text>
+                <Text style={{ color: dynamicStyles.text, fontSize: 13, fontWeight: 'bold' }}>{deviceName}</Text>
+              </View>
+            </View>
+
+            {/* タップして直接コピーされるコードボックス */}
             <TouchableOpacity 
               style={[
                 s.codeBox, 
@@ -454,7 +470,7 @@ export const InfoAccountView = ({
               </View>
             </TouchableOpacity>
 
-            {/* ★ ブラウザで認証ボタン */}
+            {/* ブラウザで認証ボタン */}
             <TouchableOpacity 
               style={[s.primaryBtn, { backgroundColor: themeColor, width: '100%', marginTop: 14 }]}
               onPress={handleOpenBrowserAuth}
