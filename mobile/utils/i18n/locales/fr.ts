@@ -444,4 +444,7 @@ export const fr: Record<string, string> = {
   equalizer_builtin_presets_subtitle: 'Liste des préréglages',
   eq_preset_flat: 'Flat',
   eq_preset_classical: 'Classical',
+  account_code_copied: 'Code d\'authentification copié dans le presse-papiers.',
+  account_code_tap_to_copy: 'Appuyer pour copier',
+  account_auth_in_browser_btn: 'S\'authentifier dans le navigateur',
 };

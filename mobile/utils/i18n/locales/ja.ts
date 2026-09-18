@@ -443,4 +443,8 @@ export const ja: Record<string, string> = {
   equalizer_builtin_presets_subtitle: 'プリセット一覧',
   eq_preset_flat: 'Flat',
   eq_preset_classical: 'Classical',
+
+  account_code_copied: '認証コードをクリップボードにコピーしました。',
+  account_code_tap_to_copy: 'タップしてコピー',
+  account_auth_in_browser_btn: 'ブラウザで認証',
 };

@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import DeviceInfo from 'react-native-device-info';
@@ -28,7 +28,7 @@ export interface RelayNowPlaying {
   playlistID?: string;
   playlistName?: string;
   shuffle?: boolean;
-  loop?: boolean; // ★ boolean型に統一
+  loop?: boolean;
   musiclist?: any[];
   nowPlayingTitle?: string;
   nowPlayingArtist?: string;
@@ -146,18 +146,36 @@ export const registerAuthCodeApi = async (username: string, device: string, code
   } catch (e: any) { return { success: false, error: e?.message || 'インターネット接続を確認してください' }; }
 };
 
+/**
+ * ★ 認証ステータス確認API (ネットワーク接続エラー時に自動で最大3回連続リトライ)
+ */
 export const checkAuthStatusApi = async (sid: string, name: string, device: string): Promise<CheckAuthStatusResponse> => {
-  try {
-    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
-      body: JSON.stringify({ operation: 'checkAlreadyLogin', SID: sid, name: name.trim(), device: device.trim() }),
-    }, 5000);
-    const data = JSON.parse(await response.text());
-    if (data.error) return { success: false, error: String(data.error) };
-    if (data.status) return { success: true, status: data.status };
-    return { success: false, error: '認証ステータスを取得できませんでした' };
-  } catch (e: any) { return { success: false, error: e?.message || '通信エラーが発生しました' }; }
+  let attempts = 0;
+  const maxAttempts = 3;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+        body: JSON.stringify({ operation: 'checkAlreadyLogin', SID: sid, name: name.trim(), device: device.trim() }),
+      }, 5000);
+      const data = JSON.parse(await response.text());
+      if (data.error) return { success: false, error: String(data.error) };
+      if (data.status) return { success: true, status: data.status };
+      return { success: false, error: '認証ステータスを取得できませんでした' };
+    } catch (e: any) {
+      // 3回連続ですべてネットワーク接続エラーだった場合にのみエラーを返却
+      if (attempts >= maxAttempts) {
+        return { success: false, error: e?.message || '通信エラーが発生しました' };
+      }
+      // 再試行前に少し待機 (500ms)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  return { success: false, error: '通信エラーが発生しました' };
 };
 
 export const verifyChordiaSyncSession = async (showWarning = true, language: LanguageCode = 'ja'): Promise<boolean> => {
@@ -257,10 +275,6 @@ export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
   } catch (e) {}
 };
 
-/**
- * ★ 楽曲再生位置送信API (registerNowPlaying)
- * - loop: boolean型 (true / false)
- */
 export const registerNowPlayingApi = async (
   sid: string,
   payload: {
@@ -352,7 +366,7 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
 export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
   let deletedCount = 0;
   for (let i = 0; i < itemsToDelete.length; i++) {
-    const res = await deletePlayHistorySingleApi(sid, item);
+    const res = await deletePlayHistorySingleApi(sid, itemsToDelete[i]);
     if (res.success) deletedCount++;
   }
   return { success: deletedCount === itemsToDelete.length, deletedCount };

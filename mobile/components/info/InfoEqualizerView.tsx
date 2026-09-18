@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, Switch, TextInput, 
   Modal, Alert, StyleSheet, useWindowDimensions, KeyboardAvoidingView, Platform 
@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
-import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled, getEqualizerDebugInfo } from '../../utils/equalizer';
+import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -67,22 +67,16 @@ export const InfoEqualizerView = ({
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
   const [sliderVersion, setSliderVersion] = useState(0);
 
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [debugModalVisible, setDebugModalVisible] = useState(false);
-
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
 
-  const refreshDebugInfo = () => {
-    try {
-      const info = getEqualizerDebugInfo();
-      setDebugInfo(info);
-    } catch (e) {}
-  };
+  // Android SeekBar による値変更イベント誤発火防止フラグ
+  const isProgrammaticChangeRef = useRef(false);
 
   useEffect(() => {
     (async () => {
       try {
+        isProgrammaticChangeRef.current = true;
         initEqualizer(0);
 
         const savedSettings = await AsyncStorage.getItem(STORAGE_EQ_KEY);
@@ -110,12 +104,13 @@ export const InfoEqualizerView = ({
           setCustomPresets(JSON.parse(savedPresets));
         }
 
-        refreshDebugInfo();
-      } catch (e) {}
+        setTimeout(() => {
+          isProgrammaticChangeRef.current = false;
+        }, 500);
+      } catch (e) {
+        isProgrammaticChangeRef.current = false;
+      }
     })();
-
-    const timer = setInterval(refreshDebugInfo, 2500);
-    return () => clearInterval(timer);
   }, []);
 
   const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
@@ -129,7 +124,6 @@ export const InfoEqualizerView = ({
 
       setEqualizerEnabled(newEnabled);
       setEqualizerBands(newBands.map(b => b.gain), newPreamp);
-      refreshDebugInfo();
     } catch (e) {}
   };
 
@@ -139,8 +133,12 @@ export const InfoEqualizerView = ({
   };
 
   const handleGainChange = (index: number, val: number) => {
-    const updated = [...bands];
+    if (isProgrammaticChangeRef.current) return;
+
     const rounded = Math.round(val * 2) / 2;
+    if (bands[index]?.gain === rounded) return;
+
+    const updated = [...bands];
     updated[index] = { ...updated[index], gain: rounded };
     setBands(updated);
     setActivePresetId(null);
@@ -148,13 +146,19 @@ export const InfoEqualizerView = ({
   };
 
   const handlePreampChange = (val: number) => {
+    if (isProgrammaticChangeRef.current) return;
+
     const rounded = Math.round(val * 2) / 2;
+    if (preamp === rounded) return;
+
     setPreamp(rounded);
     setActivePresetId(null);
     saveAndSyncHardware(isEnabled, bands, rounded, null);
   };
 
   const handleSelectBuiltInPreset = (preset: BuiltInPreset) => {
+    isProgrammaticChangeRef.current = true;
+
     const newBands = DEFAULT_BANDS.map((b, i) => ({
       ...b,
       gain: preset.gains[i] !== undefined ? preset.gains[i] : 0,
@@ -167,15 +171,25 @@ export const InfoEqualizerView = ({
     setIsEnabled(true);
     setSliderVersion(prev => prev + 1);
     saveAndSyncHardware(true, newBands, newPreamp, preset.id);
+
+    setTimeout(() => {
+      isProgrammaticChangeRef.current = false;
+    }, 500);
   };
 
   const handleResetFlat = () => {
+    isProgrammaticChangeRef.current = true;
+
     const flat = DEFAULT_BANDS.map(b => ({ ...b, gain: 0 }));
     setBands(flat);
     setPreamp(0);
     setActivePresetId('flat');
     setSliderVersion(prev => prev + 1);
     saveAndSyncHardware(isEnabled, flat, 0, 'flat');
+
+    setTimeout(() => {
+      isProgrammaticChangeRef.current = false;
+    }, 500);
   };
 
   const handleSaveCustomPreset = async () => {
@@ -207,6 +221,8 @@ export const InfoEqualizerView = ({
   };
 
   const handleApplyCustomPreset = (preset: CustomPreset) => {
+    isProgrammaticChangeRef.current = true;
+
     let newBands: EqualizerBand[] = [];
 
     if (Array.isArray(preset.bands) && preset.bands.length > 0) {
@@ -242,6 +258,10 @@ export const InfoEqualizerView = ({
     setSliderVersion(prev => prev + 1);
 
     saveAndSyncHardware(true, newBands, newPreamp, preset.id);
+
+    setTimeout(() => {
+      isProgrammaticChangeRef.current = false;
+    }, 500);
   };
 
   const handleDeleteCustomPreset = (preset: CustomPreset) => {
@@ -271,41 +291,12 @@ export const InfoEqualizerView = ({
     return val > 0 ? `+${str}dB` : `${str}dB`;
   };
 
-  const isNativeConnected = debugInfo?.isNativeConnected === true;
-
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* ★ デバッグステータス・パネル（タップで詳細ログモーダルを表示） */}
-        <TouchableOpacity 
-          style={[
-            s.debugPanel, 
-            { 
-              backgroundColor: isNativeConnected ? (isEnabled ? 'rgba(52, 199, 89, 0.12)' : 'rgba(79, 70, 229, 0.08)') : 'rgba(239, 68, 68, 0.12)',
-              borderColor: isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444' 
-            }
-          ]}
-          onPress={() => setDebugModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-            <Ionicons 
-              name={isNativeConnected ? (isEnabled ? "checkmark-circle" : "information-circle") : "alert-circle"} 
-              size={18} 
-              color={isNativeConnected ? (isEnabled ? '#34c759' : themeColor) : '#ef4444'} 
-            />
-            <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
-              {isNativeConnected 
-                ? (isEnabled ? `Native DSP: ACTIVE (${debugInfo?.detectedModuleName || debugInfo?.platform})` : `Native DSP: Standby (${debugInfo?.platform})`)
-                : `Native DSP: Disconnected (Tap for full log)`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />
-        </TouchableOpacity>
-
         {/* 1. 有効/無効 スイッチ */}
         <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: isEnabled ? themeColor : dynamicStyles.border, marginBottom: 15 }]}>
           <View style={s.rowBetween}>
@@ -536,46 +527,6 @@ export const InfoEqualizerView = ({
         </View>
       </ScrollView>
 
-      {/* ★ 詳細デバッグ情報モーダル（全文スクロール可能） */}
-      <Modal visible={debugModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={[s.debugModalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
-            <View style={s.rowBetween}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="terminal-outline" size={20} color={themeColor} />
-                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
-                  Equalizer Full Debug Log
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setDebugModalVisible(false)}>
-                <Ionicons name="close-circle" size={24} color={dynamicStyles.subText} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 420, marginVertical: 14 }} showsVerticalScrollIndicator={true}>
-              <Text 
-                style={{ 
-                  color: isDark ? '#34c759' : '#047857', 
-                  fontSize: 11, 
-                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', 
-                  lineHeight: 16 
-                }}
-                selectable={true}
-              >
-                {JSON.stringify(debugInfo, null, 2)}
-              </Text>
-            </ScrollView>
-
-            <TouchableOpacity 
-              style={[s.modalBtn, { backgroundColor: themeColor, height: 42 }]} 
-              onPress={() => setDebugModalVisible(false)}
-            >
-              <Text style={{ color: textColor, fontWeight: 'bold' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       {/* カスタム設定 保存モーダル */}
       <Modal visible={saveModalVisible} transparent animationType="none">
         <KeyboardAvoidingView 
@@ -622,7 +573,6 @@ export const InfoEqualizerView = ({
 
 const s = StyleSheet.create({
   card: { borderRadius: 20, padding: 18, borderWidth: 1 },
-  debugPanel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
   presetTile: { width: '48%', height: 42, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, position: 'relative' },
@@ -637,7 +587,6 @@ const s = StyleSheet.create({
   presetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, borderWidth: 1.5 },
-  debugModalCard: { width: '100%', maxWidth: 460, borderRadius: 24, padding: 20, borderWidth: 1.5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' },
   modalDesc: { fontSize: 13, marginBottom: 16, textAlign: 'center' },
   input: { height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, borderWidth: 1, marginBottom: 18 },

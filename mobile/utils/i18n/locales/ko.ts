@@ -444,4 +444,8 @@ export const ko: Record<string, string> = {
   equalizer_builtin_presets_subtitle: '프리셋 목록',
   eq_preset_flat: 'Flat',
   eq_preset_classical: 'Classical',
+
+  account_code_copied: '인증 코드가 클립보드에 복사되었습니다.',
+  account_code_tap_to_copy: '탭하여 복사',
+  account_auth_in_browser_btn: '브라우저에서 인증',
 };

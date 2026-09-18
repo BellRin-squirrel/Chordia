@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, TextInput, 
-  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform 
+  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { t } from '../../utils/i18n';
 import { 
   generateAuthCode, 
@@ -84,11 +85,13 @@ export const InfoAccountView = ({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [sid, setSid] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   const [isSyncingData, setIsSyncingData] = useState(false);
   const [syncProgressText, setSyncProgressText] = useState('');
 
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveNetworkErrorCountRef = useRef(0);
 
   const stopPolling = () => {
     if (pollingTimerRef.current) {
@@ -119,11 +122,14 @@ export const InfoAccountView = ({
   useEffect(() => {
     if (authStage === 'WAITING_CODE' && sid && username && deviceName) {
       stopPolling();
+      consecutiveNetworkErrorCountRef.current = 0;
 
       pollingTimerRef.current = setInterval(async () => {
         const res = await checkAuthStatusApi(sid, username, deviceName);
 
         if (res.success) {
+          consecutiveNetworkErrorCountRef.current = 0;
+
           if (res.status === 'authenticated') {
             stopPolling();
             setAuthStage('AUTHENTICATED');
@@ -149,8 +155,11 @@ export const InfoAccountView = ({
             setAuthStage('EXPIRED');
           }
         } else {
-          stopPolling();
-          Alert.alert(t('sync_connect_error_title', language), res.error || t('account_auth_failed', language));
+          consecutiveNetworkErrorCountRef.current += 1;
+          if (consecutiveNetworkErrorCountRef.current >= 3) {
+            stopPolling();
+            Alert.alert(t('sync_connect_error_title', language), res.error || t('account_auth_failed', language));
+          }
         }
       }, 2500);
     } else {
@@ -166,6 +175,7 @@ export const InfoAccountView = ({
     setAuthStage('INPUT');
     setGeneratedCode(null);
     setSid(null);
+    setIsCopied(false);
   };
 
   const isFormValid = username.trim().length > 0 && deviceName.trim().length > 0;
@@ -193,11 +203,50 @@ export const InfoAccountView = ({
       setSid(result.sid);
       setGeneratedCode(code);
       setAuthStage('WAITING_CODE');
+      setIsCopied(false);
     } else {
       Alert.alert(
         t('sync_connect_error_title', language),
         result.error || t('account_auth_failed', language)
       );
+    }
+  };
+
+  const handleCopyCode = async () => {
+    if (!generatedCode) return;
+
+    try {
+      await Clipboard.setStringAsync(generatedCode);
+      setIsCopied(true);
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2500);
+    } catch (e) {
+      console.warn('[Clipboard Error]', e);
+      setIsCopied(true);
+      setTimeout(() => {
+        setIsCopied(false);
+      }, 2500);
+    }
+  };
+
+  // ★ ブラウザで認証を開く（コードを自動コピーし、URLにパラメータとして付加して開く）
+  const handleOpenBrowserAuth = async () => {
+    if (!generatedCode) return;
+
+    try {
+      await Clipboard.setStringAsync(generatedCode);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2500);
+    } catch (e) {}
+
+    const encodedCode = encodeURIComponent(generatedCode);
+    const targetUrl = `https://chordia.bellrin.f5.si/mypage/accept.app.login.php?authenticationCode=${encodedCode}&anthenticationCode=${encodedCode}`;
+
+    try {
+      await Linking.openURL(targetUrl);
+    } catch (e: any) {
+      Alert.alert(t('alert_timer_error_title', language), e?.message || 'ブラウザを開けませんでした。');
     }
   };
 
@@ -365,9 +414,45 @@ export const InfoAccountView = ({
               <Text style={[s.codeCardTitle, { color: dynamicStyles.text }]}>{t('account_code_issued_title', language)}</Text>
             </View>
             <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>{t('account_code_issued_desc', language)}</Text>
-            <View style={[s.codeBox, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}>
-              <Text style={[s.codeText, { color: themeColor }]}>{generatedCode}</Text>
-            </View>
+            
+            {/* タップして直接クリップボードにコピーされるコードボックス */}
+            <TouchableOpacity 
+              style={[
+                s.codeBox, 
+                { 
+                  backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', 
+                  borderColor: isCopied ? '#34c759' : dynamicStyles.border 
+                }
+              ]}
+              onPress={handleCopyCode}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.codeText, { color: isCopied ? '#34c759' : themeColor }]}>{generatedCode}</Text>
+              
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                <Ionicons 
+                  name={isCopied ? "checkmark-circle" : "copy-outline"} 
+                  size={14} 
+                  color={isCopied ? '#34c759' : dynamicStyles.subText} 
+                />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: isCopied ? '#34c759' : dynamicStyles.subText }}>
+                  {isCopied ? t('account_code_copied', language) : t('account_code_tap_to_copy', language)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* ★ ブラウザで認証ボタン */}
+            <TouchableOpacity 
+              style={[s.primaryBtn, { backgroundColor: themeColor, width: '100%', marginTop: 14 }]}
+              onPress={handleOpenBrowserAuth}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="open-outline" size={18} color={textColor} style={{ marginRight: 8 }} />
+              <Text style={[s.primaryBtnText, { color: textColor }]}>
+                {t('account_auth_in_browser_btn', language)}
+              </Text>
+            </TouchableOpacity>
+
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18 }}>
               <ActivityIndicator size="small" color={themeColor} />
               <Text style={{ color: dynamicStyles.subText, fontSize: 13, fontWeight: '600' }}>{t('account_polling_waiting', language)}</Text>
@@ -410,6 +495,6 @@ const s = StyleSheet.create({
   codeCard: { marginTop: 20, borderRadius: 20, padding: 20, borderWidth: 1.5, alignItems: 'center' },
   codeCardTitle: { fontSize: 16, fontWeight: 'bold' },
   codeCardDesc: { fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 15, lineHeight: 18 },
-  codeBox: { width: '100%', paddingVertical: 16, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  codeBox: { width: '100%', paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   codeText: { fontSize: 30, fontWeight: '900', letterSpacing: 6, fontVariant: ['tabular-nums'] },
 });
