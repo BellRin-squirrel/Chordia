@@ -84,18 +84,20 @@ const podfile = "ios/Podfile";
 if (fs.existsSync(podfile)) {
   let content = fs.readFileSync(podfile, "utf8");
   const fmtPatch = `
-      if target.name == "fmt"
-        target.build_configurations.each do |config|
-          config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
-          config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] ||= ["$(inherited)"]
-          config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] << "FMT_USE_CONSTEVAL=0"
+      installer.pods_project.targets.each do |target|
+        if target.name.downcase.include?("fmt")
+          target.build_configurations.each do |config|
+            config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
+            config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] ||= ["$(inherited)"]
+            config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] << "FMT_USE_CONSTEVAL=0"
+          end
         end
       end
   `;
-  if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
+  if (content.includes("post_install do |installer|") && !content.includes("target.name.downcase.include?(\"fmt\")")) {
     content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
+    fs.writeFileSync(podfile, content);
   }
-  fs.writeFileSync(podfile, content);
 }
 '
 
@@ -103,37 +105,47 @@ cd ios
 pod install
 cd ..
 
-# 4. fmt ヘッダーの確実なパッチ
+# 4. fmt ライブラリ全体の再帰的ディープパッチ（consteval を完全無力化）
 chmod -R u+w ios/Pods || true
 node -e '
 const fs = require("fs");
 const path = require("path");
 
-const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
-if (fs.existsSync(fmtBase)) {
-  let content = fs.readFileSync(fmtBase, "utf8");
-  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
-  fs.writeFileSync(fmtBase, content);
-}
+function walkAndPatch(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir);
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry);
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      if (entry !== ".git") walkAndPatch(fullPath);
+    } else if (entry.endsWith(".h") || entry.endsWith(".cc") || entry.endsWith(".cpp")) {
+      let content = fs.readFileSync(fullPath, "utf8");
+      let modified = false;
 
-const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
-if (fs.existsSync(fmtHeader)) {
-  let content = fs.readFileSync(fmtHeader, "utf8");
-  content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
-  content += "\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n";
-  fs.writeFileSync(fmtHeader, content);
-}
+      if (content.includes("FMT_USE_CONSTEVAL")) {
+        content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+        content = "#undef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n" + content;
+        modified = true;
+      }
 
-const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
-if (fs.existsSync(fmtInl)) {
-  let content = fs.readFileSync(fmtInl, "utf8");
-  if (content.includes("#include \"format.h\"")) {
-    content = content.replace("#include \"format.h\"", "#include \"format.h\"\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n");
-  } else {
-    content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
+      if (content.includes("FMT_STRING(")) {
+        content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
+        content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
+        modified = true;
+      }
+
+      if (modified) {
+        try { fs.chmodSync(fullPath, 0o666); } catch (e) {}
+        fs.writeFileSync(fullPath, content);
+        console.log("Deep Patched:", fullPath);
+      }
+    }
   }
-  fs.writeFileSync(fmtInl, content);
 }
+
+walkAndPatch(path.resolve("ios/Pods"));
+walkAndPatch(path.resolve("node_modules/react-native"));
 '
 
 # 5. Xcodeビルド用スクリプト権限 ＆ Node環境変数の設定

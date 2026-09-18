@@ -53,7 +53,7 @@ jobs:
             version: "0.1.0"
           }, null, 2));
 
-          // 2. expo-module.config.json (apple と ios 両対応で確実にスキャン)
+          // 2. expo-module.config.json
           fs.writeFileSync(path.join(modDir, "expo-module.config.json"), JSON.stringify({
             name: "chordia-equalizer",
             platforms: ["ios", "apple", "android"],
@@ -115,7 +115,7 @@ jobs:
           }`;
           fs.writeFileSync(path.join(androidDir, "build.gradle"), gradle.trim());
 
-          // 5. ★ 本体 package.json に nativeModulesDir を確実に保証
+          // 5. 本体 package.json に nativeModulesDir を確実に保証
           const mainPkgPath = path.resolve("package.json");
           let pkg = JSON.parse(fs.readFileSync(mainPkgPath, "utf8"));
           if (!pkg.expo) pkg.expo = {};
@@ -137,7 +137,7 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # ★ Xcode 16 の C++ fmt コンパイル設定を注入
+      # ★ Xcode 16 の C++ fmt コンパイル設定を Podfile の post_install 末尾に確実に注入
       - name: Configure Podfile for Xcode 16
         run: |
           node -e '
@@ -148,7 +148,7 @@ jobs:
             
             const fmtPatch = `
               installer.pods_project.targets.each do |target|
-                if target.name == "fmt"
+                if target.name.downcase.include?("fmt")
                   target.build_configurations.each do |config|
                     config.build_settings["CLANG_CXX_LANGUAGE_STANDARD"] = "c++17"
                     config.build_settings["GCC_PREPROCESSOR_DEFINITIONS"] ||= ["$(inherited)"]
@@ -157,10 +157,11 @@ jobs:
                 end
               end
             `;
-            if (content.includes("post_install do |installer|") && !content.includes("target.name == \"fmt\"")) {
+            if (content.includes("post_install do |installer|") && !content.includes("target.name.downcase.include?(\"fmt\")")) {
               content = content.replace("post_install do |installer|", "post_install do |installer|\n" + fmtPatch);
+              fs.writeFileSync(podfile, content);
+              console.log("Successfully patched ios/Podfile with fmt C++17 configuration");
             }
-            fs.writeFileSync(podfile, content);
           }
           '
 
@@ -169,42 +170,49 @@ jobs:
           cd ios
           pod install
 
-      # ★ fmt ヘッダーの consteval 修復
-      - name: Patch fmt library for Xcode 16
+      # ★ すべての fmt ヘッダーとソースに対する再帰的ディープパッチ（consteval を完全無力化）
+      - name: Deep Patch fmt library for Xcode 16
         run: |
           chmod -R u+w ios/Pods || true
           node -e '
           const fs = require("fs");
           const path = require("path");
 
-          // 1. base.h の FMT_USE_CONSTEVAL を 0 に変更
-          const fmtBase = path.resolve("ios/Pods/fmt/include/fmt/base.h");
-          if (fs.existsSync(fmtBase)) {
-            let content = fs.readFileSync(fmtBase, "utf8");
-            content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
-            fs.writeFileSync(fmtBase, content);
-          }
+          function walkAndPatch(dir) {
+            if (!fs.existsSync(dir)) return;
+            const entries = fs.readdirSync(dir);
+            for (const entry of entries) {
+              const fullPath = path.join(dir, entry);
+              const stat = fs.statSync(fullPath);
+              if (stat.isDirectory()) {
+                if (entry !== ".git") walkAndPatch(fullPath);
+              } else if (entry.endsWith(".h") || entry.endsWith(".cc") || entry.endsWith(".cpp")) {
+                let content = fs.readFileSync(fullPath, "utf8");
+                let modified = false;
 
-          // 2. format.h のマクロ定義を #define FMT_STRING(s) (s) に置換
-          const fmtHeader = path.resolve("ios/Pods/fmt/include/fmt/format.h");
-          if (fs.existsSync(fmtHeader)) {
-            let content = fs.readFileSync(fmtHeader, "utf8");
-            content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
-            content += "\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n";
-            fs.writeFileSync(fmtHeader, content);
-          }
+                if (content.includes("FMT_USE_CONSTEVAL")) {
+                  content = content.replace(/#\s*define\s+FMT_USE_CONSTEVAL\s+1/g, "#define FMT_USE_CONSTEVAL 0");
+                  content = "#undef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n" + content;
+                  modified = true;
+                }
 
-          // 3. format-inl.h 内でも format.h 読込直後に FMT_STRING をプレーン文字列に強制上書き
-          const fmtInl = path.resolve("ios/Pods/fmt/include/fmt/format-inl.h");
-          if (fs.existsSync(fmtInl)) {
-            let content = fs.readFileSync(fmtInl, "utf8");
-            if (content.includes("#include \"format.h\"")) {
-              content = content.replace("#include \"format.h\"", "#include \"format.h\"\n#undef FMT_STRING\n#define FMT_STRING(s) (s)\n");
-            } else {
-              content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
+                if (content.includes("FMT_STRING(")) {
+                  content = content.replace(/#\s*define\s+FMT_STRING\s*\([^)]*\)[^\n]*/g, "#define FMT_STRING(s) (s)");
+                  content = "#undef FMT_STRING\n#define FMT_STRING(s) (s)\n" + content;
+                  modified = true;
+                }
+
+                if (modified) {
+                  try { fs.chmodSync(fullPath, 0o666); } catch (e) {}
+                  fs.writeFileSync(fullPath, content);
+                  console.log("Deep Patched:", fullPath);
+                }
+              }
             }
-            fs.writeFileSync(fmtInl, content);
           }
+
+          walkAndPatch(path.resolve("ios/Pods"));
+          walkAndPatch(path.resolve("node_modules/react-native"));
           '
 
       - name: Give execute permission to all shell scripts in node_modules
@@ -236,13 +244,10 @@ jobs:
             CODE_SIGNING_IDENTITY="" \
             ENABLE_USER_SCRIPT_SANDBOXING=NO 2>&1 | tee raw_build.log | xcpretty || {
               echo "========================================================"
-              echo "🚨 XCODEBUILD FAILED! TAIL OF RAW BUILD LOG:"
+              echo "🚨 XCODEBUILD FAILED! DETAILED ERROR LOG SUMMARY:"
               echo "========================================================"
-              tail -n 120 raw_build.log
+              grep -C 3 -E "(: error: |fatal error:)" raw_build.log | grep -v "Werror=" || tail -n 120 raw_build.log
               echo "========================================================"
-              echo "🚨 BUILD FAILURE SUMMARY:"
-              echo "========================================================"
-              grep -E "(: error: |fatal error:)" raw_build.log | grep -v "Werror=" || true
               exit 1
             }
 
