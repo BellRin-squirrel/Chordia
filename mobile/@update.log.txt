@@ -1,5 +1,9 @@
-Chordia Sync の認証でコードを表示しているときに、ウェブで認証というリンクを設置する（ウェブ側未対応）
-イコライザ機能導入中 （GitHubActionsでDevClientのビルド中）
+Milestone
+・ビルドするとイコライザを利用できなかった
+・曲ローカルから追加する機能
+・縦タブバー反応しないバグ
+
+v6.0.0-beta1 Now Developing
 
 v6.0.0-alpha2
 ・Chordia Relay が Chordia Sync にログインしていなくても、ログインしているかのような挙動を示すというバグを修正しました。
