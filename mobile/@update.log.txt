@@ -4,6 +4,8 @@ Milestone
 ・縦タブバー反応しないバグ
 
 v6.0.0-beta1 Now Developing
+
+v6.0.0-alpha3
 ・イコライザが使えないというバグを修正しました。
 
 v6.0.0-alpha2
