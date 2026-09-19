@@ -43,7 +43,6 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
-  const textColor = themeTextColor || '#ffffff';
 
   const containerRef = useRef<View>(null);
 
@@ -71,6 +70,9 @@ export const TabBar: React.FC<TabBarProps> = ({
   const isPointerDownRef = useRef(false);
   const startCoordRef = useRef(0);
   const animationFrameIdRef = useRef<number | null>(null);
+
+  // ★ 画面の向き（縦 ⇔ 横）が実際に切り替わった瞬間を検知するための Ref
+  const lastOrientationRef = useRef(isLandscape);
 
   const wobbleTimeRef = useRef(0);
   const wobbleIntensityRef = useRef(0);
@@ -104,7 +106,6 @@ export const TabBar: React.FC<TabBarProps> = ({
     ? (tabSlotSize > 0 ? tabSlotSize : 52)
     : TAB_BAR_HEIGHT - (PILL_PADDING * 2);
 
-  // ★ 画面回転時のステイルクロージャを完全打破する最新参照 Refs
   const isLandscapeRef = useRef(isLandscape);
   isLandscapeRef.current = isLandscape;
 
@@ -140,6 +141,7 @@ export const TabBar: React.FC<TabBarProps> = ({
     });
   }, [tabs, iconScaleAnims]);
 
+  // ★ 物理演算エンジン（LERPによる滑らかな接近 ＆ 有機的プカプカ揺動）
   const updatePhysics = useCallback(() => {
     const lerpRate = isDraggingRef.current ? DRAG_LERP : SNAP_LERP;
     
@@ -212,26 +214,37 @@ export const TabBar: React.FC<TabBarProps> = ({
     }
   }, [updatePhysics]);
 
-  // ★ 画面の向きが変わった時のピル位置と寸法の完全同期
+  // ★ 修正：画面回転時のみワープし、タブタップ時はワープせず「ふわっと」滑らかに物理移動！
   useEffect(() => {
-    measureBar();
+    if (lastOrientationRef.current !== isLandscape) {
+      // 画面の向き（縦 ⇔ 横）が切り替わった時のみ瞬時に位置を同期
+      lastOrientationRef.current = isLandscape;
+      measureBar();
+      if (tabSlotSize > 0) {
+        const newTarget = activeIndex * tabSlotSize;
+        currentPosRef.current = newTarget;
+        prevPosRef.current = newTarget;
+        targetPosRef.current = newTarget;
+        pillPosAnim.setValue(newTarget);
+        pillWobbleXAnim.setValue(0);
+        pillWobbleYAnim.setValue(0);
+        pillWobbleRotateAnim.setValue(0);
+        currentScaleRef.current = 1.0;
+        targetScaleRef.current = 1.0;
+        pillScaleAnim.setValue(1.0);
+      }
+      return;
+    }
+
+    // タブ切り替え時は目標位置だけをセットして物理ループでふわりと吸い付く
     if (tabSlotSize > 0) {
-      const newTarget = activeIndex * tabSlotSize;
-      currentPosRef.current = newTarget;
-      prevPosRef.current = newTarget;
-      targetPosRef.current = newTarget;
-      pillPosAnim.setValue(newTarget);
-      pillWobbleXAnim.setValue(0);
-      pillWobbleYAnim.setValue(0);
-      pillWobbleRotateAnim.setValue(0);
-      currentScaleRef.current = 1.0;
+      const nextTarget = activeIndex * tabSlotSize;
+      targetPosRef.current = nextTarget;
       targetScaleRef.current = 1.0;
-      pillScaleAnim.setValue(1.0);
       startPhysicsLoop();
     }
-  }, [isLandscape, tabSlotSize, activeIndex, measureBar, startPhysicsLoop, pillPosAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, pillScaleAnim]);
+  }, [isLandscape, activeIndex, tabSlotSize, measureBar, startPhysicsLoop, pillPosAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, pillScaleAnim]);
 
-  // ★ 動的座標計算関数（画面回転直後でも最新の向きで即座に計算）
   const getRelativeCoord = (evt: any): number => {
     const isLand = isLandscapeRef.current;
     const metrics = barMetricsRef.current;
@@ -289,6 +302,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         const slotSize = tabSlotSizeRef.current;
         const currentTabs = tabsRef.current;
 
+        // ★ タップ時：目標位置へふわりと移動開始
         targetPosRef.current = targetIdx * slotSize;
         targetScaleRef.current = EXPANDED_SCALE;
 
@@ -318,6 +332,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         const slotSize = tabSlotSizeRef.current;
         const currentTabs = tabsRef.current;
 
+        // ★ 離した時：最寄りタブへ吸着スナップ
         targetPosRef.current = finalIdx * slotSize;
         targetScaleRef.current = 1.0;
         isDraggingRef.current = false;
@@ -399,7 +414,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         <View style={s.topEdgeHighlight} />
       </View>
 
-      {/* 2. Liquid Active Pill（タブカーソル本体） */}
+      {/* 2. Liquid Active Pill（タブカーソル本体 - ふわっと吸着） */}
       {tabSlotSize > 0 && (
         <Animated.View
           pointerEvents="none"

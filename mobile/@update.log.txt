@@ -4,6 +4,7 @@ Milestone
 ・縦タブバー反応しないバグ
 
 v6.0.0-beta1 Now Developing
+・イコライザが使えないというバグを修正しました。
 
 v6.0.0-alpha2
 ・Chordia Relay が Chordia Sync にログインしていなくても、ログインしているかのような挙動を示すというバグを修正しました。
