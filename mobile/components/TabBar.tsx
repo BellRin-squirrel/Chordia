@@ -43,6 +43,7 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const textColor = themeTextColor || '#ffffff';
 
   const containerRef = useRef<View>(null);
 
@@ -103,6 +104,19 @@ export const TabBar: React.FC<TabBarProps> = ({
     ? (tabSlotSize > 0 ? tabSlotSize : 52)
     : TAB_BAR_HEIGHT - (PILL_PADDING * 2);
 
+  // ★ 画面回転時のステイルクロージャを完全打破する最新参照 Refs
+  const isLandscapeRef = useRef(isLandscape);
+  isLandscapeRef.current = isLandscape;
+
+  const tabSlotSizeRef = useRef(tabSlotSize);
+  tabSlotSizeRef.current = tabSlotSize;
+
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+
+  const setActiveTabRef = useRef(setActiveTab);
+  setActiveTabRef.current = setActiveTab;
+
   const measureBar = useCallback(() => {
     if (containerRef.current) {
       containerRef.current.measureInWindow((x, y, w, h) => {
@@ -126,7 +140,6 @@ export const TabBar: React.FC<TabBarProps> = ({
     });
   }, [tabs, iconScaleAnims]);
 
-  // ★ 速度感応型プカプカ物理演算
   const updatePhysics = useCallback(() => {
     const lerpRate = isDraggingRef.current ? DRAG_LERP : SNAP_LERP;
     
@@ -167,8 +180,9 @@ export const TabBar: React.FC<TabBarProps> = ({
     const tabbarScale = 1.0 + scaleProgress * (TABBAR_MAX_SCALE - 1.0);
     tabbarScaleAnim.setValue(tabbarScale);
 
-    if (tabSlotSize > 0) {
-      const closest = Math.max(0, Math.min(tabCount - 1, Math.round(currentPosRef.current / tabSlotSize)));
+    const slotSize = tabSlotSizeRef.current;
+    if (slotSize > 0) {
+      const closest = Math.max(0, Math.min(tabCount - 1, Math.round(currentPosRef.current / slotSize)));
       updateIconHighlights(closest);
     }
 
@@ -190,7 +204,7 @@ export const TabBar: React.FC<TabBarProps> = ({
       tabbarScaleAnim.setValue(targetScaleRef.current === 1.0 ? 1.0 : TABBAR_MAX_SCALE);
       animationFrameIdRef.current = null;
     }
-  }, [tabSlotSize, tabCount, updateIconHighlights, pillPosAnim, pillScaleAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, tabbarScaleAnim, prismOpacityAnim]);
+  }, [tabCount, updateIconHighlights, pillPosAnim, pillScaleAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, tabbarScaleAnim, prismOpacityAnim]);
 
   const startPhysicsLoop = useCallback(() => {
     if (!animationFrameIdRef.current) {
@@ -198,43 +212,62 @@ export const TabBar: React.FC<TabBarProps> = ({
     }
   }, [updatePhysics]);
 
+  // ★ 画面の向きが変わった時のピル位置と寸法の完全同期
   useEffect(() => {
+    measureBar();
     if (tabSlotSize > 0) {
-      const nextTarget = activeIndex * tabSlotSize;
-      targetPosRef.current = nextTarget;
+      const newTarget = activeIndex * tabSlotSize;
+      currentPosRef.current = newTarget;
+      prevPosRef.current = newTarget;
+      targetPosRef.current = newTarget;
+      pillPosAnim.setValue(newTarget);
+      pillWobbleXAnim.setValue(0);
+      pillWobbleYAnim.setValue(0);
+      pillWobbleRotateAnim.setValue(0);
+      currentScaleRef.current = 1.0;
+      targetScaleRef.current = 1.0;
+      pillScaleAnim.setValue(1.0);
       startPhysicsLoop();
     }
-  }, [activeIndex, tabSlotSize, startPhysicsLoop]);
+  }, [isLandscape, tabSlotSize, activeIndex, measureBar, startPhysicsLoop, pillPosAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, pillScaleAnim]);
 
-  const getRelativeCoord = useCallback((evt: any) => {
+  // ★ 動的座標計算関数（画面回転直後でも最新の向きで即座に計算）
+  const getRelativeCoord = (evt: any): number => {
+    const isLand = isLandscapeRef.current;
+    const metrics = barMetricsRef.current;
     const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
-    if (isLandscape) {
-      if (barMetricsRef.current.height > 0 && barMetricsRef.current.pageY > 0) {
-        return pageY - barMetricsRef.current.pageY;
+
+    if (isLand) {
+      if (metrics.height > 0 && metrics.pageY > 0) {
+        return pageY - metrics.pageY;
       }
       return locationY;
     } else {
-      if (barMetricsRef.current.width > 0 && barMetricsRef.current.pageX > 0) {
-        return pageX - barMetricsRef.current.pageX;
+      if (metrics.width > 0 && metrics.pageX > 0) {
+        return pageX - metrics.pageX;
       }
       return locationX;
     }
-  }, [isLandscape]);
+  };
 
-  const getClosestIndexFromRelative = useCallback((rel: number): number => {
-    if (tabSlotSize <= 0) return 0;
+  const getClosestIndexFromRelative = (rel: number): number => {
+    const slotSize = tabSlotSizeRef.current;
+    const currentTabs = tabsRef.current;
+    if (slotSize <= 0 || currentTabs.length <= 0) return 0;
     const innerCoord = rel - PILL_PADDING;
-    const idx = Math.floor(innerCoord / tabSlotSize);
-    return Math.max(0, Math.min(tabCount - 1, idx));
-  }, [tabSlotSize, tabCount]);
+    const idx = Math.floor(innerCoord / slotSize);
+    return Math.max(0, Math.min(currentTabs.length - 1, idx));
+  };
 
-  const getPillPosFromRelative = useCallback((rel: number): number => {
-    if (tabSlotSize <= 0) return 0;
+  const getPillPosFromRelative = (rel: number): number => {
+    const slotSize = tabSlotSizeRef.current;
+    const currentTabs = tabsRef.current;
+    if (slotSize <= 0 || currentTabs.length <= 0) return 0;
     const innerCoord = rel - PILL_PADDING;
-    const rawPos = innerCoord - (tabSlotSize / 2);
-    const maxPos = (tabCount - 1) * tabSlotSize;
+    const rawPos = innerCoord - (slotSize / 2);
+    const maxPos = (currentTabs.length - 1) * slotSize;
     return Math.max(0, Math.min(maxPos, rawPos));
-  }, [tabSlotSize, tabCount]);
+  };
 
   const panResponder = useRef(
     PanResponder.create({
@@ -253,11 +286,14 @@ export const TabBar: React.FC<TabBarProps> = ({
         startCoordRef.current = rel;
 
         const targetIdx = getClosestIndexFromRelative(rel);
-        targetPosRef.current = targetIdx * tabSlotSize;
+        const slotSize = tabSlotSizeRef.current;
+        const currentTabs = tabsRef.current;
+
+        targetPosRef.current = targetIdx * slotSize;
         targetScaleRef.current = EXPANDED_SCALE;
 
-        if (tabs[targetIdx]) {
-          setActiveTab(tabs[targetIdx].key);
+        if (currentTabs[targetIdx]) {
+          setActiveTabRef.current(currentTabs[targetIdx].key);
         }
         startPhysicsLoop();
       },
@@ -279,13 +315,15 @@ export const TabBar: React.FC<TabBarProps> = ({
 
         const rel = getRelativeCoord(evt);
         const finalIdx = getClosestIndexFromRelative(rel);
+        const slotSize = tabSlotSizeRef.current;
+        const currentTabs = tabsRef.current;
 
-        targetPosRef.current = finalIdx * tabSlotSize;
+        targetPosRef.current = finalIdx * slotSize;
         targetScaleRef.current = 1.0;
         isDraggingRef.current = false;
 
-        if (tabs[finalIdx]) {
-          setActiveTab(tabs[finalIdx].key);
+        if (currentTabs[finalIdx]) {
+          setActiveTabRef.current(currentTabs[finalIdx].key);
         }
         startPhysicsLoop();
       },
@@ -328,7 +366,11 @@ export const TabBar: React.FC<TabBarProps> = ({
           elevation: 12,
         }
       ]}
-      onLayout={() => measureBar()}
+      onLayout={(e) => {
+        const { width: w, height: h } = e.nativeEvent.layout;
+        setContainerSize({ width: w, height: h });
+        measureBar();
+      }}
       {...panResponder.panHandlers}
     >
       {/* 1. タブバー本体のすりガラス背景 */}
@@ -354,8 +396,6 @@ export const TabBar: React.FC<TabBarProps> = ({
           tint={isDark ? 'dark' : 'light'} 
           style={StyleSheet.absoluteFill} 
         />
-        
-        {/* ガラス天面のインナーハイライト光沢境界線 */}
         <View style={s.topEdgeHighlight} />
       </View>
 
@@ -377,7 +417,6 @@ export const TabBar: React.FC<TabBarProps> = ({
             }
           ]}
         >
-          {/* 白光沢主体の淡いクリスタル光彩レイヤー */}
           <Animated.View 
             style={[
               StyleSheet.absoluteFill, 
@@ -399,7 +438,6 @@ export const TabBar: React.FC<TabBarProps> = ({
             />
           </Animated.View>
 
-          {/* ピル内部のインナーベベル（厚みとクリアな光沢フチ） */}
           <View 
             style={[
               s.pillInnerBevel, 
@@ -409,7 +447,7 @@ export const TabBar: React.FC<TabBarProps> = ({
         </Animated.View>
       )}
 
-      {/* 3. 各タブアイテム（★アクティブ時は themeColor を適用） */}
+      {/* 3. 各タブアイテム */}
       {tabs.map((tab, idx) => {
         const isActive = activeTab === tab.key;
         const iconScale = iconScaleAnims[idx] || 1.0;
