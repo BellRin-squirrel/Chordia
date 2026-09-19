@@ -20,6 +20,7 @@ public class ChordiaEqualizerModule: Module {
   private var isNodePlaying: Bool = false
   private var isNodesAttached: Bool = false
   private var lastErrorMessage: String = "None"
+  private var lastResolvedPath: String = "None"
   private var debugDiagnostics: [String: Any] = [:]
 
   public func definition() -> ModuleDefinition {
@@ -112,6 +113,7 @@ public class ChordiaEqualizerModule: Module {
         "preamp": Double(self.currentPreamp),
         "gains": self.currentGains.map { Double($0) },
         "hasAudioFile": self.currentAudioFile != nil,
+        "resolvedPath": self.lastResolvedPath,
         "sampleRate": self.fileSampleRate,
         "totalFrames": Double(self.fileTotalFrames),
         "currentSessionCategory": session.category.rawValue,
@@ -147,25 +149,22 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    // ★ ステップ別セッション設定 ＆ 詳細エラー分解
     var diagSteps: [String] = []
     let session = AVAudioSession.sharedInstance()
     diagSteps.append("Initial: cat=\(session.category.rawValue), mode=\(session.mode.rawValue), opt=\(session.categoryOptions.rawValue)")
 
-    // 1. setCategory 単体テスト
     do {
       try session.setCategory(.playback, mode: .default, options: [])
       diagSteps.append("setCategory(.playback, .default, []): SUCCESS")
     } catch let err as NSError {
-      diagSteps.append("setCategory FAILED: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription), userInfo=\(err.userInfo)")
+      diagSteps.append("setCategory FAILED: code=\(err.code), desc=\(err.localizedDescription)")
     }
 
-    // 2. setActive 単体テスト（初期化時に失敗してもエンジンノード構築は継続）
     do {
       try session.setActive(true)
       diagSteps.append("setActive(true): SUCCESS")
     } catch let err as NSError {
-      diagSteps.append("setActive(true) FAILED: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription), userInfo=\(err.userInfo)")
+      diagSteps.append("setActive(true) FAILED: code=\(err.code), desc=\(err.localizedDescription)")
     }
 
     self.debugDiagnostics["setupSessionSteps"] = diagSteps
@@ -187,30 +186,38 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
+  // ★ サンドボックスUUID変化やパーセントエンコードに対応する堅牢なファイル探索
   private func resolveFileURL(filePath: String) -> URL? {
-    let fname = URL(fileURLWithPath: filePath).lastPathComponent
+    var cleanPath = filePath
+    if cleanPath.hasPrefix("file://") {
+      cleanPath = String(cleanPath.dropFirst(7))
+    }
+    if let decoded = cleanPath.removingPercentEncoding {
+      cleanPath = decoded
+    }
 
-    if filePath.hasPrefix("file://"), let url = URL(string: filePath), FileManager.default.fileExists(atPath: url.path) {
-      return url
+    if FileManager.default.fileExists(atPath: cleanPath) {
+      self.lastResolvedPath = cleanPath
+      return URL(fileURLWithPath: cleanPath)
     }
-    let rawPath = filePath.hasPrefix("file://") ? String(filePath.dropFirst(7)) : filePath
-    if let decoded = rawPath.removingPercentEncoding, FileManager.default.fileExists(atPath: decoded) {
-      return URL(fileURLWithPath: decoded)
-    }
-    if FileManager.default.fileExists(atPath: rawPath) {
-      return URL(fileURLWithPath: rawPath)
-    }
+
+    let fname = (cleanPath as NSString).lastPathComponent
+    if fname.isEmpty { return nil }
 
     if let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
       let chordiaUrl = docDir.appendingPathComponent("chordia").appendingPathComponent(fname)
       if FileManager.default.fileExists(atPath: chordiaUrl.path) {
+        self.lastResolvedPath = chordiaUrl.path
         return chordiaUrl
       }
       let directUrl = docDir.appendingPathComponent(fname)
       if FileManager.default.fileExists(atPath: directUrl.path) {
+        self.lastResolvedPath = directUrl.path
         return directUrl
       }
     }
+
+    self.lastResolvedPath = "NOT_FOUND (\(fname))"
     return nil
   }
 
@@ -239,21 +246,14 @@ public class ChordiaEqualizerModule: Module {
         audioEngine.stop()
       }
 
-      guard let processingFormat = AVAudioFormat(
-        commonFormat: .pcmFormatFloat32,
-        sampleRate: file.processingFormat.sampleRate,
-        channels: file.processingFormat.channelCount,
-        interleaved: false
-      ) else {
-        self.lastErrorMessage = "Invalid processing format"
-        return false
-      }
-
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      audioEngine.connect(playerNode, to: equalizerUnit, format: processingFormat)
-      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: processingFormat)
+      // ★ playerNode -> equalizerUnit は音源のフォーマットで接続
+      audioEngine.connect(playerNode, to: equalizerUnit, format: file.processingFormat)
+      
+      // ★ equalizerUnit -> mainMixerNode は format: nil を指定して自動サンプルレート変換（SRC）を実施
+      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
 
       try audioEngine.start()
       updateEqualizerHardware()
@@ -268,10 +268,10 @@ public class ChordiaEqualizerModule: Module {
         self.isNodePlaying = false
       }
 
-      self.lastErrorMessage = "None (Playing successfully)"
+      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent))"
       return true
     } catch let err as NSError {
-      self.lastErrorMessage = "LoadAndPlay Error: code=\(err.code), domain=\(err.domain), desc=\(err.localizedDescription)"
+      self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
       return false
     }
   }
