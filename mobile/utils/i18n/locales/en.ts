@@ -1,5 +1,5 @@
 export const en: Record<string, string> = {
-  tab_sync: 'Sync',
+  tab_sync: 'Add Songs',
   tab_player: 'Library',
   tab_focus: 'Focus',
   tab_info: 'Info',
@@ -315,8 +315,8 @@ export const en: Record<string, string> = {
   smart_name_placeholder: 'e.g. 2024 Favorites',
   create_btn: 'Create',
 
-  sync_mode_lan: 'LAN (Same Wi-Fi)',
-  sync_mode_wan: 'WAN (Remote/HTTPS)',
+  sync_mode_lan: 'LAN Sync',
+  sync_mode_wan: 'WAN Sync',
   this_device: 'This device',
   getting_info: 'Fetching...',
   qr_auto_connect: 'Auto Connect with QR',
@@ -449,4 +449,19 @@ export const en: Record<string, string> = {
   account_code_tap_to_copy: 'Tap to copy',
   account_auth_in_browser_btn: 'Authenticate in Browser',
   account_clipboard_rebuild_required: 'Rebuilding and reinstalling the app (@build_ios.sh) is required to use the clipboard feature.',
+
+  sync_mode_local: 'Add from Local',
+  local_import_title: 'Add Audio Files from Device',
+  local_import_btn: 'Select Files & Add',
+  local_import_success: 'Added {count} tracks to library.',
+
+  sync_mode_lan_desc: 'Sync tracks from Chordia Desktop connected to the same Wi-Fi network.',
+  sync_mode_wan_desc: 'Sync tracks remotely from Chordia Desktop over WAN/HTTPS tunnel.',
+  local_import_desc: 'Select MP3 audio files, review & edit track information, then add to library.',
+
+  local_import_register_btn: 'Register with this info',
+  local_import_pick_more: 'Add more MP3 files',
+  local_import_only_mp3: 'Only MP3 format files can be added.',
+  local_import_staged_count: 'Pending Import',
+  local_import_remove_staged: 'Remove from staging',
 };

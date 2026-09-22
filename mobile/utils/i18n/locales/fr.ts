@@ -1,5 +1,5 @@
 export const fr: Record<string, string> = {
-  tab_sync: 'Sync',
+  tab_sync: 'Ajouter des morceaux',
   tab_player: 'Bibliothèque',
   tab_focus: 'Concentration',
   tab_info: 'Infos',
@@ -315,8 +315,8 @@ export const fr: Record<string, string> = {
   smart_name_placeholder: 'ex. Favoris 2024',
   create_btn: 'Créer',
 
-  sync_mode_lan: 'LAN (Même Wi-Fi)',
-  sync_mode_wan: 'WAN (Distant/HTTPS)',
+  sync_mode_lan: 'Sync LAN',
+  sync_mode_wan: 'Sync WAN',
   this_device: 'Cet appareil',
   getting_info: 'Obtention...',
   qr_auto_connect: 'Connexion auto par QR code',
@@ -448,4 +448,19 @@ export const fr: Record<string, string> = {
   account_code_tap_to_copy: 'Appuyer pour copier',
   account_auth_in_browser_btn: 'S\'authentifier dans le navigateur',
   account_clipboard_rebuild_required: 'La recompilation et la réinstallation de l\'application (@build_ios.sh) sont requises pour utiliser le presse-papiers.',
+
+  sync_mode_local: 'Ajouter en local',
+  local_import_title: 'Ajouter des fichiers audio locaux',
+  local_import_btn: 'Choisir des fichiers et ajouter',
+  local_import_success: '{count} morceaux ajoutés à la bibliothèque.',
+
+  sync_mode_lan_desc: 'Synchronisez les morceaux depuis Chordia Desktop connecté au même réseau Wi-Fi.',
+  sync_mode_wan_desc: 'Synchronisez les morceaux à distance depuis Chordia Desktop via WAN/HTTPS.',
+  local_import_desc: 'Sélectionnez des fichiers MP3, vérifiez et modifiez les métadonnées, puis ajoutez-les à la bibliothèque.',
+
+  local_import_register_btn: 'Enregistrer avec ces infos',
+  local_import_pick_more: 'Ajouter d\'autres fichiers MP3',
+  local_import_only_mp3: 'Seuls les fichiers au format MP3 peuvent être ajoutés.',
+  local_import_staged_count: 'En attente',
+  local_import_remove_staged: 'Retirer de la liste',
 };

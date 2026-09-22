@@ -1,5 +1,5 @@
 export const de: Record<string, string> = {
-  tab_sync: 'Sync',
+  tab_sync: 'Titel hinzufügen',
   tab_player: 'Mediathek',
   tab_focus: 'Fokus',
   tab_info: 'Info',
@@ -315,8 +315,8 @@ export const de: Record<string, string> = {
   smart_name_placeholder: 'z.B. Favoriten 2024',
   create_btn: 'Erstellen',
 
-  sync_mode_lan: 'LAN (Gleiches WLAN)',
-  sync_mode_wan: 'WAN (Remote/HTTPS)',
+  sync_mode_lan: 'LAN-Sync',
+  sync_mode_wan: 'WAN-Sync',
   this_device: 'Dieses Gerät',
   getting_info: 'Wird geladen...',
   qr_auto_connect: 'Automatisch per QR-Code verbinden',
@@ -449,4 +449,19 @@ export const de: Record<string, string> = {
   account_code_tap_to_copy: 'Tippen zum Kopieren',
   account_auth_in_browser_btn: 'Im Browser authentifizieren',
   account_clipboard_rebuild_required: 'Ein erneutes Erstellen und Installieren der App (@build_ios.sh) ist erforderlich, um die Zwischenablage zu verwenden.',
+
+  sync_mode_local: 'Lokal hinzufügen',
+  local_import_title: 'Lokale Audiodateien hinzufügen',
+  local_import_btn: 'Dateien auswählen & hinzufügen',
+  local_import_success: '{count} Titel zur Mediathek hinzugefügt.',
+
+  sync_mode_lan_desc: 'Titel von Chordia Desktop synchronisieren, das mit demselben WLAN verbunden ist.',
+  sync_mode_wan_desc: 'Titel remote von Chordia Desktop über einen WAN/HTTPS-Tunnel synchronisieren.',
+  local_import_desc: 'MP3-Dateien auswählen, Tag-Informationen bearbeiten und zur Mediathek hinzufügen.',
+
+  local_import_register_btn: 'Mit diesen Daten registrieren',
+  local_import_pick_more: 'Weitere MP3-Dateien hinzufügen',
+  local_import_only_mp3: 'Es können nur MP3-Dateien hinzugefügt werden.',
+  local_import_staged_count: 'Wartend',
+  local_import_remove_staged: 'Aus Liste entfernen',
 };

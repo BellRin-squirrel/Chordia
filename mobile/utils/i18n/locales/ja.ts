@@ -1,5 +1,5 @@
 export const ja: Record<string, string> = {
-  tab_sync: '同期',
+  tab_sync: '曲を追加',
   tab_player: '再生',
   tab_focus: '作業',
   tab_info: '情報',
@@ -318,8 +318,8 @@ export const ja: Record<string, string> = {
   smart_name_placeholder: '例: 2024年のJ-POP',
   create_btn: '作成',
 
-  sync_mode_lan: 'LAN (同じWi-Fi)',
-  sync_mode_wan: 'WAN (外出先/HTTPS)',
+  sync_mode_lan: 'LAN同期',
+  sync_mode_wan: 'WAN同期',
   this_device: 'このデバイス',
   getting_info: '取得中...',
   qr_auto_connect: 'QRコードで自動接続',
@@ -448,4 +448,19 @@ export const ja: Record<string, string> = {
   account_code_tap_to_copy: 'タップしてコピー',
   account_auth_in_browser_btn: 'ブラウザで認証',
   account_clipboard_rebuild_required: 'クリップボード機能を使用するには、アプリの再ビルドと再インストール（@build_ios.sh）が必要です。',
+
+  sync_mode_local: 'ローカルから追加',
+  local_import_title: '端末内の音楽ファイルを追加',
+  local_import_desc: 'ファイルアプリからMP3形式の音声ファイルを選択し、楽曲情報を確認・編集してライブラリに追加します。',
+  local_import_btn: 'ファイルを選択して追加',
+  local_import_success: '{count}曲をライブラリに追加しました。',
+
+  sync_mode_lan_desc: '同じWi-Fiに接続されているDesktop版Chordiaから楽曲を同期します。',
+  sync_mode_wan_desc: '外出先などの異なるネットワークから、WAN/HTTPSトンネル経由でDesktop版Chordiaから楽曲を同期します。',
+
+  local_import_register_btn: 'この情報で登録',
+  local_import_pick_more: 'さらにMP3ファイルを追加',
+  local_import_only_mp3: 'MP3形式のファイルのみ追加できます。',
+  local_import_staged_count: '追加待ち',
+  local_import_remove_staged: '追加候補から削除',
 };

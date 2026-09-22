@@ -1,5 +1,5 @@
 export const ko: Record<string, string> = {
-  tab_sync: '동기화',
+  tab_sync: '곡 추가',
   tab_player: '재생',
   tab_focus: '집중',
   tab_info: '정보',
@@ -315,8 +315,8 @@ export const ko: Record<string, string> = {
   smart_name_placeholder: '예: 2024년 인기곡',
   create_btn: '만들기',
 
-  sync_mode_lan: 'LAN (동일한 Wi-Fi)',
-  sync_mode_wan: 'WAN (외부/HTTPS)',
+  sync_mode_lan: 'LAN 동기화',
+  sync_mode_wan: 'WAN 동기화',
   this_device: '이 기기',
   getting_info: '가져오는 중...',
   qr_auto_connect: 'QR 코드로 자동 연결',
@@ -449,4 +449,19 @@ export const ko: Record<string, string> = {
   account_code_tap_to_copy: '탭하여 복사',
   account_auth_in_browser_btn: '브라우저에서 인증',
   account_clipboard_rebuild_required: '클립보드 기능을 사용하려면 앱을 다시 빌드하고 재설치(@build_ios.sh)해야 합니다.',
+
+  sync_mode_local: '로컬에서 추가',
+  local_import_title: '기기 내 음원 파일 추가',
+  local_import_btn: '파일 선택 및 추가',
+  local_import_success: '{count}곡을 라이브러리에 추가했습니다.',
+
+  sync_mode_lan_desc: '동일한 Wi-Fi에 연결된 Desktop 버전 Chordia에서 곡을 동기화합니다.',
+  sync_mode_wan_desc: '외부 네트워크에서 WAN/HTTPS 터널을 통해 Desktop 버전 Chordia에서 곡을 동기화합니다.',
+  local_import_desc: '파일 앱에서 MP3 오디오 파일을 선택하고 곡 정보를 확인·편집한 후 라이브러리에 추가합니다.',
+
+  local_import_register_btn: '이 정보로 등록',
+  local_import_pick_more: 'MP3 파일 추가 선택',
+  local_import_only_mp3: 'MP3 형식의 파일만 추가할 수 있습니다.',
+  local_import_staged_count: '가져오기 대기',
+  local_import_remove_staged: '추가 후보에서 삭제',
 };

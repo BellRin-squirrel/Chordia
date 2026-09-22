@@ -29,7 +29,6 @@ import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../../ut
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
 
-// ★ ノッチやセーフエリアを完全に無視し、画面の物理的最下端に配置
 const TAB_BAR_BOTTOM = 0;
 const MINI_PLAYER_GAP = 6;
 const MINI_PLAYER_HEIGHT = 58;
@@ -245,6 +244,8 @@ const AppContent = () => {
             insets={insets} 
             currentSong={currentSong}
             language={language}
+            localLibrary={localLibrary}
+            setLocalLibrary={setLocalLibrary}
           />
         )}
         {activeTab === 'PLAYER' && (
@@ -324,7 +325,6 @@ const AppContent = () => {
 
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
-          {/* ミニプレイヤー：タブバーの直上に連動配置 */}
           {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
             <Animated.View style={[
               isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], 
@@ -342,7 +342,6 @@ const AppContent = () => {
             </Animated.View>
           )}
 
-          {/* ★ タブバー：画面最下端 (bottom: 0) に完全接地配置 */}
           <View style={
             isLandscape 
               ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 10 }] 
