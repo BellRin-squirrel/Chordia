@@ -464,4 +464,18 @@ export const de: Record<string, string> = {
   local_import_only_mp3: 'Es können nur MP3-Dateien hinzugefügt werden.',
   local_import_staged_count: 'Wartend',
   local_import_remove_staged: 'Aus Liste entfernen',
+  
+  sync_start_btn: 'Synchronisierung starten',
+  sync_conflict_title: 'Doppelte Titel gefunden',
+  sync_conflict_desc: 'Es wurden Duplikate mit lokal hinzugefügten Titeln gefunden. Hör sie dir an und wähle aus, was behalten werden soll.',
+  sync_conflict_source_desktop: 'Desktop-Version Audio',
+  sync_conflict_source_local: 'Lokal hinzugefügtes Audio',
+  sync_conflict_adopt_this: 'Diesen Titel behalten',
+  sync_conflict_ignore_both: 'Keinen von beiden behalten',
+  sync_conflict_abort_btn: 'Synchronisierung abbrechen',
+  sync_conflict_abort_warning: '※Bei Abbruch werden zuvor synchronisierte Desktop-Titel nicht wiederhergestellt; es verbleiben nur lokal hinzugefügte Titel.',
+  sync_conflict_abort_confirm_title: 'Synchronisierung abbrechen',
+  sync_conflict_abort_confirm_desc: 'Synchronisierung abbrechen? Zuvor synchronisierte Desktop-Titel wurden entfernt und können nicht wiederhergestellt werden.',
+  local_import_skipped_title: 'Übersprungene Duplikate',
+  local_import_skipped_desc: 'Folgende Titel wurden übersprungen, da sie bereits in der Mediathek vorhanden sind:',
 };

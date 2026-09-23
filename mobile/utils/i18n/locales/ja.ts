@@ -463,4 +463,18 @@ export const ja: Record<string, string> = {
   local_import_only_mp3: 'MP3形式のファイルのみ追加できます。',
   local_import_staged_count: '追加待ち',
   local_import_remove_staged: '追加候補から削除',
+
+  sync_start_btn: '同期を開始する',
+  sync_conflict_title: '重複した楽曲の確認',
+  sync_conflict_desc: 'ローカルから追加した曲と同じ楽曲が見つかりました。音源を聴き比べて、ライブラリに残す音源を選択してください。',
+  sync_conflict_source_desktop: 'Desktop版の音源',
+  sync_conflict_source_local: 'ローカルから追加した音源',
+  sync_conflict_adopt_this: 'この音源を採用',
+  sync_conflict_ignore_both: 'どちらもライブラリに残さない',
+  sync_conflict_abort_btn: '同期を中断する',
+  sync_conflict_abort_warning: '※同期を中断した場合でも、以前Desktop版から同期した曲は復元されず、ローカルから追加した曲のみが残ります。',
+  sync_conflict_abort_confirm_title: '同期の中断',
+  sync_conflict_abort_confirm_desc: '同期を中断しますか？\n以前Desktop版から同期した曲は削除された状態となり、復元できません。',
+  local_import_skipped_title: '重複により追加されなかった曲',
+  local_import_skipped_desc: '以下の楽曲はすでにライブラリに存在するため追加されませんでした:',
 };

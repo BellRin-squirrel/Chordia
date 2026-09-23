@@ -464,4 +464,18 @@ export const ko: Record<string, string> = {
   local_import_only_mp3: 'MP3 형식의 파일만 추가할 수 있습니다.',
   local_import_staged_count: '가져오기 대기',
   local_import_remove_staged: '추가 후보에서 삭제',
+
+  sync_start_btn: '동기화 시작',
+  sync_conflict_title: '중복 곡 확인',
+  sync_conflict_desc: '로컬에서 추가한 곡과 동일한 곡이 발견되었습니다. 음원을 듣고 비교하여 남길 음원을 선택해 주세요.',
+  sync_conflict_source_desktop: 'Desktop 버전 음원',
+  sync_conflict_source_local: '로컬에서 추가한 음원',
+  sync_conflict_adopt_this: '이 음원 유지',
+  sync_conflict_ignore_both: '둘 다 남기지 않음',
+  sync_conflict_abort_btn: '동기화 중단',
+  sync_conflict_abort_warning: '※동기화를 중단하더라도 이전에 Desktop 버전에서 동기화한 곡은 복원되지 않으며 로컬에서 추가한 곡만 남습니다.',
+  sync_conflict_abort_confirm_title: '동기화 중단',
+  sync_conflict_abort_confirm_desc: '동기화를 중단하시겠습니까?\n이전에 Desktop 버전에서 동기화한 곡은 삭제된 상태로 복원할 수 없습니다.',
+  local_import_skipped_title: '중복으로 추가되지 않은 곡',
+  local_import_skipped_desc: '다음 곡은 이미 라이브러리에 존재하여 추가되지 않았습니다:',
 };

@@ -463,4 +463,18 @@ export const fr: Record<string, string> = {
   local_import_only_mp3: 'Seuls les fichiers au format MP3 peuvent être ajoutés.',
   local_import_staged_count: 'En attente',
   local_import_remove_staged: 'Retirer de la liste',
+
+  sync_start_btn: 'Démarrer la synchronisation',
+  sync_conflict_title: 'Morceaux en double trouvés',
+  sync_conflict_desc: 'Des doublons avec des morceaux ajoutés localement ont été détectés. Écoutez et choisissez la piste à conserver.',
+  sync_conflict_source_desktop: 'Audio version Desktop',
+  sync_conflict_source_local: 'Audio ajouté localement',
+  sync_conflict_adopt_this: 'Garder cette piste',
+  sync_conflict_ignore_both: 'Ne garder aucun des deux',
+  sync_conflict_abort_btn: 'Interrompre la synchronisation',
+  sync_conflict_abort_warning: '※En cas d\'interruption, les morceaux synchronisés précédemment ne seront pas restaurés, seuls les morceaux locaux resteront.',
+  sync_conflict_abort_confirm_title: 'Interrompre la synchronisation',
+  sync_conflict_abort_confirm_desc: 'Voulez-vous interrompre ? Les morceaux synchronisés précédents ont été supprimés et ne peuvent pas être restaurés.',
+  local_import_skipped_title: 'Morceaux ignorés (doublons)',
+  local_import_skipped_desc: 'Les morceaux suivants existent déjà dans la bibliothèque et n\'ont pas été ajoutés :',
 };

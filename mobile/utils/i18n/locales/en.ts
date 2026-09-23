@@ -464,4 +464,18 @@ export const en: Record<string, string> = {
   local_import_only_mp3: 'Only MP3 format files can be added.',
   local_import_staged_count: 'Pending Import',
   local_import_remove_staged: 'Remove from staging',
+
+  sync_start_btn: 'Start Sync',
+  sync_conflict_title: 'Duplicate Tracks Found',
+  sync_conflict_desc: 'Duplicate tracks were found with songs added from local files. Listen and choose which audio to keep.',
+  sync_conflict_source_desktop: 'Desktop Version Audio',
+  sync_conflict_source_local: 'Locally Added Audio',
+  sync_conflict_adopt_this: 'Keep this audio',
+  sync_conflict_ignore_both: 'Do not keep either',
+  sync_conflict_abort_btn: 'Abort Sync',
+  sync_conflict_abort_warning: '※If aborted, previously synced desktop tracks will not be restored, leaving only locally added songs.',
+  sync_conflict_abort_confirm_title: 'Abort Sync',
+  sync_conflict_abort_confirm_desc: 'Abort sync? Previously synced desktop tracks have been removed and cannot be restored.',
+  local_import_skipped_title: 'Skipped Duplicate Tracks',
+  local_import_skipped_desc: 'The following tracks were skipped because they already exist in your library:',
 };

@@ -464,4 +464,18 @@ export const es: Record<string, string> = {
   local_import_only_mp3: 'Solo se pueden añadir archivos en formato MP3.',
   local_import_staged_count: 'Pendientes',
   local_import_remove_staged: 'Eliminar de la lista temporal',
+
+  sync_start_btn: 'Iniciar sincronización',
+  sync_conflict_title: 'Pistas duplicadas encontradas',
+  sync_conflict_desc: 'Se encontraron canciones duplicadas con pistas añadidas desde local. Escucha y elige cuál conservar.',
+  sync_conflict_source_desktop: 'Audio de Desktop',
+  sync_conflict_source_local: 'Audio añadido localmente',
+  sync_conflict_adopt_this: 'Conservar este audio',
+  sync_conflict_ignore_both: 'No conservar ninguno',
+  sync_conflict_abort_btn: 'Interrumpir sincronización',
+  sync_conflict_abort_warning: '※Si se interrumpe, las pistas de escritorio anteriores no se restaurarán y solo quedarán las pistas locales.',
+  sync_conflict_abort_confirm_title: 'Interrumpir sincronización',
+  sync_conflict_abort_confirm_desc: '¿Interrumpir sincronización? Las pistas de escritorio anteriores han sido eliminadas y no se pueden restaurar.',
+  local_import_skipped_title: 'Pistas duplicadas omitidas',
+  local_import_skipped_desc: 'Las siguientes canciones ya existen en la biblioteca y no se añadieron:',
 };
