@@ -477,4 +477,7 @@ export const ja: Record<string, string> = {
   sync_conflict_abort_confirm_desc: '同期を中断しますか？\n以前Desktop版から同期した曲は削除された状態となり、復元できません。',
   local_import_skipped_title: '重複により追加されなかった曲',
   local_import_skipped_desc: '以下の楽曲はすでにライブラリに存在するため追加されませんでした:',
+
+  relay_fetching_devices: '再生デバイスを確認中...',
+  toast_no_internet: 'インターネットに接続できません',
 };

@@ -478,4 +478,7 @@ export const ko: Record<string, string> = {
   sync_conflict_abort_confirm_desc: '동기화를 중단하시겠습니까?\n이전에 Desktop 버전에서 동기화한 곡은 삭제된 상태로 복원할 수 없습니다.',
   local_import_skipped_title: '중복으로 추가되지 않은 곡',
   local_import_skipped_desc: '다음 곡은 이미 라이브러리에 존재하여 추가되지 않았습니다:',
+
+  relay_fetching_devices: '재생 중인 기기 확인 중...',
+  toast_no_internet: '인터넷에 연결할 수 없습니다',
 };

@@ -478,4 +478,7 @@ export const de: Record<string, string> = {
   sync_conflict_abort_confirm_desc: 'Synchronisierung abbrechen? Zuvor synchronisierte Desktop-Titel wurden entfernt und können nicht wiederhergestellt werden.',
   local_import_skipped_title: 'Übersprungene Duplikate',
   local_import_skipped_desc: 'Folgende Titel wurden übersprungen, da sie bereits in der Mediathek vorhanden sind:',
+
+  relay_fetching_devices: 'Wiedergabegeräte werden gesucht...',
+  toast_no_internet: 'Keine Internetverbindung',
 };

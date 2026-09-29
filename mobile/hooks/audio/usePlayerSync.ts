@@ -34,6 +34,9 @@ export const usePlayerSync = ({
   const relayCooldownRef = useRef(false);
 
   const sendNowPlayingUpdate = async (overrideTimeSec?: number) => {
+    // バックグラウンド移行時は無差別な通信を控えて安定化
+    if (AppState.currentState !== 'active') return;
+
     if (!currentContextRef.current) return;
     if (!currentSongRef.current) return;
     if (isSendingNowPlayingRef.current) return;
@@ -95,7 +98,7 @@ export const usePlayerSync = ({
       }, ...playHistory].slice(0, 500);
       await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(playHistory));
 
-      const isValid = await verifyChordiaSyncSession(true);
+      const isValid = await verifyChordiaSyncSession(false);
       if (isValid) {
         const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
         if (accountJson) {
@@ -112,25 +115,15 @@ export const usePlayerSync = ({
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying && currentSong && currentContextRef.current) {
       interval = setInterval(() => {
+        // フォアグラウンド時のみ定期送信
         if (AppState.currentState === 'active' && !relayCooldownRef.current) {
           sendNowPlayingUpdate();
         }
-      }, 3000);
+      }, 3500);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isPlaying, currentSong]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'active') {
-        if (isPlaying && currentSong && currentContextRef.current) {
-          sendNowPlayingUpdate();
-        }
-      }
-    });
-    return () => subscription.remove();
   }, [isPlaying, currentSong]);
 
   return {

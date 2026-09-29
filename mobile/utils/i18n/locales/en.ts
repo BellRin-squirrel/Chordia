@@ -478,4 +478,7 @@ export const en: Record<string, string> = {
   sync_conflict_abort_confirm_desc: 'Abort sync? Previously synced desktop tracks have been removed and cannot be restored.',
   local_import_skipped_title: 'Skipped Duplicate Tracks',
   local_import_skipped_desc: 'The following tracks were skipped because they already exist in your library:',
+
+  relay_fetching_devices: 'Checking for playing devices...',
+  toast_no_internet: 'Cannot connect to the internet',
 };

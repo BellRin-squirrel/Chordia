@@ -1,13 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Animated, Easing, StyleSheet, StyleProp, TextStyle, ViewStyle } from 'react-native';
+import { View, Text, Animated, Easing, StyleSheet, StyleProp, TextStyle, ViewStyle, AppState } from 'react-native';
 
 interface MarqueeTextProps {
   text: string;
   style?: StyleProp<TextStyle>;
   containerStyle?: StyleProp<ViewStyle>;
-  speed?: number; // スクロール速度 (px/秒)
-  delay?: number; // 開始前の待機時間 (ms)
-  spacing?: number; // 2周目テキストとの間隔 (px)
+  speed?: number;
+  delay?: number;
+  spacing?: number;
   align?: 'left' | 'center' | 'right';
 }
 
@@ -24,13 +24,22 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
   const [textWidth, setTextWidth] = useState(0);
   const scrollAnim = useRef(new Animated.Value(0)).current;
 
-  // テキストの本来の幅が表示領域（コンテナ幅）より大きい場合のみスクロールを有効化
+  // ★ バックグラウンド移行時は無限ループアニメーションを完全停止（Watchdog によるプロセス終了を防止）
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      setIsAppActive(next === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
   const isOverflow = containerWidth > 0 && textWidth > containerWidth + 2;
 
   useEffect(() => {
     scrollAnim.setValue(0);
 
-    if (!isOverflow || textWidth <= 0) return;
+    // アプリがバックグラウンドにいる間はアニメーションループを開始しない
+    if (!isAppActive || !isOverflow || textWidth <= 0) return;
 
     const totalDistance = textWidth + spacing;
     const duration = (totalDistance / speed) * 1000;
@@ -57,11 +66,10 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
     return () => {
       animation.stop();
     };
-  }, [isOverflow, textWidth, containerWidth, text, speed, delay, spacing]);
+  }, [isAppActive, isOverflow, textWidth, containerWidth, text, speed, delay, spacing]);
 
   if (!text) return null;
 
-  // ★ 修正: style に flex: 1 や padding が含まれていても文字幅の計測を狂わせないよう純粋なフォント幅だけを抽出
   const flattenedStyle = StyleSheet.flatten(style) || {};
   const measureStyle: TextStyle = {
     ...flattenedStyle,
@@ -89,7 +97,6 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
         if (w > 0) setContainerWidth(w);
       }}
     >
-      {/* 1. 純粋な文字幅のみを正確に測定する不可視レイヤー */}
       <View 
         style={{ position: 'absolute', opacity: 0, top: 0, left: 0, width: 10000, flexDirection: 'row', flexWrap: 'nowrap' }} 
         pointerEvents="none"
@@ -106,7 +113,6 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
         </Text>
       </View>
 
-      {/* 2. 実際の描画レイヤー */}
       <Animated.View 
         style={{ 
           flexDirection: 'row', 
@@ -130,7 +136,6 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
           {text}
         </Text>
         
-        {/* 長いテキストの場合のみ2周目を表示 */}
         {isOverflow && (
           <Text 
             style={[

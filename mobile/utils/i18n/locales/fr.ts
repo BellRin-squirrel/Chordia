@@ -477,4 +477,7 @@ export const fr: Record<string, string> = {
   sync_conflict_abort_confirm_desc: 'Voulez-vous interrompre ? Les morceaux synchronisés précédents ont été supprimés et ne peuvent pas être restaurés.',
   local_import_skipped_title: 'Morceaux ignorés (doublons)',
   local_import_skipped_desc: 'Les morceaux suivants existent déjà dans la bibliothèque et n\'ont pas été ajoutés :',
+
+  relay_fetching_devices: 'Recherche des appareils en cours de lecture...',
+  toast_no_internet: 'Impossible de se connecter à Internet',
 };

@@ -478,4 +478,7 @@ export const es: Record<string, string> = {
   sync_conflict_abort_confirm_desc: '¿Interrumpir sincronización? Las pistas de escritorio anteriores han sido eliminadas y no se pueden restaurar.',
   local_import_skipped_title: 'Pistas duplicadas omitidas',
   local_import_skipped_desc: 'Las siguientes canciones ya existen en la biblioteca y no se añadieron:',
+
+  relay_fetching_devices: 'Buscando dispositivos en reproducción...',
+  toast_no_internet: 'No se puede conectar a internet',
 };

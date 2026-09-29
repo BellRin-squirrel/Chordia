@@ -1,13 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { 
-  View, Text, Image, TouchableOpacity, TouchableHighlight, Animated, 
-  ScrollView, FlatList, StyleSheet, useWindowDimensions, Easing, 
-  Platform 
+  View, Text, Image, TouchableHighlight, Animated, 
+  ScrollView, FlatList, StyleSheet, useWindowDimensions, 
+  Platform, AppState 
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
-import TrackPlayer from 'react-native-track-player';
 import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -83,6 +82,15 @@ export const FullScreenPlayer = ({
   const insets = useSafeAreaInsets();
   const activeIconColor = themeTextColor || '#000000';
 
+  // ★ バックグラウンド移行検知（Watchdog によるプロセス終了を防ぐためスリープ）
+  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      setIsAppActive(next === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
   const transitionAnim = useRef(new Animated.Value(0)).current;
   const scrollYRef = useRef(0);
 
@@ -146,7 +154,6 @@ export const FullScreenPlayer = ({
 
   const onHandlerStateChange = (event: any) => {
     const { state, translationY, velocityY } = event.nativeEvent;
-
     if (state === State.END || state === State.CANCELLED) {
       if (translationY > 80 || velocityY > 300) {
         closeFullPlayer();
@@ -156,7 +163,13 @@ export const FullScreenPlayer = ({
     }
   };
 
-  const formatMillis = (ms: number | undefined) => { if (!ms) return "0:00"; const totalSec = Math.floor(ms / 1000); const min = Math.floor(totalSec / 60); const sec = totalSec % 60; return `${min}:${sec < 10 ? '0' : ''}${sec}`; };
+  const formatMillis = (ms: number | undefined) => {
+    if (!ms) return "0:00";
+    const totalSec = Math.floor(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+  };
 
   const toggleLyrics = () => {
     if (showQueue) setShowQueue(false);
@@ -173,16 +186,13 @@ export const FullScreenPlayer = ({
       try {
         const { showRoutePicker } = require('react-airplay');
         showRoutePicker({ prioritizesVideoDevices: false });
-      } catch (e) {
-        console.warn('AirPlay showRoutePicker error:', e);
-      }
+      } catch (e) {}
     }
   };
 
   const renderControls = (iconSize: number, customStyle?: any) => {
     const mainIconSize = iconSize * 0.72 * btnScale; 
     const sideIconSize = iconSize * 0.48 * btnScale;
-
     const mainBtnSize = iconSize * 0.85 * btnScale;
     const sideBtnSize = iconSize * 0.65 * btnScale;
 
@@ -215,6 +225,10 @@ export const FullScreenPlayer = ({
     );
   };
 
+  // ★ バックグラウンド時はスライダー・テキスト再計算を停止
+  const sliderPosition = isAppActive ? (playbackStatus?.positionMillis || 0) : 0;
+  const sliderDuration = isAppActive ? (playbackStatus?.durationMillis || 100) : 100;
+
   const renderLeftColumnContent = (leftColumnWidth: number, landscapeArtSize: number) => {
     if (isIphoneLandscape) {
       const artSize = height * 0.21; 
@@ -232,8 +246,20 @@ export const FullScreenPlayer = ({
             </View>
           </View>
           <View style={styles.sliderWithTime}>
-            <Slider style={{ width: '100%', height: 35 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-            <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+            <Slider 
+              style={{ width: '100%', height: 35 }} 
+              minimumValue={0} 
+              maximumValue={sliderDuration} 
+              value={sliderPosition} 
+              minimumTrackTintColor={themeColor} 
+              maximumTrackTintColor="rgba(255,255,255,0.3)" 
+              thumbTintColor="#fff" 
+              onSlidingComplete={v => sound?.setPositionAsync(v)} 
+            />
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text>
+              <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text>
+            </View>
           </View>
           {renderControls(55, { width: '100%', marginTop: 5, justifyContent: 'space-around' })}
         </View>
@@ -252,8 +278,20 @@ export const FullScreenPlayer = ({
           </View>
           <View style={{ width: '100%' }}>
             <View style={styles.sliderWithTime}>
-              <Slider style={{ width: '100%', height: 40 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-              <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+              <Slider 
+                style={{ width: '100%', height: 40 }} 
+                minimumValue={0} 
+                maximumValue={sliderDuration} 
+                value={sliderPosition} 
+                minimumTrackTintColor={themeColor} 
+                maximumTrackTintColor="rgba(255,255,255,0.3)" 
+                thumbTintColor="#fff" 
+                onSlidingComplete={v => sound?.setPositionAsync(v)} 
+              />
+              <View style={styles.timeRow}>
+                <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text>
+                <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text>
+              </View>
             </View>
             {renderControls(70, { width: '100%', marginTop: 20, justifyContent: 'space-around' })}
           </View>
@@ -590,15 +628,26 @@ export const FullScreenPlayer = ({
         <View style={{ width: '100%', paddingTop: 10 }}>
           
           <View style={[styles.sliderWithTime, { paddingHorizontal: 10 }]}>
-            <Slider style={{ width: '100%', height: 35 }} minimumValue={0} maximumValue={playbackStatus?.durationMillis || 100} value={playbackStatus?.positionMillis || 0} minimumTrackTintColor={themeColor} maximumTrackTintColor="rgba(255,255,255,0.3)" thumbTintColor="#fff" onSlidingComplete={v => sound?.setPositionAsync(v)} />
-            <View style={styles.timeRow}><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text><Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text></View>
+            <Slider 
+              style={{ width: '100%', height: 35 }} 
+              minimumValue={0} 
+              maximumValue={sliderDuration} 
+              value={sliderPosition} 
+              minimumTrackTintColor={themeColor} 
+              maximumTrackTintColor="rgba(255,255,255,0.3)" 
+              thumbTintColor="#fff" 
+              onSlidingComplete={v => sound?.setPositionAsync(v)} 
+            />
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.positionMillis)}</Text>
+              <Text style={styles.timeLabel}>{formatMillis(playbackStatus?.durationMillis)}</Text>
+            </View>
           </View>
 
           <View style={{ width: '100%', marginVertical: 10 }}>
             {renderControls(75, { width: '100%', justifyContent: 'space-around' })}
           </View>
 
-          {/* ★ iOS（5つ）でも Android（AirPlay非表示で4つ）でも常に完全均等配置されるボトムバー */}
           <View style={{ 
             flexDirection: 'row', 
             width: '100%', 
@@ -644,7 +693,7 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. AirPlay ボタン (iOS のみ等幅 flex アイテムとして挿入) */}
+            {/* 3. AirPlay ボタン (iOS のみ表示) */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <BounceButton

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, LogBox } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, LogBox, AppState } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
@@ -24,7 +24,12 @@ import { TabBar } from '../../components/TabBar';
 import { LanguageSelectModal } from '../../components/LanguageSelectModal';
 import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 import { LanguageCode, t } from '../../utils/i18n';
-import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../../utils/chordiaSync';
+import { 
+  verifyChordiaSyncSession, 
+  syncMusicAndPlaylistsToCloud, 
+  registerToastListener, 
+  processOfflineQueue 
+} from '../../utils/chordiaSync';
 
 export type TabType = 'SYNC' | 'PLAYER' | 'FOCUS' | 'INFO';
 export type FocusStageType = 'SETUP' | 'GUIDE' | 'FOCUS';
@@ -86,13 +91,43 @@ const AppContent = () => {
     syncStage, setSyncStage, serverIp, setServerIp, serverPort, setServerPort, authCodeInput, setAuthCodeInput,
     showCamera, setShowCamera, requestCameraPermission, pcPlaylists, selectedPls, setSelectedPls,
     syncProgress, isSyncing, isFullScreenSyncing, requestAuthToPC, verifyAuthCode, startSyncDownload, cancelSync, disconnect,
-    setScannedQrData, clientInfo
+    setScannedQrData, clientInfo,
+    activeConflictSet, resolveCurrentConflict
   } = useSync({ 
     closeFullPlayer, 
     stopAndUnloadPlayer: async () => { await TrackPlayer.stop(); },
     localLibrary, setLocalLibrary, setLocalPlaylists,
     language
   });
+
+  // ★ API通信層からの「インターネットに接続できません」トースト通知リスナー登録
+  useEffect(() => {
+    registerToastListener((msg) => {
+      showToast(msg);
+    });
+  }, [showToast]);
+
+  // ★ ネットワーク復帰時 ＆ フォアグラウンド移行時に未送信オフラインキューを自動バックグラウンド処理
+  useEffect(() => {
+    processOfflineQueue();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        processOfflineQueue();
+      }
+    });
+
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        processOfflineQueue();
+      }
+    }, 20000);
+
+    return () => {
+      sub.remove();
+      clearInterval(timer);
+    };
+  }, []);
 
   const handleTabPress = (tabKey: TabType) => {
     setActiveTab(tabKey);
@@ -109,12 +144,12 @@ const AppContent = () => {
 
   useEffect(() => {
     (async () => {
-      const isValid = await verifyChordiaSyncSession(true, language);
+      const isValid = await verifyChordiaSyncSession(false, language);
       if (isValid) {
         syncMusicAndPlaylistsToCloud();
       }
     })();
-  }, [activeTab]);
+  }, [activeTab, language]);
 
   useEffect(() => {
     const requestInitialPermissions = async () => {
@@ -246,6 +281,8 @@ const AppContent = () => {
             language={language}
             localLibrary={localLibrary}
             setLocalLibrary={setLocalLibrary}
+            activeConflictSet={activeConflictSet}
+            resolveCurrentConflict={resolveCurrentConflict}
           />
         )}
         {activeTab === 'PLAYER' && (
@@ -449,6 +486,7 @@ const AppContent = () => {
         canClose={false}
       />
 
+      {/* 右上トースト通知 */}
       {toastVisible && !isFullPlayer && (
         <Animated.View 
           style={[
@@ -476,7 +514,7 @@ const AppContent = () => {
             ]}
           >
             <View style={[styles.toastIconBox, { backgroundColor: `rgba(${themeR || 79}, ${themeG || 70}, ${themeB || 229}, 0.16)` }]}>
-              <Ionicons name="checkmark-circle" size={20} color={themeColor} />
+              <Ionicons name="cloud-offline-outline" size={18} color={themeColor} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text 

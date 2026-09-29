@@ -1,19 +1,31 @@
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
+import * as Network from 'expo-network';
 import DeviceInfo from 'react-native-device-info';
 import { HTTP_X_ACCESS_KEY, CHORDIA_SYNC_API_URL, APP_VERSION } from '../constants/config';
 import { LanguageCode, t } from './i18n';
 import { getPlaylistSongs } from './playlistEvaluator';
 
 export const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
-const PENDING_PLAY_HISTORY_KEY = 'chordia_pending_play_history';
-const PENDING_WORK_HISTORY_KEY = 'chordia_pending_work_history';
+export const OFFLINE_API_QUEUE_KEY = 'chordia_offline_api_queue';
 
 export type DeletePeriod = '1day' | '1week' | '1month' | '1year' | 'all';
 
+export interface QueuedApiRequest {
+  id: string;
+  timestamp: number;
+  operation: string;
+  payload: any;
+}
+
 export interface RegisterAuthResponse { success: boolean; sid?: string; error?: string; }
-export interface CheckAuthStatusResponse { success: boolean; status?: 'authenticated' | 'unauthenticated' | 'expired'; error?: string; }
+export interface CheckAuthStatusResponse { 
+  success: boolean; 
+  status?: 'authenticated' | 'unauthenticated' | 'expired'; 
+  error?: string; 
+  networkError?: boolean; 
+}
 export interface LogoutResponse { success: boolean; error?: string; }
 export interface RegisterMusicItem { title: string; artist: string; album: string; lyric: string; }
 export interface RegisterMusicListResponse { success: boolean; error?: string; }
@@ -47,6 +59,26 @@ export interface GetNowPlayingResponse {
   error?: string;
 }
 
+// ★ グローバルトースト通知用リスナー
+type ToastListener = (message: string) => void;
+let globalToastListener: ToastListener | null = null;
+let lastToastTime = 0;
+
+export const registerToastListener = (listener: ToastListener) => {
+  globalToastListener = listener;
+};
+
+export const triggerNoInternetToast = (language: LanguageCode = 'ja') => {
+  const now = Date.now();
+  // 3秒以内の重複トースト表示を抑制
+  if (now - lastToastTime > 3000) {
+    lastToastTime = now;
+    if (globalToastListener) {
+      globalToastListener(t('toast_no_internet', language));
+    }
+  }
+};
+
 export const getDeviceModelName = (): string => {
   let modelName = Platform.OS === 'ios' ? 'iPhone' : 'Android Device';
   try {
@@ -63,7 +95,8 @@ export const getDeviceOsInfo = (): string => {
   return Platform.OS === 'ios' ? `iOS ${Platform.Version}` : `Android ${Platform.Version}`;
 };
 
-const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 10000): Promise<Response> => {
+// タイムアウト付き fetch
+const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: number = 7000): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -72,8 +105,90 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
     return res;
   } catch (e: any) {
     clearTimeout(timeoutId);
+    triggerNoInternetToast();
     if (e.name === 'AbortError') throw new Error('通信がタイムアウトしました。');
     throw new Error('ネットワーク接続を確認してください。');
+  }
+};
+
+// ==============================================================
+// ★ オフラインキューの永続化 ＆ 自動バックグラウンド同期
+// ==============================================================
+let isProcessingQueue = false;
+
+export const enqueueOfflineRequest = async (operation: string, payload: any): Promise<void> => {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_API_QUEUE_KEY);
+    const queue: QueuedApiRequest[] = raw ? JSON.parse(raw) : [];
+
+    // 重複蓄積を防ぐ（同じキーの最新情報で置換・集約）
+    let filtered = queue;
+    if (operation === 'registerMusicList' || operation === 'registerPlaylist') {
+      filtered = queue.filter(q => q.operation !== operation);
+    }
+
+    filtered.push({
+      id: `queue_${Date.now()}_${Math.random()}`,
+      timestamp: Date.now(),
+      operation,
+      payload,
+    });
+
+    // 最大 100 件まで保持
+    await AsyncStorage.setItem(OFFLINE_API_QUEUE_KEY, JSON.stringify(filtered.slice(-100)));
+  } catch (e) {}
+};
+
+export const processOfflineQueue = async (): Promise<void> => {
+  if (isProcessingQueue) return;
+
+  try {
+    // ネットワーク接続状態を事前検証
+    const netState = await Network.getNetworkStateAsync();
+    if (!netState.isConnected || netState.isInternetReachable === false) {
+      return;
+    }
+
+    const raw = await AsyncStorage.getItem(OFFLINE_API_QUEUE_KEY);
+    if (!raw) return;
+    const queue: QueuedApiRequest[] = JSON.parse(raw);
+    if (queue.length === 0) return;
+
+    isProcessingQueue = true;
+    const remainingQueue: QueuedApiRequest[] = [];
+
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      try {
+        const response = await fetch(CHORDIA_SYNC_API_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json', 
+            'Accept': 'application/json', 
+            'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 
+            'X-ACCESS-KEY': HTTP_X_ACCESS_KEY 
+          },
+          body: JSON.stringify({
+            operation: item.operation,
+            ...item.payload,
+          }),
+        });
+        const data = await response.json();
+        if (data.error) {
+          // 認証切れ等のサーバーエラーは再送せず破棄
+          console.warn('[OfflineQueue] Server rejected request:', item.operation, data.error);
+        }
+      } catch (err) {
+        // 再び通信が途切れた場合は残りのキューを保存して次回に持ち越し
+        remainingQueue.push(...queue.slice(i));
+        break;
+      }
+    }
+
+    await AsyncStorage.setItem(OFFLINE_API_QUEUE_KEY, JSON.stringify(remainingQueue));
+  } catch (e) {
+  } finally {
+    isProcessingQueue = false;
   }
 };
 
@@ -143,12 +258,11 @@ export const registerAuthCodeApi = async (username: string, device: string, code
     if (data.error) return { success: false, error: String(data.error) };
     if (data.sid) return { success: true, sid: String(data.sid) };
     return { success: false, error: '有効なセッションIDが取得できませんでした' };
-  } catch (e: any) { return { success: false, error: e?.message || 'インターネット接続を確認してください' }; }
+  } catch (e: any) { 
+    return { success: false, error: e?.message || 'インターネット接続を確認してください' }; 
+  }
 };
 
-/**
- * ★ 認証ステータス確認API (ネットワーク接続エラー時に自動で最大3回連続リトライ)
- */
 export const checkAuthStatusApi = async (sid: string, name: string, device: string): Promise<CheckAuthStatusResponse> => {
   let attempts = 0;
   const maxAttempts = 3;
@@ -160,22 +274,20 @@ export const checkAuthStatusApi = async (sid: string, name: string, device: stri
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
         body: JSON.stringify({ operation: 'checkAlreadyLogin', SID: sid, name: name.trim(), device: device.trim() }),
-      }, 5000);
+      }, 7000);
       const data = JSON.parse(await response.text());
-      if (data.error) return { success: false, error: String(data.error) };
+      if (data.error) return { success: false, error: String(data.error), networkError: false };
       if (data.status) return { success: true, status: data.status };
-      return { success: false, error: '認証ステータスを取得できませんでした' };
+      return { success: false, error: '認証ステータスを取得できませんでした', networkError: false };
     } catch (e: any) {
-      // 3回連続ですべてネットワーク接続エラーだった場合にのみエラーを返却
       if (attempts >= maxAttempts) {
-        return { success: false, error: e?.message || '通信エラーが発生しました' };
+        return { success: false, error: e?.message || '通信エラーが発生しました', networkError: true };
       }
-      // 再試行前に少し待機 (500ms)
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 600));
     }
   }
 
-  return { success: false, error: '通信エラーが発生しました' };
+  return { success: false, error: '通信エラーが発生しました', networkError: true };
 };
 
 export const verifyChordiaSyncSession = async (showWarning = true, language: LanguageCode = 'ja'): Promise<boolean> => {
@@ -186,13 +298,24 @@ export const verifyChordiaSyncSession = async (showWarning = true, language: Lan
     if (!account?.sid || !account?.username) return false;
 
     const res = await checkAuthStatusApi(account.sid, account.username, account.deviceName || '');
-    if (res.success && res.status === 'authenticated') return true;
 
-    console.warn('[Chordia Sync] ❌ 認証が無効でした。認証情報を破棄します:', res);
+    if (res.success && res.status === 'authenticated') {
+      // 接続成功時は溜まっているオフラインキューの送信を試行
+      processOfflineQueue();
+      return true;
+    }
+
+    if (res.networkError) {
+      console.warn('[Chordia Sync] ⚠️ ネットワーク接続不可・遅延のためログインセッションを維持します。');
+      return false;
+    }
+
+    console.warn('[Chordia Sync] ❌ サーバーにより認証が無効と判定されました。ログアウトします:', res);
     await AsyncStorage.removeItem(ACCOUNT_STORAGE_KEY);
-    if (showWarning) Alert.alert(t('sync_auth_error_title', language), t('account_auth_invalid_warning', language));
     return false;
-  } catch (e) { return false; }
+  } catch (e) {
+    return false;
+  }
 };
 
 export const logoutApi = async (sid: string, name: string, device: string): Promise<LogoutResponse> => {
@@ -205,7 +328,9 @@ export const logoutApi = async (sid: string, name: string, device: string): Prom
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) { return { success: false, error: e?.message || 'ログアウト通信に失敗しました' }; }
+  } catch (e: any) { 
+    return { success: false, error: e?.message || 'ログアウト通信に失敗しました' }; 
+  }
 };
 
 export const registerMusicListApi = async (sid: string, musicList: RegisterMusicItem[]): Promise<RegisterMusicListResponse> => {
@@ -218,7 +343,11 @@ export const registerMusicListApi = async (sid: string, musicList: RegisterMusic
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) { return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' }; }
+  } catch (e: any) { 
+    // 失敗した場合はオフラインキューに退避して後で再送
+    await enqueueOfflineRequest('registerMusicList', { SID: sid, musicList });
+    return { success: false, error: e?.message || '楽曲一覧の送信に失敗しました' }; 
+  }
 };
 
 export const registerPlaylistApi = async (sid: string, playlist: any[]): Promise<RegisterPlaylistResponse> => {
@@ -231,7 +360,11 @@ export const registerPlaylistApi = async (sid: string, playlist: any[]): Promise
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) { return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' }; }
+  } catch (e: any) { 
+    // 失敗した場合はオフラインキューに退避して後で再送
+    await enqueueOfflineRequest('registerPlaylist', { SID: sid, playlist });
+    return { success: false, error: e?.message || 'プレイリストの送信に失敗しました' }; 
+  }
 };
 
 export const syncMusicAndPlaylistsToCloud = async (): Promise<void> => {
@@ -360,7 +493,10 @@ export const deletePlayHistorySingleApi = async (sid: string, item: PlayHistoryI
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) { return { success: false, error: e?.message || '削除通信に失敗しました' }; }
+  } catch (e: any) { 
+    await enqueueOfflineRequest('deletePlayHistory', { SID: sid, title: item.title, artist: item.artist, album: item.album, device: item.device, date: item.date });
+    return { success: false, error: e?.message || '削除通信に失敗しました' }; 
+  }
 };
 
 export const deletePlayHistoryBatchApi = async (sid: string, itemsToDelete: PlayHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
@@ -382,7 +518,10 @@ export const deleteWorkHistorySingleApi = async (sid: string, item: WorkHistoryI
     const data = JSON.parse(await response.text());
     if (data.error) return { success: false, error: String(data.error) };
     return { success: true };
-  } catch (e: any) { return { success: false, error: e?.message || '削除通信に失敗しました' }; }
+  } catch (e: any) { 
+    await enqueueOfflineRequest('deleteWorkHistory', { SID: sid, time: item.time, end: item.end, device: item.device });
+    return { success: false, error: e?.message || '削除通信に失敗しました' }; 
+  }
 };
 
 export const deleteWorkHistoryBatchApi = async (sid: string, itemsToDelete: WorkHistoryItem[]): Promise<{ success: boolean; deletedCount: number }> => {
@@ -395,51 +534,33 @@ export const deleteWorkHistoryBatchApi = async (sid: string, itemsToDelete: Work
 };
 
 export const addPlayHistoryApi = async (sid: string, title: string, artist: string, album: string): Promise<void> => {
-  const currentItem = { title: title || 'Untitled', artist: artist || 'Unknown', album: album || 'Unknown', sid };
-  let queue: any[] = [];
   try {
-    const raw = await AsyncStorage.getItem(PENDING_PLAY_HISTORY_KEY);
-    if (raw) queue = JSON.parse(raw);
-  } catch (e) {}
-  queue.push(currentItem);
-
-  const remainingQueue: any[] = [];
-  for (const item of queue) {
-    try {
-      const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
-        body: JSON.stringify({ operation: 'addPlayHistory', SID: item.sid || sid, title: item.title, artist: item.artist, album: item.album }),
-      }, 4000);
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-    } catch (e) { remainingQueue.push(item); }
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'addPlayHistory', SID: sid, title, artist, album }),
+    }, 4000);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    processOfflineQueue();
+  } catch (e) {
+    await enqueueOfflineRequest('addPlayHistory', { SID: sid, title, artist, album });
   }
-  await AsyncStorage.setItem(PENDING_PLAY_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
 export const addWorkHistoryApi = async (sid: string, end: string, time: string): Promise<void> => {
-  const currentItem = { end, time, sid };
-  let queue: any[] = [];
   try {
-    const raw = await AsyncStorage.getItem(PENDING_WORK_HISTORY_KEY);
-    if (raw) queue = JSON.parse(raw);
-  } catch (e) {}
-  queue.push(currentItem);
-
-  const remainingQueue: any[] = [];
-  for (const item of queue) {
-    try {
-      const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
-        body: JSON.stringify({ operation: 'addWorkHistory', SID: item.sid || sid, end: item.end, time: item.time }),
-      }, 4000);
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-    } catch (e) { remainingQueue.push(item); }
+    const response = await fetchWithTimeout(CHORDIA_SYNC_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'HTTP_X_ACCESS_KEY': HTTP_X_ACCESS_KEY, 'X-ACCESS-KEY': HTTP_X_ACCESS_KEY },
+      body: JSON.stringify({ operation: 'addWorkHistory', SID: sid, end, time }),
+    }, 4000);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    processOfflineQueue();
+  } catch (e) {
+    await enqueueOfflineRequest('addWorkHistory', { SID: sid, end, time });
   }
-  await AsyncStorage.setItem(PENDING_WORK_HISTORY_KEY, JSON.stringify(remainingQueue.slice(-50)));
 };
 
 export const syncInitialLocalHistory = async (sid: string, onProgress?: (msg: string) => void, language: LanguageCode = 'ja'): Promise<void> => {

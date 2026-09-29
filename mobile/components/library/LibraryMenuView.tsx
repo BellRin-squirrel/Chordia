@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Modal, 
-  TouchableWithoutFeedback, StyleSheet, Alert, AppState 
+  TouchableWithoutFeedback, StyleSheet, Alert, AppState, ActivityIndicator 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,39 +29,51 @@ export const LibraryMenuView = ({
   const [relayModalVisible, setRelayModalVisible] = useState(false);
   const [relayDevices, setRelayDevices] = useState<RelayDeviceItem[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // ★ API通信中ステート
+  const [isFetchingRelay, setIsFetchingRelay] = useState(false);
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const fetchRelayDevices = async () => {
-      if (AppState.currentState !== 'active') return;
+  const fetchRelayDevices = async (showLoading = false) => {
+    if (AppState.currentState !== 'active') return;
 
-      try {
-        const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-        if (!rawAccount) {
-          setIsLoggedIn(false);
-          setRelayDevices([]);
-          return;
-        }
-        const account = JSON.parse(rawAccount);
-        if (!account?.sid) {
-          setIsLoggedIn(false);
-          setRelayDevices([]);
-          return;
-        }
+    if (showLoading) {
+      setIsFetchingRelay(true);
+    }
 
-        setIsLoggedIn(true);
-        const res = await getNowPlayingApi(account.sid);
-        if (res.success && res.response) {
-          setRelayDevices(res.response);
-        }
-      } catch (e) {
+    try {
+      const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+      if (!rawAccount) {
         setIsLoggedIn(false);
         setRelayDevices([]);
+        if (showLoading) setIsFetchingRelay(false);
+        return;
       }
-    };
+      const account = JSON.parse(rawAccount);
+      if (!account?.sid) {
+        setIsLoggedIn(false);
+        setRelayDevices([]);
+        if (showLoading) setIsFetchingRelay(false);
+        return;
+      }
 
-    fetchRelayDevices();
-    pollingTimerRef.current = setInterval(fetchRelayDevices, 3500);
+      setIsLoggedIn(true);
+      const res = await getNowPlayingApi(account.sid);
+      if (res.success && res.response) {
+        setRelayDevices(res.response);
+      }
+    } catch (e) {
+      setIsLoggedIn(false);
+      setRelayDevices([]);
+    } finally {
+      if (showLoading) {
+        setIsFetchingRelay(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchRelayDevices(false);
+    pollingTimerRef.current = setInterval(() => fetchRelayDevices(false), 3500);
 
     return () => {
       if (pollingTimerRef.current) {
@@ -70,6 +82,12 @@ export const LibraryMenuView = ({
       }
     };
   }, []);
+
+  // ★ モーダルを開いた瞬間に通信中ステートにして即時APIを叩く
+  const handleOpenRelayModal = () => {
+    setRelayModalVisible(true);
+    fetchRelayDevices(true);
+  };
 
   const getPlaylistTypeLabel = (playlistID?: string) => {
     if (playlistID === 'album') return t('relay_type_album', language);
@@ -289,7 +307,7 @@ export const LibraryMenuView = ({
         
         <TouchableOpacity 
           style={s.cloudHeaderBtn}
-          onPress={() => setRelayModalVisible(true)}
+          onPress={handleOpenRelayModal}
           activeOpacity={0.7}
         >
           <Ionicons name="cloud-outline" size={24} color={themeColor} />
@@ -394,6 +412,14 @@ export const LibraryMenuView = ({
                     </Text>
                     <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 18 }}>
                       {t('relay_not_logged_in_desc', language)}
+                    </Text>
+                  </View>
+                ) : isFetchingRelay ? (
+                  /* ★ 通信中のローディング表示 */
+                  <View style={s.emptyBox}>
+                    <ActivityIndicator size="large" color={themeColor} />
+                    <Text style={{ color: dynamicStyles.text, fontSize: 14, fontWeight: 'bold', marginTop: 14, textAlign: 'center' }}>
+                      {t('relay_fetching_devices', language)}
                     </Text>
                   </View>
                 ) : relayDevices.length === 0 ? (
