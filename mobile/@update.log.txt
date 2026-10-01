@@ -1,4 +1,6 @@
-v6.0.0-beta3 Now Developing
+v6.0.0 Now Developing
+
+v6.0.0-beta3
 ・Chordia Relay のポップアップ画面で、最終更新日時が表示されるようになりました。
 ・Chordia Relay のポップアップ画面で手動更新ができるようになりました。
 
