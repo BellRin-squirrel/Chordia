@@ -1,4 +1,6 @@
-v6.0.0 Now Developing
+v6.0.0-beta3 Now Developing
+・Chordia Relay のポップアップ画面で、最終更新日時が表示されるようになりました。
+・Chordia Relay のポップアップ画面で手動更新ができるようになりました。
 
 v6.0.0-beta2
 ・ネットワークが不安定な場所でも Chordia Sync が誤作動を起こさないように修正しました。

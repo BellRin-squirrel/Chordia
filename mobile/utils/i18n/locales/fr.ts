@@ -480,4 +480,14 @@ export const fr: Record<string, string> = {
 
   relay_fetching_devices: 'Recherche des appareils en cours de lecture...',
   toast_no_internet: 'Impossible de se connecter à Internet',
+
+  relay_last_updated: 'Dernière mise à jour : ',
+  relay_updating: 'Mise à jour en cours...',
+  time_just_now: 'À l\'instant',
+  time_seconds_ago: 'il y a {count}s',
+  time_minutes_ago: 'il y a {count}m',
+  time_hours_ago: 'il y a {count}h',
+  time_weeks_ago: 'il y a {count} sem',
+  time_months_ago: 'il y a {count} mois',
+  time_years_ago: 'il y a {count} ans',
 };

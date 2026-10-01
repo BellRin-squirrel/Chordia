@@ -481,4 +481,14 @@ export const de: Record<string, string> = {
 
   relay_fetching_devices: 'Wiedergabegeräte werden gesucht...',
   toast_no_internet: 'Keine Internetverbindung',
+
+  relay_last_updated: 'Zuletzt aktualisiert: ',
+  relay_updating: 'Aktuelle Infos werden abgerufen...',
+  time_just_now: 'Gerade eben',
+  time_seconds_ago: 'vor {count}s',
+  time_minutes_ago: 'vor {count}m',
+  time_hours_ago: 'vor {count}h',
+  time_weeks_ago: 'vor {count} Wochen',
+  time_months_ago: 'vor {count} Monaten',
+  time_years_ago: 'vor {count} Jahren',
 };

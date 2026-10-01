@@ -481,4 +481,14 @@ export const ko: Record<string, string> = {
 
   relay_fetching_devices: '재생 중인 기기 확인 중...',
   toast_no_internet: '인터넷에 연결할 수 없습니다',
+
+  relay_last_updated: '최종 업데이트: ',
+  relay_updating: '최신 정보 가져오는 중...',
+  time_just_now: '방금 전',
+  time_seconds_ago: '{count}초 전',
+  time_minutes_ago: '{count}분 전',
+  time_hours_ago: '{count}시간 전',
+  time_weeks_ago: '{count}주 전',
+  time_months_ago: '{count}개월 전',
+  time_years_ago: '{count}년 전',
 };

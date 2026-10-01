@@ -16,6 +16,15 @@ import {
 } from '../../utils/chordiaSync';
 import { PlayCollectionContext } from '../../hooks/useAudioPlayer';
 
+const WEEKDAYS_MAP: Record<string, string[]> = {
+  ja: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  ko: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  es: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  fr: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+  de: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
+};
+
 export const LibraryMenuView = ({
   dynamicStyles, themeColor, insets, isLandscape, safePadding,
   pushView, recentlyPlayedSongs, recentlyPlayedCollections,
@@ -29,8 +38,12 @@ export const LibraryMenuView = ({
   const [relayModalVisible, setRelayModalVisible] = useState(false);
   const [relayDevices, setRelayDevices] = useState<RelayDeviceItem[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  // ★ API通信中ステート
   const [isFetchingRelay, setIsFetchingRelay] = useState(false);
+  const [lastUpdatedTime, setLastUpdatedTime] = useState<Date | null>(null);
+
+  // 相対時間表示のリアルタイム更新用ティック
+  const [, setTick] = useState(0);
+
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchRelayDevices = async (showLoading = false) => {
@@ -60,6 +73,7 @@ export const LibraryMenuView = ({
       const res = await getNowPlayingApi(account.sid);
       if (res.success && res.response) {
         setRelayDevices(res.response);
+        setLastUpdatedTime(new Date());
       }
     } catch (e) {
       setIsLoggedIn(false);
@@ -83,10 +97,58 @@ export const LibraryMenuView = ({
     };
   }, []);
 
-  // ★ モーダルを開いた瞬間に通信中ステートにして即時APIを叩く
+  // モーダル表示中は相対時間をリアルタイムに再計算
+  useEffect(() => {
+    let clockTimer: NodeJS.Timeout | null = null;
+    if (relayModalVisible) {
+      clockTimer = setInterval(() => {
+        setTick((t) => t + 1);
+      }, 5000);
+    }
+    return () => {
+      if (clockTimer) clearInterval(clockTimer);
+    };
+  }, [relayModalVisible]);
+
   const handleOpenRelayModal = () => {
     setRelayModalVisible(true);
     fetchRelayDevices(true);
+  };
+
+  // ★ 1分前、30秒前、木曜日、1週間前、1ヶ月前などを切り替える相対時間計算
+  const getFormattedRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffSec = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+
+    if (diffSec < 15) {
+      return t('time_just_now', language);
+    }
+    if (diffSec < 60) {
+      return t('time_seconds_ago', language).replace('{count}', String(diffSec));
+    }
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) {
+      return t('time_minutes_ago', language).replace('{count}', String(diffMin));
+    }
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) {
+      return t('time_hours_ago', language).replace('{count}', String(diffHours));
+    }
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) {
+      const weekdays = WEEKDAYS_MAP[language] || WEEKDAYS_MAP.ja;
+      return weekdays[date.getDay()];
+    }
+    const diffWeeks = Math.floor(diffDays / 7);
+    if (diffWeeks < 5) {
+      return t('time_weeks_ago', language).replace('{count}', String(diffWeeks));
+    }
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths < 12) {
+      return t('time_months_ago', language).replace('{count}', String(diffMonths));
+    }
+    const diffYears = Math.floor(diffDays / 365);
+    return t('time_years_ago', language).replace('{count}', String(diffYears));
   };
 
   const getPlaylistTypeLabel = (playlistID?: string) => {
@@ -404,6 +466,49 @@ export const LibraryMenuView = ({
                   {t('relay_modal_desc', language)}
                 </Text>
 
+                {/* ★ 最終更新日時・最新情報取得中ステータスバー */}
+                {isLoggedIn && (
+                  <View style={[s.statusRow, { borderColor: dynamicStyles.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                    {isFetchingRelay ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <ActivityIndicator size="small" color={themeColor} />
+                        <Text style={{ color: themeColor, fontSize: 12, fontWeight: '700' }}>
+                          {t('relay_updating', language)}
+                        </Text>
+                      </View>
+                    ) : (
+                      lastUpdatedTime ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <Ionicons name="time-outline" size={13} color={dynamicStyles.subText} />
+                          <Text style={{ color: dynamicStyles.subText, fontSize: 12, fontWeight: '500' }}>
+                            {t('relay_last_updated', language)}{getFormattedRelativeTime(lastUpdatedTime)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <ActivityIndicator size="small" color={themeColor} />
+                          <Text style={{ color: themeColor, fontSize: 12, fontWeight: '600' }}>
+                            {t('relay_updating', language)}
+                          </Text>
+                        </View>
+                      )
+                    )}
+
+                    <TouchableOpacity 
+                      onPress={() => fetchRelayDevices(true)}
+                      disabled={isFetchingRelay}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ padding: 2 }}
+                    >
+                      <Ionicons 
+                        name="refresh" 
+                        size={15} 
+                        color={isFetchingRelay ? dynamicStyles.border : dynamicStyles.subText} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {!isLoggedIn ? (
                   <View style={s.emptyBox}>
                     <Ionicons name="cloud-offline-outline" size={44} color="#ef4444" />
@@ -414,12 +519,11 @@ export const LibraryMenuView = ({
                       {t('relay_not_logged_in_desc', language)}
                     </Text>
                   </View>
-                ) : isFetchingRelay ? (
-                  /* ★ 通信中のローディング表示 */
+                ) : isFetchingRelay && relayDevices.length === 0 ? (
                   <View style={s.emptyBox}>
                     <ActivityIndicator size="large" color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 14, fontWeight: 'bold', marginTop: 14, textAlign: 'center' }}>
-                      {t('relay_fetching_devices', language)}
+                      {t('relay_updating', language)}
                     </Text>
                   </View>
                 ) : relayDevices.length === 0 ? (
@@ -485,7 +589,8 @@ const s = StyleSheet.create({
   modalCard: { width: '100%', maxWidth: 400, borderRadius: 24, padding: 20, borderWidth: 1.5, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 12 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  modalDesc: { fontSize: 12, marginBottom: 14, lineHeight: 18 },
+  modalDesc: { fontSize: 12, marginBottom: 12, lineHeight: 18 },
+  statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
   emptyBox: { alignItems: 'center', justifyContent: 'center', paddingVertical: 35 },
   deviceCard: { borderRadius: 16, padding: 14, borderWidth: 1, marginBottom: 10 },
   deviceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },

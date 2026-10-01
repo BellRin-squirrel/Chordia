@@ -481,4 +481,14 @@ export const es: Record<string, string> = {
 
   relay_fetching_devices: 'Buscando dispositivos en reproducción...',
   toast_no_internet: 'No se puede conectar a internet',
+
+  relay_last_updated: 'Última actualización: ',
+  relay_updating: 'Obteniendo última info...',
+  time_just_now: 'Ahora mismo',
+  time_seconds_ago: 'hace {count}s',
+  time_minutes_ago: 'hace {count}m',
+  time_hours_ago: 'hace {count}h',
+  time_weeks_ago: 'hace {count} sem',
+  time_months_ago: 'hace {count} meses',
+  time_years_ago: 'hace {count} años',
 };

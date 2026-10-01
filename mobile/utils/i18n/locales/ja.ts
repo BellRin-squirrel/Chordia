@@ -480,4 +480,14 @@ export const ja: Record<string, string> = {
 
   relay_fetching_devices: '再生デバイスを確認中...',
   toast_no_internet: 'インターネットに接続できません',
+
+  relay_last_updated: '最終更新: ',
+  relay_updating: '最新情報を取得中...',
+  time_just_now: 'たった今',
+  time_seconds_ago: '{count}秒前',
+  time_minutes_ago: '{count}分前',
+  time_hours_ago: '{count}時間前',
+  time_weeks_ago: '{count}週間前',
+  time_months_ago: '{count}ヶ月前',
+  time_years_ago: '{count}年前',
 };
