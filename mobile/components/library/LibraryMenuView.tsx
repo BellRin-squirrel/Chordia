@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { styles } from '../../styles/styles';
+import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../../styles/styles';
 import { RecentSection } from '../RecentSection';
 import { getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
@@ -41,9 +41,7 @@ export const LibraryMenuView = ({
   const [isFetchingRelay, setIsFetchingRelay] = useState(false);
   const [lastUpdatedTime, setLastUpdatedTime] = useState<Date | null>(null);
 
-  // 相対時間表示のリアルタイム更新用ティック
   const [, setTick] = useState(0);
-
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchRelayDevices = async (showLoading = false) => {
@@ -97,7 +95,6 @@ export const LibraryMenuView = ({
     };
   }, []);
 
-  // モーダル表示中は相対時間をリアルタイムに再計算
   useEffect(() => {
     let clockTimer: NodeJS.Timeout | null = null;
     if (relayModalVisible) {
@@ -115,7 +112,6 @@ export const LibraryMenuView = ({
     fetchRelayDevices(true);
   };
 
-  // ★ 1分前、30秒前、木曜日、1週間前、1ヶ月前などを切り替える相対時間計算
   const getFormattedRelativeTime = (date: Date): string => {
     const now = new Date();
     const diffSec = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
@@ -353,6 +349,7 @@ export const LibraryMenuView = ({
     <View style={{ flex: 1, backgroundColor: libraryBgColor }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: libraryBgColor, zIndex: -1 }} />
       
+      {/* ★ 横画面時の右余白にタブバー幅（LANDSCAPE_TAB_BAR_WIDTH + 16px）を適用して重なりを完全防止 */}
       <View style={[
         styles.headerBar, 
         { 
@@ -360,13 +357,16 @@ export const LibraryMenuView = ({
           paddingTop: insets?.top || 0, 
           height: 44 + (insets?.top || 0),
           paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20,
-          paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
+          paddingRight: isLandscape 
+            ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) 
+            : 20,
           justifyContent: 'space-between',
         }
       ]}>
         <View style={{ width: 36 }} />
         <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_player', language)}</Text>
         
+        {/* Chordia Relay ボタン */}
         <TouchableOpacity 
           style={s.cloudHeaderBtn}
           onPress={handleOpenRelayModal}
@@ -466,7 +466,7 @@ export const LibraryMenuView = ({
                   {t('relay_modal_desc', language)}
                 </Text>
 
-                {/* ★ 最終更新日時・最新情報取得中ステータスバー */}
+                {/* 最終更新日時・最新情報取得中ステータスバー */}
                 {isLoggedIn && (
                   <View style={[s.statusRow, { borderColor: dynamicStyles.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
                     {isFetchingRelay ? (
