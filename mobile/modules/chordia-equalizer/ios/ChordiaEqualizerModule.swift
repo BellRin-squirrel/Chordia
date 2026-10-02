@@ -7,6 +7,7 @@ public class ChordiaEqualizerModule: Module {
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
   
+  // 10バンド中心周波数 (Hz)
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
   private let audioEngine = AVAudioEngine()
@@ -128,10 +129,11 @@ public class ChordiaEqualizerModule: Module {
   private func setupAudioEngineNodes() {
     if isNodesAttached { return }
 
+    // ★ プロ仕様のバンド帯域幅（bandwidth = 1.3）に最適化し、音の変化が劇的に聴き取れるように設定
     for i in 0..<10 {
       let band = equalizerUnit.bands[i]
       band.frequency = centerFrequencies[i]
-      band.bandwidth = 1.0
+      band.bandwidth = (i == 0 || i == 9) ? 1.0 : 1.3
       band.gain = 0.0
       band.bypass = false
       if i == 0 {
@@ -175,6 +177,7 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
+  // ★ ハードウェアゲインの確実な反映
   private func updateEqualizerHardware() {
     equalizerUnit.bypass = !isEQEnabled
     equalizerUnit.globalGain = isEQEnabled ? currentPreamp : 0.0
@@ -186,7 +189,6 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ サンドボックスUUID変化やパーセントエンコードに対応する堅牢なファイル探索
   private func resolveFileURL(filePath: String) -> URL? {
     var cleanPath = filePath
     if cleanPath.hasPrefix("file://") {
@@ -249,10 +251,9 @@ public class ChordiaEqualizerModule: Module {
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      // ★ playerNode -> equalizerUnit は音源のフォーマットで接続
+      // playerNode -> equalizerUnit は音源フォーマット
       audioEngine.connect(playerNode, to: equalizerUnit, format: file.processingFormat)
-      
-      // ★ equalizerUnit -> mainMixerNode は format: nil を指定して自動サンプルレート変換（SRC）を実施
+      // equalizerUnit -> mainMixerNode は nil (自動SRC変換)
       audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
 
       try audioEngine.start()

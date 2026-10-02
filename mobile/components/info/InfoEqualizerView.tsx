@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
-import { applyEqualizerSettings, initEqualizer, setEqualizerBands, setEqualizerEnabled, getEqualizerDebugInfo } from '../../utils/equalizer';
+import { applyEqualizerSettings, initEqualizer, getEqualizerDebugInfo } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -126,6 +126,7 @@ export const InfoEqualizerView = ({
     return () => clearInterval(timer);
   }, []);
 
+  // ★ AsyncStorage への保存と同時に、再生中エンジンへの即時ホットスワップ通知を実行
   const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
     try {
       await AsyncStorage.setItem(STORAGE_EQ_KEY, JSON.stringify({ 
@@ -135,8 +136,12 @@ export const InfoEqualizerView = ({
         activePresetId: newActivePresetId 
       }));
 
-      setEqualizerEnabled(newEnabled);
-      setEqualizerBands(newBands.map(b => b.gain), newPreamp);
+      applyEqualizerSettings({
+        enabled: newEnabled,
+        preamp: newPreamp,
+        gains: newBands.map(b => b.gain),
+      });
+
       refreshDebugInfo();
     } catch (e) {}
   };
@@ -314,7 +319,7 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* ★ 詳細診断・状態確認デバッグパネル（タップで完全なログ詳細モーダルを表示） */}
+        {/* ★ 詳細診断・状態確認デバッグパネル */}
         <TouchableOpacity 
           style={[
             s.debugPanel, 
@@ -338,8 +343,12 @@ export const InfoEqualizerView = ({
             />
             <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
               {isNativeConnected 
-                ? (isEngineRunning ? `Native DSP: PLAYING (AVAudioEngine Active)` : (isEnabled ? `Native DSP: Standby (Enabled)` : `Native DSP: Off`))
-                : `Native DSP: Disconnected (Tap for details)`}
+                ? (isEngineRunning 
+                    ? `Native DSP: PLAYING (AVAudioEngine Active)` 
+                    : (Platform.OS === 'android' && isEnabled 
+                        ? `Native DSP: ACTIVE (Session: ${debugInfo?.activeSessionId}, Control=${debugInfo?.hasControl})` 
+                        : (isEnabled ? `Native DSP: Standby (Active on Track Start)` : `Native DSP: Off`)))
+                : `Native DSP: Disconnected`}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />
@@ -575,7 +584,7 @@ export const InfoEqualizerView = ({
         </View>
       </ScrollView>
 
-      {/* ★ 詳細デバッグ情報モーダル */}
+      {/* 詳細デバッグ情報モーダル */}
       <Modal visible={debugModalVisible} transparent animationType="fade">
         <View style={s.modalOverlay}>
           <View style={[s.debugModalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>

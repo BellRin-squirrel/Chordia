@@ -26,6 +26,24 @@ export interface EqualizerApplyPayload {
   gains: number[];
 }
 
+// ★ リアルタイム・ホットスワップ通知リスナー
+type EqualizerChangeListener = (payload: EqualizerApplyPayload) => void;
+const equalizerListeners: EqualizerChangeListener[] = [];
+
+export const addEqualizerChangeListener = (fn: EqualizerChangeListener) => {
+  equalizerListeners.push(fn);
+  return () => {
+    const idx = equalizerListeners.indexOf(fn);
+    if (idx !== -1) equalizerListeners.splice(idx, 1);
+  };
+};
+
+export const notifyEqualizerChange = (payload: EqualizerApplyPayload) => {
+  equalizerListeners.forEach((fn) => {
+    try { fn(payload); } catch (e) {}
+  });
+};
+
 export const initEqualizer = async (audioSessionId: number = 0): Promise<boolean> => {
   if (!NativeModule?.initEqualizer) return false;
   try {
@@ -51,15 +69,20 @@ export const setEqualizerBands = (gains: number[], preamp: number = 0): void => 
 };
 
 export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => {
-  if (!NativeModule) return;
-  try {
-    if (NativeModule.applySettings) {
-      NativeModule.applySettings(payload.enabled, payload.preamp, payload.gains);
-    } else {
-      NativeModule.setEnabled?.(payload.enabled);
-      NativeModule.setBands?.(payload.gains, payload.preamp);
-    }
-  } catch (e) {}
+  // 1. ネイティブハードウェアに適用
+  if (NativeModule) {
+    try {
+      if (NativeModule.applySettings) {
+        NativeModule.applySettings(payload.enabled, payload.preamp, payload.gains);
+      } else {
+        NativeModule.setEnabled?.(payload.enabled);
+        NativeModule.setBands?.(payload.gains, payload.preamp);
+      }
+    } catch (e) {}
+  }
+
+  // 2. ★ 再生中のオーディオプレイヤーエンジンへ即座に通知（ホットスワップ実行）
+  notifyEqualizerChange(payload);
 };
 
 export const getEqualizerDebugInfo = (): any => {
@@ -178,4 +201,5 @@ export default {
   getPositionIOS,
   getDurationIOS,
   isPlayingIOS,
+  addEqualizerChangeListener,
 };
