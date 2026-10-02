@@ -1,7 +1,6 @@
 v6.0.0 Now Developing
 
-v6.0.0-beta4 Now Developing
-実装確認事項
+v6.0.0-beta4
 ・横画面で再生タブ を開くと、タブバーとChordia Relay が重なって表示されてしまうというバグを修正しました。
 ・イコライザ機能が利用できないというバグを修正しました。
 
