@@ -126,7 +126,6 @@ export const InfoEqualizerView = ({
     return () => clearInterval(timer);
   }, []);
 
-  // ★ AsyncStorage への保存と同時に、再生中エンジンへの即時ホットスワップ通知を実行
   const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
     try {
       await AsyncStorage.setItem(STORAGE_EQ_KEY, JSON.stringify({ 
@@ -319,7 +318,7 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* ★ 詳細診断・状態確認デバッグパネル */}
+        {/* ★ Release ビルド対応・完全診断デバッグパネル */}
         <TouchableOpacity 
           style={[
             s.debugPanel, 
@@ -348,7 +347,7 @@ export const InfoEqualizerView = ({
                     : (Platform.OS === 'android' && isEnabled 
                         ? `Native DSP: ACTIVE (Session: ${debugInfo?.activeSessionId}, Control=${debugInfo?.hasControl})` 
                         : (isEnabled ? `Native DSP: Standby (Active on Track Start)` : `Native DSP: Off`)))
-                : `Native DSP: Disconnected`}
+                : `Native DSP: Disconnected (Tap for Log)`}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />

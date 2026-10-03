@@ -7,7 +7,6 @@ public class ChordiaEqualizerModule: Module {
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
   
-  // 10バンド中心周波数 (Hz)
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
   private let audioEngine = AVAudioEngine()
@@ -129,7 +128,6 @@ public class ChordiaEqualizerModule: Module {
   private func setupAudioEngineNodes() {
     if isNodesAttached { return }
 
-    // ★ プロ仕様のバンド帯域幅（bandwidth = 1.3）に最適化し、音の変化が劇的に聴き取れるように設定
     for i in 0..<10 {
       let band = equalizerUnit.bands[i]
       band.frequency = centerFrequencies[i]
@@ -177,7 +175,6 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ ハードウェアゲインの確実な反映
   private func updateEqualizerHardware() {
     equalizerUnit.bypass = !isEQEnabled
     equalizerUnit.globalGain = isEQEnabled ? currentPreamp : 0.0
@@ -253,7 +250,7 @@ public class ChordiaEqualizerModule: Module {
 
       // playerNode -> equalizerUnit は音源フォーマット
       audioEngine.connect(playerNode, to: equalizerUnit, format: file.processingFormat)
-      // equalizerUnit -> mainMixerNode は nil (自動SRC変換)
+      // equalizerUnit -> mainMixerNode は nil (自動SRC変換で不整合クラッシュをゼロ化)
       audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
 
       try audioEngine.start()

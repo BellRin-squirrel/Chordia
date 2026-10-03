@@ -14,8 +14,11 @@ const modDir = path.resolve("modules/chordia-equalizer");
 const iosDir = path.join(modDir, "ios");
 if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
 
+// ★ Release 最適化時にシンボル競合を起こす不要な旧 ObjC ブリッジやゴミファイルを完全自動削除
+const wrongBridge = path.join(iosDir, "ChordiaEqualizerBridge.m");
 const wrongPod1 = path.join(iosDir, "chordia-equalizer.podspec");
 const wrongPod2 = path.join(iosDir, "ChordiaEqualizer.podspec");
+if (fs.existsSync(wrongBridge)) fs.unlinkSync(wrongBridge);
 if (fs.existsSync(wrongPod1)) fs.unlinkSync(wrongPod1);
 if (fs.existsSync(wrongPod2)) fs.unlinkSync(wrongPod2);
 
