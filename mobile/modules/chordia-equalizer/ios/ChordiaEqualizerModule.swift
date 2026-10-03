@@ -7,6 +7,7 @@ public class ChordiaEqualizerModule: Module {
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
   
+  // 10バンド中心周波数 (Hz)
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
   private let audioEngine = AVAudioEngine()
@@ -175,12 +176,16 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
+  // ★ ハードウェアゲイン更新（ナイキスト周波数を考慮した安全ガード付き）
   private func updateEqualizerHardware() {
     equalizerUnit.bypass = !isEQEnabled
     equalizerUnit.globalGain = isEQEnabled ? currentPreamp : 0.0
 
+    let maxAllowedFreq = Float(fileSampleRate / 2.0) - 200.0
+
     for i in 0..<min(equalizerUnit.bands.count, currentGains.count) {
       let band = equalizerUnit.bands[i]
+      band.frequency = maxAllowedFreq > 1000.0 ? min(centerFrequencies[i], maxAllowedFreq) : centerFrequencies[i]
       band.gain = isEQEnabled ? currentGains[i] : 0.0
       band.bypass = !isEQEnabled
     }
@@ -220,7 +225,7 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
-  // ★ -10868 (FormatNotSupported) を撲滅した完全な音源ロード＆再生処理
+  // ★ モノラル・特殊サンプリングレート・全形式対応の完全音源ロード＆イコライザー接続処理
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -234,7 +239,7 @@ public class ChordiaEqualizerModule: Module {
       try session.setCategory(.playback, mode: .default, options: [])
       try session.setActive(true)
 
-      // ★ CoreAudio 準拠: 必ず 32-bit Float Non-Interleaved PCM 形式でデコードオープンする
+      // 1. ファイルを標準 Float32 non-interleaved でオープン
       let file = try AVAudioFile(
         forReading: url,
         commonFormat: .pcmFormatFloat32,
@@ -254,10 +259,23 @@ public class ChordiaEqualizerModule: Module {
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      // 32-bit Float Non-Interleaved 形式で接続（-10868 エラーを完全防止）
-      audioEngine.connect(playerNode, to: equalizerUnit, format: file.processingFormat)
-      // 出力ミキサーには format: nil で自動サンプルレート変換を適用
-      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
+      // 2. 出力ミキサーのステレオ標準フォーマットを取得
+      let mixerOutputFormat = audioEngine.mainMixerNode.outputFormat(forBus: 0)
+      let sampleRateToUse = mixerOutputFormat.sampleRate > 0 ? mixerOutputFormat.sampleRate : 44100.0
+
+      // ★ どんな音源（モノラル等）でも確実に EQ が通る標準ステレオ 2ch Float32 パイプラインを生成
+      guard let canonicalStereoFormat = AVAudioFormat(
+        standardFormatWithSampleRate: sampleRateToUse,
+        channels: 2
+      ) else {
+        self.lastErrorMessage = "Failed to create canonical stereo format"
+        return false
+      }
+
+      // playerNode -> equalizerUnit -> mainMixerNode を全曲共通の標準ステレオで直結
+      // （playerNode が音源フォーマットからこのステレオフォーマットへ自動リサンプリング＆展開）
+      audioEngine.connect(playerNode, to: equalizerUnit, format: canonicalStereoFormat)
+      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: canonicalStereoFormat)
 
       audioEngine.prepare()
       try audioEngine.start()
@@ -273,7 +291,7 @@ public class ChordiaEqualizerModule: Module {
         self.isNodePlaying = false
       }
 
-      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent))"
+      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), ch=\(file.processingFormat.channelCount), rate=\(file.processingFormat.sampleRate))"
       return true
     } catch let err as NSError {
       self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
