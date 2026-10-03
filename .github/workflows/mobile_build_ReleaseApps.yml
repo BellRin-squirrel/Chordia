@@ -28,7 +28,6 @@ jobs:
           expo-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      # ★ 不要な旧 ObjC ブリッジを削除し、Expo Local Module の設定を保証
       - name: Ensure Expo Local Module Setup
         run: |
           node -e '
@@ -41,7 +40,6 @@ jobs:
           if (!fs.existsSync(iosDir)) fs.mkdirSync(iosDir, { recursive: true });
           if (!fs.existsSync(androidDir)) fs.mkdirSync(androidDir, { recursive: true });
 
-          // ★ Release 最適化でシンボル重複を起こす旧 ObjC ブリッジを確実に自動削除
           const wrongBridge = path.join(iosDir, "ChordiaEqualizerBridge.m");
           const wrongPod1 = path.join(iosDir, "chordia-equalizer.podspec");
           const wrongPod2 = path.join(iosDir, "ChordiaEqualizer.podspec");
@@ -133,7 +131,6 @@ jobs:
       - name: Prebuild (Convert to Native Project)
         run: ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 
-      # ★ Xcode 16 の C++ fmt コンパイル設定を Podfile に注入
       - name: Configure Podfile for Xcode 16
         run: |
           node -e '
@@ -165,7 +162,6 @@ jobs:
           cd ios
           pod install
 
-      # ★ すべての fmt ヘッダーとソースに対する再帰的ディープパッチ
       - name: Deep Patch fmt library for Xcode 16
         run: |
           chmod -R u+w ios/Pods || true
@@ -224,7 +220,6 @@ jobs:
           PROJECT_NAME=$(ls ios | grep .xcworkspace | sed 's/\.xcworkspace//')
           echo "PROJECT_NAME=$PROJECT_NAME" >> $GITHUB_ENV
 
-      # ★ 生ログ保存＆失敗時詳細出力パイプライン
       - name: Make archive as for iPhones. (Unsigned)
         run: |
           set -o pipefail
@@ -362,6 +357,7 @@ jobs:
       - name: Give permission to prebuild
         run: chmod +x ./node_modules/.bin/expo
 
+      # ★ Android ビルドエラーを完全に解消するリフレクション型 audioSessionId パッチ
       - name: Patch react-native-track-player for Kotlin 2.x & New Architecture
         run: |
           node -e '
@@ -373,7 +369,7 @@ jobs:
             if (!content.includes("fun fromBundleSafe")) {
               const lastBraceIndex = content.lastIndexOf("}");
               if (lastBraceIndex !== -1) {
-                const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n\n    @com.facebook.react.bridge.ReactMethod\n    fun getAudioSessionId(promise: com.facebook.react.bridge.Promise) {\n        try {\n            val sid = musicService?.player?.player?.audioSessionId ?: 0\n            promise.resolve(sid)\n        } catch (e: Exception) {\n            promise.resolve(0)\n        }\n    }\n`;
+                const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n\n    @com.facebook.react.bridge.ReactMethod\n    fun getAudioSessionId(promise: com.facebook.react.bridge.Promise) {\n        try {\n            var sid = 0\n            val s = if (::musicService.isInitialized) musicService else null\n            if (s != null) {\n                for (f in s.javaClass.declaredFields) {\n                    f.isAccessible = true\n                    val p = f.get(s) ?: continue\n                    try {\n                        val m = p.javaClass.getMethod("getAudioSessionId")\n                        val r = m.invoke(p) as? Int ?: 0\n                        if (r > 0) { sid = r; break }\n                    } catch (e: Exception) {}\n                    for (inf in p.javaClass.declaredFields) {\n                        inf.isAccessible = true\n                        val inp = inf.get(p) ?: continue\n                        try {\n                            val m = inp.javaClass.getMethod("getAudioSessionId")\n                            val r = m.invoke(inp) as? Int ?: 0\n                            if (r > 0) { sid = r; break }\n                        } catch (e: Exception) {}\n                    }\n                    if (sid > 0) break\n                }\n            }\n            promise.resolve(sid)\n        } catch (e: Exception) {\n            promise.resolve(0)\n        }\n    }\n`;
                 content = content.slice(0, lastBraceIndex) + helper + content.slice(lastBraceIndex);
               }
             }

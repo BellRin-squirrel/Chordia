@@ -77,6 +77,7 @@ echo "📦 1/5 依存関係を確認中..."
 rm -rf node_modules/react-native-track-player
 npm install
 
+# ★ Android ビルドエラーを完全に解消するリフレクション型 audioSessionId パッチ
 echo "🛠️ 2/5 TrackPlayer パッチ (getAudioSessionId 追加) を適用中..."
 node -e '
 const fs = require("fs");
@@ -87,21 +88,7 @@ if (fs.existsSync(file)) {
   if (!content.includes("fun fromBundleSafe")) {
     const lastBraceIndex = content.lastIndexOf("}");
     if (lastBraceIndex !== -1) {
-      const helper = `
-    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {
-        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()
-    }
-
-    @com.facebook.react.bridge.ReactMethod
-    fun getAudioSessionId(promise: com.facebook.react.bridge.Promise) {
-        try {
-            val sid = musicService?.player?.player?.audioSessionId ?: 0
-            promise.resolve(sid)
-        } catch (e: Exception) {
-            promise.resolve(0)
-        }
-    }
-`;
+      const helper = `\n    private fun fromBundleSafe(bundle: android.os.Bundle?): com.facebook.react.bridge.WritableMap {\n        return if (bundle != null) com.facebook.react.bridge.Arguments.fromBundle(bundle) else com.facebook.react.bridge.Arguments.createMap()\n    }\n\n    @com.facebook.react.bridge.ReactMethod\n    fun getAudioSessionId(promise: com.facebook.react.bridge.Promise) {\n        try {\n            var sid = 0\n            val s = if (::musicService.isInitialized) musicService else null\n            if (s != null) {\n                for (f in s.javaClass.declaredFields) {\n                    f.isAccessible = true\n                    val p = f.get(s) ?: continue\n                    try {\n                        val m = p.javaClass.getMethod("getAudioSessionId")\n                        val r = m.invoke(p) as? Int ?: 0\n                        if (r > 0) { sid = r; break }\n                    } catch (e: Exception) {}\n                    for (inf in p.javaClass.declaredFields) {\n                        inf.isAccessible = true\n                        val inp = inf.get(p) ?: continue\n                        try {\n                            val m = inp.javaClass.getMethod("getAudioSessionId")\n                            val r = m.invoke(inp) as? Int ?: 0\n                            if (r > 0) { sid = r; break }\n                        } catch (e: Exception) {}\n                    }\n                    if (sid > 0) break\n                }\n            }\n            promise.resolve(sid)\n        } catch (e: Exception) {\n            promise.resolve(0)\n        }\n    }\n`;
       content = content.slice(0, lastBraceIndex) + helper + content.slice(lastBraceIndex);
     }
   }

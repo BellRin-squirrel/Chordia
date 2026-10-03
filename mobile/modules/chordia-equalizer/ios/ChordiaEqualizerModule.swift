@@ -220,6 +220,7 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
+  // ★ -10868 (FormatNotSupported) を撲滅した完全な音源ロード＆再生処理
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -233,7 +234,12 @@ public class ChordiaEqualizerModule: Module {
       try session.setCategory(.playback, mode: .default, options: [])
       try session.setActive(true)
 
-      let file = try AVAudioFile(forReading: url)
+      // ★ CoreAudio 準拠: 必ず 32-bit Float Non-Interleaved PCM 形式でデコードオープンする
+      let file = try AVAudioFile(
+        forReading: url,
+        commonFormat: .pcmFormatFloat32,
+        interleaved: false
+      )
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate
       self.fileTotalFrames = file.length
@@ -248,11 +254,12 @@ public class ChordiaEqualizerModule: Module {
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      // playerNode -> equalizerUnit は音源フォーマット
+      // 32-bit Float Non-Interleaved 形式で接続（-10868 エラーを完全防止）
       audioEngine.connect(playerNode, to: equalizerUnit, format: file.processingFormat)
-      // equalizerUnit -> mainMixerNode は nil (自動SRC変換で不整合クラッシュをゼロ化)
+      // 出力ミキサーには format: nil で自動サンプルレート変換を適用
       audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
 
+      audioEngine.prepare()
       try audioEngine.start()
       updateEqualizerHardware()
 
