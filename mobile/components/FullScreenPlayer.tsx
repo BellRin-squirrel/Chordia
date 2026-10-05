@@ -223,7 +223,6 @@ export const FullScreenPlayer = ({
     );
   };
 
-  // ★ コントロールセンター表示中もスライダーバーの位置を正確に維持
   const sliderPosition = playbackStatus?.positionMillis || 0;
   const sliderDuration = playbackStatus?.durationMillis || 100;
 
@@ -319,23 +318,26 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        {/* ★ 横画面左側バー：ご指示通りの4つのボタン構成（歌詞/キュー切り替え、AirPlay、シャッフル、ループ） */}
+        {/* 横画面左側バー：4つのボタン構成 */}
         <View style={{ width: 50, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15 }}>
           
-          {/* 1. 歌詞表示とキュー表示の切り替えボタン（アイコンが現在表示状態に応じて変化） */}
+          {/* ★ 1. 歌詞表示とキュー表示の切り替えボタン（どちらを表示中でも背景は常に透明・白アイコン） */}
           <BounceButton
             onPress={toggleLyricsOrQueueLandscape}
             underlayColor="rgba(255,255,255,0.15)"
             style={{ 
-              width: 44, height: 44, borderRadius: 22, 
-              backgroundColor: showLyrics ? themeColor : 'transparent', 
-              justifyContent: 'center', alignItems: 'center' 
+              width: 44, 
+              height: 44, 
+              borderRadius: 22, 
+              backgroundColor: 'transparent', 
+              justifyContent: 'center', 
+              alignItems: 'center' 
             }}
           >
             <Ionicons 
               name={showLyrics ? "musical-notes-outline" : "list"} 
               size={24} 
-              color={showLyrics ? activeIconColor : '#fff'} 
+              color="#fff" 
             />
           </BounceButton>
 
