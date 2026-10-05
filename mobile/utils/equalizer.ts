@@ -20,6 +20,8 @@ for (const name of candidateNames) {
   }
 }
 
+export const getNativeModule = () => NativeModule;
+
 export interface EqualizerApplyPayload {
   enabled: boolean;
   preamp: number;
@@ -81,7 +83,6 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
   notifyEqualizerChange(payload);
 };
 
-// ★ 再生エンジンモード ("rntp" or "expo-av") の切り替え通知
 export const setIosEqualizerEngineMode = (mode: 'rntp' | 'expo-av'): void => {
   if (Platform.OS !== 'ios' || !NativeModule?.setEngineMode) return;
   try {
@@ -89,7 +90,6 @@ export const setIosEqualizerEngineMode = (mode: 'rntp' | 'expo-av'): void => {
   } catch (e) {}
 };
 
-// ★ ロック画面・AirPods 情報更新のネイティブ送信
 export const updateIosNowPlaying = (
   title: string,
   artist: string,
@@ -214,6 +214,7 @@ export default {
   applyEqualizerSettings,
   setIosEqualizerEngineMode,
   updateIosNowPlaying,
+  getNativeModule,
   getEqualizerDebugInfo,
   loadAndPlayIOS,
   pauseIOS,

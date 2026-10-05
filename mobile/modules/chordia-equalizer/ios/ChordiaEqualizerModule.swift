@@ -1,12 +1,13 @@
 import ExpoModulesCore
 import AVFoundation
 import MediaPlayer
+import UIKit
 
 public class ChordiaEqualizerModule: Module {
   private var isEQEnabled: Bool = false
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
-  private var engineMode: String = "rntp" // "rntp" (LockScreen/AirPods) or "expo-av" (BGM/Mix)
+  private var engineMode: String = "rntp" // "rntp" or "expo-av"
   
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
@@ -18,6 +19,10 @@ public class ChordiaEqualizerModule: Module {
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
   private var seekOffsetSeconds: Double = 0.0
+  
+  // ★ 一時停止時に 0:00 に戻るのを防ぐための正確な保持位置
+  private var lastValidPositionSeconds: Double = 0.0
+  
   private var isNodePlaying: Bool = false
   private var isNodesAttached: Bool = false
   private var lastErrorMessage: String = "None"
@@ -28,6 +33,7 @@ public class ChordiaEqualizerModule: Module {
   private var currentTrackArtist: String = ""
   private var currentTrackAlbum: String = ""
   private var currentArtworkUri: String? = nil
+  private var currentDuration: Double = 0.0
 
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
@@ -36,7 +42,10 @@ public class ChordiaEqualizerModule: Module {
 
     OnCreate {
       self.setupAudioEngineNodes()
-      self.setupRemoteCommands()
+      DispatchQueue.main.async {
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+        self.setupRemoteCommands()
+      }
     }
 
     Function("initEqualizer") { (audioSessionId: Int) -> Bool in
@@ -62,7 +71,6 @@ public class ChordiaEqualizerModule: Module {
       self.updateEqualizerHardware()
     }
 
-    // ★ RNTPもどき (ロック画面/AirPods) ⇄ ExpoAudioもどき (BGM/Mix) のシームレス切り替え
     Function("setEngineMode") { (mode: String) in
       self.engineMode = mode
       self.applyAudioSessionCategory()
@@ -70,12 +78,12 @@ public class ChordiaEqualizerModule: Module {
       self.refreshNowPlayingInfo()
     }
 
-    // ★ ロック画面・コントロールセンターの楽曲情報更新
     Function("updateNowPlaying") { (title: String, artist: String, album: String, artworkUri: String?, duration: Double, position: Double, isPlaying: Bool) in
       self.currentTrackTitle = title
       self.currentTrackArtist = artist
       self.currentTrackAlbum = album
       self.currentArtworkUri = artworkUri
+      self.currentDuration = duration
       self.updateNowPlayingInfoCenter(duration: duration, position: position, isPlaying: isPlaying)
     }
 
@@ -84,6 +92,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("pause") { () -> Bool in
+      _ = self.getCurrentPosition() // 現在位置を確実にラッチ
       self.playerNode.pause()
       self.isNodePlaying = false
       self.updateNowPlayingPlaybackRate(isPlaying: false)
@@ -106,6 +115,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("stop") { () -> Bool in
+      _ = self.getCurrentPosition()
       self.playerNode.stop()
       self.isNodePlaying = false
       self.updateNowPlayingPlaybackRate(isPlaying: false)
@@ -126,7 +136,7 @@ public class ChordiaEqualizerModule: Module {
       if self.fileSampleRate > 0 && self.fileTotalFrames > 0 {
         return Double(self.fileTotalFrames) / self.fileSampleRate
       }
-      return 0.0
+      return self.currentDuration
     }
 
     Function("isPlaying") { () -> Bool in
@@ -184,15 +194,12 @@ public class ChordiaEqualizerModule: Module {
     applyAudioSessionCategory()
   }
 
-  // ★ 再生エンジンモードに応じた AudioSession 設定の適用
   private func applyAudioSessionCategory() {
     do {
       let session = AVAudioSession.sharedInstance()
       if engineMode == "expo-av" {
-        // ExpoAudioもどき: 他アプリの音声をミックス (BGMモード)
         try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
       } else {
-        // RNTPもどき: 他アプリを中断して高音質再生 (標準モード)
         try session.setCategory(.playback, mode: .default, options: [])
       }
       try session.setActive(true)
@@ -202,62 +209,49 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ AirPods ＆ ロック画面・コントロールセンターのリモート操作コマンド設定
+  // ★ ロック画面・コントロールセンターのリモートコマンド設定
   private func setupRemoteCommands() {
     let commandCenter = MPRemoteCommandCenter.shared()
 
+    commandCenter.playCommand.removeTarget(nil)
     commandCenter.playCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      if !self.audioEngine.isRunning { try? self.audioEngine.start() }
-      self.playerNode.play()
-      self.isNodePlaying = true
-      self.updateNowPlayingPlaybackRate(isPlaying: true)
       self.sendEvent("onRemoteCommand", ["action": "play"])
       return .success
     }
 
+    commandCenter.pauseCommand.removeTarget(nil)
     commandCenter.pauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      self.playerNode.pause()
-      self.isNodePlaying = false
-      self.updateNowPlayingPlaybackRate(isPlaying: false)
       self.sendEvent("onRemoteCommand", ["action": "pause"])
       return .success
     }
 
+    commandCenter.togglePlayPauseCommand.removeTarget(nil)
     commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      if self.isNodePlaying {
-        self.playerNode.pause()
-        self.isNodePlaying = false
-        self.updateNowPlayingPlaybackRate(isPlaying: false)
-        self.sendEvent("onRemoteCommand", ["action": "pause"])
-      } else {
-        if !self.audioEngine.isRunning { try? self.audioEngine.start() }
-        self.playerNode.play()
-        self.isNodePlaying = true
-        self.updateNowPlayingPlaybackRate(isPlaying: true)
-        self.sendEvent("onRemoteCommand", ["action": "play"])
-      }
+      self.sendEvent("onRemoteCommand", ["action": "togglePlayPause"])
       return .success
     }
 
+    commandCenter.nextTrackCommand.removeTarget(nil)
     commandCenter.nextTrackCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "next"])
       return .success
     }
 
+    commandCenter.previousTrackCommand.removeTarget(nil)
     commandCenter.previousTrackCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "prev"])
       return .success
     }
 
+    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
     commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
       guard let self = self, self.engineMode == "rntp",
             let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-      _ = self.seek(to: posEvent.positionTime)
       self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
       return .success
     }
@@ -276,7 +270,7 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
   }
 
-  // ★ ロック画面情報 (MPNowPlayingInfoCenter) の更新
+  // ★ iPad 大画面ロック画面に最適化された高解像度 MPMediaItemArtwork 生成
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
@@ -295,8 +289,18 @@ public class ChordiaEqualizerModule: Module {
 
       if let artPath = self.currentArtworkUri,
          let url = self.resolveFileURL(filePath: artPath),
-         let image = UIImage(contentsOfFile: url.path) {
-        info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+         let originalImage = UIImage(contentsOfFile: url.path) {
+        
+        // iPad の Retina 大画面に対応するため、最小 1024x1024 以上のバウンズサイズを確保
+        let targetDimension = max(originalImage.size.width, originalImage.size.height, 1024.0)
+        let artworkBounds = CGSize(width: targetDimension, height: targetDimension)
+
+        info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artworkBounds) { requestedSize in
+          let renderer = UIGraphicsImageRenderer(size: requestedSize)
+          return renderer.image { _ in
+            originalImage.draw(in: CGRect(origin: .zero, size: requestedSize))
+          }
+        }
       }
 
       MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -325,7 +329,7 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func refreshNowPlayingInfo() {
-    let dur = self.fileSampleRate > 0 ? Double(self.fileTotalFrames) / self.fileSampleRate : 0.0
+    let dur = self.fileSampleRate > 0 ? Double(self.fileTotalFrames) / self.fileSampleRate : self.currentDuration
     updateNowPlayingInfoCenter(duration: dur, position: getCurrentPosition(), isPlaying: isNodePlaying)
   }
 
@@ -419,12 +423,13 @@ public class ChordiaEqualizerModule: Module {
       }
 
       audioEngine.connect(playerNode, to: equalizerUnit, format: canonicalStereoFormat)
-      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: canonicalStereoFormat)
+      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
 
       audioEngine.prepare()
       try audioEngine.start()
       updateEqualizerHardware()
 
+      self.lastValidPositionSeconds = startSeconds
       scheduleAudioSegment(fromSeconds: startSeconds)
 
       if autoPlay {
@@ -454,10 +459,13 @@ public class ChordiaEqualizerModule: Module {
 
     if targetFrame >= totalFrames {
       seekOffsetSeconds = Double(totalFrames) / sampleRate
+      lastValidPositionSeconds = seekOffsetSeconds
       return
     }
 
     seekOffsetSeconds = Double(targetFrame) / sampleRate
+    lastValidPositionSeconds = seekOffsetSeconds
+
     let rawRemaining = max(0, totalFrames - targetFrame)
     let remainingFrames = AVAudioFrameCount(clamping: rawRemaining)
 
@@ -475,20 +483,25 @@ public class ChordiaEqualizerModule: Module {
     guard currentAudioFile != nil else { return false }
     let wasPlaying = self.isNodePlaying
 
+    lastValidPositionSeconds = seconds
     scheduleAudioSegment(fromSeconds: seconds)
     if wasPlaying {
       playerNode.play()
       self.isNodePlaying = true
+      updateNowPlayingPlaybackRate(isPlaying: true)
     }
     return true
   }
 
+  // ★ 停止中・再開時でも位置が 0:00 に飛ばない堅牢な位置算出
   private func getCurrentPosition() -> Double {
-    guard let lastRenderTime = playerNode.lastRenderTime,
-          let playerTime = playerNode.playerTime(forNodeTime: lastRenderTime) else {
-      return seekOffsetSeconds
+    if isNodePlaying,
+       let lastRenderTime = playerNode.lastRenderTime,
+       let playerTime = playerNode.playerTime(forNodeTime: lastRenderTime),
+       playerTime.sampleRate > 0 {
+      let playedSeconds = Double(playerTime.sampleTime) / playerTime.sampleRate
+      lastValidPositionSeconds = max(0.0, seekOffsetSeconds + playedSeconds)
     }
-    let playedSeconds = Double(playerTime.sampleTime) / playerTime.sampleRate
-    return max(0.0, seekOffsetSeconds + playedSeconds)
+    return lastValidPositionSeconds
   }
 }

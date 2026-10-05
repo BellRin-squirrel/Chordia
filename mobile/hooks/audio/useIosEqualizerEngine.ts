@@ -9,7 +9,8 @@ import {
   getDurationIOS, 
   isPlayingIOS,
   setIosEqualizerEngineMode,
-  updateIosNowPlaying
+  updateIosNowPlaying,
+  getNativeModule
 } from '../../utils/equalizer';
 
 export const useIosEqualizerEngine = (
@@ -28,6 +29,31 @@ export const useIosEqualizerEngine = (
   useEffect(() => {
     onRemoteCommandRef.current = onRemoteCommand;
   }, [onRemoteCommand]);
+
+  // ★ ネイティブからのリモート操作イベント (onRemoteCommand) を購読
+  useEffect(() => {
+    const mod = getNativeModule();
+    if (!mod) return;
+
+    let subscription: any = null;
+    try {
+      if (typeof mod.addListener === 'function') {
+        subscription = mod.addListener('onRemoteCommand', (event: any) => {
+          if (event && event.action && onRemoteCommandRef.current) {
+            onRemoteCommandRef.current(event.action, event.position);
+          }
+        });
+      }
+    } catch (e) {}
+
+    return () => {
+      try {
+        if (subscription && typeof subscription.remove === 'function') {
+          subscription.remove();
+        }
+      } catch (e) {}
+    };
+  }, []);
 
   const [playbackStatusIOSEQ, setPlaybackStatusIOSEQ] = useState({
     positionMillis: 0,
