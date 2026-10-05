@@ -28,6 +28,7 @@ export const useExpoAudioEngine = (onTrackEnded: () => void) => {
     configureExpoAudioMode();
   }, []);
 
+  // ★ 前のインスタンスを確実に完全同期停止・破棄するクリーンアップ
   const clearExpoResources = () => {
     if (expoStatusSubscriptionRef.current) {
       try {
@@ -44,12 +45,13 @@ export const useExpoAudioEngine = (onTrackEnded: () => void) => {
       expoPollingRef.current = null;
     }
     if (expoAudioPlayerRef.current) {
-      try {
-        expoAudioPlayerRef.current.pause?.();
-        expoAudioPlayerRef.current.remove?.();
-        expoAudioPlayerRef.current.release?.();
-      } catch (e) {}
+      const p = expoAudioPlayerRef.current;
       expoAudioPlayerRef.current = null;
+      try {
+        p.pause?.();
+        p.remove?.();
+        p.release?.();
+      } catch (e) {}
     }
   };
 

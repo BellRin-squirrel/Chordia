@@ -207,17 +207,12 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ コントロールセンター/ロック画面のボタンタップ時に即座に状態を確定させて戻す
   private func setupRemoteCommands() {
     let commandCenter = MPRemoteCommandCenter.shared()
 
     commandCenter.playCommand.removeTarget(nil)
     commandCenter.playCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      if !self.audioEngine.isRunning { try? self.audioEngine.start() }
-      self.playerNode.play()
-      self.isNodePlaying = true
-      self.updateNowPlayingPlaybackRate(isPlaying: true)
       self.sendEvent("onRemoteCommand", ["action": "play"])
       return .success
     }
@@ -225,9 +220,6 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.pauseCommand.removeTarget(nil)
     commandCenter.pauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      self.playerNode.pause()
-      self.isNodePlaying = false
-      self.updateNowPlayingPlaybackRate(isPlaying: false)
       self.sendEvent("onRemoteCommand", ["action": "pause"])
       return .success
     }
@@ -235,18 +227,7 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.togglePlayPauseCommand.removeTarget(nil)
     commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      if self.isNodePlaying {
-        self.playerNode.pause()
-        self.isNodePlaying = false
-        self.updateNowPlayingPlaybackRate(isPlaying: false)
-        self.sendEvent("onRemoteCommand", ["action": "pause"])
-      } else {
-        if !self.audioEngine.isRunning { try? self.audioEngine.start() }
-        self.playerNode.play()
-        self.isNodePlaying = true
-        self.updateNowPlayingPlaybackRate(isPlaying: true)
-        self.sendEvent("onRemoteCommand", ["action": "play"])
-      }
+      self.sendEvent("onRemoteCommand", ["action": "togglePlayPause"])
       return .success
     }
 
@@ -268,7 +249,6 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
       guard let self = self, self.engineMode == "rntp",
             let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-      _ = self.seek(to: posEvent.positionTime)
       self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
       return .success
     }
@@ -287,7 +267,6 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
   }
 
-  // ★ iPad の大画面ロック画面に最適化された高解像度 MPMediaItemArtwork 生成
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
@@ -397,6 +376,7 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
+  // ★ -10868 (FormatNotSupported) を完全に根絶するパイプライン接続
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -408,11 +388,8 @@ public class ChordiaEqualizerModule: Module {
     do {
       applyAudioSessionCategory()
 
-      let file = try AVAudioFile(
-        forReading: url,
-        commonFormat: .pcmFormatFloat32,
-        interleaved: false
-      )
+      // 音源ファイル本来のフォーマットでオープン
+      let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate
       self.fileTotalFrames = file.length
@@ -427,22 +404,33 @@ public class ChordiaEqualizerModule: Module {
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      let mixerOutputFormat = audioEngine.mainMixerNode.outputFormat(forBus: 0)
-      let sampleRateToUse = mixerOutputFormat.sampleRate > 0 ? mixerOutputFormat.sampleRate : 44100.0
+      let fileFormat = file.processingFormat
 
-      guard let canonicalStereoFormat = AVAudioFormat(
-        standardFormatWithSampleRate: sampleRateToUse,
-        channels: 2
-      ) else {
-        self.lastErrorMessage = "Failed to create canonical stereo format"
+      // ★ playerNode -> equalizerUnit -> mainMixerNode を fileFormat で統一接続し、
+      // 最終段の mainMixerNode に自動サンプルレート変換（SRC）を行わせる
+      var startSuccess = false
+      do {
+        audioEngine.connect(playerNode, to: equalizerUnit, format: fileFormat)
+        audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: fileFormat)
+        audioEngine.prepare()
+        try audioEngine.start()
+        startSuccess = true
+      } catch {
+        // 万が一のフォールバック接続
+        audioEngine.disconnectNodeOutput(playerNode)
+        audioEngine.disconnectNodeOutput(equalizerUnit)
+        audioEngine.connect(playerNode, to: equalizerUnit, format: nil)
+        audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
+        audioEngine.prepare()
+        try audioEngine.start()
+        startSuccess = true
+      }
+
+      if !startSuccess {
+        self.lastErrorMessage = "Failed to start audio engine"
         return false
       }
 
-      audioEngine.connect(playerNode, to: equalizerUnit, format: canonicalStereoFormat)
-      audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: nil)
-
-      audioEngine.prepare()
-      try audioEngine.start()
       updateEqualizerHardware()
 
       self.lastValidPositionSeconds = startSeconds
@@ -457,7 +445,7 @@ public class ChordiaEqualizerModule: Module {
       }
 
       refreshNowPlayingInfo()
-      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), ch=\(file.processingFormat.channelCount))"
+      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), rate=\(fileFormat.sampleRate), ch=\(fileFormat.channelCount))"
       return true
     } catch let err as NSError {
       self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
@@ -509,7 +497,6 @@ public class ChordiaEqualizerModule: Module {
     return true
   }
 
-  // ★ 一時停止中でも 0:00 に戻らず直前の位置をキープして返す
   private func getCurrentPosition() -> Double {
     if isNodePlaying,
        let lastRenderTime = playerNode.lastRenderTime,

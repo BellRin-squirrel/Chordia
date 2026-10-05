@@ -50,7 +50,6 @@ export const useAudioPlayer = () => {
   const rntp = useRntpEngine();
   const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
 
-  // ★ ロック画面・コントロールセンターからのリモート操作同期（play / pause の反転ループを完全防止）
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
     (action: string, param?: any) => {
@@ -296,8 +295,22 @@ export const useAudioPlayer = () => {
     } catch (e) {}
   };
 
+  // ★ スイッチのON/OFFが実際に切り替わった時のみ再ロードし、スライダー操作や画面表示時は再ロードしない
   useEffect(() => {
+    let lastKnownEnabled: boolean | null = null;
+
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
+      // 1. スライダー操作（ゲイン変更）時は、曲を再ロードせず即時ハードウェア反映のみ行う
+      if (lastKnownEnabled === payload.enabled) {
+        if (Platform.OS === 'android') {
+          rntp.syncAndroidEqualizerSession();
+        }
+        return;
+      }
+
+      lastKnownEnabled = payload.enabled;
+
+      // 2. 有効/無効スイッチが実際に切り替わった場合のみ、現在位置からシームレスに切り替える
       const current = queueMgr.currentSongRef.current;
       if (!current || !isPlaying) return;
 
@@ -311,16 +324,13 @@ export const useAudioPlayer = () => {
       }
 
       if (Platform.OS === 'ios') {
-        const shouldBeIOSEQ = payload.enabled;
-        if (shouldBeIOSEQ !== iosEq.isIOSEQActiveRef.current) {
-          loadAndPlayInternal(
-            current,
-            queueMgr.activeQueueRef.current,
-            queueMgr.indexRef.current,
-            curMs,
-            true
-          );
-        }
+        loadAndPlayInternal(
+          current,
+          queueMgr.activeQueueRef.current,
+          queueMgr.indexRef.current,
+          curMs,
+          true
+        );
       } else if (Platform.OS === 'android') {
         rntp.syncAndroidEqualizerSession();
       }

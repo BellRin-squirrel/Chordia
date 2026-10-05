@@ -7,7 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
-import { applyEqualizerSettings, initEqualizer, getEqualizerDebugInfo } from '../../utils/equalizer';
+import { 
+  applyEqualizerSettings, 
+  initEqualizer, 
+  setEqualizerEnabled, 
+  setEqualizerBands, 
+  getEqualizerDebugInfo 
+} from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
@@ -101,11 +107,9 @@ export const InfoEqualizerView = ({
           if (parsed.activePresetId !== undefined) setActivePresetId(parsed.activePresetId);
           setSliderVersion(prev => prev + 1);
 
-          applyEqualizerSettings({
-            enabled: loadedEnabled,
-            preamp: loadedPreamp,
-            gains: loadedBands.map((b: EqualizerBand) => b.gain),
-          });
+          // ★ 画面表示時の初期化では、プレイヤーへの通知を発火させずネイティブ値のみセット
+          setEqualizerEnabled(loadedEnabled);
+          setEqualizerBands(loadedBands.map((b: EqualizerBand) => b.gain), loadedPreamp);
         }
 
         const savedPresets = await AsyncStorage.getItem(STORAGE_CUSTOM_PRESETS_KEY);
@@ -135,6 +139,7 @@ export const InfoEqualizerView = ({
         activePresetId: newActivePresetId 
       }));
 
+      // ★ ユーザーが実際に操作した時のみプレイヤーへ通知
       applyEqualizerSettings({
         enabled: newEnabled,
         preamp: newPreamp,
@@ -318,7 +323,7 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* ★ Release ビルド対応・完全診断デバッグパネル */}
+        {/* 詳細診断・状態確認デバッグパネル */}
         <TouchableOpacity 
           style={[
             s.debugPanel, 
