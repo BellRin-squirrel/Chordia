@@ -46,17 +46,40 @@ export const useAudioPlayer = () => {
   const handleNextRef = useRef<() => void>(() => {});
   const handlePrevRef = useRef<() => void>(() => {});
   const togglePlayPauseRef = useRef<() => void>(() => {});
+  const setPositionAsyncRef = useRef<(v: number) => void>(() => {});
 
-  const rntp = useRntpEngine();
+  // ★ RNTP リモートコントロールハンドラー（ロック画面・コントロールセンター・AirPods の操作受付）
+  const rntp = useRntpEngine({
+    onPlay: () => {
+      if (!isPlaying) togglePlayPauseRef.current();
+    },
+    onPause: () => {
+      if (isPlaying) togglePlayPauseRef.current();
+    },
+    onTogglePlayPause: () => {
+      togglePlayPauseRef.current();
+    },
+    onNext: () => {
+      handleNextRef.current();
+    },
+    onPrev: () => {
+      handlePrevRef.current();
+    },
+    onSeek: (seconds) => {
+      setPositionAsyncRef.current(seconds * 1000);
+    },
+  });
+
   const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
 
+  // ★ iOS イコライザー動作時のリモートコントロールハンドラー
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
     (action: string, param?: any) => {
       if (action === 'play') {
-        setIsPlaying(true);
+        if (!isPlaying) togglePlayPauseRef.current();
       } else if (action === 'pause') {
-        setIsPlaying(false);
+        if (isPlaying) togglePlayPauseRef.current();
       } else if (action === 'togglePlayPause') {
         togglePlayPauseRef.current();
       } else if (action === 'next') {
@@ -64,7 +87,7 @@ export const useAudioPlayer = () => {
       } else if (action === 'prev') {
         handlePrevRef.current();
       } else if (action === 'seek' && typeof param === 'number') {
-        setPositionAsync(param * 1000);
+        setPositionAsyncRef.current(param * 1000);
       }
     }
   );
@@ -172,7 +195,7 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    // ★ iOS: イコライザ有効時はネイティブ AVAudioEngine（iPad 大画面対応）で再生
+    // iOS: イコライザ有効時はネイティブ AVAudioEngine で再生
     if (Platform.OS === 'ios' && isEQEnabled) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
@@ -642,6 +665,8 @@ export const useAudioPlayer = () => {
     }
     sync.sendNowPlayingUpdate(Math.floor(v / 1000));
   };
+
+  setPositionAsyncRef.current = setPositionAsync;
 
   const closeFullPlayer = () => {
     Animated.timing(slideAnim, { toValue: height, duration: 250, useNativeDriver: true }).start(() => { 

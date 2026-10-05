@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { EventEmitter } from 'expo-modules-core';
 import { 
   loadAndPlayIOS, 
   pauseIOS, 
@@ -30,20 +31,19 @@ export const useIosEqualizerEngine = (
     onRemoteCommandRef.current = onRemoteCommand;
   }, [onRemoteCommand]);
 
-  // ★ ネイティブからのリモート操作イベント (onRemoteCommand) を購読
+  // ★ EventEmitter を用いて Swift 側の onRemoteCommand イベントを確実に購読
   useEffect(() => {
     const mod = getNativeModule();
     if (!mod) return;
 
     let subscription: any = null;
     try {
-      if (typeof mod.addListener === 'function') {
-        subscription = mod.addListener('onRemoteCommand', (event: any) => {
-          if (event && event.action && onRemoteCommandRef.current) {
-            onRemoteCommandRef.current(event.action, event.position);
-          }
-        });
-      }
+      const emitter = new EventEmitter(mod);
+      subscription = emitter.addListener('onRemoteCommand', (event: any) => {
+        if (event && event.action && onRemoteCommandRef.current) {
+          onRemoteCommandRef.current(event.action, event.position);
+        }
+      });
     } catch (e) {}
 
     return () => {

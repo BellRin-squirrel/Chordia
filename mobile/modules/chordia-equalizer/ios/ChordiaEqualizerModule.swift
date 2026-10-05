@@ -33,6 +33,9 @@ public class ChordiaEqualizerModule: Module {
   private var currentArtworkUri: String? = nil
   private var currentDuration: Double = 0.0
 
+  // ★ RNTP側のハンドラーを破壊しないよう、自身の登録トークンのみを保持
+  private var remoteCommandTargetTokens: [Any] = []
+
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
@@ -42,7 +45,6 @@ public class ChordiaEqualizerModule: Module {
       self.setupAudioEngineNodes()
       DispatchQueue.main.async {
         UIApplication.shared.beginReceivingRemoteControlEvents()
-        self.setupRemoteCommands()
       }
     }
 
@@ -207,53 +209,68 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
+  // ★ RNTPを破壊しない安全なリモートコマンド登録
   private func setupRemoteCommands() {
+    clearRemoteCommandTargets()
+
     let commandCenter = MPRemoteCommandCenter.shared()
 
-    commandCenter.playCommand.removeTarget(nil)
-    commandCenter.playCommand.addTarget { [weak self] _ in
-      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+    let tPlay = commandCenter.playCommand.addTarget { [weak self] _ in
+      guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "play"])
       return .success
     }
 
-    commandCenter.pauseCommand.removeTarget(nil)
-    commandCenter.pauseCommand.addTarget { [weak self] _ in
-      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+    let tPause = commandCenter.pauseCommand.addTarget { [weak self] _ in
+      guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "pause"])
       return .success
     }
 
-    commandCenter.togglePlayPauseCommand.removeTarget(nil)
-    commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
-      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+    let tToggle = commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+      guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "togglePlayPause"])
       return .success
     }
 
-    commandCenter.nextTrackCommand.removeTarget(nil)
-    commandCenter.nextTrackCommand.addTarget { [weak self] _ in
-      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+    let tNext = commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+      guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "next"])
       return .success
     }
 
-    commandCenter.previousTrackCommand.removeTarget(nil)
-    commandCenter.previousTrackCommand.addTarget { [weak self] _ in
-      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+    let tPrev = commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+      guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "prev"])
       return .success
     }
 
-    commandCenter.changePlaybackPositionCommand.removeTarget(nil)
-    commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
-      guard let self = self, self.engineMode == "rntp",
+    let tSeek = commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+      guard let self = self, self.isIOSEQActive(),
             let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
       return .success
     }
 
+    remoteCommandTargetTokens = [tPlay, tPause, tToggle, tNext, tPrev, tSeek]
     updateRemoteCommandsState()
+  }
+
+  private func clearRemoteCommandTargets() {
+    let commandCenter = MPRemoteCommandCenter.shared()
+    for token in remoteCommandTargetTokens {
+      commandCenter.playCommand.removeTarget(token)
+      commandCenter.pauseCommand.removeTarget(token)
+      commandCenter.togglePlayPauseCommand.removeTarget(token)
+      commandCenter.nextTrackCommand.removeTarget(token)
+      commandCenter.previousTrackCommand.removeTarget(token)
+      commandCenter.changePlaybackPositionCommand.removeTarget(token)
+    }
+    remoteCommandTargetTokens.removeAll()
+  }
+
+  private func isIOSEQActive() -> Bool {
+    return isEQEnabled && isNodePlaying
   }
 
   private func updateRemoteCommandsState() {
@@ -267,7 +284,6 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
   }
 
-  // ★ iPad/iPhone の大画面ロック画面に最適化された高精細カバーアート生成
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
@@ -285,7 +301,6 @@ public class ChordiaEqualizerModule: Module {
         MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
       ]
 
-      // 画像の探索（カバー画像 → なければアプリアイコンをフォールバック）
       var loadedImage: UIImage? = nil
       if let artPath = self.currentArtworkUri,
          let url = self.resolveFileURL(filePath: artPath),
@@ -301,7 +316,6 @@ public class ChordiaEqualizerModule: Module {
       }
 
       if let originalImage = loadedImage {
-        // デバイスの画面サイズから最大解像度（Retinaスケール込み）を算定（iPadなら最低1536〜2048px以上）
         let screenSize = UIScreen.main.bounds.size
         let screenScale = UIScreen.main.scale
         let maxScreenDimension = max(screenSize.width, screenSize.height) * screenScale
@@ -460,6 +474,13 @@ public class ChordiaEqualizerModule: Module {
       }
 
       updateEqualizerHardware()
+
+      // ★ イコライザ再生時のみ自前でリモートコマンドをセットアップ
+      if engineMode == "rntp" {
+        setupRemoteCommands()
+      } else {
+        clearRemoteCommandTargets()
+      }
 
       self.lastValidPositionSeconds = startSeconds
       scheduleAudioSegment(fromSeconds: startSeconds)

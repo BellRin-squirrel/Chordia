@@ -13,7 +13,16 @@ import { isStatePlaying } from './types';
 
 let isRNTPInitialized = false;
 
-export const useRntpEngine = () => {
+interface UseRntpEngineHandlers {
+  onPlay?: () => void;
+  onPause?: () => void;
+  onTogglePlayPause?: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  onSeek?: (seconds: number) => void;
+}
+
+export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
   const rntpState = usePlaybackState();
   const rntpProgress = useProgress(250);
   const isRNTPPlaying = isStatePlaying(rntpState);
@@ -55,9 +64,22 @@ export const useRntpEngine = () => {
     try {
       await TrackPlayer.updateOptions({
         android: { appKilledBehavior: AppKilledPlaybackBehavior.ContinuePlayback, alwaysPauseOnInterruption: false },
-        capabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext, Capability.SkipToPrevious, Capability.SeekTo, Capability.Stop],
+        capabilities: [
+          Capability.Play, 
+          Capability.Pause, 
+          Capability.SkipToNext, 
+          Capability.SkipToPrevious, 
+          Capability.SeekTo, 
+          Capability.Stop
+        ],
         compactCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext],
-        notificationCapabilities: [Capability.Play, Capability.Pause, Capability.SkipToNext, Capability.SkipToPrevious, Capability.SeekTo],
+        notificationCapabilities: [
+          Capability.Play, 
+          Capability.Pause, 
+          Capability.SkipToNext, 
+          Capability.SkipToPrevious, 
+          Capability.SeekTo
+        ],
       });
     } catch (e) {}
   };
@@ -73,6 +95,37 @@ export const useRntpEngine = () => {
     };
     initRNTP();
   }, []);
+
+  // ★ ロック画面・コントロールセンター・AirPods 操作イベントの完全リスニング
+  useEffect(() => {
+    const subPlay = TrackPlayer.addEventListener(Event.RemotePlay, () => {
+      handlers?.onPlay?.();
+    });
+    const subPause = TrackPlayer.addEventListener(Event.RemotePause, () => {
+      handlers?.onPause?.();
+    });
+    const subToggle = TrackPlayer.addEventListener(Event.RemoteTogglePlayPause, () => {
+      handlers?.onTogglePlayPause?.();
+    });
+    const subNext = TrackPlayer.addEventListener(Event.RemoteNext, () => {
+      handlers?.onNext?.();
+    });
+    const subPrev = TrackPlayer.addEventListener(Event.RemotePrevious, () => {
+      handlers?.onPrev?.();
+    });
+    const subSeek = TrackPlayer.addEventListener(Event.RemoteSeek, (event) => {
+      handlers?.onSeek?.(event.position);
+    });
+
+    return () => {
+      subPlay.remove();
+      subPause.remove();
+      subToggle.remove();
+      subNext.remove();
+      subPrev.remove();
+      subSeek.remove();
+    };
+  }, [handlers]);
 
   return {
     rntpState,
