@@ -26,7 +26,6 @@ export interface EqualizerApplyPayload {
   gains: number[];
 }
 
-// ★ リアルタイム・ホットスワップ通知リスナー
 type EqualizerChangeListener = (payload: EqualizerApplyPayload) => void;
 const equalizerListeners: EqualizerChangeListener[] = [];
 
@@ -69,7 +68,6 @@ export const setEqualizerBands = (gains: number[], preamp: number = 0): void => 
 };
 
 export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => {
-  // 1. ネイティブハードウェアに適用
   if (NativeModule) {
     try {
       if (NativeModule.applySettings) {
@@ -80,9 +78,31 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
       }
     } catch (e) {}
   }
-
-  // 2. ★ 再生中のオーディオプレイヤーエンジンへ即座に通知（ホットスワップ実行）
   notifyEqualizerChange(payload);
+};
+
+// ★ 再生エンジンモード ("rntp" or "expo-av") の切り替え通知
+export const setIosEqualizerEngineMode = (mode: 'rntp' | 'expo-av'): void => {
+  if (Platform.OS !== 'ios' || !NativeModule?.setEngineMode) return;
+  try {
+    NativeModule.setEngineMode(mode);
+  } catch (e) {}
+};
+
+// ★ ロック画面・AirPods 情報更新のネイティブ送信
+export const updateIosNowPlaying = (
+  title: string,
+  artist: string,
+  album: string,
+  artworkUri: string | null,
+  duration: number,
+  position: number,
+  isPlaying: boolean
+): void => {
+  if (Platform.OS !== 'ios' || !NativeModule?.updateNowPlaying) return;
+  try {
+    NativeModule.updateNowPlaying(title, artist, album, artworkUri, duration, position, isPlaying);
+  } catch (e) {}
 };
 
 export const getEqualizerDebugInfo = (): any => {
@@ -192,6 +212,8 @@ export default {
   setEqualizerEnabled,
   setEqualizerBands,
   applyEqualizerSettings,
+  setIosEqualizerEngineMode,
+  updateIosNowPlaying,
   getEqualizerDebugInfo,
   loadAndPlayIOS,
   pauseIOS,

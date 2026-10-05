@@ -6,8 +6,8 @@ public class ChordiaEqualizerModule: Module {
   private var isEQEnabled: Bool = false
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
+  private var engineMode: String = "rntp" // "rntp" (LockScreen/AirPods) or "expo-av" (BGM/Mix)
   
-  // 10バンド中心周波数 (Hz)
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
   private let audioEngine = AVAudioEngine()
@@ -23,12 +23,20 @@ public class ChordiaEqualizerModule: Module {
   private var lastErrorMessage: String = "None"
   private var lastResolvedPath: String = "None"
   private var debugDiagnostics: [String: Any] = [:]
+  
+  private var currentTrackTitle: String = ""
+  private var currentTrackArtist: String = ""
+  private var currentTrackAlbum: String = ""
+  private var currentArtworkUri: String? = nil
 
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
+    Events("onRemoteCommand")
+
     OnCreate {
       self.setupAudioEngineNodes()
+      self.setupRemoteCommands()
     }
 
     Function("initEqualizer") { (audioSessionId: Int) -> Bool in
@@ -54,6 +62,23 @@ public class ChordiaEqualizerModule: Module {
       self.updateEqualizerHardware()
     }
 
+    // ★ RNTPもどき (ロック画面/AirPods) ⇄ ExpoAudioもどき (BGM/Mix) のシームレス切り替え
+    Function("setEngineMode") { (mode: String) in
+      self.engineMode = mode
+      self.applyAudioSessionCategory()
+      self.updateRemoteCommandsState()
+      self.refreshNowPlayingInfo()
+    }
+
+    // ★ ロック画面・コントロールセンターの楽曲情報更新
+    Function("updateNowPlaying") { (title: String, artist: String, album: String, artworkUri: String?, duration: Double, position: Double, isPlaying: Bool) in
+      self.currentTrackTitle = title
+      self.currentTrackArtist = artist
+      self.currentTrackAlbum = album
+      self.currentArtworkUri = artworkUri
+      self.updateNowPlayingInfoCenter(duration: duration, position: position, isPlaying: isPlaying)
+    }
+
     Function("loadAndPlay") { (filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool in
       return self.loadAndPlayFile(filePath: filePath, startSeconds: startSeconds, autoPlay: autoPlay)
     }
@@ -61,6 +86,7 @@ public class ChordiaEqualizerModule: Module {
     Function("pause") { () -> Bool in
       self.playerNode.pause()
       self.isNodePlaying = false
+      self.updateNowPlayingPlaybackRate(isPlaying: false)
       return true
     }
 
@@ -75,17 +101,21 @@ public class ChordiaEqualizerModule: Module {
       }
       self.playerNode.play()
       self.isNodePlaying = true
+      self.updateNowPlayingPlaybackRate(isPlaying: true)
       return true
     }
 
     Function("stop") { () -> Bool in
       self.playerNode.stop()
       self.isNodePlaying = false
+      self.updateNowPlayingPlaybackRate(isPlaying: false)
       return true
     }
 
     Function("seekTo") { (seconds: Double) -> Bool in
-      return self.seek(to: seconds)
+      let res = self.seek(to: seconds)
+      self.updateNowPlayingPosition(seconds: seconds)
+      return res
     }
 
     Function("getPosition") { () -> Double in
@@ -108,6 +138,7 @@ public class ChordiaEqualizerModule: Module {
       return [
         "platform": "iOS",
         "isNativeConnected": true,
+        "engineMode": self.engineMode,
         "isEngineRunning": self.audioEngine.isRunning,
         "isPlayerPlaying": self.playerNode.isPlaying,
         "isEQEnabled": self.isEQEnabled,
@@ -150,33 +181,154 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    var diagSteps: [String] = []
-    let session = AVAudioSession.sharedInstance()
-    diagSteps.append("Initial: cat=\(session.category.rawValue), mode=\(session.mode.rawValue), opt=\(session.categoryOptions.rawValue)")
+    applyAudioSessionCategory()
+  }
 
+  // ★ 再生エンジンモードに応じた AudioSession 設定の適用
+  private func applyAudioSessionCategory() {
     do {
-      try session.setCategory(.playback, mode: .default, options: [])
-      diagSteps.append("setCategory(.playback, .default, []): SUCCESS")
-    } catch let err as NSError {
-      diagSteps.append("setCategory FAILED: code=\(err.code), desc=\(err.localizedDescription)")
-    }
-
-    do {
+      let session = AVAudioSession.sharedInstance()
+      if engineMode == "expo-av" {
+        // ExpoAudioもどき: 他アプリの音声をミックス (BGMモード)
+        try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      } else {
+        // RNTPもどき: 他アプリを中断して高音質再生 (標準モード)
+        try session.setCategory(.playback, mode: .default, options: [])
+      }
       try session.setActive(true)
-      diagSteps.append("setActive(true): SUCCESS")
+      self.lastErrorMessage = "None (AudioSession configured: \(engineMode))"
     } catch let err as NSError {
-      diagSteps.append("setActive(true) FAILED: code=\(err.code), desc=\(err.localizedDescription)")
-    }
-
-    self.debugDiagnostics["setupSessionSteps"] = diagSteps
-    if diagSteps.contains(where: { $0.contains("FAILED") }) {
-      self.lastErrorMessage = diagSteps.filter { $0.contains("FAILED") }.joined(separator: " | ")
-    } else {
-      self.lastErrorMessage = "None (AudioSession initialized successfully)"
+      self.lastErrorMessage = "AudioSession error: \(err.localizedDescription)"
     }
   }
 
-  // ★ ハードウェアゲイン更新（ナイキスト周波数を考慮した安全ガード付き）
+  // ★ AirPods ＆ ロック画面・コントロールセンターのリモート操作コマンド設定
+  private func setupRemoteCommands() {
+    let commandCenter = MPRemoteCommandCenter.shared()
+
+    commandCenter.playCommand.addTarget { [weak self] _ in
+      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      if !self.audioEngine.isRunning { try? self.audioEngine.start() }
+      self.playerNode.play()
+      self.isNodePlaying = true
+      self.updateNowPlayingPlaybackRate(isPlaying: true)
+      self.sendEvent("onRemoteCommand", ["action": "play"])
+      return .success
+    }
+
+    commandCenter.pauseCommand.addTarget { [weak self] _ in
+      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      self.playerNode.pause()
+      self.isNodePlaying = false
+      self.updateNowPlayingPlaybackRate(isPlaying: false)
+      self.sendEvent("onRemoteCommand", ["action": "pause"])
+      return .success
+    }
+
+    commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      if self.isNodePlaying {
+        self.playerNode.pause()
+        self.isNodePlaying = false
+        self.updateNowPlayingPlaybackRate(isPlaying: false)
+        self.sendEvent("onRemoteCommand", ["action": "pause"])
+      } else {
+        if !self.audioEngine.isRunning { try? self.audioEngine.start() }
+        self.playerNode.play()
+        self.isNodePlaying = true
+        self.updateNowPlayingPlaybackRate(isPlaying: true)
+        self.sendEvent("onRemoteCommand", ["action": "play"])
+      }
+      return .success
+    }
+
+    commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      self.sendEvent("onRemoteCommand", ["action": "next"])
+      return .success
+    }
+
+    commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+      guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      self.sendEvent("onRemoteCommand", ["action": "prev"])
+      return .success
+    }
+
+    commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+      guard let self = self, self.engineMode == "rntp",
+            let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+      _ = self.seek(to: posEvent.positionTime)
+      self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
+      return .success
+    }
+
+    updateRemoteCommandsState()
+  }
+
+  private func updateRemoteCommandsState() {
+    let commandCenter = MPRemoteCommandCenter.shared()
+    let isRntp = (engineMode == "rntp")
+    commandCenter.playCommand.isEnabled = isRntp
+    commandCenter.pauseCommand.isEnabled = isRntp
+    commandCenter.togglePlayPauseCommand.isEnabled = isRntp
+    commandCenter.nextTrackCommand.isEnabled = isRntp
+    commandCenter.previousTrackCommand.isEnabled = isRntp
+    commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
+  }
+
+  // ★ ロック画面情報 (MPNowPlayingInfoCenter) の更新
+  private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
+    DispatchQueue.main.async {
+      guard self.engineMode == "rntp" else {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        return
+      }
+
+      var info: [String: Any] = [
+        MPMediaItemPropertyTitle: self.currentTrackTitle,
+        MPMediaItemPropertyArtist: self.currentTrackArtist,
+        MPMediaItemPropertyAlbumTitle: self.currentTrackAlbum,
+        MPMediaItemPropertyPlaybackDuration: duration,
+        MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
+        MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+      ]
+
+      if let artPath = self.currentArtworkUri,
+         let url = self.resolveFileURL(filePath: artPath),
+         let image = UIImage(contentsOfFile: url.path) {
+        info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+      }
+
+      MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+  }
+
+  private func updateNowPlayingPlaybackRate(isPlaying: Bool) {
+    guard engineMode == "rntp" else { return }
+    DispatchQueue.main.async {
+      if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.getCurrentPosition()
+        info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+      }
+    }
+  }
+
+  private func updateNowPlayingPosition(seconds: Double) {
+    guard engineMode == "rntp" else { return }
+    DispatchQueue.main.async {
+      if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = seconds
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+      }
+    }
+  }
+
+  private func refreshNowPlayingInfo() {
+    let dur = self.fileSampleRate > 0 ? Double(self.fileTotalFrames) / self.fileSampleRate : 0.0
+    updateNowPlayingInfoCenter(duration: dur, position: getCurrentPosition(), isPlaying: isNodePlaying)
+  }
+
   private func updateEqualizerHardware() {
     equalizerUnit.bypass = !isEQEnabled
     equalizerUnit.globalGain = isEQEnabled ? currentPreamp : 0.0
@@ -225,7 +377,6 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
-  // ★ モノラル・特殊サンプリングレート・全形式対応の完全音源ロード＆イコライザー接続処理
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -235,11 +386,8 @@ public class ChordiaEqualizerModule: Module {
     }
 
     do {
-      let session = AVAudioSession.sharedInstance()
-      try session.setCategory(.playback, mode: .default, options: [])
-      try session.setActive(true)
+      applyAudioSessionCategory()
 
-      // 1. ファイルを標準 Float32 non-interleaved でオープン
       let file = try AVAudioFile(
         forReading: url,
         commonFormat: .pcmFormatFloat32,
@@ -259,11 +407,9 @@ public class ChordiaEqualizerModule: Module {
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
 
-      // 2. 出力ミキサーのステレオ標準フォーマットを取得
       let mixerOutputFormat = audioEngine.mainMixerNode.outputFormat(forBus: 0)
       let sampleRateToUse = mixerOutputFormat.sampleRate > 0 ? mixerOutputFormat.sampleRate : 44100.0
 
-      // ★ どんな音源（モノラル等）でも確実に EQ が通る標準ステレオ 2ch Float32 パイプラインを生成
       guard let canonicalStereoFormat = AVAudioFormat(
         standardFormatWithSampleRate: sampleRateToUse,
         channels: 2
@@ -272,8 +418,6 @@ public class ChordiaEqualizerModule: Module {
         return false
       }
 
-      // playerNode -> equalizerUnit -> mainMixerNode を全曲共通の標準ステレオで直結
-      // （playerNode が音源フォーマットからこのステレオフォーマットへ自動リサンプリング＆展開）
       audioEngine.connect(playerNode, to: equalizerUnit, format: canonicalStereoFormat)
       audioEngine.connect(equalizerUnit, to: audioEngine.mainMixerNode, format: canonicalStereoFormat)
 
@@ -291,7 +435,8 @@ public class ChordiaEqualizerModule: Module {
         self.isNodePlaying = false
       }
 
-      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), ch=\(file.processingFormat.channelCount), rate=\(file.processingFormat.sampleRate))"
+      refreshNowPlayingInfo()
+      self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), ch=\(file.processingFormat.channelCount))"
       return true
     } catch let err as NSError {
       self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
@@ -320,6 +465,7 @@ public class ChordiaEqualizerModule: Module {
       DispatchQueue.main.async {
         if let self = self, self.isNodePlaying {
           self.isNodePlaying = false
+          self.updateNowPlayingPlaybackRate(isPlaying: false)
         }
       }
     }

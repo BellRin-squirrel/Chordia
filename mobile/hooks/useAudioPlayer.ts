@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Platform } from 'react-native';
+import { Animated, Dimensions, Platform, NativeEventEmitter } from 'react-native';
 import TrackPlayer, { RepeatMode, Event } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -18,7 +18,8 @@ import {
   initEqualizer, 
   applyEqualizerSettings, 
   addEqualizerChangeListener, 
-  EqualizerApplyPayload 
+  EqualizerApplyPayload,
+  requireNativeModule
 } from '../utils/equalizer';
 
 export type { PlayCollectionContext };
@@ -41,14 +42,25 @@ export const useAudioPlayer = () => {
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
 
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
-  const isSkippingRef = useRef(false);
 
   const queueMgr = useQueueManager();
   const handleNextRef = useRef<() => void>(() => {});
+  const handlePrevRef = useRef<() => void>(() => {});
+  const togglePlayPauseRef = useRef<() => void>(() => {});
 
   const rntp = useRntpEngine();
   const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
-  const iosEq = useIosEqualizerEngine(() => handleNextRef.current());
+
+  // ★ iOS イコライザーエンジン初期化（AirPods / ロック画面操作イベントの同期受信）
+  const iosEq = useIosEqualizerEngine(
+    () => handleNextRef.current(),
+    (action: string, param?: any) => {
+      if (action === 'play') togglePlayPauseRef.current();
+      else if (action === 'pause') togglePlayPauseRef.current();
+      else if (action === 'next') handleNextRef.current();
+      else if (action === 'prev') handlePrevRef.current();
+    }
+  );
 
   const sync = usePlayerSync({
     isPlaying,
@@ -85,7 +97,11 @@ export const useAudioPlayer = () => {
   // 初期化
   useEffect(() => {
     AsyncStorage.getItem('audioEngine').then((val) => {
-      if (val === 'expo-av' || val === 'rntp') setAudioEngine(val);
+      const mode = (val === 'expo-av' || val === 'rntp') ? val : 'rntp';
+      setAudioEngine(mode);
+      if (Platform.OS === 'ios') {
+        iosEq.setEngineMode(mode);
+      }
     });
 
     (async () => {
@@ -142,6 +158,7 @@ export const useAudioPlayer = () => {
     targetEngine?: AudioEngineType
   ) => {
     const targetSeconds = startPositionMs > 0 ? startPositionMs / 1000 : 0;
+    const engineToUse = targetEngine || audioEngine;
 
     let isEQEnabled = false;
     try {
@@ -149,16 +166,29 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    // ★ iOS: イコライザ有効時はネイティブ AVAudioEngine で再生
+    // ★ iOS: イコライザ有効時は「RNTPもどき」または「ExpoAudioもどき」としてネイティブ再生
     if (Platform.OS === 'ios' && isEQEnabled) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
 
+      iosEq.setEngineMode(engineToUse);
       const success = iosEq.loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
       if (success) {
         iosEq.isIOSEQActiveRef.current = true;
         setIsPlaying(shouldPlay);
         iosEq.startIOSEQPolling(setIsPlaying);
+
+        // ★ ロック画面 ＆ コントロールセンターへ情報を伝達
+        const dur = (song.duration || 0) > 0 ? song.duration : 180;
+        iosEq.updateNowPlaying(
+          song.title || 'Untitled',
+          song.artist || 'Unknown Artist',
+          song.album || 'Unknown Album',
+          song.localImageUri || null,
+          dur,
+          targetSeconds,
+          shouldPlay
+        );
 
         if (shouldPlay) sync.sendNowPlayingUpdate(Math.floor(targetSeconds));
 
@@ -173,8 +203,6 @@ export const useAudioPlayer = () => {
 
     iosEq.isIOSEQActiveRef.current = false;
     iosEq.stopIosEQ();
-
-    const engineToUse = targetEngine || audioEngine;
 
     try {
       if (engineToUse === 'rntp') {
@@ -262,13 +290,12 @@ export const useAudioPlayer = () => {
     } catch (e) {}
   };
 
-  // ★ 楽曲再生中のイコライザ ON / OFF ホットスワップ（即時切り替え）リスナー
+  // ★ 楽曲再生中のイコライザ ON / OFF ホットスワップ
   useEffect(() => {
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
       const current = queueMgr.currentSongRef.current;
       if (!current || !isPlaying) return;
 
-      // 現在の正確な再生位置 (ms) を取得
       let curMs = 0;
       if (iosEq.isIOSEQActiveRef.current) {
         curMs = iosEq.getPositionIOS() * 1000;
@@ -279,7 +306,6 @@ export const useAudioPlayer = () => {
       }
 
       if (Platform.OS === 'ios') {
-        // iOS: ON に切り替わった場合、または OFF に切り替わった場合、即座にエンジンをスワップ
         const shouldBeIOSEQ = payload.enabled;
         if (shouldBeIOSEQ !== iosEq.isIOSEQActiveRef.current) {
           loadAndPlayInternal(
@@ -291,7 +317,6 @@ export const useAudioPlayer = () => {
           );
         }
       } else if (Platform.OS === 'android') {
-        // Android: 再生中セッションにリアルタイムでゲインを直ちに再プッシュ
         rntp.syncAndroidEqualizerSession();
       }
     });
@@ -299,35 +324,51 @@ export const useAudioPlayer = () => {
     return () => unsub();
   }, [isPlaying, audioEngine]);
 
-  const changeAudioEngine = async (engine: AudioEngineType) => {
-    if (engine === audioEngine) return;
+  // ★ RNTP ⇄ ExpoAudio 切り替え時、再生位置を完全維持したままシームレスに継続再生
+  const changeAudioEngine = async (newEngine: AudioEngineType) => {
+    if (newEngine === audioEngine) return;
     const wasPlaying = isPlaying;
-    const currentSongToRestore = queueMgr.currentSongRef.current;
-    let currentPosition = 0;
+    const current = queueMgr.currentSongRef.current;
 
+    // 現在の正確な再生位置 (ms) を取得
+    let curPositionMs = 0;
     if (iosEq.isIOSEQActiveRef.current) {
-      currentPosition = (iosEq.getPositionIOS() || 0) * 1000;
-      iosEq.stopIosEQ();
+      curPositionMs = iosEq.getPositionIOS() * 1000;
     } else if (audioEngine === 'rntp') {
       try {
-        currentPosition = (await TrackPlayer.getPosition()) * 1000;
-        await rntp.clearRNTPNotification();
+        curPositionMs = (await TrackPlayer.getPosition()) * 1000;
       } catch (e) {}
     } else {
-      currentPosition = expoAudio.playbackStatusExpo.positionMillis || 0;
-      expoAudio.clearExpoResources();
+      curPositionMs = expoAudio.playbackStatusExpo.positionMillis || 0;
     }
 
-    setAudioEngine(engine);
-    await AsyncStorage.setItem('audioEngine', engine);
+    setAudioEngine(newEngine);
+    await AsyncStorage.setItem('audioEngine', newEngine);
 
-    if (currentSongToRestore && queueMgr.activeQueueRef.current.length > 0) {
+    // iOS でイコライザ動作中の場合：曲を止めずにネイティブモード（AudioSession ＆ ロック画面設定）のみを瞬時切り替え！
+    if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
+      iosEq.setEngineMode(newEngine);
+      return;
+    }
+
+    // 通常再生中の場合：旧プレイヤーを停止し、同じ再生位置から新プレイヤーを瞬時再開
+    if (current && queueMgr.activeQueueRef.current.length > 0) {
+      if (audioEngine === 'rntp') {
+        await rntp.clearRNTPNotification();
+      } else {
+        expoAudio.clearExpoResources();
+      }
+
       setTimeout(() => {
-        loadAndPlayInternal(currentSongToRestore, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, currentPosition, wasPlaying, engine);
-      }, 400);
-    } else {
-      queueMgr.setPlayQueue([]);
-      queueMgr.setCurrentSong(null);
+        loadAndPlayInternal(
+          current,
+          queueMgr.activeQueueRef.current,
+          queueMgr.indexRef.current,
+          curPositionMs,
+          wasPlaying,
+          newEngine
+        );
+      }, 100);
     }
   };
 
@@ -452,10 +493,6 @@ export const useAudioPlayer = () => {
   };
 
   const handleNextInternal = async () => {
-    if (isSkippingRef.current) return;
-    isSkippingRef.current = true;
-    setTimeout(() => { isSkippingRef.current = false; }, 600);
-
     const activeQueue = queueMgr.activeQueueRef.current;
     const currentSong = queueMgr.currentSongRef.current;
     const mode = queueMgr.loopRef.current;
@@ -493,7 +530,7 @@ export const useAudioPlayer = () => {
   handleNextRef.current = handleNextInternal;
   const handleNext = () => handleNextInternal();
 
-  const handlePrev = async () => {
+  const handlePrevInternal = async () => {
     if (iosEq.isIOSEQActiveRef.current) {
       const currentPos = (iosEq.getPositionIOS() || 0) * 1000;
       if (currentPos > 3000) {
@@ -534,7 +571,10 @@ export const useAudioPlayer = () => {
     }
   };
 
-  const togglePlayPause = async () => {
+  handlePrevRef.current = handlePrevInternal;
+  const handlePrev = () => handlePrevInternal();
+
+  const togglePlayPauseInternal = async () => {
     if (iosEq.isIOSEQActiveRef.current) {
       if (isPlaying) {
         iosEq.pauseIosEQ();
@@ -577,6 +617,9 @@ export const useAudioPlayer = () => {
       }
     }
   };
+
+  togglePlayPauseRef.current = togglePlayPauseInternal;
+  const togglePlayPause = () => togglePlayPauseInternal();
 
   const setPositionAsync = async (v: number) => {
     if (iosEq.isIOSEQActiveRef.current) {
@@ -622,7 +665,7 @@ export const useAudioPlayer = () => {
         if (idx !== -1) {
           queueMgr.updateQueueIndexes(idx, activeQueue);
         }
-        saveHistory(newSong);
+        sync.saveHistory(newSong);
 
         if (Platform.OS === 'android') {
           setTimeout(rntp.syncAndroidEqualizerSession, 250);
@@ -636,7 +679,7 @@ export const useAudioPlayer = () => {
     });
 
     const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-      if (!isIOSEQActiveRef.current && audioEngine === 'rntp' && queueMgr.loopRef.current === 'ALL') {
+      if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp' && queueMgr.loopRef.current === 'ALL') {
         const queueToUse = queueMgr.shuffleRef.current 
           ? [...queueMgr.originalQueueRef.current].sort(() => Math.random() - 0.5)
           : [...queueMgr.originalQueueRef.current];

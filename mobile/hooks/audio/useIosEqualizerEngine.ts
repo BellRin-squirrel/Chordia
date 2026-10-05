@@ -7,17 +7,27 @@ import {
   seekToIOS, 
   getPositionIOS, 
   getDurationIOS, 
-  isPlayingIOS 
+  isPlayingIOS,
+  setIosEqualizerEngineMode,
+  updateIosNowPlaying
 } from '../../utils/equalizer';
 
-export const useIosEqualizerEngine = (onTrackEnded: () => void) => {
+export const useIosEqualizerEngine = (
+  onTrackEnded: () => void,
+  onRemoteCommand?: (action: string, param?: any) => void
+) => {
   const isIOSEQActiveRef = useRef(false);
   const iosEQPollingRef = useRef<NodeJS.Timeout | null>(null);
   const onTrackEndedRef = useRef(onTrackEnded);
+  const onRemoteCommandRef = useRef(onRemoteCommand);
 
   useEffect(() => {
     onTrackEndedRef.current = onTrackEnded;
   }, [onTrackEnded]);
+
+  useEffect(() => {
+    onRemoteCommandRef.current = onRemoteCommand;
+  }, [onRemoteCommand]);
 
   const [playbackStatusIOSEQ, setPlaybackStatusIOSEQ] = useState({
     positionMillis: 0,
@@ -83,5 +93,8 @@ export const useIosEqualizerEngine = (onTrackEnded: () => void) => {
     seekIosEQ,
     loadAndPlayIOS,
     getPositionIOS,
+    getDurationIOS,
+    setEngineMode: setIosEqualizerEngineMode,
+    updateNowPlaying: updateIosNowPlaying,
   };
 };
