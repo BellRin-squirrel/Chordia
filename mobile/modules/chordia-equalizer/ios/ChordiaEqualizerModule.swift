@@ -7,7 +7,7 @@ public class ChordiaEqualizerModule: Module {
   private var isEQEnabled: Bool = false
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
-  private var engineMode: String = "rntp" // "rntp" or "expo-av"
+  private var engineMode: String = "rntp"
   
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
@@ -19,8 +19,6 @@ public class ChordiaEqualizerModule: Module {
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
   private var seekOffsetSeconds: Double = 0.0
-  
-  // ★ 一時停止時に 0:00 に戻るのを防ぐための正確な保持位置
   private var lastValidPositionSeconds: Double = 0.0
   
   private var isNodePlaying: Bool = false
@@ -92,7 +90,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("pause") { () -> Bool in
-      _ = self.getCurrentPosition() // 現在位置を確実にラッチ
+      _ = self.getCurrentPosition()
       self.playerNode.pause()
       self.isNodePlaying = false
       self.updateNowPlayingPlaybackRate(isPlaying: false)
@@ -209,13 +207,17 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ ロック画面・コントロールセンターのリモートコマンド設定
+  // ★ コントロールセンター/ロック画面のボタンタップ時に即座に状態を確定させて戻す
   private func setupRemoteCommands() {
     let commandCenter = MPRemoteCommandCenter.shared()
 
     commandCenter.playCommand.removeTarget(nil)
     commandCenter.playCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      if !self.audioEngine.isRunning { try? self.audioEngine.start() }
+      self.playerNode.play()
+      self.isNodePlaying = true
+      self.updateNowPlayingPlaybackRate(isPlaying: true)
       self.sendEvent("onRemoteCommand", ["action": "play"])
       return .success
     }
@@ -223,6 +225,9 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.pauseCommand.removeTarget(nil)
     commandCenter.pauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
+      self.playerNode.pause()
+      self.isNodePlaying = false
+      self.updateNowPlayingPlaybackRate(isPlaying: false)
       self.sendEvent("onRemoteCommand", ["action": "pause"])
       return .success
     }
@@ -230,7 +235,18 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.togglePlayPauseCommand.removeTarget(nil)
     commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.engineMode == "rntp" else { return .commandFailed }
-      self.sendEvent("onRemoteCommand", ["action": "togglePlayPause"])
+      if self.isNodePlaying {
+        self.playerNode.pause()
+        self.isNodePlaying = false
+        self.updateNowPlayingPlaybackRate(isPlaying: false)
+        self.sendEvent("onRemoteCommand", ["action": "pause"])
+      } else {
+        if !self.audioEngine.isRunning { try? self.audioEngine.start() }
+        self.playerNode.play()
+        self.isNodePlaying = true
+        self.updateNowPlayingPlaybackRate(isPlaying: true)
+        self.sendEvent("onRemoteCommand", ["action": "play"])
+      }
       return .success
     }
 
@@ -252,6 +268,7 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
       guard let self = self, self.engineMode == "rntp",
             let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+      _ = self.seek(to: posEvent.positionTime)
       self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
       return .success
     }
@@ -270,7 +287,7 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
   }
 
-  // ★ iPad 大画面ロック画面に最適化された高解像度 MPMediaItemArtwork 生成
+  // ★ iPad の大画面ロック画面に最適化された高解像度 MPMediaItemArtwork 生成
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
@@ -291,7 +308,6 @@ public class ChordiaEqualizerModule: Module {
          let url = self.resolveFileURL(filePath: artPath),
          let originalImage = UIImage(contentsOfFile: url.path) {
         
-        // iPad の Retina 大画面に対応するため、最小 1024x1024 以上のバウンズサイズを確保
         let targetDimension = max(originalImage.size.width, originalImage.size.height, 1024.0)
         let artworkBounds = CGSize(width: targetDimension, height: targetDimension)
 
@@ -493,7 +509,7 @@ public class ChordiaEqualizerModule: Module {
     return true
   }
 
-  // ★ 停止中・再開時でも位置が 0:00 に飛ばない堅牢な位置算出
+  // ★ 一時停止中でも 0:00 に戻らず直前の位置をキープして返す
   private func getCurrentPosition() -> Double {
     if isNodePlaying,
        let lastRenderTime = playerNode.lastRenderTime,

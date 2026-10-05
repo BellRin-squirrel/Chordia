@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Platform, NativeEventEmitter } from 'react-native';
+import { Animated, Dimensions, Platform } from 'react-native';
 import TrackPlayer, { RepeatMode, Event } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -18,8 +18,7 @@ import {
   initEqualizer, 
   applyEqualizerSettings, 
   addEqualizerChangeListener, 
-  EqualizerApplyPayload,
-  requireNativeModule
+  EqualizerApplyPayload 
 } from '../utils/equalizer';
 
 export type { PlayCollectionContext };
@@ -51,14 +50,23 @@ export const useAudioPlayer = () => {
   const rntp = useRntpEngine();
   const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
 
-  // ★ iOS イコライザーエンジン初期化（AirPods / ロック画面操作イベントの同期受信）
+  // ★ ロック画面・コントロールセンターからのリモート操作同期（play / pause の反転ループを完全防止）
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
     (action: string, param?: any) => {
-      if (action === 'play') togglePlayPauseRef.current();
-      else if (action === 'pause') togglePlayPauseRef.current();
-      else if (action === 'next') handleNextRef.current();
-      else if (action === 'prev') handlePrevRef.current();
+      if (action === 'play') {
+        setIsPlaying(true);
+      } else if (action === 'pause') {
+        setIsPlaying(false);
+      } else if (action === 'togglePlayPause') {
+        togglePlayPauseRef.current();
+      } else if (action === 'next') {
+        handleNextRef.current();
+      } else if (action === 'prev') {
+        handlePrevRef.current();
+      } else if (action === 'seek' && typeof param === 'number') {
+        setPositionAsync(param * 1000);
+      }
     }
   );
 
@@ -94,7 +102,6 @@ export const useAudioPlayer = () => {
     });
   };
 
-  // 初期化
   useEffect(() => {
     AsyncStorage.getItem('audioEngine').then((val) => {
       const mode = (val === 'expo-av' || val === 'rntp') ? val : 'rntp';
@@ -166,7 +173,7 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    // ★ iOS: イコライザ有効時は「RNTPもどき」または「ExpoAudioもどき」としてネイティブ再生
+    // iOS: イコライザ有効時はネイティブ AVAudioEngine で再生
     if (Platform.OS === 'ios' && isEQEnabled) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
@@ -178,7 +185,6 @@ export const useAudioPlayer = () => {
         setIsPlaying(shouldPlay);
         iosEq.startIOSEQPolling(setIsPlaying);
 
-        // ★ ロック画面 ＆ コントロールセンターへ情報を伝達
         const dur = (song.duration || 0) > 0 ? song.duration : 180;
         iosEq.updateNowPlaying(
           song.title || 'Untitled',
@@ -290,7 +296,6 @@ export const useAudioPlayer = () => {
     } catch (e) {}
   };
 
-  // ★ 楽曲再生中のイコライザ ON / OFF ホットスワップ
   useEffect(() => {
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
       const current = queueMgr.currentSongRef.current;
@@ -324,13 +329,11 @@ export const useAudioPlayer = () => {
     return () => unsub();
   }, [isPlaying, audioEngine]);
 
-  // ★ RNTP ⇄ ExpoAudio 切り替え時、再生位置を完全維持したままシームレスに継続再生
   const changeAudioEngine = async (newEngine: AudioEngineType) => {
     if (newEngine === audioEngine) return;
     const wasPlaying = isPlaying;
     const current = queueMgr.currentSongRef.current;
 
-    // 現在の正確な再生位置 (ms) を取得
     let curPositionMs = 0;
     if (iosEq.isIOSEQActiveRef.current) {
       curPositionMs = iosEq.getPositionIOS() * 1000;
@@ -345,13 +348,11 @@ export const useAudioPlayer = () => {
     setAudioEngine(newEngine);
     await AsyncStorage.setItem('audioEngine', newEngine);
 
-    // iOS でイコライザ動作中の場合：曲を止めずにネイティブモード（AudioSession ＆ ロック画面設定）のみを瞬時切り替え！
     if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
       iosEq.setEngineMode(newEngine);
       return;
     }
 
-    // 通常再生中の場合：旧プレイヤーを停止し、同じ再生位置から新プレイヤーを瞬時再開
     if (current && queueMgr.activeQueueRef.current.length > 0) {
       if (audioEngine === 'rntp') {
         await rntp.clearRNTPNotification();
@@ -665,7 +666,7 @@ export const useAudioPlayer = () => {
         if (idx !== -1) {
           queueMgr.updateQueueIndexes(idx, activeQueue);
         }
-        sync.saveHistory(newSong);
+        saveHistory(newSong);
 
         if (Platform.OS === 'android') {
           setTimeout(rntp.syncAndroidEqualizerSession, 250);

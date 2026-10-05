@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { 
   View, Text, Image, TouchableHighlight, Animated, 
   ScrollView, FlatList, StyleSheet, useWindowDimensions, 
-  Platform, AppState 
+  Platform 
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -82,15 +82,6 @@ export const FullScreenPlayer = ({
   const insets = useSafeAreaInsets();
   const activeIconColor = themeTextColor || '#000000';
 
-  // ★ バックグラウンド移行検知（Watchdog によるプロセス終了を防ぐためスリープ）
-  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => {
-      setIsAppActive(next === 'active');
-    });
-    return () => sub.remove();
-  }, []);
-
   const transitionAnim = useRef(new Animated.Value(0)).current;
   const scrollYRef = useRef(0);
 
@@ -133,14 +124,14 @@ export const FullScreenPlayer = ({
   }, [showLyrics, showQueue]);
 
   useEffect(() => {
-    const toValue = (showLyrics || showQueue) ? 1 : 0;
+    const toValue = showLyrics ? 1 : 0;
     Animated.spring(transitionAnim, {
       toValue,
       useNativeDriver: false,
       friction: 8,
       tension: 40
     }).start();
-  }, [showLyrics, showQueue]);
+  }, [showLyrics]);
 
   useEffect(() => {
     scrollYRef.current = 0;
@@ -171,6 +162,7 @@ export const FullScreenPlayer = ({
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
+  // 縦画面用トグル
   const toggleLyrics = () => {
     if (showQueue) setShowQueue(false);
     setShowLyrics(!showLyrics);
@@ -179,6 +171,12 @@ export const FullScreenPlayer = ({
   const toggleQueue = () => {
     if (showLyrics) setShowLyrics(false);
     setShowQueue(!showQueue);
+  };
+
+  // ★ 横画面用：歌詞とキューの切り替え
+  const toggleLyricsOrQueueLandscape = () => {
+    setShowLyrics(!showLyrics);
+    setShowQueue(false);
   };
 
   const handleAirPlayPress = () => {
@@ -225,9 +223,9 @@ export const FullScreenPlayer = ({
     );
   };
 
-  // ★ バックグラウンド時はスライダー・テキスト再計算を停止
-  const sliderPosition = isAppActive ? (playbackStatus?.positionMillis || 0) : 0;
-  const sliderDuration = isAppActive ? (playbackStatus?.durationMillis || 100) : 100;
+  // ★ コントロールセンター表示中もスライダーバーの位置を正確に維持
+  const sliderPosition = playbackStatus?.positionMillis || 0;
+  const sliderDuration = playbackStatus?.durationMillis || 100;
 
   const renderLeftColumnContent = (leftColumnWidth: number, landscapeArtSize: number) => {
     if (isIphoneLandscape) {
@@ -321,15 +319,27 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        <View style={{ width: 50, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 10 }}>
+        {/* ★ 横画面左側バー：ご指示通りの4つのボタン構成（歌詞/キュー切り替え、AirPlay、シャッフル、ループ） */}
+        <View style={{ width: 50, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15 }}>
+          
+          {/* 1. 歌詞表示とキュー表示の切り替えボタン（アイコンが現在表示状態に応じて変化） */}
           <BounceButton
-            onPress={toggleLyrics}
+            onPress={toggleLyricsOrQueueLandscape}
             underlayColor="rgba(255,255,255,0.15)"
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: showLyrics ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
+            style={{ 
+              width: 44, height: 44, borderRadius: 22, 
+              backgroundColor: showLyrics ? themeColor : 'transparent', 
+              justifyContent: 'center', alignItems: 'center' 
+            }}
           >
-            <Ionicons name="musical-notes-outline" size={24} color={showLyrics ? activeIconColor : '#fff'} />
+            <Ionicons 
+              name={showLyrics ? "musical-notes-outline" : "list"} 
+              size={24} 
+              color={showLyrics ? activeIconColor : '#fff'} 
+            />
           </BounceButton>
 
+          {/* 2. AirPlay ボタン (iOS のみ表示) */}
           {Platform.OS === 'ios' && (
             <BounceButton
               onPress={handleAirPlayPress}
@@ -340,6 +350,7 @@ export const FullScreenPlayer = ({
             </BounceButton>
           )}
 
+          {/* 3. シャッフル */}
           <BounceButton
             onPress={toggleShuffleMode}
             underlayColor="rgba(255,255,255,0.15)"
@@ -348,6 +359,7 @@ export const FullScreenPlayer = ({
             <Ionicons name="shuffle" size={22} color={isShuffle ? activeIconColor : '#fff'} />
           </BounceButton>
 
+          {/* 4. ループ */}
           <BounceButton
             onPress={toggleLoopMode}
             underlayColor="rgba(255,255,255,0.15)"
@@ -359,14 +371,6 @@ export const FullScreenPlayer = ({
                 <Text style={{ color: activeIconColor, fontSize: 10, fontWeight: '900', position: 'absolute', top: 2, right: 2 }}>1</Text>
               )}
             </View>
-          </BounceButton>
-
-          <BounceButton
-            onPress={toggleQueue}
-            underlayColor="rgba(255,255,255,0.15)"
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: showQueue ? themeColor : 'transparent', justifyContent: 'center', alignItems: 'center' }}
-          >
-            <Ionicons name="list" size={24} color={showQueue ? activeIconColor : '#fff'} />
           </BounceButton>
         </View>
 
@@ -384,6 +388,7 @@ export const FullScreenPlayer = ({
 
         <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
 
+        {/* 右カラム：歌詞 または キュー */}
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
             <FlatList
@@ -405,6 +410,7 @@ export const FullScreenPlayer = ({
                 </View>
               )} />
           </Animated.View>
+          
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] }) }]} pointerEvents={showLyrics ? 'auto' : 'none'}>
             {currentSong?.lyric?.trim() ? (
               <ScrollView
