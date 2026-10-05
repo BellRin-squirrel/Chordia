@@ -172,7 +172,7 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    // iOS: イコライザ有効時はネイティブ AVAudioEngine で再生
+    // ★ iOS: イコライザ有効時はネイティブ AVAudioEngine（iPad 大画面対応）で再生
     if (Platform.OS === 'ios' && isEQEnabled) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
@@ -295,12 +295,10 @@ export const useAudioPlayer = () => {
     } catch (e) {}
   };
 
-  // ★ スイッチのON/OFFが実際に切り替わった時のみ再ロードし、スライダー操作や画面表示時は再ロードしない
   useEffect(() => {
     let lastKnownEnabled: boolean | null = null;
 
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
-      // 1. スライダー操作（ゲイン変更）時は、曲を再ロードせず即時ハードウェア反映のみ行う
       if (lastKnownEnabled === payload.enabled) {
         if (Platform.OS === 'android') {
           rntp.syncAndroidEqualizerSession();
@@ -310,7 +308,6 @@ export const useAudioPlayer = () => {
 
       lastKnownEnabled = payload.enabled;
 
-      // 2. 有効/無効スイッチが実際に切り替わった場合のみ、現在位置からシームレスに切り替える
       const current = queueMgr.currentSongRef.current;
       if (!current || !isPlaying) return;
 

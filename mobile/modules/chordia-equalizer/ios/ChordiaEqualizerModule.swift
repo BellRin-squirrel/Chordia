@@ -267,6 +267,7 @@ public class ChordiaEqualizerModule: Module {
     commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
   }
 
+  // ★ iPad/iPhone の大画面ロック画面に最適化された高精細カバーアート生成
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
@@ -280,20 +281,52 @@ public class ChordiaEqualizerModule: Module {
         MPMediaItemPropertyAlbumTitle: self.currentTrackAlbum,
         MPMediaItemPropertyPlaybackDuration: duration,
         MPNowPlayingInfoPropertyElapsedPlaybackTime: position,
-        MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+        MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
+        MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
       ]
 
+      // 画像の探索（カバー画像 → なければアプリアイコンをフォールバック）
+      var loadedImage: UIImage? = nil
       if let artPath = self.currentArtworkUri,
          let url = self.resolveFileURL(filePath: artPath),
-         let originalImage = UIImage(contentsOfFile: url.path) {
-        
-        let targetDimension = max(originalImage.size.width, originalImage.size.height, 1024.0)
+         let img = UIImage(contentsOfFile: url.path) {
+        loadedImage = img
+      } else {
+        if let iconsDict = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primaryIcon = iconsDict["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+           let lastIcon = iconFiles.last {
+          loadedImage = UIImage(named: lastIcon)
+        }
+      }
+
+      if let originalImage = loadedImage {
+        // デバイスの画面サイズから最大解像度（Retinaスケール込み）を算定（iPadなら最低1536〜2048px以上）
+        let screenSize = UIScreen.main.bounds.size
+        let screenScale = UIScreen.main.scale
+        let maxScreenDimension = max(screenSize.width, screenSize.height) * screenScale
+        let targetDimension = max(originalImage.size.width, originalImage.size.height, maxScreenDimension, 1024.0)
         let artworkBounds = CGSize(width: targetDimension, height: targetDimension)
 
         info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: artworkBounds) { requestedSize in
-          let renderer = UIGraphicsImageRenderer(size: requestedSize)
+          let renderWidth = requestedSize.width > 0 ? requestedSize.width : targetDimension
+          let renderHeight = requestedSize.height > 0 ? requestedSize.height : targetDimension
+          let renderSize = CGSize(width: renderWidth, height: renderHeight)
+
+          let renderer = UIGraphicsImageRenderer(size: renderSize)
           return renderer.image { _ in
-            originalImage.draw(in: CGRect(origin: .zero, size: requestedSize))
+            let aspect = originalImage.size.width / max(originalImage.size.height, 1.0)
+            var drawRect = CGRect(origin: .zero, size: renderSize)
+
+            if aspect > 1.0 {
+              let h = renderSize.width / aspect
+              drawRect = CGRect(x: 0, y: (renderSize.height - h) / 2.0, width: renderSize.width, height: h)
+            } else if aspect < 1.0 {
+              let w = renderSize.height * aspect
+              drawRect = CGRect(x: (renderSize.width - w) / 2.0, y: 0, width: w, height: renderSize.height)
+            }
+
+            originalImage.draw(in: drawRect)
           }
         }
       }
@@ -376,7 +409,6 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
-  // ★ -10868 (FormatNotSupported) を完全に根絶するパイプライン接続
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -388,7 +420,6 @@ public class ChordiaEqualizerModule: Module {
     do {
       applyAudioSessionCategory()
 
-      // 音源ファイル本来のフォーマットでオープン
       let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate
@@ -406,8 +437,6 @@ public class ChordiaEqualizerModule: Module {
 
       let fileFormat = file.processingFormat
 
-      // ★ playerNode -> equalizerUnit -> mainMixerNode を fileFormat で統一接続し、
-      // 最終段の mainMixerNode に自動サンプルレート変換（SRC）を行わせる
       var startSuccess = false
       do {
         audioEngine.connect(playerNode, to: equalizerUnit, format: fileFormat)
@@ -416,7 +445,6 @@ public class ChordiaEqualizerModule: Module {
         try audioEngine.start()
         startSuccess = true
       } catch {
-        // 万が一のフォールバック接続
         audioEngine.disconnectNodeOutput(playerNode)
         audioEngine.disconnectNodeOutput(equalizerUnit)
         audioEngine.connect(playerNode, to: equalizerUnit, format: nil)
