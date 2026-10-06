@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, NativeModules } from 'react-native';
 import TrackPlayer, { 
   usePlaybackState, 
@@ -26,6 +26,12 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
   const rntpState = usePlaybackState();
   const rntpProgress = useProgress(250);
   const isRNTPPlaying = isStatePlaying(rntpState);
+
+  // ★ 最新のハンドラ関数を保持し、再レンダリング時もリスナーを再登録させない
+  const handlersRef = useRef(handlers);
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   const syncAndroidEqualizerSession = async () => {
     if (Platform.OS === 'android') {
@@ -96,25 +102,25 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     initRNTP();
   }, []);
 
-  // ★ ロック画面・コントロールセンター・AirPods 操作イベントの完全リスニング
+  // ★ リモート操作イベントリスナーをマウント時に1回だけ登録（イベント取りこぼしを完全に防止）
   useEffect(() => {
     const subPlay = TrackPlayer.addEventListener(Event.RemotePlay, () => {
-      handlers?.onPlay?.();
+      handlersRef.current?.onPlay?.();
     });
     const subPause = TrackPlayer.addEventListener(Event.RemotePause, () => {
-      handlers?.onPause?.();
+      handlersRef.current?.onPause?.();
     });
     const subToggle = TrackPlayer.addEventListener(Event.RemoteTogglePlayPause, () => {
-      handlers?.onTogglePlayPause?.();
+      handlersRef.current?.onTogglePlayPause?.();
     });
     const subNext = TrackPlayer.addEventListener(Event.RemoteNext, () => {
-      handlers?.onNext?.();
+      handlersRef.current?.onNext?.();
     });
     const subPrev = TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-      handlers?.onPrev?.();
+      handlersRef.current?.onPrev?.();
     });
     const subSeek = TrackPlayer.addEventListener(Event.RemoteSeek, (event) => {
-      handlers?.onSeek?.(event.position);
+      handlersRef.current?.onSeek?.(event.position);
     });
 
     return () => {
@@ -125,7 +131,7 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
       subPrev.remove();
       subSeek.remove();
     };
-  }, [handlers]);
+  }, []);
 
   return {
     rntpState,
