@@ -41,6 +41,11 @@ export const useAudioPlayer = () => {
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
 
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
+  const isPlayingRef = useRef(false);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   const queueMgr = useQueueManager();
   const handleNextRef = useRef<() => void>(() => {});
@@ -48,13 +53,12 @@ export const useAudioPlayer = () => {
   const togglePlayPauseRef = useRef<() => void>(() => {});
   const setPositionAsyncRef = useRef<(v: number) => void>(() => {});
 
-  // ★ RNTP リモートコントロールハンドラー（ロック画面・コントロールセンター・AirPods の操作受付）
   const rntp = useRntpEngine({
     onPlay: () => {
-      if (!isPlaying) togglePlayPauseRef.current();
+      if (!isPlayingRef.current) togglePlayPauseRef.current();
     },
     onPause: () => {
-      if (isPlaying) togglePlayPauseRef.current();
+      if (isPlayingRef.current) togglePlayPauseRef.current();
     },
     onTogglePlayPause: () => {
       togglePlayPauseRef.current();
@@ -72,14 +76,15 @@ export const useAudioPlayer = () => {
 
   const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
 
-  // ★ iOS イコライザー動作時のリモートコントロールハンドラー
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
     (action: string, param?: any) => {
       if (action === 'play') {
-        if (!isPlaying) togglePlayPauseRef.current();
+        setIsPlaying(true);
+        sync.sendNowPlayingUpdate();
       } else if (action === 'pause') {
-        if (isPlaying) togglePlayPauseRef.current();
+        setIsPlaying(false);
+        sync.sendNowPlayingUpdate();
       } else if (action === 'togglePlayPause') {
         togglePlayPauseRef.current();
       } else if (action === 'next') {
@@ -195,7 +200,6 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    // iOS: イコライザ有効時はネイティブ AVAudioEngine で再生
     if (Platform.OS === 'ios' && isEQEnabled) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
@@ -332,7 +336,7 @@ export const useAudioPlayer = () => {
       lastKnownEnabled = payload.enabled;
 
       const current = queueMgr.currentSongRef.current;
-      if (!current || !isPlaying) return;
+      if (!current || !isPlayingRef.current) return;
 
       let curMs = 0;
       if (iosEq.isIOSEQActiveRef.current) {
@@ -357,11 +361,11 @@ export const useAudioPlayer = () => {
     });
 
     return () => unsub();
-  }, [isPlaying, audioEngine]);
+  }, [audioEngine]);
 
   const changeAudioEngine = async (newEngine: AudioEngineType) => {
     if (newEngine === audioEngine) return;
-    const wasPlaying = isPlaying;
+    const wasPlaying = isPlayingRef.current;
     const current = queueMgr.currentSongRef.current;
 
     let curPositionMs = 0;
@@ -607,7 +611,7 @@ export const useAudioPlayer = () => {
 
   const togglePlayPauseInternal = async () => {
     if (iosEq.isIOSEQActiveRef.current) {
-      if (isPlaying) {
+      if (isPlayingRef.current) {
         iosEq.pauseIosEQ();
         setIsPlaying(false);
       } else {
@@ -636,7 +640,7 @@ export const useAudioPlayer = () => {
     } else {
       const player = expoAudio.expoAudioPlayerRef.current;
       if (!player) return;
-      if (isPlaying) {
+      if (isPlayingRef.current) {
         player.pause();
         setIsPlaying(false);
         sync.sendNowPlayingUpdate();
@@ -698,7 +702,7 @@ export const useAudioPlayer = () => {
         if (idx !== -1) {
           queueMgr.updateQueueIndexes(idx, activeQueue);
         }
-        saveHistory(newSong);
+        sync.saveHistory(newSong);
 
         if (Platform.OS === 'android') {
           setTimeout(rntp.syncAndroidEqualizerSession, 250);

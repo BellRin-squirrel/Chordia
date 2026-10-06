@@ -22,6 +22,7 @@ export const useIosEqualizerEngine = (
   const iosEQPollingRef = useRef<NodeJS.Timeout | null>(null);
   const onTrackEndedRef = useRef(onTrackEnded);
   const onRemoteCommandRef = useRef(onRemoteCommand);
+  const hasEndedTriggeredRef = useRef(false);
 
   useEffect(() => {
     onTrackEndedRef.current = onTrackEnded;
@@ -31,26 +32,32 @@ export const useIosEqualizerEngine = (
     onRemoteCommandRef.current = onRemoteCommand;
   }, [onRemoteCommand]);
 
-  // ★ EventEmitter を用いて Swift 側の onRemoteCommand イベントを確実に購読
   useEffect(() => {
     const mod = getNativeModule();
     if (!mod) return;
 
-    let subscription: any = null;
+    let subRemote: any = null;
+    let subEnded: any = null;
+
     try {
       const emitter = new EventEmitter(mod);
-      subscription = emitter.addListener('onRemoteCommand', (event: any) => {
+      subRemote = emitter.addListener('onRemoteCommand', (event: any) => {
         if (event && event.action && onRemoteCommandRef.current) {
           onRemoteCommandRef.current(event.action, event.position);
+        }
+      });
+      subEnded = emitter.addListener('onPlaybackEnded', () => {
+        if (!hasEndedTriggeredRef.current && onTrackEndedRef.current) {
+          hasEndedTriggeredRef.current = true;
+          onTrackEndedRef.current();
         }
       });
     } catch (e) {}
 
     return () => {
       try {
-        if (subscription && typeof subscription.remove === 'function') {
-          subscription.remove();
-        }
+        if (subRemote && typeof subRemote.remove === 'function') subRemote.remove();
+        if (subEnded && typeof subEnded.remove === 'function') subEnded.remove();
       } catch (e) {}
     };
   }, []);
@@ -70,6 +77,8 @@ export const useIosEqualizerEngine = (
 
   const startIOSEQPolling = (onPlayStateChange: (playing: boolean) => void) => {
     clearIOSEQPolling();
+    hasEndedTriggeredRef.current = false;
+
     iosEQPollingRef.current = setInterval(() => {
       if (!isIOSEQActiveRef.current) return;
       const posSec = getPositionIOS();
@@ -83,13 +92,17 @@ export const useIosEqualizerEngine = (
       });
       onPlayStateChange(playing);
 
-      if (durSec > 0 && posSec >= durSec - 0.25) {
-        onTrackEndedRef.current();
+      if (durSec > 0 && posSec >= durSec - 0.4) {
+        if (!hasEndedTriggeredRef.current) {
+          hasEndedTriggeredRef.current = true;
+          onTrackEndedRef.current();
+        }
       }
     }, 250);
   };
 
   const playIosEQ = () => {
+    hasEndedTriggeredRef.current = false;
     playIOS();
   };
 
@@ -100,11 +113,18 @@ export const useIosEqualizerEngine = (
   const stopIosEQ = () => {
     stopIOS();
     clearIOSEQPolling();
+    hasEndedTriggeredRef.current = false;
   };
 
   const seekIosEQ = (seconds: number) => {
+    hasEndedTriggeredRef.current = false;
     seekToIOS(seconds);
     setPlaybackStatusIOSEQ((prev) => ({ ...prev, positionMillis: seconds * 1000 }));
+  };
+
+  const loadAndPlaySafe = (filePath: string, startSeconds: number, autoPlay: boolean = true) => {
+    hasEndedTriggeredRef.current = false;
+    return loadAndPlayIOS(filePath, startSeconds, autoPlay);
   };
 
   return {
@@ -117,7 +137,7 @@ export const useIosEqualizerEngine = (
     pauseIosEQ,
     stopIosEQ,
     seekIosEQ,
-    loadAndPlayIOS,
+    loadAndPlayIOS: loadAndPlaySafe,
     getPositionIOS,
     getDurationIOS,
     setEngineMode: setIosEqualizerEngineMode,

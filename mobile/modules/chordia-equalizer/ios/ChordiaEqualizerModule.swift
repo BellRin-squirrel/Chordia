@@ -23,6 +23,7 @@ public class ChordiaEqualizerModule: Module {
   
   private var isNodePlaying: Bool = false
   private var isNodesAttached: Bool = false
+  private var isManualStop: Bool = false
   private var lastErrorMessage: String = "None"
   private var lastResolvedPath: String = "None"
   private var debugDiagnostics: [String: Any] = [:]
@@ -33,13 +34,17 @@ public class ChordiaEqualizerModule: Module {
   private var currentArtworkUri: String? = nil
   private var currentDuration: Double = 0.0
 
-  // ★ RNTP側のハンドラーを破壊しないよう、自身の登録トークンのみを保持
-  private var remoteCommandTargetTokens: [Any] = []
+  private var playTarget: Any?
+  private var pauseTarget: Any?
+  private var toggleTarget: Any?
+  private var nextTarget: Any?
+  private var prevTarget: Any?
+  private var seekTarget: Any?
 
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
-    Events("onRemoteCommand")
+    Events("onRemoteCommand", "onPlaybackEnded")
 
     OnCreate {
       self.setupAudioEngineNodes()
@@ -92,31 +97,18 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("pause") { () -> Bool in
-      _ = self.getCurrentPosition()
-      self.playerNode.pause()
-      self.isNodePlaying = false
-      self.updateNowPlayingPlaybackRate(isPlaying: false)
-      return true
+      return self.pauseInternal()
     }
 
     Function("play") { () -> Bool in
-      if !self.audioEngine.isRunning {
-        do {
-          try self.audioEngine.start()
-        } catch {
-          self.lastErrorMessage = "AudioEngine start error: \(error.localizedDescription)"
-          return false
-        }
-      }
-      self.playerNode.play()
-      self.isNodePlaying = true
-      self.updateNowPlayingPlaybackRate(isPlaying: true)
-      return true
+      return self.playInternal()
     }
 
     Function("stop") { () -> Bool in
       _ = self.getCurrentPosition()
+      self.isManualStop = true
       self.playerNode.stop()
+      self.isManualStop = false
       self.isNodePlaying = false
       self.updateNowPlayingPlaybackRate(isPlaying: false)
       return true
@@ -209,68 +201,96 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
-  // ★ RNTPを破壊しない安全なリモートコマンド登録
+  private func playInternal() -> Bool {
+    if !audioEngine.isRunning {
+      do {
+        try audioEngine.start()
+      } catch {
+        self.lastErrorMessage = "AudioEngine start error: \(error.localizedDescription)"
+        return false
+      }
+    }
+    playerNode.play()
+    isNodePlaying = true
+    updateNowPlayingPlaybackRate(isPlaying: true)
+    return true
+  }
+
+  private func pauseInternal() -> Bool {
+    _ = getCurrentPosition()
+    playerNode.pause()
+    isNodePlaying = false
+    updateNowPlayingPlaybackRate(isPlaying: false)
+    return true
+  }
+
   private func setupRemoteCommands() {
     clearRemoteCommandTargets()
 
     let commandCenter = MPRemoteCommandCenter.shared()
 
-    let tPlay = commandCenter.playCommand.addTarget { [weak self] _ in
+    playTarget = commandCenter.playCommand.addTarget { [weak self] _ in
       guard let self = self, self.isIOSEQActive() else { return .commandFailed }
+      _ = self.playInternal()
       self.sendEvent("onRemoteCommand", ["action": "play"])
       return .success
     }
 
-    let tPause = commandCenter.pauseCommand.addTarget { [weak self] _ in
+    pauseTarget = commandCenter.pauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.isIOSEQActive() else { return .commandFailed }
+      _ = self.pauseInternal()
       self.sendEvent("onRemoteCommand", ["action": "pause"])
       return .success
     }
 
-    let tToggle = commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
+    toggleTarget = commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
       guard let self = self, self.isIOSEQActive() else { return .commandFailed }
-      self.sendEvent("onRemoteCommand", ["action": "togglePlayPause"])
+      if self.isNodePlaying {
+        _ = self.pauseInternal()
+        self.sendEvent("onRemoteCommand", ["action": "pause"])
+      } else {
+        _ = self.playInternal()
+        self.sendEvent("onRemoteCommand", ["action": "play"])
+      }
       return .success
     }
 
-    let tNext = commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+    nextTarget = commandCenter.nextTrackCommand.addTarget { [weak self] _ in
       guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "next"])
       return .success
     }
 
-    let tPrev = commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+    prevTarget = commandCenter.previousTrackCommand.addTarget { [weak self] _ in
       guard let self = self, self.isIOSEQActive() else { return .commandFailed }
       self.sendEvent("onRemoteCommand", ["action": "prev"])
       return .success
     }
 
-    let tSeek = commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+    seekTarget = commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
       guard let self = self, self.isIOSEQActive(),
             let posEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+      _ = self.seek(to: posEvent.positionTime)
+      self.updateNowPlayingPosition(seconds: posEvent.positionTime)
       self.sendEvent("onRemoteCommand", ["action": "seek", "position": posEvent.positionTime])
       return .success
     }
 
-    remoteCommandTargetTokens = [tPlay, tPause, tToggle, tNext, tPrev, tSeek]
     updateRemoteCommandsState()
   }
 
   private func clearRemoteCommandTargets() {
     let commandCenter = MPRemoteCommandCenter.shared()
-    for token in remoteCommandTargetTokens {
-      commandCenter.playCommand.removeTarget(token)
-      commandCenter.pauseCommand.removeTarget(token)
-      commandCenter.togglePlayPauseCommand.removeTarget(token)
-      commandCenter.nextTrackCommand.removeTarget(token)
-      commandCenter.previousTrackCommand.removeTarget(token)
-      commandCenter.changePlaybackPositionCommand.removeTarget(token)
-    }
-    remoteCommandTargetTokens.removeAll()
+    if let t = playTarget { commandCenter.playCommand.removeTarget(t); playTarget = nil }
+    if let t = pauseTarget { commandCenter.pauseCommand.removeTarget(t); pauseTarget = nil }
+    if let t = toggleTarget { commandCenter.togglePlayPauseCommand.removeTarget(t); toggleTarget = nil }
+    if let t = nextTarget { commandCenter.nextTrackCommand.removeTarget(t); nextTarget = nil }
+    if let t = prevTarget { commandCenter.previousTrackCommand.removeTarget(t); prevTarget = nil }
+    if let t = seekTarget { commandCenter.changePlaybackPositionCommand.removeTarget(t); seekTarget = nil }
   }
 
   private func isIOSEQActive() -> Bool {
-    return isEQEnabled && isNodePlaying
+    return isEQEnabled && currentAudioFile != nil
   }
 
   private func updateRemoteCommandsState() {
@@ -439,12 +459,14 @@ public class ChordiaEqualizerModule: Module {
       self.fileSampleRate = file.processingFormat.sampleRate
       self.fileTotalFrames = file.length
 
+      self.isManualStop = true
       if playerNode.isPlaying {
         playerNode.stop()
       }
       if audioEngine.isRunning {
         audioEngine.stop()
       }
+      self.isManualStop = false
 
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
@@ -475,7 +497,6 @@ public class ChordiaEqualizerModule: Module {
 
       updateEqualizerHardware()
 
-      // ★ イコライザ再生時のみ自前でリモートコマンドをセットアップ
       if engineMode == "rntp" {
         setupRemoteCommands()
       } else {
@@ -504,7 +525,10 @@ public class ChordiaEqualizerModule: Module {
 
   private func scheduleAudioSegment(fromSeconds seconds: Double) {
     guard let file = currentAudioFile else { return }
+    
+    self.isManualStop = true
     playerNode.stop()
+    self.isManualStop = false
 
     let sampleRate = file.processingFormat.sampleRate
     let totalFrames = file.length
@@ -513,6 +537,9 @@ public class ChordiaEqualizerModule: Module {
     if targetFrame >= totalFrames {
       seekOffsetSeconds = Double(totalFrames) / sampleRate
       lastValidPositionSeconds = seekOffsetSeconds
+      DispatchQueue.main.async { [weak self] in
+        self?.sendEvent("onPlaybackEnded", [:])
+      }
       return
     }
 
@@ -524,9 +551,11 @@ public class ChordiaEqualizerModule: Module {
 
     playerNode.scheduleSegment(file, startingFrame: targetFrame, frameCount: remainingFrames, at: nil) { [weak self] in
       DispatchQueue.main.async {
-        if let self = self, self.isNodePlaying {
+        guard let self = self else { return }
+        if !self.isManualStop {
           self.isNodePlaying = false
           self.updateNowPlayingPlaybackRate(isPlaying: false)
+          self.sendEvent("onPlaybackEnded", [:])
         }
       }
     }
