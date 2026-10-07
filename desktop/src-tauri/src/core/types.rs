@@ -8,13 +8,14 @@ pub struct AppSettings {
     pub open_extensions_new_window: bool,
     pub open_add_music_new_window: bool,
     pub open_settings_new_window: bool,
+    pub default_window_size: String, // ★ "large" (1250x880) または "standard" (850x600)
     pub lazy_load_playlists: bool,
     pub primary_color: String,
     pub background_color: String,
     pub sub_background_color: String,
     pub text_color: String,
     pub theme_mode: String,
-    pub language: String, // ★ 追加: 表示言語設定ファイル名 (例: "Japanese.ini")
+    pub language: String,
     pub active_tags: Vec<String>,
     pub player_visible_tags: Vec<String>,
     pub normalize_volume: bool,

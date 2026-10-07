@@ -1,36 +1,22 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const tauri = window.__TAURI__;
     const invoke = (tauri && tauri.core) ? tauri.core.invoke : (tauri && tauri.tauri ? tauri.tauri.invoke : null);
-    
-    // ★ Tauri v2 対応のウィンドウインスタンス取得
-    const getAppWindow = () => {
-        if (tauri) {
-            if (tauri.webviewWindow && typeof tauri.webviewWindow.getCurrentWebviewWindow === 'function') {
-                return tauri.webviewWindow.getCurrentWebviewWindow();
-            }
-            if (tauri.window && typeof tauri.window.getCurrentWindow === 'function') {
-                return tauri.window.getCurrentWindow();
-            }
-        }
-        return null;
-    };
-    const appWindow = getAppWindow();
 
-    // ★ macOSでも確実にウィンドウドラッグを動作させるハンドラ
-    document.addEventListener('mousedown', async (e) => {
+    // ★ macOS・Windows 双方でパーミッションエラーを起こさず安全にドラッグを開始するハンドラ
+    document.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return; // 左クリックのみ対象
         
         // クリック操作を優先すべきUI要素上ではドラッグを開始しない
-        if (e.target.closest('button, input, .large-content, .btn-ctrl, .tab-btn, .queue-item, .seek-bar')) {
+        if (e.target.closest('button, input, .large-content, .btn-ctrl, .tab-btn, .queue-item, .seek-bar, .window-controls-mac')) {
             return;
         }
 
-        if (appWindow && typeof appWindow.startDragging === 'function') {
-            try {
-                await appWindow.startDragging();
-            } catch (err) {
-                // startDragging のエラーを安全に無視
-            }
+        // アプリ独自登録の start_drag コマンドを実行してネイティブドラッグを開始
+        if (invoke) {
+            invoke('start_drag').catch((err) => {
+                // ドラッグ開始時の例外を安全にキャッチ
+                console.warn("start_drag notice:", err);
+            });
         }
     });
     

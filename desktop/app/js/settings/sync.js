@@ -40,6 +40,7 @@ window.SettingsSync = {
         const btnSubmitSyncWeb = document.getElementById('btnSubmitSyncWeb');
         const btnCopyAuthCode = document.getElementById('btnCopyAuthCode');
         const btnResetSyncAuth = document.getElementById('btnResetSyncAuth');
+        const btnResyncCloud = document.getElementById('btnResyncCloud');
         const btnLogoutCloud = document.getElementById('btnLogoutCloud');
         const btnCancelLogoutModal = document.getElementById('btnCancelLogoutModal');
         const btnExecLogoutModal = document.getElementById('btnExecLogoutModal');
@@ -66,9 +67,30 @@ window.SettingsSync = {
             });
         }
 
-        if (syncUsername && syncDeviceName) {
+        // ★ ユーザー名入力欄でEnterを押すとログインデバイス名へフォーカス移動
+        if (syncUsername) {
             syncUsername.addEventListener('input', () => this.checkSyncInputs());
+            syncUsername.addEventListener('keydown', (e) => {
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (syncDeviceName) syncDeviceName.focus();
+                }
+            });
+        }
+
+        // ★ ログインデバイス名入力欄でEnterを押すと「ウェブで認証」を実行
+        if (syncDeviceName) {
             syncDeviceName.addEventListener('input', () => this.checkSyncInputs());
+            syncDeviceName.addEventListener('keydown', (e) => {
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btnSubmitSyncWeb && !btnSubmitSyncWeb.disabled) {
+                        btnSubmitSyncWeb.click();
+                    }
+                }
+            });
         }
 
         if (btnSubmitSyncWeb) {
@@ -130,21 +152,49 @@ window.SettingsSync = {
             });
         }
 
+        // ★ クラウドへ全データを再送信するボタン
+        if (btnResyncCloud) {
+            btnResyncCloud.addEventListener('click', async () => {
+                const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                try {
+                    const authInfo = await invoke("get_cloud_auth_info");
+                    const u = authInfo ? authInfo.username : "";
+                    const d = authInfo ? authInfo.device : "";
+                    await this.executeInitialHistorySync(u, d);
+                } catch(e) {
+                    console.error("Resync failed:", e);
+                }
+            });
+        }
+
         if (btnLogoutCloud && logoutConfirmModal) {
             btnLogoutCloud.addEventListener('click', () => {
                 logoutConfirmModal.style.display = 'flex';
+                setTimeout(() => logoutConfirmModal.classList.add('show'), 10);
             });
         }
 
         if (btnCancelLogoutModal && logoutConfirmModal) {
             btnCancelLogoutModal.addEventListener('click', () => {
-                logoutConfirmModal.style.display = 'none';
+                logoutConfirmModal.classList.remove('show');
+                setTimeout(() => { logoutConfirmModal.style.display = 'none'; }, 200);
+            });
+        }
+
+        if (logoutConfirmModal) {
+            logoutConfirmModal.addEventListener('click', (e) => {
+                if (e.target === logoutConfirmModal) {
+                    logoutConfirmModal.classList.remove('show');
+                    setTimeout(() => { logoutConfirmModal.style.display = 'none'; }, 200);
+                }
             });
         }
 
         if (btnExecLogoutModal && logoutConfirmModal) {
             btnExecLogoutModal.addEventListener('click', async () => {
-                logoutConfirmModal.style.display = 'none';
+                logoutConfirmModal.classList.remove('show');
+                setTimeout(() => { logoutConfirmModal.style.display = 'none'; }, 200);
+
                 const originalText = btnExecLogoutModal.textContent;
                 btnExecLogoutModal.disabled = true;
                 btnExecLogoutModal.textContent = "ログアウト中...";
@@ -283,22 +333,29 @@ window.SettingsSync = {
             if (syncHistoryProgressText) syncHistoryProgressText.textContent = "ライブラリデータを送信中...";
             await invoke("sync_all_local_music_list_to_cloud");
 
-            // 4. プレイリスト一覧の送信 (先行実装)
+            // 4. プレイリスト一覧の送信
             if (titleEl) titleEl.textContent = "クラウドへプレイリスト一覧を送信中...";
             if (syncHistoryProgressBar) syncHistoryProgressBar.style.width = '80%';
             if (syncHistoryProgressText) syncHistoryProgressText.textContent = "プレイリストを送信中...";
             try {
                 await invoke("sync_all_local_playlists_to_cloud");
             } catch(plErr) {
-                console.warn("Playlist cloud sync skipped (server may be in progress):", plErr);
+                console.warn("Playlist cloud sync skipped:", plErr);
             }
 
             this.showLoggedInView(uVal, dVal);
-            window.SettingsGeneral.showToast("Chordia Sync の認証と同期が完了しました！");
+            window.SettingsGeneral.showToast("Chordia Sync へのデータ送信が完了しました！");
+            
+            // 統計画面も最新データに更新
+            if (window.SettingsStats) {
+                const activeSec = document.querySelector('.settings-section.active');
+                if (activeSec && activeSec.id === 'sec-music-stats') window.SettingsStats.loadPlayStatistics();
+                if (activeSec && activeSec.id === 'sec-work-stats') window.SettingsStats.loadWorkStatistics();
+            }
         } catch(err) {
             console.error("Initial history sync failed:", err);
             this.showLoggedInView(uVal, dVal);
-            window.SettingsGeneral.showToast("同期処理の一部でエラーが発生しましたが、ログインは完了しました", true);
+            window.SettingsGeneral.showToast("同期処理の一部でエラーが発生しましたが、処理は完了しました", true);
         } finally {
             if (syncHistoryProgressOverlay) {
                 syncHistoryProgressOverlay.style.display = 'none';

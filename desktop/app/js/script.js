@@ -146,8 +146,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     label: "settings_window", 
                     url: new URL("settings.html", window.location.href).href,
                     title: "情報・設定 - Chordia",
-                    width: 1050.0,
-                    height: 800.0
+                    width: 1250.0,
+                    height: 880.0
                 });
             } else {
                 window.location.href = 'settings.html';
@@ -155,6 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // ★ キーボードショートカット (作業画面を W ではなく F で起動)
     document.addEventListener('keydown', (e) => {
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
 
@@ -167,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;
-            case '8': case 'W': targetBtn = btnWork; break;
+            case '8': case 'F': targetBtn = btnWork; break; // ★ W -> F に変更
             case '9': case 'I': case 'S': targetBtn = btnInfo; break;
         }
 
@@ -206,18 +207,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ========================================================
-    // ★ Chordia Relay (トップ画面右上 雲アイコン & ポーリング)
+    // Chordia Relay
     // ========================================================
     const btnRelay = document.getElementById('btnRelay');
     const relayBadge = document.getElementById('relayBadge');
     const relayModal = document.getElementById('relayModal');
     const btnCloseRelayModalX = document.getElementById('btnCloseRelayModalX');
     const relayListContainer = document.getElementById('relayListContainer');
+    const btnRefreshRelay = document.getElementById('btnRefreshRelay');
+    const relayLastUpdated = document.getElementById('relayLastUpdated');
 
     let relayDevices = [];
     let relayPollingTimer = null;
 
     const escapeHtml = (str) => str ? String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+
+    const formatCurrentTime = () => {
+        const d = new Date();
+        const h = String(d.getHours()).padStart(2, '0');
+        const m = String(d.getMinutes()).padStart(2, '0');
+        const s = String(d.getSeconds()).padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    };
+
+    const updateLastUpdatedTime = () => {
+        if (relayLastUpdated) {
+            relayLastUpdated.textContent = `最終更新: ${formatCurrentTime()}`;
+        }
+    };
 
     const closeRelayModal = () => {
         if (relayModal) {
@@ -252,7 +269,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // デバイス一覧を描画する関数
     function renderRelayDevices() {
         if (!relayListContainer) return;
         relayListContainer.innerHTML = '';
@@ -307,7 +323,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `;
 
-            // ★ デバイスカードクリック時：再生引き継ぎ情報を保存して再生画面へ遷移
             card.onclick = async () => {
                 const nowData = item.nowPlaying;
                 if (!nowData || !nowData.nowPlayingTitle) {
@@ -315,7 +330,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
-                // 引き継ぎデータをlocalStorageに保存
                 localStorage.setItem('chordia_relay_handover', JSON.stringify({
                     handover: nowData,
                     deviceName: item.name || "他デバイス",
@@ -342,8 +356,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ポーリング処理
-    async function pollRelayDevices() {
+    async function pollRelayDevices(isManual = false) {
+        if (isManual && btnRefreshRelay) {
+            btnRefreshRelay.classList.add('spinning');
+        }
+
         try {
             const authInfo = await invoke("get_cloud_auth_info");
             const isLoggedIn = (authInfo && authInfo.logged_in);
@@ -372,9 +389,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     renderRelayDevices();
                 }
             }
+            updateLastUpdatedTime();
         } catch (e) {
             console.warn("[Chordia Relay] Polling error:", e);
+        } finally {
+            if (btnRefreshRelay) {
+                setTimeout(() => {
+                    btnRefreshRelay.classList.remove('spinning');
+                }, 300);
+            }
         }
+    }
+
+    if (btnRefreshRelay) {
+        btnRefreshRelay.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await pollRelayDevices(true);
+        });
     }
 
     if (btnRelay) {
@@ -387,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            await pollRelayDevices();
+            await pollRelayDevices(true);
             renderRelayDevices();
             if (relayModal) {
                 relayModal.style.display = 'flex';

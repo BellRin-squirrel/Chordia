@@ -21,10 +21,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    <span>トップへ戻る</span>
+                    <span data-i18n="Common.back_to_top">トップへ戻る</span>
                 </a>
             </div>
-            <h1>情報・統計</h1>
+            <h1 data-i18n="Settings.title">情報・統計</h1>
         </header>
 
         <div class="info-layout-container">
@@ -32,15 +32,15 @@
             <div class="info-tab-bar" id="infoTabBar">
                 <button class="info-nav-btn active" data-target="sec-license">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                    <span>ライセンス</span>
+                    <span data-i18n="Settings.license">ライセンス</span>
                 </button>
                 <button class="info-nav-btn" data-target="sec-music-stats">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                    <span>楽曲再生統計</span>
+                    <span data-i18n="Settings.music_stats">楽曲再生統計</span>
                 </button>
                 <button class="info-nav-btn" data-target="sec-work-stats">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    <span>作業統計</span>
+                    <span data-i18n="Settings.work_stats">作業統計</span>
                 </button>
             </div>
 
@@ -49,15 +49,15 @@
                 <aside class="info-sidebar" id="infoSidebar">
                     <button class="info-nav-btn active" data-target="sec-license">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-                        <span>ライセンス</span>
+                        <span data-i18n="Settings.license">ライセンス</span>
                     </button>
                     <button class="info-nav-btn" data-target="sec-music-stats">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                        <span>楽曲再生統計</span>
+                        <span data-i18n="Settings.music_stats">楽曲再生統計</span>
                     </button>
                     <button class="info-nav-btn" data-target="sec-work-stats">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                        <span>作業統計</span>
+                        <span data-i18n="Settings.work_stats">作業統計</span>
                     </button>
                 </aside>
 
@@ -65,17 +65,17 @@
                     
                     <!-- 1. ライセンス -->
                     <section id="sec-license" class="info-section active">
-                        <h2 class="section-title">ライセンス・アプリ情報</h2>
+                        <h2 class="section-title" data-i18n="Settings.license_title">ライセンス・アプリ情報</h2>
 
                         <div class="license-display-card">
                             <div class="app-logo-area">
                                 <img src="icon/Chordia_nobg.png" alt="Chordia" style="width: 72px; height: 72px; object-fit: contain;">
                             </div>
-                            <h3 class="app-name">Chordia Desktop版</h3>
+                            <h3 class="app-name" data-i18n="Info.app_name">Chordia Desktop版</h3>
                             <p class="app-version" id="infoAppVersion">v5.0.0</p>
                             <div class="divider"></div>
-                            <p class="copyright">&copy; 2026 BellRin</p>
-                            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-sub); line-height: 1.6;">
+                            <p class="copyright" data-i18n="Info.copyright">&copy; 2026 BellRin</p>
+                            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-sub); line-height: 1.6;" data-i18n="Info.app_desc">
                                 ライブラリをスマートに管理する次世代ミュージックプレイヤー
                             </p>
                         </div>
@@ -84,35 +84,33 @@
                     <!-- 2. 楽曲再生統計 -->
                     <section id="sec-music-stats" class="info-section">
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(128, 128, 128, 0.2); padding-bottom: 8px; margin-bottom: 20px;">
-                            <h2 class="section-title" style="margin: 0; border: none; padding: 0;">楽曲再生統計</h2>
-                            <span id="syncStatusBadgePlay" class="sync-indicator-badge">取得中...</span>
+                            <h2 class="section-title" style="margin: 0; border: none; padding: 0;" data-i18n="Settings.music_stats">楽曲再生統計</h2>
+                            <span id="syncStatusBadgePlay" class="sync-indicator-badge" data-i18n="Common.loading">取得中...</span>
                         </div>
 
-                        <!-- 直近7日間の再生回数ランキング（TOP 5） -->
                         <div class="stats-sub-box">
-                            <h3 class="sub-box-title">直近7日間の再生回数ランキング (TOP 5)</h3>
+                            <h3 class="sub-box-title" data-i18n="Settings.ranking_top5_title">直近7日間の再生回数ランキング (TOP 5)</h3>
                             <div id="topRankingContainer" class="ranking-grid">
-                                <p style="color: var(--text-sub); font-size: 0.9rem;">集計中...</p>
+                                <p style="color: var(--text-sub); font-size: 0.9rem;" data-i18n="Common.loading">集計中...</p>
                             </div>
                         </div>
 
-                        <!-- 過去の再生履歴一覧 -->
                         <div class="stats-sub-box" style="margin-top: 24px;">
-                            <h3 class="sub-box-title">再生履歴一覧</h3>
+                            <h3 class="sub-box-title" data-i18n="Settings.play_history_list_title">再生履歴一覧</h3>
                             <div class="table-responsive">
                                 <table class="stats-table">
                                     <thead>
                                         <tr>
                                             <th style="width: 45px;">#</th>
-                                            <th>楽曲タイトル</th>
-                                            <th>アーティスト</th>
-                                            <th>アルバム</th>
-                                            <th>デバイス</th>
-                                            <th>再生日時</th>
+                                            <th data-i18n="Tags.title">楽曲タイトル</th>
+                                            <th data-i18n="Tags.artist">アーティスト</th>
+                                            <th data-i18n="Tags.album">アルバム</th>
+                                            <th data-i18n="Settings.th_device">デバイス</th>
+                                            <th data-i18n="Settings.th_played_at">再生日時</th>
                                         </tr>
                                     </thead>
                                     <tbody id="playHistoryTableBody">
-                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
+                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -122,37 +120,35 @@
                     <!-- 3. 作業統計 -->
                     <section id="sec-work-stats" class="info-section">
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid rgba(128, 128, 128, 0.2); padding-bottom: 8px; margin-bottom: 20px;">
-                            <h2 class="section-title" style="margin: 0; border: none; padding: 0;">作業統計</h2>
-                            <span id="syncStatusBadgeWork" class="sync-indicator-badge">取得中...</span>
+                            <h2 class="section-title" style="margin: 0; border: none; padding: 0;" data-i18n="Settings.work_stats">作業統計</h2>
+                            <span id="syncStatusBadgeWork" class="sync-indicator-badge" data-i18n="Common.loading">取得中...</span>
                         </div>
 
-                        <!-- 未接続時メッセージ -->
                         <div id="workSyncNotConnected" class="stats-empty-card" style="display: none;">
                             <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(128,128,128,0.1); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--text-sub);">
                                 <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                             </div>
-                            <h3 style="font-size: 1.05rem; color: var(--text-main); margin-bottom: 6px;">Chordia Sync に接続されていません</h3>
-                            <p style="font-size: 0.88rem; color: var(--text-sub); line-height: 1.6; margin: 0;">
+                            <h3 style="font-size: 1.05rem; color: var(--text-main); margin-bottom: 6px;" data-i18n="Settings.work_not_connected_title">Chordia Sync に接続されていません</h3>
+                            <p style="font-size: 0.88rem; color: var(--text-sub); line-height: 1.6; margin: 0;" data-i18n="Settings.work_not_connected_desc">
                                 設定画面のアカウント設定から Chordia Sync に接続すると、Mobile版等で記録された作業セッション履歴がここに表示されます。
                             </p>
                         </div>
 
-                        <!-- 接続時: 作業セッション一覧 -->
                         <div id="workSyncConnectedArea" style="display: none;">
                             <div class="stats-sub-box">
-                                <h3 class="sub-box-title">作業セッション履歴</h3>
+                                <h3 class="sub-box-title" data-i18n="Settings.work_history_list_title">作業セッション履歴</h3>
                                 <div class="table-responsive">
                                     <table class="stats-table">
                                         <thead>
                                             <tr>
                                                 <th style="width: 45px;">#</th>
-                                                <th>作業時間</th>
-                                                <th>デバイス</th>
-                                                <th>完了日時</th>
+                                                <th data-i18n="Settings.th_work_time">作業時間</th>
+                                                <th data-i18n="Settings.th_device">デバイス</th>
+                                                <th data-i18n="Settings.th_completed_at">完了日時</th>
                                             </tr>
                                         </thead>
                                         <tbody id="workHistoryTableBody">
-                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
+                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
                                         </tbody>
                                     </table>
                                 </div>

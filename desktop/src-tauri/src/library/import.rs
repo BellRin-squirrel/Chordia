@@ -8,8 +8,8 @@ use tauri::{AppHandle, State};
 use id3::TagLike;
 
 use crate::AppState;
-use crate::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, get_duration_str, update_mp3_tags_from_song_map};
-use crate::cmd_cloud_sync::trigger_background_sync;
+use crate::core::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, get_duration_str, update_mp3_tags_from_song_map};
+use crate::cloud_sync::trigger_background_sync;
 
 #[tauri::command]
 pub fn parse_list_import(content: String, file_type: String) -> Result<serde_json::Value, String> {
@@ -123,13 +123,13 @@ pub fn check_import_duplicates(import_list: Vec<serde_json::Map<String, Value>>,
 pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result<serde_json::Value, String> {
     if let Some(ref pass) = password {
         if pass.chars().count() > 128 {
-            return Err("パスワードは128文字以内にしてください".to_string());
+            return Err("ERR_ZIP_PASS_TOO_LONG".to_string());
         }
     }
 
-    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|e| e.to_string())?;
+    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
     let cursor = Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
     
     let mut needs_password = false;
     for i in 0..archive.len() {
@@ -140,11 +140,9 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
                     break;
                 }
             }
-            Err(zip::result::ZipError::UnsupportedArchive(msg)) => {
-                if msg.contains("Password required") {
-                    needs_password = true;
-                    break;
-                }
+            Err(zip::result::ZipError::UnsupportedArchive(_)) => {
+                needs_password = true;
+                break;
             }
             _ => {}
         }
@@ -153,10 +151,6 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
     if needs_password {
         if password.is_none() || password.as_deref().unwrap_or("").is_empty() {
             return Ok(serde_json::json!({"status": "password_required"}));
-        }
-        let pass = password.as_deref().unwrap_or("");
-        if pass.chars().count() > 128 {
-            return Err("パスワードは128文字以内にしてください".to_string());
         }
     }
 
@@ -167,7 +161,8 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
             Some(ref p) if !p.is_empty() && needs_password => {
                 match archive.by_index_decrypt(i, p.as_bytes()) {
                     Ok(f) => f,
-                    Err(zip::result::ZipError::InvalidPassword) => return Err("パスワードが間違っています".to_string()),
+                    Err(zip::result::ZipError::InvalidPassword) => return Err("ERR_ZIP_PASSWORD_INVALID".to_string()),
+                    Err(zip::result::ZipError::UnsupportedArchive(_)) => return Err("ERR_ZIP_UNSUPPORTED".to_string()),
                     Err(e) => return Err(e.to_string()),
                 }
             },
@@ -273,9 +268,9 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
 
 #[tauri::command]
 pub fn execute_zip_import(app: AppHandle, zip_data_b64: String, import_data_list: Vec<serde_json::Map<String, Value>>, password: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|e| e.to_string())?;
+    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
     let cursor = Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
     
     let base = get_base_dir();
     let _ = fs::create_dir_all(base.join("library/music"));
@@ -313,7 +308,8 @@ pub fn execute_zip_import(app: AppHandle, zip_data_b64: String, import_data_list
                 Some(ref p) if !p.is_empty() => {
                     match archive.by_index_decrypt(idx, p.as_bytes()) {
                         Ok(f) => f,
-                        Err(zip::result::ZipError::InvalidPassword) => return Err("パスワードが間違っています".to_string()),
+                        Err(zip::result::ZipError::InvalidPassword) => return Err("ERR_ZIP_PASSWORD_INVALID".to_string()),
+                        Err(zip::result::ZipError::UnsupportedArchive(_)) => return Err("ERR_ZIP_UNSUPPORTED".to_string()),
                         Err(e) => return Err(e.to_string()),
                     }
                 },
@@ -363,6 +359,8 @@ pub fn execute_zip_import(app: AppHandle, zip_data_b64: String, import_data_list
 
                 db.push(item);
                 count += 1;
+            } else {
+                return Err("ERR_ZIP_FILE_WRITE".to_string());
             }
         }
     }

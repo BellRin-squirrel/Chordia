@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
     <script src="js/i18n.js"></script>
     <style>
-        /* ★ テーマ背景色を適用 */
+        /* ★ テーマ背景色を適用 & macOS/Windows共通のネイティブドラッグ属性指定 */
         body {
             margin: 0; padding: 0;
             background-color: var(--bg-color) !important;
@@ -21,6 +21,7 @@
             border: 1px solid rgba(128, 128, 128, 0.2);
             box-sizing: border-box;
             transition: background-color 0.2s;
+            -webkit-app-region: drag;
         }
 
         /* 画像やテキストのネイティブドラッグを防止（ウィンドウドラッグを最優先） */
@@ -30,7 +31,8 @@
             pointer-events: auto;
         }
 
-        button, input, .large-content {
+        button, input, .large-content, .large-tabs, .seek-bar, .window-controls-mac {
+            -webkit-app-region: no-drag;
             cursor: default;
         }
 
@@ -40,6 +42,7 @@
             padding: 2vh 4vw 4vh 4vw; 
             box-sizing: border-box;
             position: relative;
+            -webkit-app-region: drag;
         }
 
         .top-bar {
@@ -49,11 +52,13 @@
             width: 100%;
             margin-bottom: 2vh;
             flex-shrink: 0;
+            -webkit-app-region: drag;
         }
 
         .window-controls-mac {
             display: flex;
             gap: 8px;
+            -webkit-app-region: no-drag;
         }
 
         .btn-circle-mac {
@@ -78,6 +83,7 @@
         .art-wrapper {
             width: 100%; display: flex; justify-content: center;
             margin-bottom: 2vh; flex-shrink: 0; position: relative;
+            -webkit-app-region: drag;
         }
 
         #art {
@@ -86,6 +92,7 @@
             object-fit: cover; border-radius: 3vw; 
             box-shadow: 0 1vh 3vh rgba(0,0,0,0.2); display: block;
             transition: all 0.3s;
+            -webkit-app-region: drag;
         }
 
         .marquee-wrapper { 
@@ -107,35 +114,37 @@
             100% { transform: translateX(-100%); } 
         }
 
-        .info-area { text-align: center; margin-bottom: 2vh; flex-shrink: 0; width: 100%; overflow: hidden; }
+        .info-area { text-align: center; margin-bottom: 2vh; flex-shrink: 0; width: 100%; overflow: hidden; -webkit-app-region: drag; }
         .info-title { font-weight: 800; font-size: clamp(1rem, 5vw, 1.3rem); white-space: nowrap; overflow: hidden; margin-bottom: 0.5vh; }
         .info-artist { color: var(--text-sub); font-size: clamp(0.8rem, 4vw, 1rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .ctrl-area { display: flex; justify-content: center; align-items: center; gap: 6vw; margin-bottom: 2vh; flex-shrink: 0; }
+        .ctrl-area { display: flex; justify-content: center; align-items: center; gap: 6vw; margin-bottom: 2vh; flex-shrink: 0; -webkit-app-region: no-drag; }
         .btn-ctrl { background: none; border: none; color: var(--text-main); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; transition: transform 0.1s;}
         .btn-ctrl:active { transform: scale(0.9); }
         .btn-ctrl svg { width: clamp(24px, 8vw, 40px); height: clamp(24px, 8vw, 40px); fill: currentColor; }
         .btn-ctrl.playpause { width: clamp(50px, 15vw, 80px); height: clamp(50px, 15vw, 80px); background: var(--primary-color); color: white; border-radius: 50%; box-shadow: 0 0.5vh 1.5vh rgba(0,0,0,0.1); }
         .btn-ctrl.playpause svg { width: 50%; height: 50%; }
 
-        .seek-area { margin-bottom: 2vh; flex-shrink: 0; }
+        .seek-area { margin-bottom: 2vh; flex-shrink: 0; -webkit-app-region: no-drag; }
         .seek-bar { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 3px; background: rgba(128,128,128,0.2); outline: none; cursor: pointer; }
         .seek-bar::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--primary-color); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
         .large-area {
             flex: 1; min-height: 0; display: flex; flex-direction: column;
             background: rgba(128,128,128,0.05); border-radius: 12px; overflow: hidden;
+            -webkit-app-region: no-drag;
         }
         .large-tabs {
             display: flex; background: rgba(128, 128, 128, 0.05); border-bottom: 1px solid rgba(128,128,128,0.1);
             flex-shrink: 0;
+            -webkit-app-region: no-drag;
         }
         .large-tabs button {
             flex: 1; padding: 1vh 0; border: none; background: none; font-size: clamp(0.7rem, 3.5vw, 0.9rem);
             font-weight: 700; color: var(--text-sub); cursor: pointer; transition: all 0.2s;
         }
         .large-tabs button.active { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); }
-        .large-content { flex: 1; overflow-y: auto; padding: 1.5vh 3vw; }
+        .large-content { flex: 1; overflow-y: auto; padding: 1.5vh 3vw; -webkit-app-region: no-drag; }
         .large-pane { display: none; }
         .large-pane.active { display: block; }
         .large-content::-webkit-scrollbar { width: 4px; }
@@ -149,7 +158,7 @@
         .queue-artist { font-size: clamp(0.75rem, 3vw, 0.85rem); color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .lyric-text { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: var(--text-main); text-align: left;}
         
-        /* ★ Smallモード: 0ではなく極小の不透明度を設定してMacのマウスイベントすり抜けを防止 */
+        /* Smallモード */
         body.mode-small { 
             border-radius: 12px; 
             border: none; 
@@ -167,6 +176,7 @@
             display: flex; justify-content: flex-start; align-items: flex-start;
             padding: 10px; box-sizing: border-box; opacity: 0; transition: opacity 0.2s;
             border-radius: 12px;
+            -webkit-app-region: drag;
         }
         body.mode-small .art-wrapper:hover .small-overlay { opacity: 1; }
 

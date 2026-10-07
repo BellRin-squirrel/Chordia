@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WebviewWindow};
 
 #[tauri::command]
 pub async fn open_new_window(app: AppHandle, label: String, url: String, title: String, width: f64, height: f64) -> Result<(), String> {
@@ -34,6 +34,12 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
 
     builder.build().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ★ macOS/Windows 双方で確実にウィンドウドラッグを開始するコマンド
+#[tauri::command]
+pub fn start_drag(window: WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -186,7 +192,6 @@ pub fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
-// ★ 消失していたサウンド設定用コマンドを復旧
 #[tauri::command]
 pub fn open_sound_settings() -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -207,7 +212,7 @@ pub fn open_sound_settings() -> Result<(), String> {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let _ = (); // Linux等ではスキップ
+        let _ = ();
     }
 
     Ok(())

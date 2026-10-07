@@ -68,20 +68,22 @@
                 reader.readAsDataURL(file);
             };
 
-            document.getElementById('btnFetchBulkEditVideoArt').onclick = async () => {
-                const url = document.getElementById('bulkEditMiniVideoUrl').value.trim();
+            const bulkEditMiniVideoUrlInput = document.getElementById('bulkEditMiniVideoUrl');
+            const btnFetchBulkEditVideoArt = document.getElementById('btnFetchBulkEditVideoArt');
+
+            btnFetchBulkEditVideoArt.onclick = async () => {
+                const url = bulkEditMiniVideoUrlInput.value.trim();
                 this.showError("");
                 if (!url) { this.showError(window.i18n ? window.i18n.t('Manage.msg_enter_url') : "URLを入力してください"); return; }
-                const btn = document.getElementById('btnFetchBulkEditVideoArt');
-                const orgText = btn.textContent;
-                btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
+                const orgText = btnFetchBulkEditVideoArt.textContent;
+                btnFetchBulkEditVideoArt.disabled = true; btnFetchBulkEditVideoArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
                 try {
                     const status = await invoke("check_tools_status");
                     if (!status['yt-dlp'] || !status['ffmpeg']) {
                         this.showError(window.i18n ? window.i18n.t('Manage.msg_ext_missing') : "拡張機能が不足しています");
                         return;
                     }
-                    btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
+                    btnFetchBulkEditVideoArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                     const info = await invoke("fetch_video_info", { url: url });
                     if (info.status === 'success' && info.thumbnail) {
                         const b64 = await invoke("fetch_and_crop_thumbnail", { url: info.thumbnail });
@@ -93,16 +95,28 @@
                         } else { this.showError("Failed to process image"); }
                     } else { this.showError(info.message || "Fetch failed"); }
                 } catch(e) { this.showError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "エラーが発生しました"); }
-                finally { btn.disabled = false; btn.textContent = orgText; }
+                finally { btnFetchBulkEditVideoArt.disabled = false; btnFetchBulkEditVideoArt.textContent = orgText; }
             };
 
-            document.getElementById('btnFetchBulkEditDirectArt').onclick = async () => {
-                const url = document.getElementById('bulkEditMiniImageUrl').value.trim();
+            if (bulkEditMiniVideoUrlInput) {
+                bulkEditMiniVideoUrlInput.addEventListener('keydown', (e) => {
+                    if (e.isComposing || e.keyCode === 229) return;
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        btnFetchBulkEditVideoArt.click();
+                    }
+                });
+            }
+
+            const bulkEditMiniImageUrlInput = document.getElementById('bulkEditMiniImageUrl');
+            const btnFetchBulkEditDirectArt = document.getElementById('btnFetchBulkEditDirectArt');
+
+            btnFetchBulkEditDirectArt.onclick = async () => {
+                const url = bulkEditMiniImageUrlInput.value.trim();
                 this.showError("");
                 if (!url) { this.showError(window.i18n ? window.i18n.t('Manage.msg_enter_url') : "URLを入力してください"); return; }
-                const btn = document.getElementById('btnFetchBulkEditDirectArt');
-                const orgText = btn.textContent;
-                btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
+                const orgText = btnFetchBulkEditDirectArt.textContent;
+                btnFetchBulkEditDirectArt.disabled = true; btnFetchBulkEditDirectArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
                 try {
                     const res = await invoke("fetch_and_crop_image_url", { url: url });
                     if (res.status === 'success') {
@@ -112,8 +126,19 @@
                         u.showToast(window.i18n ? window.i18n.t('Manage.msg_img_fetch_success') : "画像を取得しました");
                     } else { this.showError("Fetch failed: " + res.message); }
                 } catch(e) { this.showError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラー"); }
-                finally { btn.disabled = false; btn.textContent = orgText; }
+                finally { btnFetchBulkEditDirectArt.disabled = false; btnFetchBulkEditDirectArt.textContent = orgText; }
             };
+
+            // ★ 一括変更のアートワークURL入力欄でもEnterキーで画像取得を実行
+            if (bulkEditMiniImageUrlInput) {
+                bulkEditMiniImageUrlInput.addEventListener('keydown', (e) => {
+                    if (e.isComposing || e.keyCode === 229) return;
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        btnFetchBulkEditDirectArt.click();
+                    }
+                });
+            }
 
             document.getElementById('btnExecBulkEditRemoveArt').onclick = () => {
                 s.bulkNewArtBase64 = "REMOVE";

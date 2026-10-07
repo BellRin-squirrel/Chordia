@@ -94,7 +94,8 @@ window.WorkPicker = {
         }
 
         if (items.length === 0) {
-            container.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-sub); font-size:0.85rem;">該当する項目が見つかりません</div>`;
+            const noMatch = window.i18n ? window.i18n.t('Manage.no_matching_songs') : "該当する項目が見つかりません";
+            container.innerHTML = `<div style="text-align:center; padding:24px; color:var(--text-sub); font-size:0.85rem;">${noMatch}</div>`;
             return;
         }
 

@@ -4,11 +4,11 @@
     Object.assign(window.BulkController, {
         fetchPlaylist: async function() {
             const url = document.getElementById('bulkPlaylistUrl').value.trim();
-            if (!url) { u.showToast("URLを入力してください", true); return; }
+            if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
 
             const btn = document.getElementById('btnFetchBulk');
             const orgText = btn.textContent;
-            btn.textContent = "取得中...";
+            btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
             btn.disabled = true;
 
             const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
@@ -16,7 +16,7 @@
             try {
                 const toolsStatus = await invoke("check_tools_status");
                 if (!toolsStatus['yt-dlp'] || !toolsStatus['ffmpeg'] || !toolsStatus['deno']) {
-                    u.showToast("動画機能を利用するには拡張機能（yt-dlp, ffmpeg, deno）をインストールしてください", true);
+                    u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_ext_needed_bulk') : "動画機能を利用するには拡張機能（yt-dlp, ffmpeg, deno）をインストールしてください", true);
                     return;
                 }
 
@@ -36,10 +36,10 @@
                     this.renderTable();
                     this.processThumbnailsBackground();
                 } else {
-                    u.showAlert("エラー", res.message);
+                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message);
                 }
             } catch(e) {
-                u.showToast("通信エラーが発生しました", true);
+                u.showToast(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラーが発生しました", true);
             } finally {
                 btn.textContent = orgText;
                 btn.disabled = false;
@@ -62,7 +62,6 @@
             }
         },
 
-        // ★ 新設：一括追加の各アイテムについてユーザーの選択を待機するプロンプト
         showBulkDuplicatePrompt: function(item, isExisting) {
             return new Promise((resolve) => {
                 const modal = document.getElementById('bulkDuplicateModal');
@@ -77,22 +76,23 @@
                 const artist = window.AddMusicUtils.escapeHtml(item.artist);
 
                 if (isExisting) {
-                    msgEl.innerHTML = `「${title}」（${artist}）の楽曲はすでに追加されています。`;
+                    msgEl.innerHTML = window.i18n ? window.i18n.t('AddMusic.dup_existing_msg', { title: title, artist: artist }) : `「${title}」（${artist}）の楽曲はすでに追加されています。`;
                     manageBtnArea.style.display = 'block';
                     btnManage.onclick = async () => {
                         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                         const label = `manage_window_${Date.now()}`;
                         const targetUrl = new URL(`manage.html?mode=window&adv_title=${encodeURIComponent(item.title)}&adv_artist=${encodeURIComponent(item.artist)}`, window.location.href).href;
+                        // ★ ウィンドウサイズを幅1250px・高さ880pxで開く
                         await invoke("open_new_window", {
                             label: label,
                             url: targetUrl,
                             title: "データベース管理 - Chordia",
-                            width: 1200.0,
-                            height: 900.0
+                            width: 1250.0,
+                            height: 880.0
                         });
                     };
                 } else {
-                    msgEl.innerHTML = `「${title}」（${artist}）の楽曲は一括追加の項目内で重複しています。`;
+                    msgEl.innerHTML = window.i18n ? window.i18n.t('AddMusic.dup_bulk_msg', { title: title, artist: artist }) : `「${title}」（${artist}）の楽曲は一括追加の項目内で重複しています。`;
                     manageBtnArea.style.display = 'none';
                 }
 
@@ -121,7 +121,6 @@
             let validItems = [];
             let addedSignatures = new Set();
             
-            // --- 1. 重複確認フェーズ ---
             for (let i = 0; i < this.scannedData.length; i++) {
                 const item = this.scannedData[i];
                 const title = (item.title || "").trim().toLowerCase();
@@ -143,11 +142,10 @@
                 if (isExistingDup || isPlaylistDup) {
                     const action = await this.showBulkDuplicatePrompt(item, isExistingDup);
                     if (action === 'cancel') {
-                        return; // キャンセルが選択されたら完全に中断
+                        return;
                     } else if (action === 'skip') {
-                        continue; // この曲をリストから除外して次へ
+                        continue;
                     }
-                    // 'continue' が選択された場合は下の処理へ進む（追加する）
                 }
 
                 addedSignatures.add(sig);
@@ -155,11 +153,10 @@
             }
 
             if (validItems.length === 0) {
-                u.showAlert("お知らせ", "追加する楽曲がありません。");
+                u.showAlert(window.i18n ? window.i18n.t('Common.notice') : "お知らせ", window.i18n ? window.i18n.t('AddMusic.msg_no_songs_to_import') : "追加する楽曲がありません。");
                 return;
             }
 
-            // --- 2. ダウンロード＆追加フェーズ ---
             const overlay = document.getElementById('loadingOverlay');
             const text = document.getElementById('loadingText');
             overlay.style.display = 'flex';
@@ -171,7 +168,7 @@
 
             for (let i = 0; i < total; i++) {
                 const item = validItems[i];
-                text.textContent = `一括追加中... ${i + 1} / ${total}`;
+                text.textContent = window.i18n ? window.i18n.t('AddMusic.loading_bulk_importing', { current: i + 1, total: total }) : `一括追加中... ${i + 1} / ${total}`;
                 
                 let cleanUrl = item.url;
                 const match = item.url.match(/[?&]v=([^&]+)/) || item.url.match(/youtu\.be\/([^?]+)/) || item.url.match(/youtube\.com\/shorts\/([^?]+)/);
@@ -204,7 +201,7 @@
             overlay.style.display = 'none';
             btn.disabled = false;
 
-            u.showAlert("追加完了", `${successCount}曲の追加が完了しました。\n(失敗: ${failCount}曲)`);
+            u.showAlert(window.i18n ? window.i18n.t('Common.complete') : "追加完了", window.i18n ? window.i18n.t('AddMusic.alert_bulk_complete', { success: successCount, fail: failCount }) : `${successCount}曲の追加が完了しました。\n(失敗: ${failCount}曲)`);
             if (successCount > 0) {
                 this.scannedData =[];
                 document.getElementById('bulkResultArea').style.display = 'none';

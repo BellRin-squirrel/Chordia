@@ -14,7 +14,7 @@ window.WorkFocus = {
 
     cfg: null, 
 
-    pomoPhase: 'WORK', // 'WORK' or 'BREAK'
+    pomoPhase: 'WORK', 
     totalWorkSeconds: 0,
     pomoRemaining: 0,
     isMusicFadingOut: false, 
@@ -189,24 +189,42 @@ window.WorkFocus = {
         }
 
         if (dateEl && (this.cfg.dateFormat !== 'none' || this.cfg.dayFormat !== 'none')) {
+            const isEnglish = (window.i18n && window.i18n.dictionary && window.i18n.dictionary.Meta && window.i18n.dictionary.Meta.code === 'en');
             let dateStr = "";
             const y = now.getFullYear();
             const m = now.getMonth() + 1;
             const d = now.getDate();
 
-            if (this.cfg.dateFormat === 'ymd') dateStr = `${y}年${m}月${d}日`;
-            else if (this.cfg.dateFormat === 'md') dateStr = `${m}月${d}日`;
-            else if (this.cfg.dateFormat === 'd') dateStr = `${d}日`;
+            if (isEnglish) {
+                const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                if (this.cfg.dateFormat === 'ymd') dateStr = `${months[m - 1]} ${d}, ${y}`;
+                else if (this.cfg.dateFormat === 'md') dateStr = `${months[m - 1]} ${d}`;
+                else if (this.cfg.dateFormat === 'd') dateStr = `${d}`;
 
-            const dayShort = ["日", "月", "火", "水", "木", "金", "土"][now.getDay()];
-            const dayFull = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"][now.getDay()];
+                const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                const daysFull = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-            let dayStr = "";
-            if (this.cfg.dayFormat === 'paren') dayStr = ` (${dayShort})`;
-            else if (this.cfg.dayFormat === 'short') dayStr = ` ${dayShort}曜`;
-            else if (this.cfg.dayFormat === 'full') dayStr = ` ${dayFull}`;
+                let dayStr = "";
+                if (this.cfg.dayFormat === 'paren') dayStr = ` (${days[now.getDay()]})`;
+                else if (this.cfg.dayFormat === 'short') dayStr = ` ${days[now.getDay()]}`;
+                else if (this.cfg.dayFormat === 'full') dayStr = ` ${daysFull[now.getDay()]}`;
 
-            dateEl.textContent = `${dateStr}${dayStr}`.trim();
+                dateEl.textContent = `${dateStr}${dayStr}`.trim();
+            } else {
+                if (this.cfg.dateFormat === 'ymd') dateStr = `${y}年${m}月${d}日`;
+                else if (this.cfg.dateFormat === 'md') dateStr = `${m}月${d}日`;
+                else if (this.cfg.dateFormat === 'd') dateStr = `${d}日`;
+
+                const dayShort = ["日", "月", "火", "水", "木", "金", "土"][now.getDay()];
+                const dayFull = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"][now.getDay()];
+
+                let dayStr = "";
+                if (this.cfg.dayFormat === 'paren') dayStr = ` (${dayShort})`;
+                else if (this.cfg.dayFormat === 'short') dayStr = ` ${dayShort}曜`;
+                else if (this.cfg.dayFormat === 'full') dayStr = ` ${dayFull}`;
+
+                dateEl.textContent = `${dateStr}${dayStr}`.trim();
+            }
         }
     },
 

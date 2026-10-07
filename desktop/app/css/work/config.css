@@ -25,7 +25,7 @@ body {
     background: transparent;
 }
 
-/* ★ 作業設定・準備完了画面では常に表示し、ボタン間の隙間を広げる */
+/* 作業設定・準備完了画面では常に表示 */
 .window-controls-mac {
     display: flex;
     align-items: center;
@@ -60,7 +60,6 @@ body {
     color: rgba(0, 0, 0, 0.7);
 }
 
-/* ★ 閉じるボタンと最大化ボタンの色を確実に適用 */
 .btn-red { background-color: #ff5e56 !important; }
 .btn-green { background-color: #28c840 !important; }
 
@@ -154,7 +153,7 @@ body {
     margin-bottom: 2px;
 }
 
-/* ピル型セグメントボタン */
+/* ★ テーマカラー・ダークモード完全対応のピル型セグメントボタン */
 .segment-grid {
     display: grid;
     gap: 10px;
@@ -165,8 +164,8 @@ body {
 .segment-3 { grid-template-columns: repeat(3, 1fr); }
 
 .segment-btn {
-    background: #f1f3f7;
-    border: 1px solid rgba(128, 128, 128, 0.1);
+    background: var(--bg-color, #f3f4f6);
+    border: 1px solid rgba(128, 128, 128, 0.18);
     color: var(--text-main, #1f2937);
     padding: 13px 4px;
     border-radius: 14px;
@@ -185,7 +184,7 @@ body {
 }
 
 .segment-btn:hover:not(.active) {
-    background: #e5e9f0;
+    background: color-mix(in srgb, var(--text-main) 8%, var(--bg-color));
 }
 
 .segment-btn.active {
@@ -238,7 +237,7 @@ body {
     border: 2px solid rgba(128, 128, 128, 0.25);
     border-radius: 12px;
     font-size: 0.95rem;
-    background: #f1f3f7;
+    background: var(--bg-color, #f3f4f6);
     color: var(--text-main, #1f2937);
     outline: none;
     transition: all 0.2s;
@@ -246,7 +245,7 @@ body {
 
 .custom-num-input:focus {
     border-color: var(--primary-color, #4f46e5);
-    background: #ffffff;
+    background: var(--card-bg, #ffffff);
 }
 
 .custom-num-input.input-error {
@@ -286,7 +285,7 @@ body {
     position: absolute;
     cursor: pointer;
     top: 0; left: 0; right: 0; bottom: 0;
-    background-color: #d1d5db;
+    background-color: rgba(128, 128, 128, 0.35);
     transition: .3s cubic-bezier(0.25, 0.8, 0.25, 1);
     border-radius: 34px;
 }
@@ -312,7 +311,7 @@ body {
     transform: translateX(26px);
 }
 
-/* 再生設定スロット */
+/* ★ 再生設定スロット（ダークモード対応） */
 .slot-container {
     display: flex;
     flex-direction: column;
@@ -327,8 +326,8 @@ body {
 
 .list-select-box {
     flex: 1;
-    background: #f1f3f7;
-    border: 1px solid rgba(128, 128, 128, 0.15);
+    background: var(--bg-color, #f3f4f6);
+    border: 1px solid rgba(128, 128, 128, 0.18);
     border-radius: 16px;
     padding: 16px 20px;
     display: flex;
@@ -344,7 +343,7 @@ body {
 
 .list-select-box:hover {
     border-color: var(--primary-color, #4f46e5);
-    background: #e9ecf2;
+    background: color-mix(in srgb, var(--primary-color) 8%, var(--bg-color));
 }
 
 .list-select-box span {
@@ -365,8 +364,8 @@ body {
     width: 64px;
     height: 64px;
     border-radius: 18px;
-    border: none;
-    background: #f1f3f7;
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    background: var(--bg-color, #f3f4f6);
     color: var(--text-sub, #6b7280);
     cursor: pointer;
     display: flex;
@@ -385,6 +384,7 @@ body {
 .btn-shuffle-card.active {
     background: var(--primary-color, #4f46e5);
     color: #ffffff;
+    border-color: var(--primary-color, #4f46e5);
     box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
 }
 
@@ -413,7 +413,7 @@ body {
 }
 
 .btn-complete-work:hover {
-    background: var(--primary-hover, #4338ca);
+    background: var(--primary-color-dark, #4338ca);
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
 }

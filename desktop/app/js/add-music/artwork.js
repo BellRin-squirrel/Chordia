@@ -21,7 +21,6 @@ window.ArtworkController = {
         const displayVal = document.getElementById('artMethodValue');
         const contents = document.querySelectorAll('.art-tab-content');
 
-        // ★ 初期選択言語のラベルを多言語辞書からセット
         if (displayVal && window.i18n) {
             displayVal.textContent = window.i18n.t('AddMusic.art_opt_local');
         }
@@ -135,10 +134,11 @@ window.ArtworkController = {
             });
         }
 
+        const altVideoUrl = document.getElementById('altVideoUrl');
         const btnFetchAltThumb = document.getElementById('btnFetchAltThumb');
         if (btnFetchAltThumb) {
             btnFetchAltThumb.addEventListener('click', async () => {
-                const url = document.getElementById('altVideoUrl').value.trim();
+                const url = altVideoUrl.value.trim();
                 if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
                 
                 btnFetchAltThumb.disabled = true; 
@@ -162,10 +162,22 @@ window.ArtworkController = {
             });
         }
 
+        // ★ 別動画URL入力欄でのEnterキー対応
+        if (altVideoUrl) {
+            altVideoUrl.addEventListener('keydown', (e) => {
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btnFetchAltThumb) btnFetchAltThumb.click();
+                }
+            });
+        }
+
+        const imageUrl = document.getElementById('imageUrl');
         const btnPreviewImageUrl = document.getElementById('btnPreviewImageUrl');
         if (btnPreviewImageUrl) {
             btnPreviewImageUrl.addEventListener('click', async () => {
-                const url = document.getElementById('imageUrl').value.trim();
+                const url = imageUrl.value.trim();
                 if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
                 
                 btnPreviewImageUrl.disabled = true; 
@@ -182,6 +194,17 @@ window.ArtworkController = {
                 finally { 
                     btnPreviewImageUrl.disabled = false; 
                     btnPreviewImageUrl.textContent = window.i18n ? window.i18n.t('AddMusic.btn_preview_image_url') : "画像をプレビュー"; 
+                }
+            });
+        }
+
+        // ★ 単曲追加の画像URL入力欄でのEnterキー対応
+        if (imageUrl) {
+            imageUrl.addEventListener('keydown', (e) => {
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btnPreviewImageUrl) btnPreviewImageUrl.click();
                 }
             });
         }

@@ -29,10 +29,22 @@ window.SourceController = {
         if(fileInput) fileInput.addEventListener('change', (e) => this.handleMusic(e.target.files[0]));
         if(fileDropZone) u.setupDragAndDrop(fileDropZone, (file) => this.handleMusic(file));
 
+        const urlInput = document.getElementById('videoUrl');
         const btnFetch = document.getElementById('btnFetchVideoInfo');
         const btnCancel = document.getElementById('btnCancelVideo');
         if(btnFetch) btnFetch.addEventListener('click', () => this.fetchVideo());
         if(btnCancel) btnCancel.addEventListener('click', () => this.cancelVideo());
+
+        // ★ 音源動画ダウンロードURL入力欄でのEnterキー対応
+        if (urlInput) {
+            urlInput.addEventListener('keydown', (e) => {
+                if (e.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (btnFetch) btnFetch.click();
+                }
+            });
+        }
     },
 
     validateArtworkTab: function() {
@@ -41,18 +53,18 @@ window.SourceController = {
         const activeTab = window.ArtworkController.getActiveTab();
 
         if (this.sourceType === 'local' && activeTab === 'art-thumb1') {
-            u.showAlert("音源がローカルファイルに変更されたため、アルバムアートを「ローカル」にリセットしました。");
+            u.showAlert(window.i18n ? window.i18n.t('AddMusic.alert_reset_art_local') : "音源がローカルファイルに変更されたため、アルバムアートを「ローカル」にリセットしました。");
             this.resetToLocalArtworkTab();
         }
         if (this.sourceType === 'download' && activeTab === 'art-extract') {
-            u.showAlert("音源が動画ダウンロードに変更されたため、アルバムアートを「ローカル」にリセットしました。");
+            u.showAlert(window.i18n ? window.i18n.t('AddMusic.alert_reset_art_download') : "音源が動画ダウンロードに変更されたため、アルバムアートを「ローカル」にリセットしました。");
             this.resetToLocalArtworkTab();
         }
     },
 
     resetToLocalArtworkTab: function() {
-        const localTabBtn = document.querySelector('.art-tab-btn[data-target="art-local"]');
-        if (localTabBtn) localTabBtn.click();
+        const localOpt = document.querySelector('#artMethodDropdown .custom-option[data-target="art-local"]');
+        if (localOpt) localOpt.click();
     },
 
     handleMusic: function(file) {
@@ -61,14 +73,14 @@ window.SourceController = {
         const name = file.name.toLowerCase();
         
         if (!name.endsWith('.mp3') && !name.endsWith('.mp4')) {
-            u.showToast('MP3またはMP4ファイルのみ対応しています', true);
+            u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_music_format_error') : 'MP3またはMP4ファイルのみ対応しています', true);
             return;
         }
         
         this.musicFile = file;
-        const display = document.getElementById('fileName');
+        const display = document.getElementById('singleFileNameDisplay');
         if(display) {
-            display.textContent = `選択中: ${file.name}`;
+            display.textContent = window.i18n ? window.i18n.t('AddMusic.label_selected_file', { name: file.name }) : `選択中: ${file.name}`;
             display.style.color = 'var(--primary-color)';
         }
     },
@@ -79,10 +91,10 @@ window.SourceController = {
         this.cancelVideo(); 
         
         const fileInput = document.getElementById('fileInput');
-        const fileName = document.getElementById('fileName');
+        const fileName = document.getElementById('singleFileNameDisplay');
         if(fileInput) fileInput.value = '';
         if(fileName) {
-            fileName.textContent = "MP3 / MP4 ファイルをドラッグ＆ドロップ";
+            fileName.textContent = window.i18n ? window.i18n.t('AddMusic.drop_music_main') : "MP3 / MP4 ファイルをドラッグ＆ドロップ";
             fileName.style.color = "var(--text-main)";
         }
         const radioLocal = document.querySelector('input[name="sourceType"][value="local"]');
@@ -99,16 +111,16 @@ window.SourceController = {
         const btn = document.getElementById('btnFetchVideoInfo');
         const url = urlInput.value.trim();
         
-        if (!url) { u.showToast("URLを入力してください", true); return; }
+        if (!url) { u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください", true); return; }
 
         const originalText = btn.textContent;
-        btn.textContent = "取得中...";
+        btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
         btn.disabled = true;
 
         try {
             const status = await invoke("check_tools_status");
             if (!status['yt-dlp'] || !status['ffmpeg']) {
-                u.showToast("動画機能を利用するには拡張機能（yt-dlp, ffmpeg）が必要です", true);
+                u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_ext_needed') : "動画機能を利用するには拡張機能（yt-dlp, ffmpeg）が必要です", true);
                 return;
             }
 
@@ -119,15 +131,15 @@ window.SourceController = {
                 this.updateVideoUI(res);
 
                 if (window.ArtworkController) {
-                    btn.textContent = "サムネイル処理中...";
+                    btn.textContent = window.i18n ? window.i18n.t('AddMusic.loading_processing_thumb') : "サムネイル処理中...";
                     await window.ArtworkController.preloadThumbnail(res.thumbnail);
                 }
             } else {
-                u.showToast("取得に失敗しました: " + res.message, true);
+                u.showToast((window.i18n ? window.i18n.t('AddMusic.msg_fetch_failed', { msg: res.message }) : "取得に失敗しました: " + res.message), true);
             }
         } catch (e) {
             console.error(e);
-            u.showToast("エラーが発生しました", true);
+            u.showToast(window.i18n ? window.i18n.t('Common.error') : "エラーが発生しました", true);
         } finally {
             btn.textContent = originalText;
             btn.disabled = false;

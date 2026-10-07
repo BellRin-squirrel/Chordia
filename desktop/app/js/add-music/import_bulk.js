@@ -35,59 +35,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    // ★ ZIP読み込みエラーの多言語変換関数
+    function resolveZipErrorMessage(err) {
+        if (!window.i18n) return String(err);
+        const str = String(err);
+
+        if (str.includes("ERR_ZIP_PASS_TOO_LONG")) {
+            return window.i18n.t('Migration.toast_pass_too_long');
+        }
+        if (str.includes("ERR_ZIP_PASSWORD_INVALID") || str.includes("InvalidPassword") || str.includes("パスワードが間違っています")) {
+            return window.i18n.t('AddMusic.err_zip_password_invalid');
+        }
+        if (str.includes("ERR_ZIP_UNSUPPORTED") || str.includes("UnsupportedArchive")) {
+            return window.i18n.t('AddMusic.err_zip_unsupported');
+        }
+        if (str.includes("ERR_ZIP_MEMORY") || str.includes("Invalid string length") || str.includes("out of memory")) {
+            return window.i18n.t('AddMusic.err_zip_memory');
+        }
+        if (str.includes("ERR_ZIP_CORRUPTED") || str.includes("Invalid zip") || str.includes("ZipError")) {
+            return window.i18n.t('AddMusic.err_zip_corrupted');
+        }
+        if (str.includes("ERR_ZIP_FILE_WRITE") || str.includes("206") || str.includes("path too long")) {
+            return window.i18n.t('AddMusic.err_zip_file_write');
+        }
+        return window.i18n.t('AddMusic.err_zip_read_failed', { err: str });
+    }
+
     const progressArea = document.getElementById('progressArea');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
-
-    if (listen) {
-        listen('js_import_progress', (event) => {
-            if (progressArea) progressArea.style.display = 'block';
-            if (progressText) progressText.textContent = data.message;
-            if (progressBar) progressBar.style.width = (data.current / data.total * 100) + '%';
-        });
-
-        listen("tauri://drag-drop", async (event) => {
-            const payload = event.payload;
-            if (payload && payload.paths && payload.paths.length > 0) {
-                const filePath = payload.paths[0];
-                const fileName = filePath.split(/[\\/]/).pop();
-                
-                const activeTabBtn = document.querySelector('.tab-menu .tab-btn.active');
-                const activeTarget = activeTabBtn ? activeTabBtn.dataset.target : '';
-
-                if (activeTarget === 'tab-mp3zip' || importMode === 'zip') {
-                    if (fileName.toLowerCase().endsWith('.zip')) {
-                        if (convertFileSrc) {
-                            try {
-                                const response = await fetch(convertFileSrc(filePath));
-                                const blob = await response.blob();
-                                const file = new File([blob], fileName, { type: 'application/zip' });
-                                handleZipFile(file);
-                            } catch(e) {
-                                console.error("Native drop file fetch failed:", e);
-                            }
-                        }
-                    } else {
-                        u.showToast(window.i18n ? window.i18n.t('Migration.toast_zip_required') : "ZIP形式 (.zip) のファイルを選択してください", true);
-                    }
-                } else if (activeTarget === 'tab-jsoncsv' || importMode === 'list') {
-                    if (fileName.toLowerCase().endsWith('.json') || fileName.toLowerCase().endsWith('.csv')) {
-                        const mime = fileName.toLowerCase().endsWith('.json') ? 'application/json' : 'text/csv';
-                        if (convertFileSrc) {
-                            try {
-                                const response = await fetch(convertFileSrc(filePath));
-                                const blob = await response.blob();
-                                const file = new File([blob], fileName, { type: mime });
-                                handleListFile(file);
-                            } catch(e) {
-                                console.error("Native drop load failed:", e);
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
 
     let scannedData = [];
     let importMode = 'list'; 
@@ -182,13 +158,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const ext = file.name.split('.').pop().toLowerCase();
-                const res = await invoke("parse_list_import", { content: e.target.result, fileType: ext });
-                if (res.status === 'success') {
-                    scannedData = res.data;
-                    renderTable('list');
-                    if (importListResultSection) importListResultSection.style.display = 'block';
-                } else { 
-                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message); 
+                try {
+                    const res = await invoke("parse_list_import", { content: e.target.result, fileType: ext });
+                    if (res.status === 'success') {
+                        scannedData = res.data;
+                        renderTable('list');
+                        if (importListResultSection) importListResultSection.style.display = 'block';
+                    } else { 
+                        u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message); 
+                    }
+                } catch(err) {
+                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", String(err));
                 }
             };
             reader.readAsText(file);
@@ -256,9 +236,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (progressText) progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_scanning_zip') : "ZIPファイルをスキャン中...";
             
             try {
-                const base64Data = await new Promise((resolve) => {
+                const base64Data = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = e => resolve(e.target.result.split(',')[1]);
+                    reader.onerror = () => reject("ERR_ZIP_MEMORY");
                     reader.readAsDataURL(file);
                 });
                 
@@ -274,15 +255,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     scannedData = res.data;
                     renderTable('zip');
                     if(zipResultSection) zipResultSection.style.display = 'block';
-
                     if (zipScanSection) zipScanSection.style.display = 'none';
                 } else {
                     if (zipScanSection) zipScanSection.style.display = 'block';
-                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message || (window.i18n ? window.i18n.t('Common.error') : "スキャンに失敗しました"));
+                    u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(res.message));
                 }
             } catch(err) {
                 if (zipScanSection) zipScanSection.style.display = 'block';
-                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", "ZIP解析中にエラーが発生しました: " + err);
+                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(err));
             } finally {
                 const pModal = document.getElementById('passwordModal');
                 const isPassVisible = pModal && pModal.classList.contains('show');
@@ -324,9 +304,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (zipScanSection) zipScanSection.style.display = 'none';
         
         try {
-            const base64Data = await new Promise((resolve) => {
+            const base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = e => resolve(e.target.result.split(',')[1]);
+                reader.onerror = () => reject("ERR_ZIP_MEMORY");
                 reader.readAsDataURL(file);
             });
             const res = await invoke("scan_zip_import", { zipDataB64: base64Data, password: currentZipPassword });
@@ -334,15 +315,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scannedData = res.data;
                 renderTable('zip');
                 if(zipResultSection) zipResultSection.style.display = 'block';
-
                 if (zipScanSection) zipScanSection.style.display = 'none';
             } else {
                 if (zipScanSection) zipScanSection.style.display = 'block';
-                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res.message);
+                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(res.message));
             }
         } catch(err) {
             if (zipScanSection) zipScanSection.style.display = 'block';
-            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", "ZIP解析中にエラーが発生しました: " + err);
+            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(err));
         } finally {
             if (progressArea) progressArea.style.display = 'none';
         }
@@ -350,7 +330,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnExecZipImport = document.getElementById('btnExecZipImport');
     if(btnExecZipImport) btnExecZipImport.onclick = () => handleFinalImportWithCheck('zip');
-
 
     async function handleFinalImportWithCheck(type) {
         let validItems = [];
@@ -418,12 +397,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnManage.onclick = async () => {
                         const label = `manage_window_${Date.now()}`;
                         const targetUrl = new URL(`manage.html?mode=window&adv_title=${encodeURIComponent(item.title)}&adv_artist=${encodeURIComponent(item.artist)}`, window.location.href).href;
+                        // ★ ウィンドウサイズを幅1250px・高さ880pxで開く
                         await invoke("open_new_window", {
                             label: label,
                             url: targetUrl,
                             title: "データベース管理 - Chordia",
-                            width: 1200.0,
-                            height: 900.0
+                            width: 1250.0,
+                            height: 880.0
                         });
                     };
                 }
@@ -457,38 +437,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (progressArea) progressArea.style.display = 'block';
         if (progressText) progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_registering') : "ライブラリへ登録中...";
         
-        let res;
-        if (type === 'list') {
-            res = await invoke("execute_final_list_import", { importDataList: dataList });
-        } else if (type === 'zip') {
-            const file = window._selectedZipFile;
-            const b64 = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result.split(',')[1]);
-                reader.readAsDataURL(file);
-            });
-            res = await invoke("execute_zip_import", { zipDataB64: b64, importDataList: dataList, password: currentZipPassword });
-        }
-        
-        if (progressArea) progressArea.style.display = 'none';
-        if (res && res.status === 'success') {
-            // ★ 完了メッセージの多言語化
-            u.showAlert(
-                window.i18n ? window.i18n.t('Common.complete') : "完了", 
-                window.i18n ? window.i18n.t('AddMusic.msg_import_success', { count: res.count }) : `${res.count}曲の登録が完了しました。`
-            );
+        try {
+            let res;
             if (type === 'list') {
-                const btnClearImportFile = document.getElementById('btnClearImportFile');
-                if(btnClearImportFile) btnClearImportFile.click();
-            } else {
-                if(btnClearZipFile) btnClearZipFile.click();
+                res = await invoke("execute_final_list_import", { importDataList: dataList });
+            } else if (type === 'zip') {
+                const file = window._selectedZipFile;
+                const b64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result.split(',')[1]);
+                    reader.onerror = () => reject("ERR_ZIP_MEMORY");
+                    reader.readAsDataURL(file);
+                });
+                res = await invoke("execute_zip_import", { zipDataB64: b64, importDataList: dataList, password: currentZipPassword });
             }
-        } else {
-            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", res ? res.message : "不明なエラーが発生しました");
+            
+            if (progressArea) progressArea.style.display = 'none';
+            if (res && res.status === 'success') {
+                u.showAlert(
+                    window.i18n ? window.i18n.t('Common.complete') : "完了", 
+                    window.i18n ? window.i18n.t('AddMusic.msg_import_success', { count: res.count }) : `${res.count}曲の登録が完了しました。`
+                );
+                if (type === 'list') {
+                    const btnClearImportFile = document.getElementById('btnClearImportFile');
+                    if(btnClearImportFile) btnClearImportFile.click();
+                } else {
+                    if(btnClearZipFile) btnClearZipFile.click();
+                }
+            } else {
+                u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(res ? res.message : "不明なエラー"));
+            }
+        } catch(err) {
+            if (progressArea) progressArea.style.display = 'none';
+            u.showAlert(window.i18n ? window.i18n.t('Common.error') : "エラー", resolveZipErrorMessage(err));
         }
     }
 
-    // ★ 修正: テーブルヘッダー、各行の削除ボタンを多言語化
     function renderTable(type) {
         const thead = document.getElementById(type === 'list' ? 'importListTableHeader' : 'mp3TableHeader');
         const tbody = document.getElementById(type === 'list' ? 'importListTableBody' : 'mp3TableBody');
@@ -624,14 +608,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         reader.readAsDataURL(file);
     };
 
-    document.getElementById('btnFetchImportVideoArt').onclick = async () => {
-        const url = document.getElementById('importMiniVideoUrl').value.trim();
+    const importMiniVideoUrl = document.getElementById('importMiniVideoUrl');
+    const btnFetchImportVideoArt = document.getElementById('btnFetchImportVideoArt');
+
+    btnFetchImportVideoArt.onclick = async () => {
+        const url = importMiniVideoUrl.value.trim();
         showImportArtError("");
         if (!url) { showImportArtError(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください"); return; }
 
-        const btn = document.getElementById('btnFetchImportVideoArt');
-        const orgText = btn.textContent;
-        btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
+        const orgText = btnFetchImportVideoArt.textContent;
+        btnFetchImportVideoArt.disabled = true; btnFetchImportVideoArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "確認中...";
 
         try {
             const status = await invoke("check_tools_status");
@@ -640,10 +626,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
+            btnFetchImportVideoArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
             const info = await invoke("fetch_video_info", { url: url });
             if (info.status === 'success' && info.thumbnail) {
-                btn.textContent = window.i18n ? window.i18n.t('AddMusic.loading_processing_thumb') : "画像を変換中...";
+                btnFetchImportVideoArt.textContent = window.i18n ? window.i18n.t('AddMusic.loading_processing_thumb') : "画像を変換中...";
                 const b64 = await invoke("fetch_and_crop_thumbnail", { url: info.thumbnail });
                 if (b64) {
                     artPreview.src = b64;
@@ -652,17 +638,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else { showImportArtError("Failed to crop image"); }
             } else { showImportArtError(info.message || "Failed to fetch info"); }
         } catch(e) { showImportArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "通信エラー"); }
-        finally { btn.disabled = false; btn.textContent = orgText; }
+        finally { btnFetchImportVideoArt.disabled = false; btnFetchImportVideoArt.textContent = orgText; }
     };
 
-    document.getElementById('btnFetchImportDirectArt').onclick = async () => {
-        const url = document.getElementById('importMiniImageUrl').value.trim();
+    // ★ インポートモーダルの動画URL入力欄でのEnterキー対応
+    if (importMiniVideoUrl) {
+        importMiniVideoUrl.addEventListener('keydown', (e) => {
+            if (e.isComposing || e.keyCode === 229) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                btnFetchImportVideoArt.click();
+            }
+        });
+    }
+
+    const importMiniImageUrl = document.getElementById('importMiniImageUrl');
+    const btnFetchImportDirectArt = document.getElementById('btnFetchImportDirectArt');
+
+    btnFetchImportDirectArt.onclick = async () => {
+        const url = importMiniImageUrl.value.trim();
         showImportArtError("");
         if (!url) { showImportArtError(window.i18n ? window.i18n.t('AddMusic.msg_enter_url') : "URLを入力してください"); return; }
 
-        const btn = document.getElementById('btnFetchImportDirectArt');
-        const orgText = btn.textContent;
-        btn.disabled = true; btn.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
+        const orgText = btnFetchImportDirectArt.textContent;
+        btnFetchImportDirectArt.disabled = true; btnFetchImportDirectArt.textContent = window.i18n ? window.i18n.t('Common.loading') : "取得中...";
 
         try {
             const res = await invoke("fetch_and_crop_image_url", { url: url });
@@ -672,8 +671,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 u.showToast(window.i18n ? window.i18n.t('AddMusic.msg_art_fetch_success') : "画像を取得しました");
             } else { showImportArtError("Fetch failed: " + res.message); }
         } catch(e) { showImportArtError(window.i18n ? window.i18n.t('Manage.msg_network_error') : "エラー"); }
-        finally { btn.disabled = false; btn.textContent = orgText; }
+        finally { btnFetchImportDirectArt.disabled = false; btnFetchImportDirectArt.textContent = orgText; }
     };
+
+    // ★ インポートモーダルの画像URL入力欄でのEnterキー対応
+    if (importMiniImageUrl) {
+        importMiniImageUrl.addEventListener('keydown', (e) => {
+            if (e.isComposing || e.keyCode === 229) return;
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                btnFetchImportDirectArt.click();
+            }
+        });
+    }
 
     document.getElementById('btnExecImportRemoveArt').onclick = () => {
         artPreview.src = "REMOVE";
@@ -761,5 +771,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setTimeout(() => { modal.style.display = 'none'; }, 300);
             }
         };
+    }
+
+    function showImportArtError(msg) {
+        const errEl = document.getElementById('importArtErrorDisplay');
+        if (!errEl) return;
+        if (msg) {
+            errEl.textContent = "⚠️ " + msg;
+            errEl.style.display = 'block';
+        } else {
+            errEl.style.display = 'none';
+            errEl.textContent = "";
+        }
     }
 });

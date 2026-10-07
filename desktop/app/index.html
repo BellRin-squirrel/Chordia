@@ -64,33 +64,35 @@
             <button class="card" id="btnExtensions" onclick="window.location.href='extensions.html'">
                 <div class="icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 0-1.5 1.5v2.625c0 .355-.186.676-.401.959C3.879 12.36 3.75 12.704 3.75 13.125c0 1.036 1.007 1.875 2.25 1.875s2.25-.84 2.25-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0c0-.828.672-1.5 1.5-1.5h1.125a1.5 1.5 0 0 1 1.5 1.5v.938c0 .355.186.676.401.959.221.29.349.634.349 1.003 0 1.036 1.007 1.875 2.25 1.875s2.25-.84 2.25-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0a1.5 1.5 0 0 1 1.5 1.5H18a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-2.625A1.5 1.5 0 0 1 14.25 6.087Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a1.5 1.5 0 0 1-1.5 1.5H6a1.5 1.5 0 0 0-1.5 1.5v2.625c0 .355-.186.676-.401.959C3.879 12.36 3.75 12.704 3.75 13.125c0 1.036 1.007 1.875 2.25 1.875s2.25-.84 2.25-1.875c0-.369-.128-.713-.349-1.003-.215-.283-.401-.604-.401-.959v0a1.5 1.5 0 0 1 1.5 1.5H18a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-2.625A1.5 1.5 0 0 1 14.25 6.087Z" />
                     </svg>
                 </div>
                 <div class="text"><span class="title" data-i18n="Menu.extensions">拡張機能</span><span class="desc" data-i18n="Menu.extensions_desc">DL機能などを管理</span></div>
             </button>
 
+            <!-- ★ 作業カード -->
             <button class="card" id="btnWork">
                 <div class="icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </div>
-                <div class="text"><span class="title">作業</span><span class="desc">作業セッションの管理</span></div>
+                <div class="text"><span class="title" data-i18n="Menu.work">作業</span><span class="desc" data-i18n="Menu.work_desc">作業セッションの管理</span></div>
             </button>
 
+            <!-- ★ 情報（設定・統計・ライセンス）カード -->
             <button class="card" id="btnInfo">
                 <div class="icon">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                     </svg>
                 </div>
-                <div class="text"><span class="title">情報</span><span class="desc">設定・統計・ライセンス</span></div>
+                <div class="text"><span class="title" data-i18n="Menu.info">情報</span><span class="desc" data-i18n="Menu.info_desc">設定・統計・ライセンス</span></div>
             </button>
         </main>
     </div>
 
-    <!-- ★ Chordia Relay ポップアップモーダル -->
+    <!-- Chordia Relay ポップアップモーダル -->
     <div id="relayModal" class="modal-overlay" style="display: none;">
         <div class="modal-content relay-modal">
             <button id="btnCloseRelayModalX" class="btn-close-circle" title="閉じる">
@@ -104,10 +106,18 @@
                     <h3>Chordia Relay</h3>
                 </div>
                 <p class="relay-desc">ほかのデバイスで再生中の楽曲を引き継いで再生できます</p>
+                <div class="relay-meta-row">
+                    <span id="relayLastUpdated" class="relay-last-updated">最終更新: --:--:--</span>
+                    <button type="button" id="btnRefreshRelay" class="btn-refresh-relay" title="更新">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span>更新</span>
+                    </button>
+                </div>
             </div>
 
             <div id="relayListContainer" class="relay-list-container">
-                <!-- デバイスカードがここに動的生成されます -->
             </div>
         </div>
     </div>

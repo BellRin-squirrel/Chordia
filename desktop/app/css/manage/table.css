@@ -3,6 +3,35 @@
 .table-wrapper {
     overflow-x: auto;
     max-height: 70vh;
+    position: relative; /* マーキー枠の配置基準 */
+}
+
+/* ★ 楽曲選択モード時のテーブルラッパー */
+.table-wrapper.selection-mode {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.table-wrapper.selection-mode tbody tr {
+    cursor: pointer; /* どこをクリックしても選択できることを明示 */
+}
+
+/* ★ 楽曲選択モード時は右端の操作列を完全非表示 */
+.table-wrapper.selection-mode th.col-action,
+.table-wrapper.selection-mode td.col-action {
+    display: none !important;
+}
+
+/* ★ マーキー（矩形選択枠） */
+.selection-marquee {
+    position: absolute;
+    border: 1.5px solid var(--primary-color);
+    background-color: color-mix(in srgb, var(--primary-color) 20%, transparent);
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    border-radius: 4px;
+    box-sizing: border-box;
 }
 
 .data-table {
@@ -86,14 +115,12 @@ th.col-action { text-align: center; }
     width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; color: var(--text-sub); transition: all 0.2s;
-    position: relative; /* 疑似要素の基準 */
+    position: relative;
 }
 .btn-icon:hover { background: rgba(128, 128, 128, 0.2); color: var(--text-main); }
 .btn-icon.delete:hover { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 
-/* ★ 歌詞アイコンの出し分けスタイル */
-
-/* 歌詞がある場合：テーマカラーにする */
+/* 歌詞アイコンの出し分けスタイル */
 .btn-icon.lyric-btn.has-lyric {
     color: var(--primary-color);
 }
@@ -101,7 +128,6 @@ th.col-action { text-align: center; }
     color: var(--primary-color-dark);
 }
 
-/* 歌詞がない場合：アイコンを透過させ斜線を引く */
 .btn-icon.lyric-btn.no-lyric {
     color: var(--text-sub);
     opacity: 0.5;

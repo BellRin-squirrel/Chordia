@@ -18,7 +18,6 @@ window.WorkMain = {
     setupWindowControls: function() {
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
         
-        // ★ Mac環境の場合はシステム標準の枠が付くため、自前のタイトルバーは非表示にする
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
         if (isMac) {
             const titlebar = document.getElementById('windowTitlebar');
@@ -67,9 +66,15 @@ window.WorkMain = {
             : "https://support.microsoft.com/en-us/windows/experience/notifications-and-do-not-disturb-in-windows";
 
         if (osFocusGuideText) {
-            osFocusGuideText.textContent = isMac
-                ? "設定から集中モードを有効にしましょう。"
-                : "タスクバーの時計をクリックして、応答不可モードを有効にします。";
+            if (window.i18n) {
+                osFocusGuideText.textContent = isMac 
+                    ? window.i18n.t('Work.ready_dnd_desc_mac') 
+                    : window.i18n.t('Work.ready_dnd_desc');
+            } else {
+                osFocusGuideText.textContent = isMac
+                    ? "設定から集中モードを有効にしましょう。"
+                    : "タスクバーの時計をクリックして、応答不可モードを有効にします。";
+            }
         }
 
         if (osFocusSupportLink) {
@@ -88,7 +93,9 @@ window.WorkMain = {
         document.getElementById('workConfigView').style.display = 'none';
         document.getElementById('workReadyView').style.display = 'block';
         const pageTitle = document.getElementById('pageTitle');
-        if (pageTitle) pageTitle.textContent = "準備完了";
+        if (pageTitle) {
+            pageTitle.textContent = window.i18n ? window.i18n.t('Work.ready_title') : "準備完了";
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
@@ -100,7 +107,9 @@ window.WorkMain = {
         document.getElementById('workConfigView').style.display = 'block';
 
         const pageTitle = document.getElementById('pageTitle');
-        if (pageTitle) pageTitle.textContent = "作業設定";
+        if (pageTitle) {
+            pageTitle.textContent = window.i18n ? window.i18n.t('Work.config_title') : "作業設定";
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 

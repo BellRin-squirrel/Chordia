@@ -13,8 +13,8 @@
 		"windows": [
 			{
 				"title": "Chordia",
-				"width": 850,
-				"height": 600,
+				"width": 1250,
+				"height": 880,
 				"resizable": true,
 				"fullscreen": false
 			}

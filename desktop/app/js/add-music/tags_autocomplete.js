@@ -1,6 +1,6 @@
 window.TagsController = {
-    autocompleteData: { title: [], artist: [], album:[] },
-    activeTagsKeys:[],
+    autocompleteData: { title: [], artist: [], album: [] },
+    activeTagsKeys: [],
 
     init: async function() {
         try {
@@ -14,7 +14,7 @@ window.TagsController = {
             this.autocompleteData = await invoke("get_autocomplete_lists");
 
             const container = document.getElementById('dynamicTagsContainer');
-            if(!container) return;
+            if (!container) return;
             container.innerHTML = '';
 
             activeTags.forEach(tag => {
@@ -42,7 +42,8 @@ window.TagsController = {
                 input.setAttribute('name', `tag_${tag.key}_${Math.random().toString(36).substring(7)}`);
                 
                 if (['track', 'year', 'disc', 'bpm'].includes(tag.key)) {
-                    input.type = 'number'; input.min = "1";
+                    input.type = 'number'; 
+                    input.min = "1";
                     if (tag.key === 'track') input.placeholder = "1";
                 } else {
                     input.type = 'text'; 
@@ -52,9 +53,18 @@ window.TagsController = {
                 if (tag.key === 'title' || tag.key === 'artist') {
                     input.required = true;
                     input.addEventListener('input', this.debounce(() => {
-                        if(window.DuplicateController) window.DuplicateController.checkDuplicates();
+                        if (window.DuplicateController) window.DuplicateController.checkDuplicates();
                     }, 500));
                 }
+
+                // ★ Enterキー押下時の追加実行を防止し、フォーカスを解除する
+                input.addEventListener('keydown', (e) => {
+                    if (e.isComposing || e.keyCode === 229) return;
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        input.blur();
+                    }
+                });
                 
                 inputWrapper.appendChild(input);
 
@@ -88,7 +98,19 @@ window.TagsController = {
                 group.appendChild(inputWrapper); 
                 container.appendChild(group);
             });
-        } catch(e) { console.error("タグの初期化に失敗しました", e); }
+
+            // 外側をクリックした際にすべてのサジェスト枠を非表示にする
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.input-with-suggest')) {
+                    document.querySelectorAll('.autocomplete-suggest').forEach(box => {
+                        box.style.display = 'none';
+                    });
+                }
+            });
+
+        } catch(e) { 
+            console.error("タグの初期化に失敗しました", e); 
+        }
     },
 
     showSuggest: function(key, query) {
@@ -96,7 +118,7 @@ window.TagsController = {
         if (!suggestBox) return;
         
         const q = query ? query.toLowerCase().trim() : '';
-        let list = this.autocompleteData[key] ||[];
+        let list = this.autocompleteData[key] || [];
         
         if (q) {
             list = list.filter(item => item && item.toLowerCase().includes(q));
@@ -132,16 +154,25 @@ window.TagsController = {
                 div.style.fontWeight = 'normal';
             };
 
-            div.onclick = () => {
+            // ★ mousedown で preventDefault() を呼び出し、blur イベントによる早期非表示を阻止して確実に値を反映
+            div.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
                 const inputEl = document.getElementById(`tag_${key}`);
-                if(inputEl) {
+                if (inputEl) {
                     inputEl.value = item;
                     suggestBox.style.display = 'none';
-                    if (key === 'title' || key === 'artist') {
-                        inputEl.dispatchEvent(new Event('input'));
+                    
+                    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+
+                    if (window.DuplicateController && (key === 'title' || key === 'artist')) {
+                        window.DuplicateController.checkDuplicates();
                     }
                 }
-            };
+            });
+
             suggestBox.appendChild(div);
         });
         suggestBox.style.display = 'block';

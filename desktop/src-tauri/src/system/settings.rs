@@ -2,8 +2,8 @@ use serde_json::Value;
 use ini::Ini;
 use std::fs;
 
-use crate::types::AppSettings;
-use crate::utils::get_base_dir;
+use crate::core::types::AppSettings;
+use crate::core::utils::get_base_dir;
 
 #[tauri::command]
 pub fn get_app_settings() -> AppSettings {
@@ -21,13 +21,14 @@ pub fn get_app_settings() -> AppSettings {
         open_extensions_new_window: get_bool("Database", "open_extensions_new_window", false),
         open_add_music_new_window: get_bool("Database", "open_add_music_new_window", false),
         open_settings_new_window: get_bool("Database", "open_settings_new_window", false),
+        default_window_size: get_str("General", "default_window_size", "large"), // ★ 追加
         lazy_load_playlists: false,
         primary_color: get_str("Theme", "primary_color", "#4f46e5"),
         background_color: get_str("Theme", "background_color", "#f3f4f6"),
         sub_background_color: get_str("Theme", "sub_background_color", "#ffffff"),
         text_color: get_str("Theme", "text_color", "#1f2937"),
         theme_mode: get_str("Theme", "theme_mode", "light"),
-        language: get_str("General", "language", "Japanese.ini"), // ★ 追加
+        language: get_str("General", "language", "Japanese.ini"),
         active_tags: get_str("Tags", "active_tags", "title,artist,album,genre,track").split(',').map(|s| s.trim().to_string()).collect(),
         player_visible_tags: get_str("Tags", "player_visible_tags", "title,artist,album,track").split(',').map(|s| s.trim().to_string()).collect(),
         normalize_volume: get_bool("Player", "normalize_volume", false),
@@ -53,7 +54,8 @@ pub fn save_app_settings(settings: AppSettings) -> bool {
         .set("lazy_load_playlists", settings.lazy_load_playlists.to_string());
 
     conf.with_section(Some("General"))
-        .set("language", settings.language); // ★ 追加
+        .set("language", settings.language)
+        .set("default_window_size", settings.default_window_size); // ★ 追加
     
     conf.with_section(Some("Theme"))
         .set("primary_color", settings.primary_color)

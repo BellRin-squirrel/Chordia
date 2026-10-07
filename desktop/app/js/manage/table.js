@@ -3,6 +3,8 @@
     const u = window.ManageUtils;
     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
 
+    let justDragged = false; // ドラッグ直後の行クリック誤判定防止フラグ
+
     function showLoading(msg = "データを準備中...") {
         const overlay = document.getElementById('loadingOverlay');
         const text = overlay ? overlay.querySelector('.loading-text') : null;
@@ -19,6 +21,8 @@
     }
 
     window.TableController = {
+        isMarqueeInitialized: false,
+
         loadTableData: async function() {
             showLoading(window.i18n ? window.i18n.t('Common.loading') : "データを読み込んでいます..."); 
             try {
@@ -42,6 +46,11 @@
                 
                 await this.fetchChunk();
                 this.updateSearchUI();
+
+                if (!this.isMarqueeInitialized) {
+                    this.initMarqueeSelection();
+                    this.isMarqueeInitialized = true;
+                }
             } catch (e) {
                 console.error("LOAD ERROR DETAIL:", e);
                 u.showToast("読み込み失敗: " + e.message, true);
@@ -124,6 +133,11 @@
                         ? (window.i18n ? window.i18n.t('Manage.btn_finish_selection') : "選択を終了") 
                         : (window.i18n ? window.i18n.t('Manage.btn_select_songs') : "楽曲を選択");
                 }
+
+                const wrapper = document.querySelector('.table-wrapper');
+                if (wrapper) {
+                    wrapper.classList.toggle('selection-mode', s.isSelectionMode);
+                }
                 
                 this.fetchChunk();
                 this.updateBulkBar();
@@ -138,23 +152,54 @@
                 if (checked) s.selectedIds.add(fname);
                 else s.selectedIds.delete(fname);
             });
-            this.renderTable();
+
+            // DOM上の全行とチェックボックスの見た目を瞬時に一括更新
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(tr => {
+                tr.classList.toggle('selected', checked);
+                const cb = tr.querySelector('.row-check');
+                if (cb) cb.checked = checked;
+            });
+
             this.updateBulkBar();
         },
 
-        handleCheck: function(fname, checked) {
+        // ★ チェックボックス本体・行ハイライト・状態セットを一括同期更新
+        handleCheck: function(fname, checked, targetRow = null) {
             if (checked) s.selectedIds.add(fname);
             else s.selectedIds.delete(fname);
             
             const headerCheck = document.getElementById('headerCheckAll');
             if (headerCheck) this.updateHeaderCheckState(headerCheck);
 
-            const checkbox = document.querySelector(`input[value="${fname}"]`);
-            if (checkbox) {
-                const tr = checkbox.closest('tr');
-                if(tr) tr.classList.toggle('selected', checked);
+            // 対象行を特定してクラスとチェックボックスの checked プロパティを確実に反映
+            const tr = targetRow || (function() {
+                const rows = document.querySelectorAll('tbody tr');
+                for (let r of rows) {
+                    if (r.dataset.fname === fname) return r;
+                }
+                return null;
+            })();
+
+            if (tr) {
+                tr.classList.toggle('selected', checked);
+                const checkbox = tr.querySelector('.row-check');
+                if (checkbox) {
+                    checkbox.checked = checked; // ★ 見た目（:checked擬似クラス）を確実に更新
+                }
             }
             this.updateBulkBar();
+        },
+
+        // ★ 行全体のクリックによる選択トグル処理
+        handleRowClick: function(fname, event) {
+            if (!s.isSelectionMode) return;
+            if (justDragged) return; // ドラッグ直後は誤トグル防止のため無視
+            if (event.target.closest('button, .btn-play, .btn-icon')) return; // 再生・アクションボタンは除外
+
+            const tr = event.currentTarget;
+            const isCurrentlySelected = s.selectedIds.has(fname);
+            this.handleCheck(fname, !isCurrentlySelected, tr);
         },
 
         updateHeaderCheckState: function(headerCheck) {
@@ -219,10 +264,13 @@
             th.innerHTML += ' <span class="sort-icon" id="sort-duration"></span>';
             headerRow.appendChild(th);
             
-            th = document.createElement('th');
-            th.className = 'col-action'; 
-            th.textContent = window.i18n ? window.i18n.t('Manage.th_action') : '操作';
-            headerRow.appendChild(th);
+            // ★ 選択モード中は「操作」ヘッダーを非表示にする
+            if (!s.isSelectionMode) {
+                th = document.createElement('th');
+                th.className = 'col-action'; 
+                th.textContent = window.i18n ? window.i18n.t('Manage.th_action') : '操作';
+                headerRow.appendChild(th);
+            }
         },
 
         sortData: function(field) {
@@ -259,7 +307,6 @@
                 return;
             }
 
-            // HTML要素を文字列として一気に結合し、最後に代入する（DOM生成パフォーマンスの劇的改善）
             let htmlStr = '';
             
             s.libraryData.forEach((item, index) => {
@@ -267,28 +314,35 @@
                 const isSelected = s.selectedIds.has(fname);
                 const trClass = isSelected ? 'selected' : '';
                 
-                let html = `<tr class="${trClass}">`;
+                // ★ 行全体をクリックすると handleRowClick が呼ばれる
+                let html = `<tr class="${trClass}" data-fname="${fname}" onclick="window.TableController.handleRowClick('${fname}', event)">`;
                 if (s.isSelectionMode) {
-                    html += `<td class="col-select"><input type="checkbox" class="row-check" value="${fname}" ${isSelected?'checked':''} onclick="window.TableController.handleCheck('${fname}', this.checked)"></td>`;
+                    // ★ チェックボックス本体のクリック時は伝播を止めて handleCheck を直接呼ぶ
+                    html += `<td class="col-select"><input type="checkbox" class="row-check" value="${fname}" ${isSelected?'checked':''} onclick="event.stopPropagation(); window.TableController.handleCheck('${fname}', this.checked, this.closest('tr'))"></td>`;
                 }
 
                 html += `<td class="col-art"><img src="${item.imageData || s.DEFAULT_ICON}" class="thumb-art" loading="lazy"></td>` +
-                        `<td class="col-play"><button class="btn-play" id="btnPlay_${index}" onclick="window.PlayerController.playPreview(${index})">${s.currentPlayingIndex === index ? s.SVG_PAUSE : s.SVG_PLAY}</button></td>`;
+                        `<td class="col-play"><button class="btn-play" id="btnPlay_${index}" onclick="event.stopPropagation(); window.PlayerController.playPreview(${index})">${s.currentPlayingIndex === index ? s.SVG_PAUSE : s.SVG_PLAY}</button></td>`;
                 
                 s.activeTags.forEach(key => {
-                    html += `<td class="editable col-${key}" onclick="window.TableController.showEditHint()" ondblclick="window.TableController.startEdit(this, ${index}, '${key}')">${u.escapeHtml(item[key] || '')}</td>`;
+                    html += `<td class="editable col-${key}" onclick="if(!window.ManageState.isSelectionMode) window.TableController.showEditHint()" ondblclick="if(!window.ManageState.isSelectionMode) window.TableController.startEdit(this, ${index}, '${key}')">${u.escapeHtml(item[key] || '')}</td>`;
                 });
 
-                const hasLyric = item.lyric && item.lyric.trim() !== "";
-                const lyricClass = hasLyric ? "has-lyric" : "no-lyric";
+                html += `<td>${item.duration || '--:--'}</td>`;
 
-                html += `<td>${item.duration || '--:--'}</td>` +
-                    `<td class="col-action"><div class="action-btns">` +
-                    `<button class="btn-icon lyric-btn ${lyricClass}" title="歌詞編集" onclick="window.ModalController.openLyricModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" /></svg></button>` +
-                    `<button class="btn-icon" title="アートワーク編集" onclick="window.ModalController.openArtModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg></button>` +
-                    `<button class="btn-icon delete" title="削除" onclick="window.ModalController.openDeleteModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg></button>` +
-                    `</div></td></tr>`;
-                
+                // ★ 選択モード中は「操作」セルを非表示（出力しない）
+                if (!s.isSelectionMode) {
+                    const hasLyric = item.lyric && item.lyric.trim() !== "";
+                    const lyricClass = hasLyric ? "has-lyric" : "no-lyric";
+
+                    html += `<td class="col-action"><div class="action-btns">` +
+                        `<button class="btn-icon lyric-btn ${lyricClass}" title="歌詞編集" onclick="event.stopPropagation(); window.ModalController.openLyricModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" /></svg></button>` +
+                        `<button class="btn-icon" title="アートワーク編集" onclick="event.stopPropagation(); window.ModalController.openArtModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg></button>` +
+                        `<button class="btn-icon delete" title="削除" onclick="event.stopPropagation(); window.ModalController.openDeleteModal(${index})"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg></button>` +
+                        `</div></td>`;
+                }
+
+                html += `</tr>`;
                 htmlStr += html;
             });
             
@@ -400,6 +454,158 @@
             };
             input.onblur = commitEdit;
             input.focus(); input.select(); 
+        },
+
+        // ★ 既存の選択を維持し、範囲内の状態を反転（トグル）させるマーキー選択
+        initMarqueeSelection: function() {
+            const wrapper = document.querySelector('.table-wrapper');
+            const marquee = document.getElementById('manageSelectionMarquee');
+            if (!wrapper || !marquee) return;
+
+            let isMouseDown = false;
+            let hasDragged = false;
+            let startClientX = 0;
+            let startClientY = 0;
+            let lastClientX = 0;
+            let lastClientY = 0;
+            let initialSelected = new Set();
+            let autoScrollTimer = null;
+
+            const stopAutoScroll = () => {
+                if (autoScrollTimer) {
+                    clearInterval(autoScrollTimer);
+                    autoScrollTimer = null;
+                }
+            };
+
+            const startAutoScroll = (direction) => {
+                if (autoScrollTimer) return;
+                autoScrollTimer = setInterval(() => {
+                    wrapper.scrollTop += direction * 14;
+                    updateSelectionFromClients(lastClientX, lastClientY);
+                }, 25);
+            };
+
+            const updateSelectionFromClients = (clientX, clientY) => {
+                const wrapperRect = wrapper.getBoundingClientRect();
+
+                const boxLeft = Math.min(startClientX, clientX);
+                const boxRight = Math.max(startClientX, clientX);
+                const boxTop = Math.min(startClientY, clientY);
+                const boxBottom = Math.max(startClientY, clientY);
+
+                const localLeft = Math.min(
+                    startClientX - wrapperRect.left + wrapper.scrollLeft,
+                    clientX - wrapperRect.left + wrapper.scrollLeft
+                );
+                const localTop = Math.min(
+                    startClientY - wrapperRect.top + wrapper.scrollTop,
+                    clientY - wrapperRect.top + wrapper.scrollTop
+                );
+                const width = Math.abs(clientX - startClientX);
+                const height = Math.abs(clientY - startClientY);
+
+                marquee.style.left = `${localLeft}px`;
+                marquee.style.top = `${localTop}px`;
+                marquee.style.width = `${width}px`;
+                marquee.style.height = `${height}px`;
+
+                // 矩形と交差した行はドラッグ前の状態を反転（トグル）
+                const rows = wrapper.querySelectorAll('tbody tr');
+                rows.forEach(tr => {
+                    const fname = tr.dataset.fname;
+                    if (!fname) return;
+
+                    const trRect = tr.getBoundingClientRect();
+                    const intersects = !(trRect.bottom < boxTop || trRect.top > boxBottom || trRect.right < boxLeft || trRect.left > boxRight);
+
+                    const wasSelectedOriginally = initialSelected.has(fname);
+                    const shouldBeSelected = intersects ? !wasSelectedOriginally : wasSelectedOriginally;
+
+                    if (shouldBeSelected) {
+                        s.selectedIds.add(fname);
+                        tr.classList.add('selected');
+                        const cb = tr.querySelector('.row-check');
+                        if (cb) cb.checked = true;
+                    } else {
+                        s.selectedIds.delete(fname);
+                        tr.classList.remove('selected');
+                        const cb = tr.querySelector('.row-check');
+                        if (cb) cb.checked = false;
+                    }
+                });
+
+                this.updateBulkBar();
+                const headerCheck = document.getElementById('headerCheckAll');
+                if (headerCheck) this.updateHeaderCheckState(headerCheck);
+            };
+
+            wrapper.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || !s.isSelectionMode) return;
+                
+                // ボタン、チェックボックス、再生ボタン等の直接操作時はドラッグを開始しない
+                if (e.target.closest('input[type="checkbox"], button, .btn-icon, .btn-play')) return;
+                // ヘッダー上のクリックは除外
+                if (e.target.closest('thead')) return;
+
+                isMouseDown = true;
+                hasDragged = false;
+                startClientX = e.clientX;
+                startClientY = e.clientY;
+                lastClientX = e.clientX;
+                lastClientY = e.clientY;
+
+                // 既存の選択をすべてそのまま保持してドラッグ開始
+                initialSelected = new Set(s.selectedIds);
+
+                // テキスト選択の開始を抑止
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isMouseDown || !s.isSelectionMode) return;
+
+                lastClientX = e.clientX;
+                lastClientY = e.clientY;
+
+                const dist = Math.hypot(e.clientX - startClientX, e.clientY - startClientY);
+                if (dist > 4) {
+                    if (!hasDragged) {
+                        hasDragged = true;
+                        marquee.style.display = 'block';
+                    }
+                    e.preventDefault();
+
+                    const wrapperRect = wrapper.getBoundingClientRect();
+                    if (e.clientY > wrapperRect.bottom - 25) {
+                        startAutoScroll(1);
+                    } else if (e.clientY < wrapperRect.top + 25) {
+                        startAutoScroll(-1);
+                    } else {
+                        stopAutoScroll();
+                    }
+
+                    updateSelectionFromClients(e.clientX, e.clientY);
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isMouseDown) return;
+                isMouseDown = false;
+                stopAutoScroll();
+
+                if (hasDragged) {
+                    hasDragged = false;
+                    marquee.style.display = 'none';
+                    this.updateBulkBar();
+                    const headerCheck = document.getElementById('headerCheckAll');
+                    if (headerCheck) this.updateHeaderCheckState(headerCheck);
+
+                    // ドラッグ直後の行クリックトグルの誤発火を防止
+                    justDragged = true;
+                    setTimeout(() => { justDragged = false; }, 60);
+                }
+            });
         }
     };
 })();

@@ -156,10 +156,9 @@ window.SettingsEqualizer = {
 
         dropdown.innerHTML = '';
 
-        // 1. プリセットグループ
         const presetHeader = document.createElement('div');
         presetHeader.className = 'custom-group-header';
-        presetHeader.textContent = 'プリセット';
+        presetHeader.textContent = window.i18n ? window.i18n.t('Settings.eq_group_preset') : 'プリセット';
         dropdown.appendChild(presetHeader);
 
         this.presets.forEach(p => {
@@ -186,12 +185,11 @@ window.SettingsEqualizer = {
             dropdown.appendChild(item);
         });
 
-        // 2. カスタムアセットグループ（ユーザー保存アセットが1件以上ある場合のみ表示）
         const customNames = Object.keys(this.customAssets);
         if (customNames.length > 0) {
             const customHeader = document.createElement('div');
             customHeader.className = 'custom-group-header';
-            customHeader.textContent = 'カスタムアセット';
+            customHeader.textContent = window.i18n ? window.i18n.t('Settings.eq_group_custom') : 'カスタムアセット';
             dropdown.appendChild(customHeader);
 
             customNames.forEach(assetName => {
@@ -219,9 +217,8 @@ window.SettingsEqualizer = {
             });
         }
 
-        // 編集中（手動変更時）のトリガーラベル表示
         if (this.currentConfig.isEditing && displayVal) {
-            displayVal.textContent = "Custom (編集中)";
+            displayVal.textContent = window.i18n ? window.i18n.t('Settings.eq_editing') : "Custom (編集中)";
         }
     },
 
@@ -256,7 +253,9 @@ window.SettingsEqualizer = {
                 this.currentConfig.enabled = e.target.checked;
                 this.updateUI();
                 this.saveSettings();
-                window.SettingsGeneral.showToast(this.currentConfig.enabled ? "イコライザを有効にしました" : "イコライザを無効にしました");
+                window.SettingsGeneral.showToast(this.currentConfig.enabled 
+                    ? (window.i18n ? window.i18n.t('Messages.saved') : "イコライザを有効にしました") 
+                    : (window.i18n ? window.i18n.t('Messages.saved') : "イコライザを無効にしました"));
             });
         }
 
@@ -323,7 +322,9 @@ window.SettingsEqualizer = {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0 || navigator.userAgent.includes('Mac');
         if (shortcutHintEl) {
             const keyBadge = isMac ? '<kbd>⌘ Command</kbd> + <kbd>Enter</kbd>' : '<kbd>Ctrl</kbd> + <kbd>Enter</kbd>';
-            shortcutHintEl.innerHTML = `保存ショートカット: ${keyBadge}`;
+            shortcutHintEl.innerHTML = (window.i18n && window.i18n.t) 
+                ? window.i18n.t('Settings.eq_shortcut_hint', { key: keyBadge }) 
+                : `保存ショートカット: ${keyBadge}`;
         }
 
         const openModal = (m) => {
@@ -357,13 +358,13 @@ window.SettingsEqualizer = {
         const handleSaveExecute = () => {
             const name = (newNameInput ? newNameInput.value.trim() : "");
             if (!name) {
-                window.SettingsGeneral.showToast("アセット名を入力してください", true);
+                window.SettingsGeneral.showToast(window.i18n ? window.i18n.t('Settings.eq_asset_ph') : "アセット名を入力してください", true);
                 if (newNameInput) newNameInput.focus();
                 return;
             }
 
             if (this.presets.some(p => p.id === name || p.name === name) || name.toLowerCase() === "custom") {
-                window.SettingsGeneral.showToast("プリセットと同じ名前は使用できません", true);
+                window.SettingsGeneral.showToast(window.i18n ? window.i18n.t('Common.error') : "プリセットと同じ名前は使用できません", true);
                 if (newNameInput) newNameInput.focus();
                 return;
             }
@@ -372,7 +373,9 @@ window.SettingsEqualizer = {
                 this.pendingSaveName = name;
                 closeModal(saveModal);
                 if (overwriteMsg) {
-                    overwriteMsg.textContent = `アセット「${name}」は既に存在します。上書きしますか？`;
+                    overwriteMsg.textContent = (window.i18n && window.i18n.t)
+                        ? window.i18n.t('Settings.eq_modal_overwrite_desc', { name: name })
+                        : `アセット「${name}」は既に存在します。上書きしますか？`;
                 }
                 openModal(overwriteModal);
                 return;
@@ -424,7 +427,9 @@ window.SettingsEqualizer = {
                 if (!this.customAssets[currentId]) return;
 
                 if (deleteMsg) {
-                    deleteMsg.textContent = `カスタムアセット「${currentId}」を削除してもよろしいですか？`;
+                    deleteMsg.textContent = (window.i18n && window.i18n.t)
+                        ? window.i18n.t('Settings.eq_modal_delete_desc', { name: currentId })
+                        : `カスタムアセット「${currentId}」を削除してもよろしいですか？`;
                 }
                 openModal(deleteModal);
             });
@@ -443,7 +448,7 @@ window.SettingsEqualizer = {
                     this.rebuildAssetOptions();
                     this.updateUI();
                     this.saveSettings();
-                    window.SettingsGeneral.showToast(`アセット「${currentId}」を削除しました`);
+                    window.SettingsGeneral.showToast(window.i18n ? window.i18n.t('Messages.saved') : `アセット「${currentId}」を削除しました`);
                 }
                 closeModal(deleteModal);
             });
@@ -468,7 +473,7 @@ window.SettingsEqualizer = {
         this.rebuildAssetOptions();
         this.updateUI();
         this.saveSettings();
-        window.SettingsGeneral.showToast(`イコライザアセット「${name}」を保存しました`);
+        window.SettingsGeneral.showToast(window.i18n ? window.i18n.t('Messages.saved') : `イコライザアセット「${name}」を保存しました`);
     },
 
     updateButtonVisibility: function() {

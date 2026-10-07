@@ -90,7 +90,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         setTimeout(() => toast.classList.remove('show'), 3500);
     }
 
-    // ★ 楽曲再生統計の取得前にセッション状態を確認
     async function loadPlayStatistics() {
         const syncBadge = document.getElementById('syncStatusBadgePlay');
         const rankingContainer = document.getElementById('topRankingContainer');
@@ -104,7 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const isValid = await invoke("verify_current_cloud_session");
                 if (isValid) {
                     if (syncBadge) {
-                        syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                        syncBadge.textContent = window.i18n ? window.i18n.t('Settings.badge_sync_online') : "● Chordia Sync オンライン同期中";
                         syncBadge.className = "sync-indicator-badge cloud";
                     }
                     const cloudHistory = await invoke("fetch_cloud_play_history");
@@ -112,12 +111,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     return;
                 } else {
                     isSyncLoggedIn = false;
-                    showToastLocal("Chordia Sync の認証に失敗しました");
+                    showToastLocal(window.i18n ? window.i18n.t('Messages.lang_pack_corrupted') : "Chordia Sync の認証に失敗しました");
                 }
             }
 
             if (syncBadge) {
-                syncBadge.textContent = "● ローカル再生履歴";
+                syncBadge.textContent = window.i18n ? window.i18n.t('Settings.badge_local_history') : "● ローカル再生履歴";
                 syncBadge.className = "sync-indicator-badge local";
             }
             const localStats = await invoke("get_local_play_statistics");
@@ -125,15 +124,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(e) {
             console.error("Failed to load play statistics:", e);
             if (historyTbody) {
-                historyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+                historyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#ef4444; padding:24px;">${escapeHtml(e)}</td></tr>`;
             }
         }
     }
 
     function renderCloudPlayStats(history, rankingEl, tbody) {
         if (!Array.isArray(history) || history.length === 0) {
-            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">直近7日間の再生データがありません。</p>';
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
+            rankingEl.innerHTML = `<p style="color:var(--text-sub); font-size:0.9rem;">${window.i18n ? window.i18n.t('Settings.msg_no_ranking_data') : '直近7日間の再生データがありません。'}</p>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">${window.i18n ? window.i18n.t('Settings.msg_no_history_data') : '再生履歴がありません。'}</td></tr>`;
             return;
         }
 
@@ -165,18 +164,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'ranking-item';
                 const rankClass = idx === 0 ? 'top1' : idx === 1 ? 'top2' : idx === 2 ? 'top3' : '';
+                const playCountText = (window.i18n && window.i18n.t)
+                    ? window.i18n.t('Settings.unit_play_count', { count: r.count })
+                    : `${r.count} 回`;
+
                 itemDiv.innerHTML = `
                     <div class="rank-badge ${rankClass}">${idx + 1}</div>
                     <div class="rank-info">
                         <div class="rank-title">${escapeHtml(r.title)}</div>
                         <div class="rank-artist">${escapeHtml(r.artist)}</div>
                     </div>
-                    <div class="rank-count">${r.count} 回</div>
+                    <div class="rank-count">${playCountText}</div>
                 `;
                 rankingEl.appendChild(itemDiv);
             });
         } else {
-            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">直近7日間の再生データがありません。</p>';
+            rankingEl.innerHTML = `<p style="color:var(--text-sub); font-size:0.9rem;">${window.i18n ? window.i18n.t('Settings.msg_no_ranking_data') : '直近7日間の再生データがありません。'}</p>`;
         }
 
         tbody.innerHTML = '';
@@ -206,18 +209,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'ranking-item';
                 const rankClass = idx === 0 ? 'top1' : idx === 1 ? 'top2' : idx === 2 ? 'top3' : '';
+                const playCountText = (window.i18n && window.i18n.t)
+                    ? window.i18n.t('Settings.unit_play_count', { count: r.count })
+                    : `${r.count} 回`;
+
                 itemDiv.innerHTML = `
                     <div class="rank-badge ${rankClass}">${idx + 1}</div>
                     <div class="rank-info">
                         <div class="rank-title">${escapeHtml(r.title)}</div>
                         <div class="rank-artist">${escapeHtml(r.artist)}</div>
                     </div>
-                    <div class="rank-count">${r.count} 回</div>
+                    <div class="rank-count">${playCountText}</div>
                 `;
                 rankingEl.appendChild(itemDiv);
             });
         } else {
-            rankingEl.innerHTML = '<p style="color:var(--text-sub); font-size:0.9rem;">再生データがありません。</p>';
+            rankingEl.innerHTML = `<p style="color:var(--text-sub); font-size:0.9rem;">${window.i18n ? window.i18n.t('Settings.msg_no_ranking_data') : '再生データがありません。'}</p>`;
         }
 
         if (history.length > 0) {
@@ -236,11 +243,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">再生履歴がありません。</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:24px;">${window.i18n ? window.i18n.t('Settings.msg_no_history_data') : '再生履歴がありません。'}</td></tr>`;
         }
     }
 
-    // ★ 作業統計の取得前にセッション状態を確認
     async function loadWorkStatistics() {
         const syncBadge = document.getElementById('syncStatusBadgeWork');
         const notConnectedArea = document.getElementById('workSyncNotConnected');
@@ -255,7 +261,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const isValid = await invoke("verify_current_cloud_session");
                 if (isValid) {
                     if (syncBadge) {
-                        syncBadge.textContent = "● Chordia Sync オンライン同期中";
+                        syncBadge.textContent = window.i18n ? window.i18n.t('Settings.badge_sync_online') : "● Chordia Sync オンライン同期中";
                         syncBadge.className = "sync-indicator-badge cloud";
                     }
                     if (notConnectedArea) notConnectedArea.style.display = 'none';
@@ -266,14 +272,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                     return;
                 } else {
                     isSyncLoggedIn = false;
-                    showToastLocal("Chordia Sync の認証に失敗しました");
+                    showToastLocal(window.i18n ? window.i18n.t('Messages.lang_pack_corrupted') : "Chordia Sync の認証に失敗しました");
                 }
             }
 
             const localWorkHistory = await invoke("get_local_work_history");
             if (Array.isArray(localWorkHistory) && localWorkHistory.length > 0) {
                 if (syncBadge) {
-                    syncBadge.textContent = "● ローカル作業履歴";
+                    syncBadge.textContent = window.i18n ? window.i18n.t('Settings.badge_local_work') : "● ローカル作業履歴";
                     syncBadge.className = "sync-indicator-badge local";
                 }
                 if (notConnectedArea) notConnectedArea.style.display = 'none';
@@ -281,7 +287,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 renderWorkHistory(localWorkHistory, tbody);
             } else {
                 if (syncBadge) {
-                    syncBadge.textContent = "● 未接続";
+                    syncBadge.textContent = window.i18n ? window.i18n.t('Settings.badge_not_connected') : "● 未接続";
                     syncBadge.className = "sync-indicator-badge";
                 }
                 if (notConnectedArea) notConnectedArea.style.display = 'block';
@@ -290,14 +296,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch(e) {
             console.error("Failed to load work statistics:", e);
             if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">データの取得に失敗しました: ${escapeHtml(e)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:24px;">${escapeHtml(e)}</td></tr>`;
             }
         }
     }
 
     function renderWorkHistory(history, tbody) {
         if (!Array.isArray(history) || history.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-sub); padding:24px;">作業セッション履歴がありません。</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-sub); padding:24px;">${window.i18n ? window.i18n.t('Settings.msg_no_work_data') : '作業セッション履歴がありません。'}</td></tr>`;
             return;
         }
 

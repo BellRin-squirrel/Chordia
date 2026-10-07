@@ -152,7 +152,7 @@ body {
 }
 
 .relay-modal-header {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     padding-right: 32px;
 }
 
@@ -173,6 +173,59 @@ body {
     margin: 6px 0 0 0;
     font-size: 0.85rem;
     color: var(--text-sub);
+}
+
+/* ★ Relay 最終更新時刻 & 手動更新ボタン行 */
+.relay-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.relay-last-updated {
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.btn-refresh-relay {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(128, 128, 128, 0.08);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-refresh-relay:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.btn-refresh-relay svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s;
+}
+
+.btn-refresh-relay.spinning svg {
+    animation: relaySpin 0.7s linear infinite;
+}
+
+@keyframes relaySpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .relay-list-container {

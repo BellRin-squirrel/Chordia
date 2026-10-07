@@ -205,6 +205,43 @@ body {
     color: var(--text-main);
 }
 
+/* --- モーダル共通スタイル（背景透明化の防止） --- */
+.modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    display: none;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 10000 !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    box-sizing: border-box;
+}
+
+.modal-overlay.show {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.modal-content {
+    background: var(--card-bg) !important;
+    color: var(--text-main) !important;
+    border-radius: 20px !important;
+    padding: 32px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid rgba(128, 128, 128, 0.15) !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+}
+
 /* --- トースト通知 --- */
 .toast {
     visibility: hidden;

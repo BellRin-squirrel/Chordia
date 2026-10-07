@@ -6,6 +6,7 @@ window.SettingsGeneral = {
     currentSettings: {},
     selectedThemeMode: 'light',
     selectedLanguage: 'Japanese.ini',
+    selectedWindowSize: 'large',
 
     THEME_PRESETS: {
         light: { bg: '#f3f4f6', subBg: '#ffffff', text: '#1f2937' },
@@ -19,12 +20,14 @@ window.SettingsGeneral = {
         this.currentSettings = settings;
         this.selectedThemeMode = settings.theme_mode || 'light';
         this.selectedLanguage = settings.language || 'Japanese.ini';
+        this.selectedWindowSize = settings.default_window_size || 'large';
 
         const availableTags = await invoke("get_available_tags");
         this.customThemes = await invoke("get_custom_themes");
 
         this.initFormElements(settings);
         await this.initLanguageSelector();
+        this.initWindowSizeSelector();
         this.initThemeSelector();
         this.renderCombinedTagList(availableTags);
         this.initArtworkRestore();
@@ -81,7 +84,7 @@ window.SettingsGeneral = {
                     const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                     const status = await invoke("check_tools_status");
                     if (!status['ffmpeg']) {
-                        alert("一定音量機能を有効にするには、まず拡張機能画面から FFmpeg をインストールしてください。");
+                        alert(window.i18n ? window.i18n.t('Extensions.status_ffmpeg_missing') : "一定音量機能を有効にするには、まず拡張機能画面から FFmpeg をインストールしてください。");
                         chkNormalizeVolume.checked = false;
                         return;
                     }
@@ -89,19 +92,19 @@ window.SettingsGeneral = {
                     try {
                         const lufsInfo = await invoke("check_lufs_status");
                         if (!lufsInfo.is_completed) {
-                            alert(`一定音量機能を有効にするには、事前に拡張機能の画面で測定を完了させておく必要があります。\n\n(未測定の楽曲: ${lufsInfo.uncalculated} 曲)\n\n拡張機能画面から「音量測定」を実行してください。`);
+                            alert(window.i18n ? window.i18n.t('Extensions.lufs_desc') : "一定音量機能を有効にするには、事前に拡張機能の画面で測定を完了させておく必要があります。");
                             chkNormalizeVolume.checked = false;
                             return;
                         }
                     } catch(err) {
-                        alert("測定ステータスの確認に失敗しました。");
+                        alert(window.i18n ? window.i18n.t('Common.error') : "測定ステータスの確認に失敗しました。");
                         chkNormalizeVolume.checked = false;
                         return;
                     }
 
                     chkNormalizeVolume.checked = true;
                     this.handleChange();
-                    this.showToast("設定を保存しました");
+                    this.showToast(window.i18n ? window.i18n.t('Messages.saved') : "設定を保存しました");
                 } else {
                     this.handleChange();
                 }
@@ -121,6 +124,8 @@ window.SettingsGeneral = {
             langSelectDropdown.classList.toggle('show');
             const customSelectDropdown = document.getElementById('themeSelectDropdown');
             if (customSelectDropdown) customSelectDropdown.classList.remove('show');
+            const winDropdown = document.getElementById('windowSizeDropdown');
+            if (winDropdown) winDropdown.classList.remove('show');
         };
 
         const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
@@ -158,6 +163,47 @@ window.SettingsGeneral = {
         });
     },
 
+    initWindowSizeSelector: function() {
+        const trigger = document.getElementById('windowSizeTrigger');
+        const dropdown = document.getElementById('windowSizeDropdown');
+        const displayVal = document.getElementById('windowSizeValue');
+
+        if (!trigger || !dropdown) return;
+
+        trigger.onclick = (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+            const langDropdown = document.getElementById('langSelectDropdown');
+            if (langDropdown) langDropdown.classList.remove('show');
+            const themeDropdown = document.getElementById('themeSelectDropdown');
+            if (themeDropdown) themeDropdown.classList.remove('show');
+        };
+
+        const options = dropdown.querySelectorAll('.custom-option');
+        options.forEach(opt => {
+            opt.onclick = (e) => {
+                e.stopPropagation();
+                const val = opt.dataset.val;
+                this.selectedWindowSize = val;
+                if (displayVal) {
+                    displayVal.textContent = opt.querySelector('span').textContent;
+                }
+                options.forEach(o => o.classList.remove('active'));
+                opt.classList.add('active');
+                dropdown.classList.remove('show');
+                this.handleChange();
+            };
+        });
+
+        options.forEach(opt => {
+            const isActive = opt.dataset.val === this.selectedWindowSize;
+            opt.classList.toggle('active', isActive);
+            if (isActive && displayVal) {
+                displayVal.textContent = opt.querySelector('span').textContent;
+            }
+        });
+    },
+
     initThemeSelector: function() {
         const customSelectTrigger = document.getElementById('themeSelectTrigger');
         const customSelectDropdown = document.getElementById('themeSelectDropdown');
@@ -167,12 +213,16 @@ window.SettingsGeneral = {
             customSelectDropdown.classList.toggle('show');
             const langSelectDropdown = document.getElementById('langSelectDropdown');
             if (langSelectDropdown) langSelectDropdown.classList.remove('show');
+            const winDropdown = document.getElementById('windowSizeDropdown');
+            if (winDropdown) winDropdown.classList.remove('show');
         };
 
         document.addEventListener('click', () => {
             if (customSelectDropdown) customSelectDropdown.classList.remove('show');
             const langSelectDropdown = document.getElementById('langSelectDropdown');
             if (langSelectDropdown) langSelectDropdown.classList.remove('show');
+            const winDropdown = document.getElementById('windowSizeDropdown');
+            if (winDropdown) winDropdown.classList.remove('show');
         });
 
         this.rebuildThemeOptions(this.selectedThemeMode);
@@ -188,15 +238,19 @@ window.SettingsGeneral = {
         btnSaveOriginalTheme.addEventListener('click', () => {
             newThemeName.value = "";
             themeModal.style.display = 'flex';
+            setTimeout(() => themeModal.classList.add('show'), 10);
         });
 
-        btnCancelTheme.addEventListener('click', () => themeModal.style.display = 'none');
+        btnCancelTheme.addEventListener('click', () => {
+            themeModal.classList.remove('show');
+            setTimeout(() => { themeModal.style.display = 'none'; }, 200);
+        });
 
         btnConfirmTheme.addEventListener('click', async () => {
             const name = newThemeName.value.trim();
             if (!name) return;
             if (['light', 'dark', 'custom'].includes(name)) {
-                alert("その名前は使用できません。");
+                alert(window.i18n ? window.i18n.t('Common.error') : "その名前は使用できません。");
                 return;
             }
 
@@ -209,17 +263,18 @@ window.SettingsGeneral = {
             const success = await invoke("save_custom_theme", { name: name, colors: colors });
             if (success) {
                 this.customThemes[name] = colors;
-                themeModal.style.display = 'none';
+                themeModal.classList.remove('show');
+                setTimeout(() => { themeModal.style.display = 'none'; }, 200);
                 this.selectedThemeMode = name;
                 this.rebuildThemeOptions(name);
                 this.saveAllSettings(false);
-                this.showToast(`テーマ "${name}" を保存しました`);
+                this.showToast(window.i18n ? window.i18n.t('Messages.theme_saved', { name: name }) : `テーマ "${name}" を保存しました`);
             }
         });
 
         btnDeleteOriginalTheme.addEventListener('click', async () => {
             const name = this.selectedThemeMode;
-            if (confirm(`テーマ "${name}" を削除してもよろしいですか？`)) {
+            if (confirm(window.i18n ? window.i18n.t('Messages.theme_deleted', { name: name }) : `テーマ "${name}" を削除してもよろしいですか？`)) {
                 const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
                 const success = await invoke("delete_custom_theme", { name: name });
                 if (success) {
@@ -228,7 +283,7 @@ window.SettingsGeneral = {
                     this.rebuildThemeOptions('custom');
                     this.updateThemeUI();
                     this.saveAllSettings(false);
-                    this.showToast(`テーマ "${name}" を削除しました`);
+                    this.showToast(window.i18n ? window.i18n.t('Messages.theme_deleted', { name: name }) : `テーマ "${name}" を削除しました`);
                 }
             }
         });
@@ -239,14 +294,14 @@ window.SettingsGeneral = {
         const customSelectValue = document.getElementById('themeSelectValue');
         customSelectDropdown.innerHTML = '';
         const options = [
-            { val: 'light', label: 'ライトテーマ' },
-            { val: 'dark', label: 'ダークテーマ' }
+            { val: 'light', label: window.i18n ? window.i18n.t('Settings.theme_light') : 'ライトテーマ' },
+            { val: 'dark', label: window.i18n ? window.i18n.t('Settings.theme_dark') : 'ダークテーマ' }
         ];
 
         for (const name in this.customThemes) {
             options.push({ val: name, label: name });
         }
-        options.push({ val: 'custom', label: 'カスタム' });
+        options.push({ val: 'custom', label: window.i18n ? window.i18n.t('Settings.theme_custom') : 'カスタム' });
 
         options.forEach(opt => {
             const item = document.createElement('div');
@@ -311,11 +366,12 @@ window.SettingsGeneral = {
 
         const options = document.querySelectorAll('#themeSelectDropdown .custom-option');
         options.forEach(opt => {
-            const val = (opt.textContent.trim() === 'ライトテーマ') ? 'light' : 
-                        (opt.textContent.trim() === 'ダークテーマ') ? 'dark' : 
-                        (opt.textContent.trim() === 'カスタム') ? 'custom' : opt.textContent.trim();
-            if (val === mode) opt.classList.add('active');
-            else opt.classList.remove('active');
+            const val = opt.querySelector('span').textContent;
+            const isMatch = (mode === 'light' && val === (window.i18n ? window.i18n.t('Settings.theme_light') : 'ライトテーマ')) ||
+                            (mode === 'dark' && val === (window.i18n ? window.i18n.t('Settings.theme_dark') : 'ダークテーマ')) ||
+                            (mode === 'custom' && val === (window.i18n ? window.i18n.t('Settings.theme_custom') : 'カスタム')) ||
+                            (val === mode);
+            opt.classList.toggle('active', isMatch);
         });
     },
 
@@ -328,9 +384,10 @@ window.SettingsGeneral = {
             li.className = 'tag-item';
             const isDbChecked = this.currentSettings.active_tags.includes(tag.key) ? 'checked' : '';
             const isPlayerChecked = this.currentSettings.player_visible_tags.includes(tag.key) ? 'checked' : '';
+            const tagLabel = (window.i18n && window.i18n.t) ? window.i18n.t(`Tags.${tag.key}`) : tag.label;
 
             li.innerHTML = `
-                <div class="handle disabled">${tag.label}</div>
+                <div class="handle disabled">${tagLabel}</div>
                 <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-db" value="${tag.key}" ${isDbChecked}><span class="slider"></span></label></div>
                 <div class="check-container"><label class="toggle-switch"><input type="checkbox" class="chk-player" value="${tag.key}" ${isPlayerChecked}><span class="slider"></span></label></div>
             `;
@@ -359,7 +416,7 @@ window.SettingsGeneral = {
                 const b64 = event.target.result;
                 artPreview.src = b64;
                 await invoke("update_default_artwork", { b64Data: b64 });
-                this.showToast("初期画像を更新しました");
+                this.showToast(window.i18n ? window.i18n.t('Messages.art_updated') : "初期画像を更新しました");
             };
             reader.readAsDataURL(file);
         });
@@ -369,7 +426,7 @@ window.SettingsGeneral = {
             if (success) {
                 const url = await invoke("get_default_art_url");
                 artPreview.src = url || 'icon/Chordia.png';
-                this.showToast("初期画像に戻しました");
+                this.showToast(window.i18n ? window.i18n.t('Messages.art_restored') : "初期画像に戻しました");
             }
         });
     },
@@ -398,6 +455,7 @@ window.SettingsGeneral = {
             open_extensions_new_window: document.getElementById('openExtensionsNewWindow').checked,
             open_add_music_new_window: document.getElementById('openAddMusicNewWindow').checked,
             open_settings_new_window: document.getElementById('openSettingsNewWindow').checked,
+            default_window_size: this.selectedWindowSize || 'large',
             normalize_volume: document.getElementById('normalizeVolume').checked,
             lazy_load_playlists: false, 
             primary_color: document.getElementById('primaryColor').value,
@@ -432,11 +490,12 @@ window.SettingsGeneral = {
                 this.updateThemeUI();
                 const availableTags = await invoke("get_available_tags");
                 this.renderCombinedTagList(availableTags);
+                if (window.SettingsEqualizer) window.SettingsEqualizer.rebuildAssetOptions();
             }
 
-            if (showNotify) this.showToast("設定を保存しました");
+            if (showNotify) this.showToast(window.i18n ? window.i18n.t('Messages.saved') : "設定を保存しました");
         } else {
-            if (showNotify) this.showToast("保存に失敗しました", true);
+            if (showNotify) this.showToast(window.i18n ? window.i18n.t('Messages.save_failed') : "保存に失敗しました", true);
         }
     },
 

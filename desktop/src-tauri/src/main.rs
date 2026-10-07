@@ -7,7 +7,6 @@ pub mod cloud_sync;
 pub mod mobile_sync;
 pub mod system;
 
-// 既存コードとの互換性エイリアス
 pub use core::types;
 pub use core::utils;
 pub use i18n as cmd_i18n;
@@ -23,13 +22,13 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tauri::{Manager, Emitter, AppHandle, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
-use utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime};
-use cmd_cloud_sync::trigger_background_sync;
+use core::utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime};
+use cloud_sync::trigger_background_sync;
 
 #[cfg(target_os = "macos")]
 use tauri::menu::{MenuBuilder, SubmenuBuilder, PredefinedMenuItem};
 
-pub const APP_VERSION: &str = "v5.0.0-beta2";
+pub const APP_VERSION: &str = "v5.0.0";
 
 pub struct AppState {
     pub db: std::sync::Mutex<Vec<serde_json::Map<String, serde_json::Value>>>,
@@ -41,8 +40,8 @@ pub struct AppState {
 
 #[tauri::command]
 fn resolve_path(rel_path: String) -> Result<String, String> {
-    let normalized = crate::utils::normalize_rel_path(&rel_path);
-    let abs_path = crate::utils::get_base_dir().join(&normalized);
+    let normalized = crate::core::utils::normalize_rel_path(&rel_path);
+    let abs_path = crate::core::utils::get_base_dir().join(&normalized);
     Ok(abs_path.to_string_lossy().to_string())
 }
 
@@ -105,9 +104,9 @@ fn main() {
     #[cfg(target_os = "windows")]
     set_app_user_model_id();
 
-    cmd_i18n::init_default_languages();
+    i18n::commands::init_default_languages();
 
-    let auth_state = Arc::new(Mutex::new(server::AuthState::new()));
+    let auth_state = Arc::new(Mutex::new(mobile_sync::server::AuthState::new()));
     let auth_state_for_task = auth_state.clone();
 
     tauri::Builder::default()
@@ -124,7 +123,7 @@ fn main() {
                 let label = window.label().to_string();
                 if label == "sync_window" || label == "main" {
                     let is_sync_window = label == "sync_window";
-                    let auth_state = window.state::<server::SharedAuthState>();
+                    let auth_state = window.state::<mobile_sync::server::SharedAuthState>();
                     let auth_clone = auth_state.inner().clone();
                     tauri::async_runtime::spawn(async move {
                         let mut state = auth_clone.lock().await;
@@ -133,7 +132,7 @@ fn main() {
                             state.pending_requests.clear();
                         }
                         if let Some(child) = state.tunnel_process.take() {
-                            cmd_mobile_sync::kill_child_process(child).await;
+                            mobile_sync::commands::kill_child_process(child).await;
                         }
                         if is_sync_window {
                             if let Some(tx) = state.shutdown_tx.take() {
@@ -198,7 +197,16 @@ fn main() {
 
                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
+                // アプリ設定に基づく起動ウィンドウサイズの適用
                 if let Some(main_win) = app_handle_for_init.get_webview_window("main") {
+                    let settings = system::settings::get_app_settings();
+                    let (win_w, win_h) = if settings.default_window_size == "standard" {
+                        (850.0, 600.0)
+                    } else {
+                        (1250.0, 880.0)
+                    };
+                    let _ = main_win.set_size(tauri::Size::Logical(tauri::LogicalSize { width: win_w, height: win_h }));
+                    let _ = main_win.center();
                     let _ = main_win.show();
                     let _ = main_win.set_focus();
                 }
@@ -238,7 +246,7 @@ fn main() {
                     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                     if !ffmpeg_path.exists() { continue; } 
                     
-                    let settings = cmd_settings::get_app_settings();
+                    let settings = system::settings::get_app_settings();
                     if !settings.normalize_volume { continue; }
 
                     let mut targets_to_calc = Vec::new();
@@ -264,7 +272,7 @@ fn main() {
                     for rel_path in targets_to_calc {
                         let semaphore_clone = semaphore.clone();
                         let ffmpeg = ffmpeg_path.clone();
-                        let abs_path = get_base_dir().join(crate::utils::normalize_rel_path(&rel_path));
+                        let abs_path = get_base_dir().join(crate::core::utils::normalize_rel_path(&rel_path));
                         let path_key = rel_path.clone();
 
                         handles.push(tokio::spawn(async move {
@@ -319,7 +327,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            system::window::open_new_window, system::window::set_mini_player_mode, system::window::close_mini_player, system::window::close_lufs_calc_window, system::window::make_window_square, system::window::minimize_mini_player, system::window::show_in_explorer,
+            system::window::open_new_window, system::window::start_drag, system::window::set_mini_player_mode, system::window::close_mini_player, system::window::close_lufs_calc_window, system::window::make_window_square, system::window::minimize_mini_player, system::window::show_in_explorer,
             system::window::open_url, system::window::close_work_window, system::window::toggle_maximize_work_window, system::window::open_sound_settings,
             system::settings::get_app_settings, system::settings::save_app_settings, system::settings::get_custom_themes, system::settings::save_custom_theme, system::settings::delete_custom_theme,
             library::add_music::get_default_art_url, library::add_music::update_default_artwork, library::add_music::reset_default_artwork, library::add_music::get_available_tags, library::add_music::get_autocomplete_lists, library::add_music::check_duplicate_songs, library::add_music::save_music_data, library::add_music::download_and_save_music, library::add_music::check_tools_status, library::add_music::fetch_video_info, library::add_music::fetch_youtube_playlist, library::add_music::fetch_and_crop_thumbnail, library::add_music::fetch_and_crop_image_url, library::add_music::extract_artwork_from_local_file, library::add_music::download_original_thumbnail, library::add_music::search_lyrics_online,
