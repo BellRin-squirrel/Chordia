@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, NativeModules } from 'react-native';
 import TrackPlayer, { 
   usePlaybackState, 
@@ -26,6 +26,11 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
   const rntpState = usePlaybackState();
   const rntpProgress = useProgress(250);
   const isRNTPPlaying = isStatePlaying(rntpState);
+
+  const handlersRef = useRef(handlers);
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   const syncAndroidEqualizerSession = async () => {
     if (Platform.OS === 'android') {
@@ -96,36 +101,49 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     initRNTP();
   }, []);
 
-  // ★ ロック画面・コントロールセンター・AirPods 操作イベントの完全リスニング
+  // ★ Dev Client時等の null/undefined イベント登録を防ぐ安全なリスナー登録ヘルパー
   useEffect(() => {
-    const subPlay = TrackPlayer.addEventListener(Event.RemotePlay, () => {
-      handlers?.onPlay?.();
+    const subscriptions: any[] = [];
+
+    const safeAddListener = (eventName: any, callback: (event: any) => void) => {
+      if (!eventName || typeof eventName !== 'string') {
+        return;
+      }
+      try {
+        const sub = TrackPlayer.addEventListener(eventName, callback);
+        if (sub) subscriptions.push(sub);
+      } catch (e) {}
+    };
+
+    safeAddListener(Event.RemotePlay, () => {
+      handlersRef.current?.onPlay?.();
     });
-    const subPause = TrackPlayer.addEventListener(Event.RemotePause, () => {
-      handlers?.onPause?.();
+    safeAddListener(Event.RemotePause, () => {
+      handlersRef.current?.onPause?.();
     });
-    const subToggle = TrackPlayer.addEventListener(Event.RemoteTogglePlayPause, () => {
-      handlers?.onTogglePlayPause?.();
+    safeAddListener(Event.RemoteTogglePlayPause, () => {
+      handlersRef.current?.onTogglePlayPause?.();
     });
-    const subNext = TrackPlayer.addEventListener(Event.RemoteNext, () => {
-      handlers?.onNext?.();
+    safeAddListener(Event.RemoteNext, () => {
+      handlersRef.current?.onNext?.();
     });
-    const subPrev = TrackPlayer.addEventListener(Event.RemotePrevious, () => {
-      handlers?.onPrev?.();
+    safeAddListener(Event.RemotePrevious, () => {
+      handlersRef.current?.onPrev?.();
     });
-    const subSeek = TrackPlayer.addEventListener(Event.RemoteSeek, (event) => {
-      handlers?.onSeek?.(event.position);
+    safeAddListener(Event.RemoteSeek, (event) => {
+      handlersRef.current?.onSeek?.(event.position);
     });
 
     return () => {
-      subPlay.remove();
-      subPause.remove();
-      subToggle.remove();
-      subNext.remove();
-      subPrev.remove();
-      subSeek.remove();
+      subscriptions.forEach((sub) => {
+        try {
+          if (sub && typeof sub.remove === 'function') {
+            sub.remove();
+          }
+        } catch (e) {}
+      });
     };
-  }, [handlers]);
+  }, []);
 
   return {
     rntpState,

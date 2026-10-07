@@ -7,6 +7,7 @@ import {
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
+import * as Haptics from 'expo-haptics';
 import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -35,6 +36,13 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
     }).start();
   };
 
+  const handlePress = (e: any) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (_) {}
+    onPress?.(e);
+  };
+
   const flatStyle = StyleSheet.flatten(style) || {};
   const bRadius = flatStyle.borderRadius ?? 0;
   const bTopLeftRadius = flatStyle.borderTopLeftRadius ?? bRadius;
@@ -45,7 +53,7 @@ const BounceButton = ({ children, onPress, style, underlayColor, activeOpacity }
   return (
     <Animated.View style={[{ transform: [{ scale }] }, style, { backgroundColor: 'transparent' }]}>
       <TouchableHighlight
-        onPress={onPress}
+        onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         underlayColor={underlayColor || "rgba(255,255,255,0.15)"}
@@ -162,7 +170,6 @@ export const FullScreenPlayer = ({
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
-  // 縦画面用トグル
   const toggleLyrics = () => {
     if (showQueue) setShowQueue(false);
     setShowLyrics(!showLyrics);
@@ -173,7 +180,6 @@ export const FullScreenPlayer = ({
     setShowQueue(!showQueue);
   };
 
-  // ★ 横画面用：歌詞とキューの切り替え
   const toggleLyricsOrQueueLandscape = () => {
     setShowLyrics(!showLyrics);
     setShowQueue(false);
@@ -318,10 +324,8 @@ export const FullScreenPlayer = ({
 
     contentLayout = (
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        {/* 横画面左側バー：4つのボタン構成 */}
         <View style={{ width: 50, justifyContent: 'space-around', alignItems: 'center', paddingVertical: 15 }}>
           
-          {/* ★ 1. 歌詞表示とキュー表示の切り替えボタン（どちらを表示中でも背景は常に透明・白アイコン） */}
           <BounceButton
             onPress={toggleLyricsOrQueueLandscape}
             underlayColor="rgba(255,255,255,0.15)"
@@ -341,7 +345,6 @@ export const FullScreenPlayer = ({
             />
           </BounceButton>
 
-          {/* 2. AirPlay ボタン (iOS のみ表示) */}
           {Platform.OS === 'ios' && (
             <BounceButton
               onPress={handleAirPlayPress}
@@ -352,7 +355,6 @@ export const FullScreenPlayer = ({
             </BounceButton>
           )}
 
-          {/* 3. シャッフル */}
           <BounceButton
             onPress={toggleShuffleMode}
             underlayColor="rgba(255,255,255,0.15)"
@@ -361,7 +363,6 @@ export const FullScreenPlayer = ({
             <Ionicons name="shuffle" size={22} color={isShuffle ? activeIconColor : '#fff'} />
           </BounceButton>
 
-          {/* 4. ループ */}
           <BounceButton
             onPress={toggleLoopMode}
             underlayColor="rgba(255,255,255,0.15)"
@@ -390,7 +391,6 @@ export const FullScreenPlayer = ({
 
         <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 30 }} />
 
-        {/* 右カラム：歌詞 または キュー */}
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
             <FlatList
@@ -472,7 +472,6 @@ export const FullScreenPlayer = ({
     contentLayout = (
       <View style={{ flex: 1, justifyContent: 'space-between' }}>
         
-        {/* 1. 上部可変エリア */}
         <PanGestureHandler
           activeOffsetY={[-20, 10]}
           minPointers={1}
@@ -483,7 +482,6 @@ export const FullScreenPlayer = ({
         >
           <Animated.View style={{ flex: 1, width: '100%' }}>
             
-            {/* (A) メイン画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, mainViewStyle, { justifyContent: 'center', alignItems: 'center' }]}
               pointerEvents={(!showQueue && !showLyrics) ? 'auto' : 'none'}
@@ -519,7 +517,6 @@ export const FullScreenPlayer = ({
               </View>
             </Animated.View>
 
-            {/* (B) 歌詞画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, lyricsViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
               pointerEvents={showLyrics ? 'auto' : 'none'}
@@ -573,7 +570,6 @@ export const FullScreenPlayer = ({
               )}
             </Animated.View>
 
-            {/* (C) キュー画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, queueViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
               pointerEvents={showQueue ? 'auto' : 'none'}
@@ -632,7 +628,6 @@ export const FullScreenPlayer = ({
           </Animated.View>
         </PanGestureHandler>
 
-        {/* 2. 下部固定エリア */}
         <View style={{ width: '100%', paddingTop: 10 }}>
           
           <View style={[styles.sliderWithTime, { paddingHorizontal: 10 }]}>
@@ -666,7 +661,6 @@ export const FullScreenPlayer = ({
             transform: [{ translateY: -12 }]
           }}>
             
-            {/* 1. シャッフル */}
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleShuffleMode}
@@ -681,7 +675,6 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 2. ループ */}
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleLoopMode}
@@ -701,7 +694,6 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 3. AirPlay ボタン (iOS のみ表示) */}
             {Platform.OS === 'ios' && (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <BounceButton
@@ -720,7 +712,6 @@ export const FullScreenPlayer = ({
               </View>
             )}
 
-            {/* 4. 歌詞 */}
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleLyrics}
@@ -735,7 +726,6 @@ export const FullScreenPlayer = ({
               </BounceButton>
             </View>
 
-            {/* 5. キュー */}
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <BounceButton
                 onPress={toggleQueue}

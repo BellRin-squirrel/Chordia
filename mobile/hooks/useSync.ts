@@ -142,7 +142,6 @@ export const useSync = ({
 
   const didCancelRef = useRef(false);
 
-  // ★ 重複解決モーダル用の状態
   const [activeConflictSet, setActiveConflictSet] = useState<ConflictSet | null>(null);
   const conflictResolverRef = useRef<((choice: { action: 'ADOPT' | 'IGNORE'; adoptedItem?: ConflictItem } | 'ABORT') => void) | null>(null);
 
@@ -314,7 +313,6 @@ export const useSync = ({
     setPcPlaylists([]);
   };
 
-  // 重複解決用モーダルコールバック
   const resolveCurrentConflict = (choice: { action: 'ADOPT' | 'IGNORE'; adoptedItem?: ConflictItem } | 'ABORT') => {
     if (conflictResolverRef.current) {
       conflictResolverRef.current(choice);
@@ -323,7 +321,6 @@ export const useSync = ({
     setActiveConflictSet(null);
   };
 
-  // ★ 新同期システム：「ローカルから追加した曲」を保護する自己入手非削除方式
   const startSyncDownload = async () => {
     if (!serverIp || !apiKey) {
       Alert.alert(t('alert_timer_error_title', language), t('sync_not_connected', language));
@@ -339,7 +336,6 @@ export const useSync = ({
     const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
     await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
-    // 一時試聴ダウンロード用ファイルパスの追跡
     const tempPreviewFiles: string[] = [];
 
     const cleanupTempPreviews = async () => {
@@ -405,7 +401,7 @@ export const useSync = ({
       }
 
       // ==============================================================
-      // ステップ 1: 過去のDesktop同期曲の削除 ＆ プレイリストスナップショット
+      // ステップ 1: 過去のDesktop同期曲の削除 ＆ プレイリストスナップショット（超高速化版）
       // ==============================================================
       setSyncProgress(t('sync_organizing_local', language));
       await yieldToUI();
@@ -415,7 +411,6 @@ export const useSync = ({
 
       const currentLocal = Array.isArray(localLibrary) ? [...localLibrary] : [];
 
-      // 過去のDesktop曲と、保護対象のローカル追加曲を分離
       const protectedLocalSongs: any[] = [];
       const pastDesktopSongs: any[] = [];
 
@@ -431,7 +426,6 @@ export const useSync = ({
         }
       }
 
-      // Mobile作成プレイリストから削除されるDesktop曲のスナップショット（メモ）を記録
       const deletedDesktopFnames = new Set(
         pastDesktopSongs.map(s => s.musicFilename?.split(/[\\/]/).pop()).filter(Boolean)
       );
@@ -463,25 +457,23 @@ export const useSync = ({
             }
           });
 
-          // 削除されるDesktop曲をプレイリストから一旦除去
           pl.music = pl.music.filter((m: string) => !deletedDesktopFnames.has(m.split(/[\\/]/).pop()));
         }
       }
 
-      // 過去のDesktop曲の音声ファイル・画像ファイルを物理削除
-      for (const dSong of pastDesktopSongs) {
+      // ★ 削除処理の高速化: 個別awaitループから Promise.all による並列一括削除へ変更
+      const deletionPromises = pastDesktopSongs.map(async (dSong) => {
         if (dSong.localMusicUri) {
           try { await FileSystem.deleteAsync(dSong.localMusicUri, { idempotent: true }); } catch (e) {}
         }
         if (dSong.localImageUri) {
           try { await FileSystem.deleteAsync(dSong.localImageUri, { idempotent: true }); } catch (e) {}
         }
-      }
+      });
+      await Promise.all(deletionPromises);
 
-      // Desktop由来の古いプレイリストを除去
       currentLocalPlaylists = currentLocalPlaylists.filter(pl => pl.origin !== 'desktop');
 
-      // 一時状態を保存
       await AsyncStorage.setItem('local_library', JSON.stringify(protectedLocalSongs));
       setLocalLibrary(protectedLocalSongs);
 
@@ -490,7 +482,6 @@ export const useSync = ({
       // ==============================================================
       const conflictMap = new Map<string, ConflictItem[]>();
 
-      // 保護されているローカル追加曲を重複判定マップに登録
       for (const lSong of protectedLocalSongs) {
         const key = `${cleanStr(lSong.title)}:::${cleanStr(lSong.artist)}:::${cleanStr(lSong.album || '')}`;
         if (!conflictMap.has(key)) conflictMap.set(key, []);
@@ -506,9 +497,8 @@ export const useSync = ({
         });
       }
 
-      // 今回のDesktop同期対象曲を重複判定マップに登録
       const finalDesktopToDownload: any[] = [];
-      const adoptedLocalReplacements = new Map<string, string>(); // desktopFname -> localFname
+      const adoptedLocalReplacements = new Map<string, string>();
 
       for (const dSong of desktopTargets) {
         const key = `${cleanStr(dSong.title)}:::${cleanStr(dSong.artist)}:::${cleanStr(dSong.album || '')}`;
@@ -530,7 +520,6 @@ export const useSync = ({
         }
       }
 
-      // 重複が存在するセットを抽出
       const conflictSets: ConflictSet[] = [];
       for (const [key, items] of conflictMap.entries()) {
         const hasDesktop = items.some(i => i.type === 'DESKTOP');
@@ -546,52 +535,42 @@ export const useSync = ({
         }
       }
 
-      // 各重複セットを順番にユーザーに試聴比較させ、選択してもらう
       for (let sIdx = 0; sIdx < conflictSets.length; sIdx++) {
         if (didCancelRef.current) break;
         const cSet = conflictSets[sIdx];
 
-        // 試聴用の一時ファイルを準備
         for (const item of cSet.items) {
           if (item.type === 'DESKTOP' && !item.sourceUrlOrUri.startsWith('file://')) {
             const previewPath = `${baseDir}temp_preview_${Date.now()}_${item.fileName}`;
             tempPreviewFiles.push(previewPath);
             try {
               await downloadWithTimeout(item.sourceUrlOrUri, previewPath, headers, 20000);
-              item.sourceUrlOrUri = previewPath; // 試聴可能ローカルURIに差し替え
-            } catch (e) {
-              console.warn('[Conflict Preview Download Error]', e);
-            }
+              item.sourceUrlOrUri = previewPath;
+            } catch (e) {}
           }
         }
 
-        // ポップアップを表示し、ユーザーの選択を待機
         const userDecision = await new Promise<{ action: 'ADOPT' | 'IGNORE'; adoptedItem?: ConflictItem } | 'ABORT'>((resolve) => {
           conflictResolverRef.current = resolve;
           setActiveConflictSet(cSet);
         });
 
-        // 一時試聴ファイルを削除
         await cleanupTempPreviews();
 
-        // 中断が選択された場合
         if (userDecision === 'ABORT') {
           didCancelRef.current = true;
           setIsFullScreenSyncing(false);
           setSyncProgress('');
-          // 中断時はローカル追加曲のみのクリーン状態で終了
           await AsyncStorage.setItem('local_library', JSON.stringify(protectedLocalSongs));
           setLocalLibrary(protectedLocalSongs);
           syncMusicAndPlaylistsToCloud();
           return;
         }
 
-        // 採用または両方除外の処理
         if (userDecision.action === 'ADOPT' && userDecision.adoptedItem) {
           const adopted = userDecision.adoptedItem;
           if (adopted.type === 'DESKTOP') {
             finalDesktopToDownload.push(adopted.desktopSongRef);
-            // 競合していたローカル曲を削除
             for (const item of cSet.items) {
               if (item.type === 'LOCAL' && item.localSongRef?.localMusicUri) {
                 try { await FileSystem.deleteAsync(item.localSongRef.localMusicUri, { idempotent: true }); } catch (e) {}
@@ -600,15 +579,12 @@ export const useSync = ({
               }
             }
           } else {
-            // ローカル曲を採用（Desktop音源はダウンロードしない）
-            // Desktop由来プレイリストが自己入手曲を参照できるようマッピングを記録
             const dItem = cSet.items.find(i => i.type === 'DESKTOP');
             if (dItem && adopted.fileName) {
               adoptedLocalReplacements.set(dItem.fileName, adopted.fileName);
             }
           }
         } else if (userDecision.action === 'IGNORE') {
-          // 両方除外：ローカル曲も削除
           for (const item of cSet.items) {
             if (item.type === 'LOCAL' && item.localSongRef?.localMusicUri) {
               try { await FileSystem.deleteAsync(item.localSongRef.localMusicUri, { idempotent: true }); } catch (e) {}
@@ -642,9 +618,7 @@ export const useSync = ({
 
         try {
           await downloadWithTimeout(`${baseUrl}${song.url_music}`, musicLocalUri, headers, 60000);
-        } catch (e) {
-          console.warn(`[Sync] Music download failed: ${song.title}`);
-        }
+        } catch (e) {}
 
         let finalImgUri: string | null = null;
         if (song.url_image) {
@@ -668,7 +642,6 @@ export const useSync = ({
 
       if (didCancelRef.current) return;
 
-      // 新しい全ライブラリ（保護されたローカル曲 ＋ 新規Desktop曲）
       const finalLibrary = [...protectedLocalSongs, ...downloadedDesktopSongs];
       await AsyncStorage.setItem('local_library', JSON.stringify(finalLibrary));
       setLocalLibrary(finalLibrary);
@@ -676,7 +649,6 @@ export const useSync = ({
       // ==============================================================
       // ステップ 4: プレイリストの復元と自動置換
       // ==============================================================
-      // 1. Mobile作成プレイリストへのスナップショット自動復元
       for (const snap of mobilePlaylistSnapshots) {
         const matchedNewSong = finalLibrary.find(s => 
           cleanStr(s.title) === cleanStr(snap.title) &&
@@ -695,7 +667,6 @@ export const useSync = ({
         }
       }
 
-      // 2. Desktop由来プレイリストの同期 ＆ 自己入手曲への参照自動置換
       const targetPlaylistsForPl = selectedPls.size > 0 
         ? currentPcPlaylists.filter((_, i) => selectedPls.has(i)) 
         : currentPcPlaylists;
@@ -704,7 +675,6 @@ export const useSync = ({
         if (didCancelRef.current) break;
         const pl = { ...targetPlaylistsForPl[j], origin: 'desktop' };
 
-        // Desktop側指定ファイル名をローカル追加曲のファイル名に自動置換
         if (pl.type !== 'smart' && Array.isArray(pl.music)) {
           pl.music = pl.music.map((m: any) => {
             const origFname = (typeof m === 'string' ? m : m?.musicFilename || '').split(/[\\/]/).pop();
@@ -715,7 +685,6 @@ export const useSync = ({
           });
         }
 
-        // カバー画像のダウンロード
         let coverUrl = pl.url_cover || pl.cover_url || pl.coverUrl;
         if (!coverUrl && (pl.coverPath || pl.cover_path || pl.coverFilename)) {
           const pathStr = String(pl.coverPath || pl.cover_path || pl.coverFilename);
