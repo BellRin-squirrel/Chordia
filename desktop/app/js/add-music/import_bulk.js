@@ -35,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // ★ ZIP読み込みエラーの多言語変換関数
     function resolveZipErrorMessage(err) {
         if (!window.i18n) return String(err);
         const str = String(err);
@@ -206,6 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (zipFileInfo) zipFileInfo.style.display = 'flex';
         if (btnScanZip) btnScanZip.disabled = false;
         window._selectedZipFile = file;
+        window._selectedZipPath = file.path || "";
         currentZipPassword = ""; 
     }
 
@@ -213,6 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnClearZipFile.onclick = () => {
             if(fileInputZip) fileInputZip.value = '';
             window._selectedZipFile = null;
+            window._selectedZipPath = "";
             currentZipPassword = "";
             if(zipFileInfo) zipFileInfo.style.display = 'none';
             if(dropAreaZip) dropAreaZip.style.display = 'block';
@@ -222,6 +223,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             const zipScanSection = document.getElementById('zipScanSection');
             if (zipScanSection) zipScanSection.style.display = 'block';
         };
+    }
+
+    // ★ パスとBase64のハイブリッド生成ヘルパー（ファイル直接読み込み優先で高速・省メモリ化）
+    async function getZipPayload(file) {
+        const filePath = file.path || window._selectedZipPath || "";
+        if (filePath) {
+            return { zipPath: filePath, zipDataB64: null };
+        }
+        const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = e => {
+                const res = e.target.result || "";
+                resolve(res.includes(',') ? res.split(',')[1] : res);
+            };
+            reader.onerror = () => reject("ERR_ZIP_MEMORY");
+            reader.readAsDataURL(file);
+        });
+        return { zipPath: null, zipDataB64: base64Data || "" };
     }
 
     if(btnScanZip) {
@@ -236,14 +255,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (progressText) progressText.textContent = window.i18n ? window.i18n.t('AddMusic.progress_scanning_zip') : "ZIPファイルをスキャン中...";
             
             try {
-                const base64Data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = e => resolve(e.target.result.split(',')[1]);
-                    reader.onerror = () => reject("ERR_ZIP_MEMORY");
-                    reader.readAsDataURL(file);
+                const payload = await getZipPayload(file);
+                const res = await invoke("scan_zip_import", { 
+                    zipPath: payload.zipPath,
+                    zipDataB64: payload.zipDataB64, 
+                    password: null 
                 });
-                
-                const res = await invoke("scan_zip_import", { zipDataB64: base64Data, password: null });
                 
                 if (res.status === 'password_required') {
                     if (progressArea) progressArea.style.display = 'none';
@@ -304,13 +321,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (zipScanSection) zipScanSection.style.display = 'none';
         
         try {
-            const base64Data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result.split(',')[1]);
-                reader.onerror = () => reject("ERR_ZIP_MEMORY");
-                reader.readAsDataURL(file);
+            const payload = await getZipPayload(file);
+            const res = await invoke("scan_zip_import", { 
+                zipPath: payload.zipPath,
+                zipDataB64: payload.zipDataB64, 
+                password: currentZipPassword 
             });
-            const res = await invoke("scan_zip_import", { zipDataB64: base64Data, password: currentZipPassword });
             if (res.status === 'success') {
                 scannedData = res.data;
                 renderTable('zip');
@@ -397,11 +413,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnManage.onclick = async () => {
                         const label = `manage_window_${Date.now()}`;
                         const targetUrl = new URL(`manage.html?mode=window&adv_title=${encodeURIComponent(item.title)}&adv_artist=${encodeURIComponent(item.artist)}`, window.location.href).href;
-                        // ★ ウィンドウサイズを幅1250px・高さ880pxで開く
+                        const modalTitle = window.i18n ? window.i18n.t("Window.manage") : "データベース管理 - Chordia";
                         await invoke("open_new_window", {
                             label: label,
                             url: targetUrl,
-                            title: "データベース管理 - Chordia",
+                            title: modalTitle,
                             width: 1250.0,
                             height: 880.0
                         });
@@ -443,13 +459,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 res = await invoke("execute_final_list_import", { importDataList: dataList });
             } else if (type === 'zip') {
                 const file = window._selectedZipFile;
-                const b64 = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = e => resolve(e.target.result.split(',')[1]);
-                    reader.onerror = () => reject("ERR_ZIP_MEMORY");
-                    reader.readAsDataURL(file);
+                const payload = await getZipPayload(file);
+                res = await invoke("execute_zip_import", { 
+                    zipPath: payload.zipPath,
+                    zipDataB64: payload.zipDataB64, 
+                    importDataList: dataList, 
+                    password: currentZipPassword 
                 });
-                res = await invoke("execute_zip_import", { zipDataB64: b64, importDataList: dataList, password: currentZipPassword });
             }
             
             if (progressArea) progressArea.style.display = 'none';
@@ -641,7 +657,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         finally { btnFetchImportVideoArt.disabled = false; btnFetchImportVideoArt.textContent = orgText; }
     };
 
-    // ★ インポートモーダルの動画URL入力欄でのEnterキー対応
     if (importMiniVideoUrl) {
         importMiniVideoUrl.addEventListener('keydown', (e) => {
             if (e.isComposing || e.keyCode === 229) return;
@@ -674,7 +689,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         finally { btnFetchImportDirectArt.disabled = false; btnFetchImportDirectArt.textContent = orgText; }
     };
 
-    // ★ インポートモーダルの画像URL入力欄でのEnterキー対応
     if (importMiniImageUrl) {
         importMiniImageUrl.addEventListener('keydown', (e) => {
             if (e.isComposing || e.keyCode === 229) return;

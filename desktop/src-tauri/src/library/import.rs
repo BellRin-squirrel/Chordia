@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::fs;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use rand::{rng, Rng};
 use rand::distr::Alphanumeric;
 use base64::{Engine as _, engine::general_purpose};
@@ -10,6 +10,45 @@ use id3::TagLike;
 use crate::AppState;
 use crate::core::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, get_duration_str, update_mp3_tags_from_song_map};
 use crate::cloud_sync::trigger_background_sync;
+
+// ★ ディスク直接ストリームとインメモリBase64の双方に対応する抽象ZipSource
+enum ZipSource {
+    File(fs::File),
+    Cursor(Cursor<Vec<u8>>),
+}
+
+impl Read for ZipSource {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            ZipSource::File(f) => f.read(buf),
+            ZipSource::Cursor(c) => c.read(buf),
+        }
+    }
+}
+
+impl Seek for ZipSource {
+    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+        match self {
+            ZipSource::File(f) => f.seek(pos),
+            ZipSource::Cursor(c) => c.seek(pos),
+        }
+    }
+}
+
+fn open_zip_archive(zip_path: Option<String>, zip_data_b64: Option<String>) -> Result<zip::ZipArchive<ZipSource>, String> {
+    let source = if let Some(path) = zip_path.filter(|p| !p.trim().is_empty()) {
+        let file = fs::File::open(&path).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
+        ZipSource::File(file)
+    } else if let Some(b64) = zip_data_b64.filter(|b| !b.trim().is_empty()) {
+        let b64_clean = if b64.contains(',') { b64.split(',').nth(1).unwrap_or(&b64) } else { &b64 };
+        let bytes = general_purpose::STANDARD.decode(b64_clean).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
+        ZipSource::Cursor(Cursor::new(bytes))
+    } else {
+        return Err("ERR_ZIP_CORRUPTED".to_string());
+    };
+
+    zip::ZipArchive::new(source).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())
+}
 
 #[tauri::command]
 pub fn parse_list_import(content: String, file_type: String) -> Result<serde_json::Value, String> {
@@ -119,17 +158,20 @@ pub fn check_import_duplicates(import_list: Vec<serde_json::Map<String, Value>>,
     duplicates
 }
 
+// ★ zip_path と zip_data_b64 の双方に対応し、missing key エラーを完全防止
 #[tauri::command]
-pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result<serde_json::Value, String> {
+pub fn scan_zip_import(
+    zip_path: Option<String>,
+    zip_data_b64: Option<String>,
+    password: Option<String>
+) -> Result<serde_json::Value, String> {
     if let Some(ref pass) = password {
         if pass.chars().count() > 128 {
             return Err("ERR_ZIP_PASS_TOO_LONG".to_string());
         }
     }
 
-    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
-    let cursor = Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
+    let mut archive = open_zip_archive(zip_path, zip_data_b64)?;
     
     let mut needs_password = false;
     for i in 0..archive.len() {
@@ -266,11 +308,17 @@ pub fn scan_zip_import(zip_data_b64: String, password: Option<String>) -> Result
     Ok(serde_json::json!({"status": "success", "data": data_list}))
 }
 
+// ★ zip_path と zip_data_b64 の双方に対応し、ファイル直接ストリーム抽出を実行
 #[tauri::command]
-pub fn execute_zip_import(app: AppHandle, zip_data_b64: String, import_data_list: Vec<serde_json::Map<String, Value>>, password: Option<String>, state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    let bytes = general_purpose::STANDARD.decode(zip_data_b64).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
-    let cursor = Cursor::new(bytes);
-    let mut archive = zip::ZipArchive::new(cursor).map_err(|_| "ERR_ZIP_CORRUPTED".to_string())?;
+pub fn execute_zip_import(
+    app: AppHandle,
+    zip_path: Option<String>,
+    zip_data_b64: Option<String>,
+    import_data_list: Vec<serde_json::Map<String, Value>>,
+    password: Option<String>,
+    state: State<'_, AppState>
+) -> Result<serde_json::Value, String> {
+    let mut archive = open_zip_archive(zip_path, zip_data_b64)?;
     
     let base = get_base_dir();
     let _ = fs::create_dir_all(base.join("library/music"));
