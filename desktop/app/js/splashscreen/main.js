@@ -10,8 +10,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = event.payload;
             if (!data) return;
 
-            if (data.message && splashMessage) {
-                splashMessage.textContent = data.message;
+            if (splashMessage) {
+                let msg = data.message || "";
+                if (window.i18n && data.status_code) {
+                    msg = window.i18n.t(`Splash.${data.status_code}`, {
+                        current: data.current || 0,
+                        total: data.total || 0
+                    });
+                }
+                splashMessage.textContent = msg;
             }
 
             if (data.percent !== undefined && data.percent !== null) {

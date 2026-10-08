@@ -24,10 +24,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnAddMusic.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_add_music_new_window) {
+                const title = window.i18n ? window.i18n.t("Window.add_music") : "曲を追加 - Chordia";
                 await invoke("open_new_window", {
                     label: "add_music_window", 
                     url: new URL("add_music.html", window.location.href).href,
-                    title: "曲を追加 - Chordia",
+                    title: title,
                     width: 1200.0,
                     height: 850.0
                 });
@@ -41,10 +42,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnManage.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_manage_new_window) {
+                const title = window.i18n ? window.i18n.t("Window.manage") : "データベース管理 - Chordia";
                 await invoke("open_new_window", {
                     label: "manage_window", 
                     url: new URL("manage.html", window.location.href).href,
-                    title: "データベース管理 - Chordia",
+                    title: title,
                     width: 1200.0,
                     height: 900.0
                 });
@@ -60,10 +62,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnPlayer.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_player_new_window) {
+                const title = window.i18n ? window.i18n.t("Window.player") : "音楽を再生 - Chordia";
                 await invoke("open_new_window", {
                     label: "player_window",
                     url: new URL("player.html", window.location.href).href,
-                    title: "音楽を再生 - Chordia",
+                    title: title,
                     width: 1200.0,
                     height: 900.0
                 });
@@ -81,10 +84,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnMobileSync.disabled = true; 
             
             try {
+                const title = window.i18n ? window.i18n.t("Window.sync") : "モバイル同期 - Chordia";
                 await invoke("open_new_window", {
                     label: "sync_window", 
                     url: new URL("api.html", window.location.href).href,
-                    title: "モバイル同期 - Chordia",
+                    title: title,
                     width: 1000.0,
                     height: 650.0
                 });
@@ -104,10 +108,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnExtensions.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_extensions_new_window) {
+                const title = window.i18n ? window.i18n.t("Window.extensions") : "拡張機能 - Chordia";
                 await invoke("open_new_window", {
                     label: "extensions_window", 
                     url: new URL("extensions.html", window.location.href).href,
-                    title: "拡張機能 - Chordia",
+                    title: title,
                     width: 850.0,
                     height: 700.0
                 });
@@ -124,10 +129,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnWork) {
         btnWork.addEventListener('click', async () => {
             try {
+                const title = window.i18n ? window.i18n.t("Window.work") : "作業モード - Chordia";
                 await invoke("open_new_window", {
                     label: "work_window", 
                     url: new URL("work.html", window.location.href).href,
-                    title: "Chordia Focus",
+                    title: title,
                     width: 1020.0,
                     height: 720.0
                 });
@@ -142,10 +148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnInfo.addEventListener('click', async () => {
             const settings = await invoke("get_app_settings");
             if (settings.open_settings_new_window) {
+                const title = window.i18n ? window.i18n.t("Window.settings") : "情報・設定 - Chordia";
                 await invoke("open_new_window", {
                     label: "settings_window", 
                     url: new URL("settings.html", window.location.href).href,
-                    title: "情報・設定 - Chordia",
+                    title: title,
                     width: 1250.0,
                     height: 880.0
                 });
@@ -155,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ★ キーボードショートカット (作業画面を W ではなく F で起動)
+    // キーボードショートカット
     document.addEventListener('keydown', (e) => {
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
 
@@ -168,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             case '5': case 'P': targetBtn = btnPlayer; break;
             case '6': case 'C': targetBtn = btnMobileSync; break;
             case '7': case 'E': targetBtn = btnExtensions; break;
-            case '8': case 'F': targetBtn = btnWork; break; // ★ W -> F に変更
+            case '8': case 'F': targetBtn = btnWork; break;
             case '9': case 'I': case 'S': targetBtn = btnInfo; break;
         }
 
@@ -340,10 +347,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const settings = await invoke("get_app_settings");
                 if (settings && settings.open_player_new_window) {
+                    const title = window.i18n ? window.i18n.t("Window.player") : "音楽を再生 - Chordia";
                     await invoke("open_new_window", {
                         label: "player_window",
                         url: new URL("player.html", window.location.href).href,
-                        title: "音楽を再生 - Chordia",
+                        title: title,
                         width: 1200.0,
                         height: 900.0
                     });

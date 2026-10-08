@@ -10,18 +10,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <script src="js/theme_head.js"></script>
+    <script src="js/i18n.js"></script>
 </head>
 <body class="splash-body">
     <div class="splash-container">
         <div class="splash-logo-area">
             <img src="icon/Chordia_nobg.png" alt="Chordia Logo" class="splash-logo">
-            <h1 class="splash-title">Chordia</h1>
-            <p class="splash-subtitle">ライブラリをスマートに管理</p>
+            <h1 class="splash-title" data-i18n="Menu.title">Chordia</h1>
+            <p class="splash-subtitle" data-i18n="Menu.subtitle">ライブラリをスマートに管理</p>
         </div>
 
         <div class="splash-progress-area">
             <div class="splash-text-row">
-                <span id="splashMessage">アプリを起動しています...</span>
+                <span id="splashMessage" data-i18n="Splash.launching">アプリを起動しています...</span>
                 <span id="splashPercent">0%</span>
             </div>
             <div class="splash-bar-bg">

@@ -1,13 +1,12 @@
 window.i18n = {
     dictionary: {},
-    fallbackDictionary: {}, // ★ 日本語フォールバック辞書
+    fallbackDictionary: {}, 
 
     init: async function(filename = null) {
         const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke) : null;
         if (!invoke) return;
 
         try {
-            // 初回に日本語フォールバック辞書を確実に保持
             if (Object.keys(this.fallbackDictionary).length === 0) {
                 const jaPack = await invoke("get_language_pack", { filename: "Japanese.ini" });
                 if (jaPack) this.fallbackDictionary = jaPack;
@@ -18,7 +17,6 @@ window.i18n = {
                 this.dictionary = pack;
                 this.applyToDOM();
             } else {
-                // 読み込みエラー時は日本語をデフォルト適用
                 this.dictionary = this.fallbackDictionary;
                 this.applyToDOM();
             }
@@ -35,7 +33,6 @@ window.i18n = {
         
         let val = this.getValueFromDict(this.dictionary, parts);
 
-        // ★ 指定された言語辞書に存在しないキーがある場合は日本語フォールバックで補完
         if (val === undefined || val === null) {
             val = this.getValueFromDict(this.fallbackDictionary, parts);
         }
@@ -66,6 +63,20 @@ window.i18n = {
     },
 
     applyToDOM: function() {
+        // ★ HTMLタイトルおよびOSネイティブウィンドウタイトルを多言語化更新
+        const titleEl = document.querySelector('title[data-i18n]');
+        if (titleEl) {
+            const key = titleEl.dataset.i18n;
+            const translated = this.t(key);
+            if (translated && translated !== key) {
+                document.title = translated;
+                const invoke = window.__TAURI__ ? (window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke) : null;
+                if (invoke) {
+                    invoke("set_window_title", { title: translated }).catch(() => {});
+                }
+            }
+        }
+
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.dataset.i18n;
             const translated = this.t(key);
