@@ -36,6 +36,12 @@ pub async fn open_new_window(app: AppHandle, label: String, url: String, title: 
     Ok(())
 }
 
+// ★ 言語設定に合わせてOSのウィンドウタイトルを確実に更新するコマンド
+#[tauri::command]
+pub fn set_window_title(window: WebviewWindow, title: String) -> Result<(), String> {
+    window.set_title(&title).map_err(|e| e.to_string())
+}
+
 // ★ macOS/Windows 双方で確実にウィンドウドラッグを開始するコマンド
 #[tauri::command]
 pub fn start_drag(window: WebviewWindow) -> Result<(), String> {
@@ -133,8 +139,8 @@ pub async fn make_window_square(app: tauri::AppHandle, width_is_master: bool) ->
 
 #[tauri::command]
 pub fn show_in_explorer(path: String) -> Result<(), String> {
-    let normalized = crate::utils::normalize_rel_path(&path);
-    let abs_path = crate::utils::get_base_dir().join(&normalized);
+    let normalized = crate::core::utils::normalize_rel_path(&path);
+    let abs_path = crate::core::utils::get_base_dir().join(&normalized);
 
     #[cfg(target_os = "windows")]
     {

@@ -119,10 +119,12 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     db
 }
 
+// ★ 多言語化対応: status_code と数値を payload に含めて通知
 pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<String, Value>> {
     use tauri::Emitter;
     
     let _ = app.emit("splash_progress", serde_json::json!({
+        "status_code": "loading_db",
         "message": "データベースを読み込んでいます...",
         "percent": 10
     }));
@@ -131,6 +133,7 @@ pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<Stri
     let path = base.join("userfiles/music.json");
     if !path.exists() {
         let _ = app.emit("splash_progress", serde_json::json!({
+            "status_code": "initial_ready",
             "message": "初期データベースの準備完了",
             "percent": 80
         }));
@@ -142,6 +145,9 @@ pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<Stri
     
     let total = db.len();
     let _ = app.emit("splash_progress", serde_json::json!({
+        "status_code": "parsing_songs",
+        "current": 0,
+        "total": total,
         "message": format!("楽曲データを解析中 (0 / {})", total),
         "percent": 20
     }));
@@ -166,6 +172,9 @@ pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<Stri
             let current = idx + 1;
             let percent = 20 + (((current as f32) / (total as f32)) * 65.0) as u32;
             let _ = app.emit("splash_progress", serde_json::json!({
+                "status_code": "parsing_songs",
+                "current": current,
+                "total": total,
                 "message": format!("楽曲データを解析中 ({} / {})", current, total),
                 "percent": percent
             }));
@@ -173,6 +182,7 @@ pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<Stri
     }
 
     let _ = app.emit("splash_progress", serde_json::json!({
+        "status_code": "parsed_db",
         "message": "データベースの解析が完了しました",
         "percent": 85
     }));
@@ -190,7 +200,6 @@ pub fn save_db(db: &Vec<serde_json::Map<String, Value>>) -> Result<(), String> {
     safe_write_file(&path, data.as_bytes())
 }
 
-// ★ 外部変更検知と自動リロード用関数
 pub fn check_and_reload_db_if_needed(state: &AppState) {
     let base = get_base_dir();
     let path = base.join("userfiles/music.json");

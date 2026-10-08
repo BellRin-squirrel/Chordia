@@ -3,7 +3,6 @@ use tauri::Manager;
 use tauri::{AppHandle, State};
 use crate::server::SharedAuthState;
 use std::fs;
-use std::io::Write;
 use crate::utils::{get_base_dir, check_and_reload_db_if_needed, check_and_reload_playlists_if_needed, load_playlists_master};
 use crate::AppState;
 use crate::cmd_cloud_sync::auth::get_saved_cloud_sid;
@@ -243,8 +242,7 @@ pub async fn send_now_playing_to_cloud(
     Ok(())
 }
 
-// ★ Chordia Relay: 他デバイスの再生情報一覧取得API (getNowPlaying)
-// トップ画面の雲アイコンクリック時に実行され、レスポンス内容をターミナルに出力します
+// Chordia Relay: 他デバイスの再生情報一覧取得API (getNowPlaying)
 #[tauri::command]
 pub async fn fetch_relay_devices_from_cloud(
     auth: State<'_, SharedAuthState>,
@@ -274,10 +272,6 @@ pub async fn fetch_relay_devices_from_cloud(
         .map_err(|e| format!("通信エラー: {}", e))?;
 
     let res_text = response.text().await.map_err(|e| format!("レスポンス読み取りエラー: {}", e))?;
-
-    // ★ ターミナルへレスポンス内容を出力
-    println!("{}", res_text);
-    let _ = std::io::stdout().flush();
 
     let json_res: Value = serde_json::from_str(&res_text).map_err(|_| format!("不正なJSON: {}", res_text))?;
 

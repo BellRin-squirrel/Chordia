@@ -175,6 +175,7 @@ fn main() {
                 let initial_db = load_db_with_progress(&app_handle_for_init);
 
                 let _ = app_handle_for_init.emit("splash_progress", serde_json::json!({
+                    "status_code": "loading_playlists",
                     "message": "プレイリストとキャッシュをロード中...",
                     "percent": 90
                 }));
@@ -191,13 +192,13 @@ fn main() {
                 }
 
                 let _ = app_handle_for_init.emit("splash_progress", serde_json::json!({
+                    "status_code": "ready",
                     "message": "起動完了",
                     "percent": 100
                 }));
 
                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
-                // アプリ設定に基づく起動ウィンドウサイズの適用
                 if let Some(main_win) = app_handle_for_init.get_webview_window("main") {
                     let settings = system::settings::get_app_settings();
                     let (win_w, win_h) = if settings.default_window_size == "standard" {
@@ -214,7 +215,6 @@ fn main() {
                     let _ = splash_win.close();
                 }
 
-                // アプリ起動完了時にバックグラウンドでクラウド同期を自動実行
                 trigger_background_sync(app_handle_for_init, true, true);
             });
 
@@ -327,7 +327,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            system::window::open_new_window, system::window::start_drag, system::window::set_mini_player_mode, system::window::close_mini_player, system::window::close_lufs_calc_window, system::window::make_window_square, system::window::minimize_mini_player, system::window::show_in_explorer,
+            system::window::open_new_window, system::window::set_window_title, system::window::start_drag, system::window::set_mini_player_mode, system::window::close_mini_player, system::window::close_lufs_calc_window, system::window::make_window_square, system::window::minimize_mini_player, system::window::show_in_explorer,
             system::window::open_url, system::window::close_work_window, system::window::toggle_maximize_work_window, system::window::open_sound_settings,
             system::settings::get_app_settings, system::settings::save_app_settings, system::settings::get_custom_themes, system::settings::save_custom_theme, system::settings::delete_custom_theme,
             library::add_music::get_default_art_url, library::add_music::update_default_artwork, library::add_music::reset_default_artwork, library::add_music::get_available_tags, library::add_music::get_autocomplete_lists, library::add_music::check_duplicate_songs, library::add_music::save_music_data, library::add_music::download_and_save_music, library::add_music::check_tools_status, library::add_music::fetch_video_info, library::add_music::fetch_youtube_playlist, library::add_music::fetch_and_crop_thumbnail, library::add_music::fetch_and_crop_image_url, library::add_music::extract_artwork_from_local_file, library::add_music::download_original_thumbnail, library::add_music::search_lyrics_online,
