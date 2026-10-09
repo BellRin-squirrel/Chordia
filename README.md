@@ -41,6 +41,9 @@ Chordia（コーディア）は、ローカルの音楽ファイル（mp3）の�
 ### 公式サイト / Webドキュメント
 - [Chordia Docs (GitHub Pages)](https://bellrin-squirrel.github.io/Chordia/)
 
+### Chordia Sync 登録&管理画面
+- [Chordia Sycn](https://chordia.bellrin.f5.si/)
+
 ---
 
 ## ⚠️ 注意事項
