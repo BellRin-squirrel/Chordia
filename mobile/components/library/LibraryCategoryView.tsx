@@ -72,7 +72,6 @@ export const LibraryCategoryView = ({
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
-  // ★ 音楽ライブラリ専用のピュア背景色 (ライト: #ffffff / ダーク: #000000)
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
@@ -107,17 +106,37 @@ export const LibraryCategoryView = ({
     ? [{ playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs', type: 'normal' }, ...localPlaylists] 
     : category === 'ALBUMS' ? albumsList : artistsList;
 
+  const closeHeaderMenu = (callback?: () => void) => {
+    Animated.timing(sheetAnimHeader, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
+      setHeaderMenuVisible(false);
+      if (callback) {
+        setTimeout(callback, Platform.OS === 'ios' ? 400 : 100);
+      }
+    });
+  };
+
+  const closeRowActionSheet = (callback?: () => void) => {
+    Animated.timing(sheetAnimRow, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
+      setRowActionTarget(null);
+      if (callback) {
+        setTimeout(callback, Platform.OS === 'ios' ? 400 : 100);
+      }
+    });
+  };
+
+  const closeCoverPickerSheet = (callback?: () => void) => {
+    Animated.timing(sheetAnimCover, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
+      setCoverPickerTarget(null);
+      if (callback) {
+        setTimeout(callback, Platform.OS === 'ios' ? 400 : 100);
+      }
+    });
+  };
+
   const openHeaderMenu = () => {
     setHeaderMenuVisible(true);
     sheetAnimHeader.setValue(0);
     Animated.spring(sheetAnimHeader, { toValue: 1, useNativeDriver: true, damping: 24, mass: 0.8, stiffness: 300 }).start();
-  };
-
-  const closeHeaderMenu = (callback?: () => void) => {
-    Animated.timing(sheetAnimHeader, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
-      setHeaderMenuVisible(false);
-      if (callback) callback();
-    });
   };
 
   const openRowActionSheet = (item: any) => {
@@ -126,24 +145,10 @@ export const LibraryCategoryView = ({
     Animated.spring(sheetAnimRow, { toValue: 1, useNativeDriver: true, damping: 24, mass: 0.8, stiffness: 300 }).start();
   };
 
-  const closeRowActionSheet = (callback?: () => void) => {
-    Animated.timing(sheetAnimRow, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
-      setRowActionTarget(null);
-      if (callback) callback();
-    });
-  };
-
   const openCoverPickerSheet = (target: any) => {
     setCoverPickerTarget(target);
     sheetAnimCover.setValue(0);
     Animated.spring(sheetAnimCover, { toValue: 1, useNativeDriver: true, damping: 24, mass: 0.8, stiffness: 300 }).start();
-  };
-
-  const closeCoverPickerSheet = (callback?: () => void) => {
-    Animated.timing(sheetAnimCover, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
-      setCoverPickerTarget(null);
-      if (callback) callback();
-    });
   };
 
   const applyCoverImage = async (targetPl: any, sourceUri: string | null) => {
