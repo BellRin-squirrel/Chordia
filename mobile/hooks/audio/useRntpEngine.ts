@@ -17,8 +17,8 @@ interface UseRntpEngineHandlers {
   onPlay?: () => void;
   onPause?: () => void;
   onTogglePlayPause?: () => void;
-  onNext?: () => void;
-  onPrev?: () => void;
+  onNext?: (fromRemote: boolean) => void;
+  onPrev?: (fromRemote: boolean) => void;
   onSeek?: (seconds: number) => void;
 }
 
@@ -39,7 +39,6 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
         if (TrackPlayerModule?.getAudioSessionId) {
           const sid = await TrackPlayerModule.getAudioSessionId();
           if (sid && sid > 0) {
-            console.log('[Equalizer] Attached to real ExoPlayer audioSessionId:', sid);
             await initEqualizer(sid);
 
             const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
@@ -101,14 +100,11 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     initRNTP();
   }, []);
 
-  // ★ Dev Client時等の null/undefined イベント登録を防ぐ安全なリスナー登録ヘルパー
   useEffect(() => {
     const subscriptions: any[] = [];
 
     const safeAddListener = (eventName: any, callback: (event: any) => void) => {
-      if (!eventName || typeof eventName !== 'string') {
-        return;
-      }
+      if (!eventName || typeof eventName !== 'string') return;
       try {
         const sub = TrackPlayer.addEventListener(eventName, callback);
         if (sub) subscriptions.push(sub);
@@ -124,12 +120,15 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     safeAddListener(Event.RemoteTogglePlayPause, () => {
       handlersRef.current?.onTogglePlayPause?.();
     });
+    
+    // ★ ロック画面等のリモートからのスキップ時は fromRemote = true を渡す
     safeAddListener(Event.RemoteNext, () => {
-      handlersRef.current?.onNext?.();
+      handlersRef.current?.onNext?.(true);
     });
     safeAddListener(Event.RemotePrevious, () => {
-      handlersRef.current?.onPrev?.();
+      handlersRef.current?.onPrev?.(true);
     });
+    
     safeAddListener(Event.RemoteSeek, (event) => {
       handlersRef.current?.onSeek?.(event.position);
     });
@@ -137,9 +136,7 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     return () => {
       subscriptions.forEach((sub) => {
         try {
-          if (sub && typeof sub.remove === 'function') {
-            sub.remove();
-          }
+          if (sub && typeof sub.remove === 'function') sub.remove();
         } catch (e) {}
       });
     };

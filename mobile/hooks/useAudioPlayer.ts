@@ -48,33 +48,12 @@ export const useAudioPlayer = () => {
   }, [isPlaying]);
 
   const queueMgr = useQueueManager();
-  const handleNextRef = useRef<() => void>(() => {});
-  const handlePrevRef = useRef<() => void>(() => {});
+  const handleNextRef = useRef<(fromRemote?: boolean) => void>(() => {});
+  const handlePrevRef = useRef<(fromRemote?: boolean) => void>(() => {});
   const togglePlayPauseRef = useRef<() => void>(() => {});
   const setPositionAsyncRef = useRef<(v: number) => void>(() => {});
 
-  const rntp = useRntpEngine({
-    onPlay: () => {
-      if (!isPlayingRef.current) togglePlayPauseRef.current();
-    },
-    onPause: () => {
-      if (isPlayingRef.current) togglePlayPauseRef.current();
-    },
-    onTogglePlayPause: () => {
-      togglePlayPauseRef.current();
-    },
-    onNext: () => {
-      handleNextRef.current();
-    },
-    onPrev: () => {
-      handlePrevRef.current();
-    },
-    onSeek: (seconds) => {
-      setPositionAsyncRef.current(seconds * 1000);
-    },
-  });
-
-  const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
+  const lastSkipTimeRef = useRef(0);
 
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
@@ -96,6 +75,35 @@ export const useAudioPlayer = () => {
       }
     }
   );
+
+  const rntp = useRntpEngine({
+    onPlay: () => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      if (!isPlayingRef.current) togglePlayPauseRef.current();
+    },
+    onPause: () => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      if (isPlayingRef.current) togglePlayPauseRef.current();
+    },
+    onTogglePlayPause: () => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      togglePlayPauseRef.current();
+    },
+    onNext: (fromRemote: boolean) => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      handleNextRef.current(fromRemote);
+    },
+    onPrev: (fromRemote: boolean) => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      handlePrevRef.current(fromRemote);
+    },
+    onSeek: (seconds) => {
+      if (iosEq.isIOSEQActiveRef.current) return;
+      setPositionAsyncRef.current(seconds * 1000);
+    },
+  });
+
+  const expoAudio = useExpoAudioEngine(() => handleNextRef.current());
 
   const sync = usePlayerSync({
     isPlaying,
@@ -175,6 +183,7 @@ export const useAudioPlayer = () => {
   }, [rntp.isRNTPPlaying, audioEngine]);
 
   useEffect(() => {
+    if (!Event.PlaybackState) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
       if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
         setIsPlaying(isStatePlaying(event));
@@ -527,7 +536,12 @@ export const useAudioPlayer = () => {
     sync.sendNowPlayingUpdate();
   };
 
-  const handleNextInternal = async () => {
+  // ★ fromRemoteフラグを受け取り、RNTPネイティブ側ですでにスキップ済みの場合はJSから手動スキップを呼ばない
+  const handleNextInternal = async (fromRemote = false) => {
+    const now = Date.now();
+    if (now - lastSkipTimeRef.current < 400) return;
+    lastSkipTimeRef.current = now;
+
     const activeQueue = queueMgr.activeQueueRef.current;
     const currentSong = queueMgr.currentSongRef.current;
     const mode = queueMgr.loopRef.current;
@@ -541,7 +555,9 @@ export const useAudioPlayer = () => {
     const nextIdx = idx + 1;
     if (nextIdx < activeQueue.length) {
       if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
-        await TrackPlayer.skipToNext();
+        if (!fromRemote) {
+          await TrackPlayer.skipToNext();
+        }
       } else {
         const nextSong = activeQueue[nextIdx];
         loadAndPlayInternal(nextSong, activeQueue, nextIdx, 0, true);
@@ -563,9 +579,14 @@ export const useAudioPlayer = () => {
   };
 
   handleNextRef.current = handleNextInternal;
-  const handleNext = () => handleNextInternal();
+  const handleNext = () => handleNextInternal(false);
 
-  const handlePrevInternal = async () => {
+  // ★ fromRemoteフラグを受け取り、RNTPネイティブ側ですでにスキップ済みの場合はJSから手動スキップを呼ばない
+  const handlePrevInternal = async (fromRemote = false) => {
+    const now = Date.now();
+    if (now - lastSkipTimeRef.current < 400) return;
+    lastSkipTimeRef.current = now;
+
     if (iosEq.isIOSEQActiveRef.current) {
       const currentPos = (iosEq.getPositionIOS() || 0) * 1000;
       if (currentPos > 3000) {
@@ -582,8 +603,13 @@ export const useAudioPlayer = () => {
 
     if (audioEngine === 'rntp') {
       const currentPos = await TrackPlayer.getPosition();
-      if (currentPos > 3) await TrackPlayer.seekTo(0);
-      else await TrackPlayer.skipToPrevious();
+      if (currentPos > 3) {
+        await TrackPlayer.seekTo(0);
+      } else {
+        if (!fromRemote) {
+          await TrackPlayer.skipToPrevious();
+        }
+      }
     } else {
       const activeQueue = queueMgr.activeQueueRef.current;
       const idx = queueMgr.indexRef.current;
@@ -607,7 +633,7 @@ export const useAudioPlayer = () => {
   };
 
   handlePrevRef.current = handlePrevInternal;
-  const handlePrev = () => handlePrevInternal();
+  const handlePrev = () => handlePrevInternal(false);
 
   const togglePlayPauseInternal = async () => {
     if (iosEq.isIOSEQActiveRef.current) {
@@ -679,6 +705,7 @@ export const useAudioPlayer = () => {
   };
 
   useEffect(() => {
+    if (!Event.PlaybackActiveTrackChanged) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
       if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp' && event.track && event.track.originalData) {
         const newSong = event.track.originalData;
@@ -715,6 +742,7 @@ export const useAudioPlayer = () => {
       }
     });
 
+    if (!Event.PlaybackQueueEnded) return;
     const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
       if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp' && queueMgr.loopRef.current === 'ALL') {
         const queueToUse = queueMgr.shuffleRef.current 
