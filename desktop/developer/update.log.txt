@@ -1,6 +1,7 @@
 Milestone
-・多言語対応
 ・Chordia Sync ログイン時のリンクとコピー
+
+v5.0.0-beta4
 
 v5.0.0-beta3
 ・ZIPインポートで発生するエラーを修正しました。
