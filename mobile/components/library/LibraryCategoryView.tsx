@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   View, Text, FlatList, Image, TouchableOpacity, Modal, 
   TouchableWithoutFeedback, TextInput, Alert, Animated, Easing, 
@@ -74,6 +74,8 @@ export const LibraryCategoryView = ({
 
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
+  const [allSongsCoverUri, setAllSongsCoverUri] = useState<string | null>(null);
+
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [rowActionTarget, setRowActionTarget] = useState<any>(null);
   const [coverPickerTarget, setCoverPickerTarget] = useState<any>(null);
@@ -102,8 +104,23 @@ export const LibraryCategoryView = ({
 
   const isPlaylistsTab = category === 'PLAYLISTS';
 
+  // ★ 「すべての楽曲」専用カバー画像の読み込み
+  useEffect(() => {
+    (async () => {
+      try {
+        const savedCover = await AsyncStorage.getItem('all_songs_cover_uri');
+        if (savedCover) {
+          const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
+          const fname = savedCover.split(/[\\/]/).pop();
+          const resolved = fname ? baseDir + fname : savedCover;
+          setAllSongsCoverUri(resolved);
+        }
+      } catch (e) {}
+    })();
+  }, []);
+
   const data = isPlaylistsTab 
-    ? [{ playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs', type: 'normal' }, ...localPlaylists] 
+    ? [{ playlistName: t('all_songs_item', language), isAll: true, id: 'all_songs', type: 'normal', localCoverImageUri: allSongsCoverUri }, ...localPlaylists] 
     : category === 'ALBUMS' ? albumsList : artistsList;
 
   const closeHeaderMenu = (callback?: () => void) => {
@@ -167,20 +184,40 @@ export const LibraryCategoryView = ({
         finalUri = destUri;
       }
 
-      const updated = localPlaylists.map((pl: any) => {
-        if (pl.id === targetPl.id) {
-          return { ...pl, localCoverImageUri: finalUri };
+      // ★ 「すべての楽曲」のカバー画像保存・反映
+      if (targetPl.isAll) {
+        if (finalUri) {
+          await AsyncStorage.setItem('all_songs_cover_uri', finalUri);
+        } else {
+          await AsyncStorage.removeItem('all_songs_cover_uri');
         }
-        return pl;
-      });
+        setAllSongsCoverUri(finalUri);
 
-      await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
-      if (setLocalPlaylists) setLocalPlaylists(updated);
+        if (setCurrentPlaylist) {
+          setCurrentPlaylist({
+            playlistName: t('all_songs_item', language),
+            isAll: true,
+            id: 'all_songs',
+            type: 'normal',
+            localCoverImageUri: finalUri
+          });
+        }
+      } else {
+        const updated = localPlaylists.map((pl: any) => {
+          if (pl.id === targetPl.id) {
+            return { ...pl, localCoverImageUri: finalUri };
+          }
+          return pl;
+        });
 
-      const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
-      if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
+        await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
+        if (setLocalPlaylists) setLocalPlaylists(updated);
 
-      syncMusicAndPlaylistsToCloud();
+        const updatedCurrent = updated.find((pl: any) => pl.id === targetPl.id);
+        if (setCurrentPlaylist && updatedCurrent) setCurrentPlaylist(updatedCurrent);
+
+        syncMusicAndPlaylistsToCloud();
+      }
 
       Alert.alert(t('confirm', language), sourceUri ? t('cover_updated', language) : t('cover_reset', language));
     } catch (e: any) {
@@ -410,12 +447,31 @@ export const LibraryCategoryView = ({
     Alert.alert(t('confirm', language), t('tracks_updated_alert', language).replace('{name}', editSongsTargetPl.playlistName));
   };
 
+  // ★ 「すべての楽曲」または通常・スマートプレイリストの複製
   const handleDuplicatePlaylist = async (targetPl: any) => {
-    const newPl = {
-      ...targetPl,
-      id: 'pl_' + Date.now(),
-      playlistName: `${targetPl.playlistName} (${t('keep_label', language).replace(/[<>]/g, '')})`,
-    };
+    let newPl: any;
+
+    if (targetPl.isAll) {
+      const allMusicFilenames = localLibrary
+        .map((s: any) => s.musicFilename?.split(/[\\/]/).pop())
+        .filter(Boolean);
+
+      newPl = {
+        id: 'pl_' + Date.now(),
+        playlistName: `${targetPl.playlistName} (${t('keep_label', language).replace(/[<>]/g, '')})`,
+        type: 'normal',
+        music: allMusicFilenames,
+        sortBy: 'title',
+        sortDesc: false,
+        localCoverImageUri: allSongsCoverUri || null,
+      };
+    } else {
+      newPl = {
+        ...targetPl,
+        id: 'pl_' + Date.now(),
+        playlistName: `${targetPl.playlistName} (${t('keep_label', language).replace(/[<>]/g, '')})`,
+      };
+    }
 
     const updated = [...localPlaylists, newPl];
     await AsyncStorage.setItem('local_playlists', JSON.stringify(updated));
@@ -559,14 +615,15 @@ export const LibraryCategoryView = ({
                   </View>
                 </View>
                 
-                {isPlaylistsTab && !item.isAll ? (
+                {/* ★ すべての楽曲にも三点マークボタンを表示 */}
+                {isPlaylistsTab ? (
                   <AnimatedMenuButton 
                     onPress={() => openRowActionSheet(item)}
                     isDark={isDark}
                     textStyle={dynamicStyles.text}
                   />
                 ) : (
-                  !isPlaylistsTab && <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
+                  <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
                 )}
               </TouchableOpacity>
 
@@ -642,63 +699,37 @@ export const LibraryCategoryView = ({
                     <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{rowActionTarget?.playlistName}</Text>
-                      <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>{rowActionTarget?.type === 'smart' ? t('smart_playlist_label', language) : t('normal_playlist_label', language)}</Text>
+                      <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>
+                        {rowActionTarget?.isAll ? t('all_songs_item', language) : (rowActionTarget?.type === 'smart' ? t('smart_playlist_label', language) : t('normal_playlist_label', language))}
+                      </Text>
                     </View>
                   </View>
 
-                  <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                    onPress={() => {
-                      const target = rowActionTarget;
-                      closeRowActionSheet(() => {
-                        setRenameTarget(target);
-                        setRenameInput(target.playlistName);
-                      });
-                    }}
-                    activeOpacity={0.6}
-                  >
-                    <Ionicons name="create-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                    onPress={() => {
-                      const target = rowActionTarget;
-                      closeCoverPickerSheet(target);
-                    }}
-                    activeOpacity={0.6}
-                  >
-                    <Ionicons name="image-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
-                  </TouchableOpacity>
-
-                  {rowActionTarget?.type === 'smart' ? (
+                  {/* ★ 「すべての楽曲」の場合は、カバー画像変更と複製のみを表示 */}
+                  {rowActionTarget?.isAll ? (
                     <>
                       <TouchableOpacity 
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
-                          closeRowActionSheet(() => {
-                            setSmartEditorConfig({ visible: true, mode: 'EDIT', targetPlaylist: target });
-                          });
+                          closeRowActionSheet(() => openCoverPickerSheet(target));
                         }}
                         activeOpacity={0.6}
                       >
-                        <Ionicons name="options-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_rules', language)}</Text>
+                        <Ionicons name="image-outline" size={22} color={themeColor} />
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity 
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                         onPress={() => {
                           const target = rowActionTarget;
-                          closeRowActionSheet(() => handleConvertToNormalPlaylist(target));
+                          closeRowActionSheet(() => handleDuplicatePlaylist(target));
                         }}
                         activeOpacity={0.6}
                       >
-                        <Ionicons name="swap-horizontal-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('convert_to_normal_playlist', language)}</Text>
+                        <Ionicons name="copy-outline" size={22} color={themeColor} />
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
                       </TouchableOpacity>
                     </>
                   ) : (
@@ -707,39 +738,99 @@ export const LibraryCategoryView = ({
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
-                          closeRowActionSheet(() => openEditPlaylistSongsModal(target));
+                          closeRowActionSheet(() => {
+                            setRenameTarget(target);
+                            setRenameInput(target.playlistName);
+                          });
                         }}
                         activeOpacity={0.6}
                       >
-                        <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_playlist_songs', language)}</Text>
+                        <Ionicons name="create-outline" size={22} color={themeColor} />
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
+                      </TouchableOpacity>
+
+                      {/* ★ カバー画像変更メニューが正常に反応するように修正 */}
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        onPress={() => {
+                          const target = rowActionTarget;
+                          closeRowActionSheet(() => openCoverPickerSheet(target));
+                        }}
+                        activeOpacity={0.6}
+                      >
+                        <Ionicons name="image-outline" size={22} color={themeColor} />
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
+                      </TouchableOpacity>
+
+                      {rowActionTarget?.type === 'smart' ? (
+                        <>
+                          <TouchableOpacity 
+                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            onPress={() => {
+                              const target = rowActionTarget;
+                              closeRowActionSheet(() => {
+                                setSmartEditorConfig({ visible: true, mode: 'EDIT', targetPlaylist: target });
+                              });
+                            }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="options-outline" size={22} color={themeColor} />
+                            <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_rules', language)}</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity 
+                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            onPress={() => {
+                              const target = rowActionTarget;
+                              closeRowActionSheet(() => handleConvertToNormalPlaylist(target));
+                            }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="swap-horizontal-outline" size={22} color={themeColor} />
+                            <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('convert_to_normal_playlist', language)}</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          <TouchableOpacity 
+                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            onPress={() => {
+                              const target = rowActionTarget;
+                              closeRowActionSheet(() => openEditPlaylistSongsModal(target));
+                            }}
+                            activeOpacity={0.6}
+                          >
+                            <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
+                            <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_playlist_songs', language)}</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        onPress={() => {
+                          const target = rowActionTarget;
+                          closeRowActionSheet(() => handleDuplicatePlaylist(target));
+                        }}
+                        activeOpacity={0.6}
+                      >
+                        <Ionicons name="copy-outline" size={22} color={themeColor} />
+                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+                        onPress={() => {
+                          const target = rowActionTarget;
+                          closeRowActionSheet(() => handleDeletePlaylist(target));
+                        }}
+                        activeOpacity={0.6}
+                      >
+                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('delete_playlist', language)}</Text>
                       </TouchableOpacity>
                     </>
                   )}
-
-                  <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
-                    onPress={() => {
-                      const target = rowActionTarget;
-                      closeRowActionSheet(() => handleDuplicatePlaylist(target));
-                    }}
-                    activeOpacity={0.6}
-                  >
-                    <Ionicons name="copy-outline" size={22} color={themeColor} />
-                    <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
-                    onPress={() => {
-                      const target = rowActionTarget;
-                      closeRowActionSheet(() => handleDeletePlaylist(target));
-                    }}
-                    activeOpacity={0.6}
-                  >
-                    <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                    <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('delete_playlist', language)}</Text>
-                  </TouchableOpacity>
                 </View>
 
                 <AnimatedCancelButton onPress={() => closeRowActionSheet()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
@@ -791,7 +882,7 @@ export const LibraryCategoryView = ({
                   </TouchableOpacity>
 
                   <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: coverPickerTarget?.localCoverImageUri ? 1 : 0, borderBottomColor: dynamicStyles.border }}
+                    style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: (coverPickerTarget?.localCoverImageUri || (coverPickerTarget?.isAll && allSongsCoverUri)) ? 1 : 0, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       const target = coverPickerTarget;
                       closeCoverPickerSheet(() => pickFromDocuments(target));
@@ -802,7 +893,7 @@ export const LibraryCategoryView = ({
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_files', language)}</Text>
                   </TouchableOpacity>
 
-                  {coverPickerTarget?.localCoverImageUri && (
+                  {(coverPickerTarget?.localCoverImageUri || (coverPickerTarget?.isAll && allSongsCoverUri)) && (
                     <TouchableOpacity 
                       style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                       onPress={() => {
