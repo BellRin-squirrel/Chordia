@@ -88,7 +88,12 @@ window.i18n = {
                         el.placeholder = translated;
                     }
                 } else {
-                    el.textContent = translated;
+                    // ★ 翻訳テキスト内にHTMLタグ（<br>など）が含まれる場合は innerHTML として展開
+                    if (translated.includes('<') && translated.includes('>')) {
+                        el.innerHTML = translated;
+                    } else {
+                        el.textContent = translated;
+                    }
                 }
             }
         });
