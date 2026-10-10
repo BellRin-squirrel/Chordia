@@ -42,18 +42,9 @@ export const RecentSection = ({
     return null;
   }
 
-  const getRankBadgeColor = (idx: number) => {
-    switch (idx) {
-      case 0: return '#f59e0b'; // 1位: ゴールド
-      case 1: return '#94a3b8'; // 2位: シルバー
-      case 2: return '#b45309'; // 3位: ブロンズ
-      default: return 'rgba(0,0,0,0.65)';
-    }
-  };
-
   return (
     <View style={styles.recentContainer}>
-      {/* 1. 再生回数が多い曲トップ10（横スクロール・左が1位） */}
+      {/* 1. 再生回数が多い曲トップ10（横スクロール・左が1位・数字バッジなし） */}
       {mostPlayedSongs && mostPlayedSongs.length > 0 && (
         <View style={{ marginBottom: 25 }}>
           <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>
@@ -77,10 +68,6 @@ export const RecentSection = ({
                       style={s.fixedImage} 
                       resizeMode="cover"
                     />
-                    {/* 左上順位バッジ */}
-                    <View style={[s.rankBadge, { backgroundColor: getRankBadgeColor(index) }]}>
-                      <Text style={s.rankBadgeText}>{index + 1}</Text>
-                    </View>
                   </View>
                   <MarqueeText 
                     text={song?.title || 'Untitled'} 
@@ -201,25 +188,5 @@ const s = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 12,
-  },
-  rankBadge: {
-    position: 'absolute',
-    top: 6,
-    left: 6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  rankBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '900',
   },
 });

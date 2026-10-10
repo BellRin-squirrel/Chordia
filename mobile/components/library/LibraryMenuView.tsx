@@ -47,7 +47,6 @@ export const LibraryMenuView = ({
   const [, setTick] = useState(0);
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 再生履歴の読み込み（ローカル または クラウド）
   useEffect(() => {
     (async () => {
       try {
@@ -71,7 +70,7 @@ export const LibraryMenuView = ({
     })();
   }, [recentlyPlayedSongs]);
 
-  // ★ 再生回数が多い曲トップ10の集計（左が1位）
+  // 再生回数が多い曲トップ10の集計（左が1位）
   const mostPlayedSongs = useMemo(() => {
     if (!rawPlayHistory || rawPlayHistory.length === 0) return [];
 
@@ -83,7 +82,6 @@ export const LibraryMenuView = ({
       const key = `${title.trim().toLowerCase()}:::${artist.trim().toLowerCase()}`;
 
       if (!countsMap.has(key)) {
-        // localLibrary 内から同一楽曲を探して正確な音声ファイル・カバーアートを割り当て
         const hit = localLibrary.find(
           (s: any) =>
             (s.title || '').trim().toLowerCase() === title.trim().toLowerCase() &&
@@ -469,15 +467,12 @@ export const LibraryMenuView = ({
               playlistID: 'recent_songs',
               playlistName: t('recent_played_songs', language)
             })}
-            // ★ 再生回数が多い曲からの再生
-            onPlayMostPlayed={(sVal: any) => {
-              const queue = mostPlayedSongs.map((m: any) => m.song).filter(Boolean);
-              startQueue(queue, sVal, false, {
-                type: 'PLAYLIST',
-                playlistID: 'most_played_songs',
-                playlistName: t('most_played_songs', language)
-              });
-            }}
+            // ★ 再生回数が多い曲からの再生も同様に単体再生
+            onPlayMostPlayed={(sVal: any) => startQueue([sVal], sVal, undefined, {
+              type: 'RECENT',
+              playlistID: 'recent_songs',
+              playlistName: t('recent_played_songs', language)
+            })}
             onPlayCollection={(item: any) => {
               let songs: any[] = [];
               let context: PlayCollectionContext | null = null;
