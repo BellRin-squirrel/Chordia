@@ -491,4 +491,7 @@ export const ko: Record<string, string> = {
   time_weeks_ago: '{count}주 전',
   time_months_ago: '{count}개월 전',
   time_years_ago: '{count}년 전',
+
+  most_played_songs: '가장 많이 재생한 곡',
+  view_more_ranking: '랭킹 더보기',
 };

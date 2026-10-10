@@ -490,4 +490,7 @@ export const ja: Record<string, string> = {
   time_weeks_ago: '{count}週間前',
   time_months_ago: '{count}ヶ月前',
   time_years_ago: '{count}年前',
+
+  most_played_songs: '再生回数が多い曲',
+  view_more_ranking: 'ランキングの続きを確認',
 };

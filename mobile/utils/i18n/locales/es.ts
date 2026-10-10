@@ -491,4 +491,7 @@ export const es: Record<string, string> = {
   time_weeks_ago: 'hace {count} sem',
   time_months_ago: 'hace {count} meses',
   time_years_ago: 'hace {count} años',
+
+  most_played_songs: 'Canciones más reproducidas',
+  view_more_ranking: 'Ver ranking completo',
 };

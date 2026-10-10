@@ -74,7 +74,6 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   );
 };
 
-// 削除メニューモーダル
 const HistoryDeleteMenuModal = ({ visible, onClose, onSelectPeriod, dynamicStyles, language }: any) => {
   const sheetAnim = useRef(new Animated.Value(0)).current;
 
@@ -268,7 +267,7 @@ export const InfoStatisticsView = ({
     });
   };
 
-  const topPlayedSongsLast7Days = useMemo(() => {
+  const allRankingSongsLast7Days = useMemo(() => {
     if (!playbackHistory || playbackHistory.length === 0) return [];
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -290,8 +289,12 @@ export const InfoStatisticsView = ({
       }
     }
 
-    return Array.from(countsMap.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+    return Array.from(countsMap.values()).sort((a, b) => b.count - a.count);
   }, [playbackHistory, libraryArtMap]);
+
+  const topPlayedSongsLast7Days = useMemo(() => {
+    return allRankingSongsLast7Days.slice(0, 5);
+  }, [allRankingSongsLast7Days]);
 
   const graphData = getLast7DaysData();
   const maxSec = Math.max(...graphData.map(d => d.totalSec));
@@ -375,6 +378,7 @@ export const InfoStatisticsView = ({
           <Text style={{ color: themeColor, fontSize: 15, fontWeight: 'bold' }}>{t('view_all_focus_history', language)}</Text>
         </TouchableOpacity>
 
+        {/* 7日間の再生回数ランキングカード */}
         <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -402,6 +406,31 @@ export const InfoStatisticsView = ({
                   </View>
                 </View>
               ))}
+
+              {/* ★ ランキングの続きを確認するボタン */}
+              {allRankingSongsLast7Days.length > 5 && (
+                <TouchableOpacity 
+                  style={{ 
+                    marginTop: 8, 
+                    paddingVertical: 12, 
+                    borderRadius: 14, 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    borderWidth: 1, 
+                    borderColor: dynamicStyles.border,
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: 6 
+                  }}
+                  onPress={() => pushView('RANKING_ALL')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: themeColor, fontSize: 13, fontWeight: 'bold' }}>
+                    {t('view_more_ranking', language)} ({allRankingSongsLast7Days.length} {t('songs_count', language)})
+                  </Text>
+                  <Ionicons name="chevron-forward" size={14} color={themeColor} />
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: 20 }}>
@@ -421,6 +450,129 @@ export const InfoStatisticsView = ({
           <Text style={{ color: themeColor, fontSize: 40, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatSecToHMS(weekTotalSec)}</Text>
         </View>
       </ScrollView>
+    </View>
+  );
+};
+
+// ★ 直近7日間の全ランキング一覧画面
+export const InfoRanking7DaysView = ({
+  dynamicStyles, themeColor, safePadding, renderHeader, language = 'ja', localLibrary = []
+}: any) => {
+  const [playbackHistory, setPlaybackHistory] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const libraryArtMap = useMemo(() => {
+    const map = new Map<string, string>();
+    localLibrary.forEach((s: any) => {
+      const key = `${(s.title || '').trim().toLowerCase()}:::${(s.artist || '').trim().toLowerCase()}`;
+      if (s.localImageUri && !map.has(key)) map.set(key, s.localImageUri);
+    });
+    return map;
+  }, [localLibrary]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setIsLoading(true);
+        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (accountJson) {
+          const account = JSON.parse(accountJson);
+          if (account.sid) {
+            const playRes = await loadAllPlayHistoryApi(account.sid);
+            if (playRes.success && playRes.history) {
+              setPlaybackHistory(playRes.history);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+        const ph = await AsyncStorage.getItem('chordia_playback_history');
+        if (ph) setPlaybackHistory(JSON.parse(ph));
+      } catch (e) {
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  const rankingList = useMemo(() => {
+    if (!playbackHistory || playbackHistory.length === 0) return [];
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const countsMap = new Map<string, { song: any; count: number }>();
+
+    for (const item of playbackHistory) {
+      const playedDate = item.date ? parseSyncDate(item.date) : (item.playedAt ? new Date(item.playedAt) : new Date(0));
+      if (playedDate >= sevenDaysAgo) {
+        const title = item.title || 'Untitled';
+        const artist = item.artist || 'Unknown Artist';
+        const key = `${title.trim().toLowerCase()}:::${artist.trim().toLowerCase()}`;
+        if (!countsMap.has(key)) {
+          const artUri = item.localImageUri || libraryArtMap.get(key);
+          countsMap.set(key, { song: { ...item, localImageUri: artUri }, count: 0 });
+        }
+        countsMap.get(key)!.count += 1;
+      }
+    }
+
+    return Array.from(countsMap.values()).sort((a, b) => b.count - a.count);
+  }, [playbackHistory, libraryArtMap]);
+
+  const getRankBadgeColor = (index: number) => {
+    switch (index) {
+      case 0: return '#f59e0b';
+      case 1: return '#94a3b8';
+      case 2: return '#b45309';
+      default: return dynamicStyles.subText;
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
+      <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: dynamicStyles.bg, zIndex: -1 }} />
+      {renderHeader(t('ranking_last_7_days', language))}
+
+      {isLoading ? (
+        <ActivityIndicator color={themeColor} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={rankingList}
+          keyExtractor={(item, index) => `${item.song.title}-${item.song.artist}-${index}`}
+          contentContainerStyle={[safePadding, { paddingTop: 10 }]}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 80 }}>
+              <Ionicons name="trophy-outline" size={70} color={dynamicStyles.border} />
+              <Text style={{ color: dynamicStyles.subText, marginTop: 15, fontSize: 15, fontWeight: 'bold' }}>
+                {t('no_ranking_data', language)}
+              </Text>
+            </View>
+          }
+          renderItem={({ item, index }) => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, backgroundColor: dynamicStyles.card, marginBottom: 8, borderWidth: 1, borderColor: dynamicStyles.border }}>
+              <View style={{ width: 30, alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                <Text style={{ color: getRankBadgeColor(index), fontSize: 16, fontWeight: '900' }}>
+                  {index + 1}
+                </Text>
+              </View>
+              <Image source={item.song.localImageUri ? { uri: item.song.localImageUri } : DEFAULT_ICON} style={{ width: 44, height: 44, borderRadius: 10, marginRight: 12 }} />
+              <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
+                <MarqueeText text={item.song.title || 'Untitled'} style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }} />
+                <View style={{ height: 2 }} />
+                <Text style={{ color: dynamicStyles.subText, fontSize: 12 }} numberOfLines={1}>
+                  {item.song.artist || 'Unknown Artist'} • {item.song.album || 'Unknown Album'}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: dynamicStyles.bg === '#000000' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14 }}>
+                <Text style={{ color: themeColor, fontSize: 13, fontWeight: 'bold' }}>
+                  {item.count} {t('times', language)}
+                </Text>
+              </View>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 };

@@ -490,4 +490,7 @@ export const fr: Record<string, string> = {
   time_weeks_ago: 'il y a {count} sem',
   time_months_ago: 'il y a {count} mois',
   time_years_ago: 'il y a {count} ans',
+
+  most_played_songs: 'Morceaux les plus écoutés',
+  view_more_ranking: 'Voir tout le classement',
 };

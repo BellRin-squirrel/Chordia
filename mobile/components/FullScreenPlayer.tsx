@@ -112,8 +112,16 @@ export const FullScreenPlayer = ({
     btnScale = 1.2;
   }
 
-  // ★ 再生元情報（プレイリスト / アルバム / アーティスト）の表示用ヘルパー
+  // ★ 再生元情報（プレイリスト / アルバム / アーティスト / 最近再生した楽曲）の表示用ヘルパー
   const getSourceDisplay = () => {
+    if (currentContext && currentContext.type === 'RECENT') {
+      return {
+        typeLabel: t('collection_label', language),
+        name: currentContext.playlistName || t('recent_played_songs', language),
+        iconName: 'time-outline',
+      };
+    }
+
     if (currentContext && currentContext.playlistName) {
       let typeLabel = t('playlist_label', language);
       let iconName = 'musical-notes';
@@ -131,18 +139,11 @@ export const FullScreenPlayer = ({
       };
     }
 
-    if (currentSong?.album) {
-      return {
-        typeLabel: t('album_label', language),
-        name: currentSong.album,
-        iconName: 'disc',
-      };
-    }
-
+    // 単曲再生（コンテキストがない場合など）のフォールバックは「最近再生した楽曲」
     return {
-      typeLabel: t('playlist_label', language),
-      name: t('all_songs_item', language),
-      iconName: 'musical-notes',
+      typeLabel: t('collection_label', language),
+      name: t('recent_played_songs', language),
+      iconName: 'time-outline',
     };
   };
 

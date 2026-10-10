@@ -491,4 +491,7 @@ export const de: Record<string, string> = {
   time_weeks_ago: 'vor {count} Wochen',
   time_months_ago: 'vor {count} Monaten',
   time_years_ago: 'vor {count} Jahren',
+
+  most_played_songs: 'Meistgespielte Titel',
+  view_more_ranking: 'Vollständiges Ranking anzeigen',
 };

@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { State as RNTPState } from 'react-native-track-player';
 
 export interface PlayCollectionContext {
-  type: 'PLAYLIST' | 'ALBUM' | 'ARTIST';
+  type: 'PLAYLIST' | 'ALBUM' | 'ARTIST' | 'RECENT';
   playlistID: string;
   playlistName: string;
 }

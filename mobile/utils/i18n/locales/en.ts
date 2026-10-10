@@ -491,4 +491,7 @@ export const en: Record<string, string> = {
   time_weeks_ago: '{count}w ago',
   time_months_ago: '{count}mo ago',
   time_years_ago: '{count}y ago',
+
+  most_played_songs: 'Most Played Songs',
+  view_more_ranking: 'View Full Ranking',
 };

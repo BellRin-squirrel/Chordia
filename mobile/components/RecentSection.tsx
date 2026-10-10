@@ -9,20 +9,15 @@ const DEFAULT_ICON = require('../assets/images/icon.png');
 export const RecentSection = ({ 
   recentlyPlayedSongs, 
   recentlyPlayedCollections, 
+  mostPlayedSongs = [],
   dynamicStyles, 
   themeColor, 
   onPlaySong, 
   onPlayCollection,
+  onPlayMostPlayed,
   language = 'ja',
   localLibrary = []
 }: any) => {
-
-  if (
-    (!recentlyPlayedSongs || recentlyPlayedSongs.length === 0) && 
-    (!recentlyPlayedCollections || recentlyPlayedCollections.length === 0)
-  ) {
-    return null;
-  }
 
   const uniqueSongs = recentlyPlayedSongs ? recentlyPlayedSongs.filter((song: any, index: number, self: any[]) =>
     index === self.findIndex((s: any) => s.localMusicUri === song.localMusicUri)
@@ -39,13 +34,70 @@ export const RecentSection = ({
     return true;
   }) : [];
 
-  if (uniqueSongs.length === 0 && uniqueCollections.length === 0) {
+  if (
+    uniqueSongs.length === 0 && 
+    uniqueCollections.length === 0 && 
+    (!mostPlayedSongs || mostPlayedSongs.length === 0)
+  ) {
     return null;
   }
 
+  const getRankBadgeColor = (idx: number) => {
+    switch (idx) {
+      case 0: return '#f59e0b'; // 1位: ゴールド
+      case 1: return '#94a3b8'; // 2位: シルバー
+      case 2: return '#b45309'; // 3位: ブロンズ
+      default: return 'rgba(0,0,0,0.65)';
+    }
+  };
+
   return (
     <View style={styles.recentContainer}>
-      {/* 最近再生した楽曲 */}
+      {/* 1. 再生回数が多い曲トップ10（横スクロール・左が1位） */}
+      {mostPlayedSongs && mostPlayedSongs.length > 0 && (
+        <View style={{ marginBottom: 25 }}>
+          <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>
+            {t('most_played_songs', language)}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {mostPlayedSongs.map((item: any, index: number) => {
+              const itemKey = `most-played-${item.song?.localMusicUri || index}-${index}`;
+              const song = item.song;
+
+              return (
+                <TouchableOpacity 
+                  key={itemKey} 
+                  style={s.itemWrapper} 
+                  onPress={() => onPlayMostPlayed ? onPlayMostPlayed(song) : onPlaySong(song)}
+                  activeOpacity={0.7}
+                >
+                  <View style={s.imageContainer}>
+                    <Image 
+                      source={song?.localImageUri ? { uri: song.localImageUri } : DEFAULT_ICON} 
+                      style={s.fixedImage} 
+                      resizeMode="cover"
+                    />
+                    {/* 左上順位バッジ */}
+                    <View style={[s.rankBadge, { backgroundColor: getRankBadgeColor(index) }]}>
+                      <Text style={s.rankBadgeText}>{index + 1}</Text>
+                    </View>
+                  </View>
+                  <MarqueeText 
+                    text={song?.title || 'Untitled'} 
+                    style={[styles.recentSongTitle, { color: dynamicStyles.text, width: 120 }]} 
+                  />
+                  <MarqueeText 
+                    text={song?.artist || 'Unknown Artist'} 
+                    style={[styles.recentSongArtist, { color: dynamicStyles.subText, marginTop: 2, width: 120 }]} 
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* 2. 最近再生した楽曲 */}
       {uniqueSongs.length > 0 && (
         <View style={{ marginBottom: 25 }}>
           <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>{t('recent_played_songs', language)}</Text>
@@ -81,7 +133,7 @@ export const RecentSection = ({
         </View>
       )}
 
-      {/* 最近再生したコレクション */}
+      {/* 3. 最近再生したコレクション */}
       {uniqueCollections.length > 0 && (
         <View style={{ marginBottom: 25 }}>
           <Text style={[styles.recentHeader, { color: dynamicStyles.text }]}>{t('recent_played_collections', language)}</Text>
@@ -143,10 +195,31 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.05)',
     marginBottom: 8,
+    position: 'relative',
   },
   fixedImage: {
     width: 120,
     height: 120,
     borderRadius: 12,
+  },
+  rankBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  rankBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });

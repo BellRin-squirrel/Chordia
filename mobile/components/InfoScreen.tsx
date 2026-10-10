@@ -13,7 +13,7 @@ import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../utils
 
 import { InfoSettingsView } from './info/InfoSettingsView';
 import { InfoAccountView } from './info/InfoAccountView';
-import { InfoStatisticsView, InfoAllHistoryView, InfoPlaybackHistoryView } from './info/InfoStatisticsView';
+import { InfoStatisticsView, InfoAllHistoryView, InfoPlaybackHistoryView, InfoRanking7DaysView } from './info/InfoStatisticsView';
 import { InfoManageDataView } from './info/InfoManageDataView';
 import { InfoEditSongView } from './info/InfoEditSongView';
 import { InfoLicenseView } from './info/InfoLicenseView';
@@ -114,7 +114,7 @@ export const InfoScreen = ({
 
   useEffect(() => {
     const currentView = navStack[navStack.length - 1];
-    if (['ACCOUNT', 'STATISTICS', 'STATS_ALL', 'PLAY_HISTORY'].includes(currentView)) {
+    if (['ACCOUNT', 'STATISTICS', 'STATS_ALL', 'PLAY_HISTORY', 'RANKING_ALL'].includes(currentView)) {
       verifyChordiaSyncSession(true, language);
     }
   }, [navStack, language]);
@@ -224,7 +224,6 @@ export const InfoScreen = ({
     });
   };
 
-  // ★ New Architecture (Fabric) 互換の関数型ジェスチャーハンドラー
   const onGestureEvent = (event: any) => {
     if (event?.nativeEvent?.translationX !== undefined) {
       panX.setValue(event.nativeEvent.translationX);
@@ -366,6 +365,10 @@ export const InfoScreen = ({
               )}
               {navStack[2] === 'PLAY_HISTORY' && (
                 <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
+              )}
+              {/* ★ 直近7日間の全ランキング画面 */}
+              {navStack[2] === 'RANKING_ALL' && (
+                <InfoRanking7DaysView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
               )}
               {navStack[2] === 'EDIT_SONG' && (
                 <InfoEditSongView 

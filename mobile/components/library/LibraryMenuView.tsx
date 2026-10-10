@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Modal, 
   TouchableWithoutFeedback, StyleSheet, Alert, AppState, ActivityIndicator 
@@ -11,6 +11,7 @@ import { getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
 import { 
   getNowPlayingApi, 
+  loadAllPlayHistoryApi,
   RelayDeviceItem, 
   ACCOUNT_STORAGE_KEY 
 } from '../../utils/chordiaSync';
@@ -19,7 +20,7 @@ import { PlayCollectionContext } from '../../hooks/useAudioPlayer';
 const WEEKDAYS_MAP: Record<string, string[]> = {
   ja: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
   en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-  ko: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'],
+  ko: ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토曜日'],
   es: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
   fr: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
   de: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
@@ -41,8 +42,64 @@ export const LibraryMenuView = ({
   const [isFetchingRelay, setIsFetchingRelay] = useState(false);
   const [lastUpdatedTime, setLastUpdatedTime] = useState<Date | null>(null);
 
+  const [rawPlayHistory, setRawPlayHistory] = useState<any[]>([]);
+
   const [, setTick] = useState(0);
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 再生履歴の読み込み（ローカル または クラウド）
+  useEffect(() => {
+    (async () => {
+      try {
+        const rawAccount = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
+        if (rawAccount) {
+          const account = JSON.parse(rawAccount);
+          if (account?.sid) {
+            const res = await loadAllPlayHistoryApi(account.sid);
+            if (res.success && Array.isArray(res.history)) {
+              setRawPlayHistory(res.history);
+              return;
+            }
+          }
+        }
+
+        const localPh = await AsyncStorage.getItem('chordia_playback_history');
+        if (localPh) {
+          setRawPlayHistory(JSON.parse(localPh));
+        }
+      } catch (e) {}
+    })();
+  }, [recentlyPlayedSongs]);
+
+  // ★ 再生回数が多い曲トップ10の集計（左が1位）
+  const mostPlayedSongs = useMemo(() => {
+    if (!rawPlayHistory || rawPlayHistory.length === 0) return [];
+
+    const countsMap = new Map<string, { song: any; count: number }>();
+
+    for (const item of rawPlayHistory) {
+      const title = item.title || 'Untitled';
+      const artist = item.artist || 'Unknown Artist';
+      const key = `${title.trim().toLowerCase()}:::${artist.trim().toLowerCase()}`;
+
+      if (!countsMap.has(key)) {
+        // localLibrary 内から同一楽曲を探して正確な音声ファイル・カバーアートを割り当て
+        const hit = localLibrary.find(
+          (s: any) =>
+            (s.title || '').trim().toLowerCase() === title.trim().toLowerCase() &&
+            (s.artist || '').trim().toLowerCase() === artist.trim().toLowerCase()
+        );
+        const resolvedSong = hit || item;
+        countsMap.set(key, { song: resolvedSong, count: 0 });
+      }
+      countsMap.get(key)!.count += 1;
+    }
+
+    return Array.from(countsMap.values())
+      .filter((item) => item.song?.localMusicUri)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [rawPlayHistory, localLibrary]);
 
   const fetchRelayDevices = async (showLoading = false) => {
     if (AppState.currentState !== 'active') return;
@@ -349,7 +406,6 @@ export const LibraryMenuView = ({
     <View style={{ flex: 1, backgroundColor: libraryBgColor }}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: libraryBgColor, zIndex: -1 }} />
       
-      {/* ★ 横画面時の右余白にタブバー幅（LANDSCAPE_TAB_BAR_WIDTH + 16px）を適用して重なりを完全防止 */}
       <View style={[
         styles.headerBar, 
         { 
@@ -366,7 +422,6 @@ export const LibraryMenuView = ({
         <View style={{ width: 36 }} />
         <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_player', language)}</Text>
         
-        {/* Chordia Relay ボタン */}
         <TouchableOpacity 
           style={s.cloudHeaderBtn}
           onPress={handleOpenRelayModal}
@@ -405,9 +460,24 @@ export const LibraryMenuView = ({
           <RecentSection 
             recentlyPlayedSongs={recentlyPlayedSongs} 
             recentlyPlayedCollections={recentlyPlayedCollections} 
+            mostPlayedSongs={mostPlayedSongs}
             dynamicStyles={dynamicStyles} 
             themeColor={themeColor}
-            onPlaySong={(sVal: any) => startQueue([sVal], sVal, undefined, null)} 
+            // ★ 単体再生時はコンテキストを「最近再生した楽曲」として渡す
+            onPlaySong={(sVal: any) => startQueue([sVal], sVal, undefined, {
+              type: 'RECENT',
+              playlistID: 'recent_songs',
+              playlistName: t('recent_played_songs', language)
+            })}
+            // ★ 再生回数が多い曲からの再生
+            onPlayMostPlayed={(sVal: any) => {
+              const queue = mostPlayedSongs.map((m: any) => m.song).filter(Boolean);
+              startQueue(queue, sVal, false, {
+                type: 'PLAYLIST',
+                playlistID: 'most_played_songs',
+                playlistName: t('most_played_songs', language)
+              });
+            }}
             onPlayCollection={(item: any) => {
               let songs: any[] = [];
               let context: PlayCollectionContext | null = null;
@@ -466,7 +536,6 @@ export const LibraryMenuView = ({
                   {t('relay_modal_desc', language)}
                 </Text>
 
-                {/* 最終更新日時・最新情報取得中ステータスバー */}
                 {isLoggedIn && (
                   <View style={[s.statusRow, { borderColor: dynamicStyles.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
                     {isFetchingRelay ? (
