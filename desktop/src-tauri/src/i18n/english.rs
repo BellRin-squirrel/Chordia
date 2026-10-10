@@ -658,6 +658,7 @@ sync_device_desc = "The login device name that will appear in your Chordia Sync 
 btn_auth_web = "Authenticate on Web"
 sync_code_issued = "Authentication Code Issued"
 sync_code_instruction = "Open Chordia Sync on your web browser and enter the 8-character code below in the 'Log in with App' page to complete authentication."
+sync_open_browser_link = "Open browser to approve login"
 sync_waiting_approval = "Waiting for approval in web dashboard..."
 btn_copy_code = "Copy Code"
 btn_back = "Back"
@@ -749,6 +750,30 @@ bpm = "BPM"
 composer = "Composer"
 comment = "Comment"
 lyric = "Lyrics"
+
+[Window]
+add_music = "Add Songs - Chordia"
+manage = "Manage Library - Chordia"
+player = "Play Music - Chordia"
+sync = "Mobile Sync - Chordia"
+extensions = "Extensions - Chordia"
+work = "Focus Mode - Chordia"
+settings = "Settings & Info - Chordia"
+info = "Info & Stats - Chordia"
+integrity = "Integrity Check - Chordia"
+migration = "Data Transfer - Chordia"
+lufs_calc = "Loudness Measurement - Chordia"
+lyrics = "Lyrics - Chordia"
+mini_player = "Chordia - Mini Player"
+
+[Splash]
+launching = "Launching application..."
+loading_db = "Loading database..."
+initial_ready = "Initial database ready"
+parsing_songs = "Parsing songs ({current} / {total})"
+parsed_db = "Database parsing complete"
+loading_playlists = "Loading playlists & cache..."
+ready = "Ready"
 
 [Messages]
 saved = "Settings saved"

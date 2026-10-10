@@ -2,6 +2,7 @@ Milestone
 ・Chordia Sync ログイン時のリンクとコピー
 
 v5.0.0-beta4
+・Chordia Sync にログインする際、ブラウザで認証するボタンを設置しました。
 
 v5.0.0-beta3
 ・ZIPインポートで発生するエラーを修正しました。

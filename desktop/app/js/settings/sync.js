@@ -47,6 +47,7 @@ window.SettingsSync = {
         const syncUsername = document.getElementById('syncUsername');
         const syncDeviceName = document.getElementById('syncDeviceName');
         const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+        const linkOpenSyncWeb = document.getElementById('linkOpenSyncWeb');
 
         if (btnStartSyncAuth) {
             btnStartSyncAuth.addEventListener('click', () => {
@@ -67,7 +68,6 @@ window.SettingsSync = {
             });
         }
 
-        // ★ ユーザー名入力欄でEnterを押すとログインデバイス名へフォーカス移動
         if (syncUsername) {
             syncUsername.addEventListener('input', () => this.checkSyncInputs());
             syncUsername.addEventListener('keydown', (e) => {
@@ -79,7 +79,6 @@ window.SettingsSync = {
             });
         }
 
-        // ★ ログインデバイス名入力欄でEnterを押すと「ウェブで認証」を実行
         if (syncDeviceName) {
             syncDeviceName.addEventListener('input', () => this.checkSyncInputs());
             syncDeviceName.addEventListener('keydown', (e) => {
@@ -125,6 +124,24 @@ window.SettingsSync = {
             });
         }
 
+        // ★ 既定のWebブラウザで直接承認画面を開くリンク処理
+        if (linkOpenSyncWeb) {
+            linkOpenSyncWeb.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const code = document.getElementById('generatedAuthCodeDisplay').textContent.trim();
+                if (code && code !== '--------') {
+                    const targetUrl = `https://chordia.bellrin.f5.si/mypage/accept.app.login.php?anthenticationCode=${encodeURIComponent(code)}`;
+                    const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
+                    try {
+                        await invoke("open_url", { url: targetUrl });
+                    } catch(err) {
+                        console.error("Failed to open URL via backend:", err);
+                        window.open(targetUrl, '_blank');
+                    }
+                }
+            });
+        }
+
         if (btnCopyAuthCode) {
             btnCopyAuthCode.addEventListener('click', () => {
                 const code = document.getElementById('generatedAuthCodeDisplay').textContent.trim();
@@ -152,7 +169,6 @@ window.SettingsSync = {
             });
         }
 
-        // ★ クラウドへ全データを再送信するボタン
         if (btnResyncCloud) {
             btnResyncCloud.addEventListener('click', async () => {
                 const invoke = window.__TAURI__.core ? window.__TAURI__.core.invoke : window.__TAURI__.tauri.invoke;
@@ -302,7 +318,6 @@ window.SettingsSync = {
         }, 2000);
     },
 
-    // ★ 再生履歴、作業履歴、曲一覧、プレイリスト一覧を順次クラウドへ送信
     executeInitialHistorySync: async function(uVal, dVal) {
         const syncHistoryProgressOverlay = document.getElementById('syncHistoryProgressOverlay');
         const syncHistoryProgressBar = document.getElementById('syncHistoryProgressBar');
@@ -346,7 +361,6 @@ window.SettingsSync = {
             this.showLoggedInView(uVal, dVal);
             window.SettingsGeneral.showToast("Chordia Sync へのデータ送信が完了しました！");
             
-            // 統計画面も最新データに更新
             if (window.SettingsStats) {
                 const activeSec = document.querySelector('.settings-section.active');
                 if (activeSec && activeSec.id === 'sec-music-stats') window.SettingsStats.loadPlayStatistics();

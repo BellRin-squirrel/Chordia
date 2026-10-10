@@ -658,6 +658,7 @@ sync_device_desc = "ログインデバイス名はログイン成功後にChordi
 btn_auth_web = "ウェブで認証"
 sync_code_issued = "認証コードが発行されました"
 sync_code_instruction = "Webブラウザで Chordia Sync（管理画面）を開き、「アプリでログイン」画面で以下の8文字のコードを入力して認証を完了させてください。"
+sync_open_browser_link = "Webブラウザを開いて承認画面へ進む"
 sync_waiting_approval = "Web管理画面での承認を待機しています..."
 btn_copy_code = "コードをコピー"
 btn_back = "戻る"
@@ -749,6 +750,30 @@ bpm = "BPM"
 composer = "作曲者"
 comment = "コメント"
 lyric = "歌詞"
+
+[Window]
+add_music = "曲を追加 - Chordia"
+manage = "データベース管理 - Chordia"
+player = "音楽を再生 - Chordia"
+sync = "モバイル同期 - Chordia"
+extensions = "拡張機能 - Chordia"
+work = "作業モード - Chordia"
+settings = "情報・設定 - Chordia"
+info = "情報・統計 - Chordia"
+integrity = "整合性確認 - Chordia"
+migration = "データの引継ぎ - Chordia"
+lufs_calc = "音量解析の実行 - Chordia"
+lyrics = "歌詞 - Chordia"
+mini_player = "Chordia - Mini Player"
+
+[Splash]
+launching = "アプリを起動しています..."
+loading_db = "データベースを読み込んでいます..."
+initial_ready = "初期データベースの準備完了"
+parsing_songs = "楽曲データを解析中 ({current} / {total})"
+parsed_db = "データベースの解析が完了しました"
+loading_playlists = "プレイリストとキャッシュをロード中..."
+ready = "起動完了"
 
 [Messages]
 saved = "設定を保存しました"

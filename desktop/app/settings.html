@@ -364,6 +364,14 @@
                                 <span id="generatedAuthCodeDisplay">--------</span>
                             </div>
 
+                            <!-- ★ 既定のWebブラウザで直接承認画面を開くリンク -->
+                            <p style="margin-top: 14px; font-size: 0.88rem;">
+                                <a href="#" id="linkOpenSyncWeb" class="sync-web-link" style="color: var(--primary-color); text-decoration: underline; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                                    <span data-i18n="Settings.sync_open_browser_link">Webブラウザを開いて承認画面へ進む</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                                </a>
+                            </p>
+
                             <div style="margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--primary-color); font-size: 0.88rem; font-weight: 700;">
                                 <div class="spinner-mini"></div>
                                 <span data-i18n="Settings.sync_waiting_approval">Web管理画面での承認を待機しています...</span>
@@ -417,7 +425,7 @@
                         <div class="stats-sub-box">
                             <h3 class="sub-box-title" data-i18n="Settings.ranking_top5_title">直近7日間の再生回数ランキング (TOP 5)</h3>
                             <div id="topRankingContainer" class="ranking-grid">
-                                <p style="color: var(--text-sub); font-size: 0.9rem;" data-i18n="Common.loading">集計中...</p>
+                                <p style="color: var(--text-sub); font-size: 0.9rem;">集計中...</p>
                             </div>
                         </div>
 
@@ -436,7 +444,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="playHistoryTableBody">
-                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
+                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -452,7 +460,7 @@
 
                         <div id="workSyncNotConnected" class="stats-empty-card" style="display: none;">
                             <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(128,128,128,0.1); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--text-sub);">
-                                <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                                <svg style="width: 24px; height: 24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                             </div>
                             <h3 style="font-size: 1.05rem; color: var(--text-main); margin-bottom: 6px;" data-i18n="Settings.work_not_connected_title">Chordia Sync に接続されていません</h3>
                             <p style="font-size: 0.88rem; color: var(--text-sub); line-height: 1.6; margin: 0;" data-i18n="Settings.work_not_connected_desc">
@@ -474,7 +482,7 @@
                                             </tr>
                                         </thead>
                                         <tbody id="workHistoryTableBody">
-                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
+                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
