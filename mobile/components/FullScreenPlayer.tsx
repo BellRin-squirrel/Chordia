@@ -12,6 +12,7 @@ import { styles } from '../styles/styles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MarqueeText } from './MarqueeText';
+import { t } from '../utils/i18n';
 
 const DEFAULT_ICON = require('../assets/images/icon.png');
 
@@ -82,7 +83,8 @@ export const FullScreenPlayer = ({
   toggleLoopMode, toggleShuffleMode, setShowQueue, setShowLyrics,
   handlePrev, togglePlayPause, handleNext,
   slideAnim, queueTransitionAnim, closeFullPlayer,
-  toastVisible, toastMessage, toastAnim
+  toastVisible, toastMessage, toastAnim,
+  currentContext, language = 'ja'
 }: any) => {
 
   const { width, height } = useWindowDimensions();
@@ -109,6 +111,42 @@ export const FullScreenPlayer = ({
   } else if (isIpad) {
     btnScale = 1.2;
   }
+
+  // ★ 再生元情報（プレイリスト / アルバム / アーティスト）の表示用ヘルパー
+  const getSourceDisplay = () => {
+    if (currentContext && currentContext.playlistName) {
+      let typeLabel = t('playlist_label', language);
+      let iconName = 'musical-notes';
+      if (currentContext.type === 'ALBUM') {
+        typeLabel = t('album_label', language);
+        iconName = 'disc';
+      } else if (currentContext.type === 'ARTIST') {
+        typeLabel = t('artist_label', language);
+        iconName = 'mic';
+      }
+      return {
+        typeLabel,
+        name: currentContext.playlistName,
+        iconName,
+      };
+    }
+
+    if (currentSong?.album) {
+      return {
+        typeLabel: t('album_label', language),
+        name: currentSong.album,
+        iconName: 'disc',
+      };
+    }
+
+    return {
+      typeLabel: t('playlist_label', language),
+      name: t('all_songs_item', language),
+      iconName: 'musical-notes',
+    };
+  };
+
+  const sourceInfo = getSourceDisplay();
 
   useEffect(() => {
     const isMain = !showQueue && !showLyrics;
@@ -393,6 +431,42 @@ export const FullScreenPlayer = ({
 
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
+            
+            {/* ★ 横画面キュー側：再生元表示（固定ヘッダー） */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+              marginBottom: 10,
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: 'rgba(255, 255, 255, 0.14)'
+            }}>
+              <Ionicons 
+                name={sourceInfo.iconName as any} 
+                size={15} 
+                color={themeColor} 
+                style={{ marginRight: 6 }} 
+              />
+              <Text style={{ 
+                color: 'rgba(255, 255, 255, 0.65)', 
+                fontSize: 12, 
+                fontWeight: '600',
+                marginRight: 6 
+              }}>
+                {sourceInfo.typeLabel}:
+              </Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <MarqueeText 
+                  text={sourceInfo.name} 
+                  style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }} 
+                  align="left"
+                />
+              </View>
+            </View>
+
             <FlatList
               data={playQueue}
               keyExtractor={(item, index) => 'queue-h-' + index}
@@ -570,16 +644,18 @@ export const FullScreenPlayer = ({
               )}
             </Animated.View>
 
+            {/* (C) キュー画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, queueViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
               pointerEvents={showQueue ? 'auto' : 'none'}
             >
+              {/* 1. 現在再生中の楽曲 */}
               <View style={{ 
                 flexDirection: 'row', 
                 alignItems: 'center', 
                 width: '100%', 
-                marginBottom: 12, 
-                paddingBottom: 12, 
+                marginBottom: 10, 
+                paddingBottom: 10, 
                 paddingHorizontal: 5,
                 borderBottomWidth: 1.5,
                 borderBottomColor: 'rgba(255, 255, 255, 0.2)'
@@ -603,6 +679,42 @@ export const FullScreenPlayer = ({
                 </View>
               </View>
 
+              {/* ★ 2. 再生元表示（固定ヘッダー：スクロールしても流れない） */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 10,
+                paddingVertical: 7,
+                marginBottom: 8,
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: 'rgba(255, 255, 255, 0.14)'
+              }}>
+                <Ionicons 
+                  name={sourceInfo.iconName as any} 
+                  size={15} 
+                  color={themeColor} 
+                  style={{ marginRight: 6 }} 
+                />
+                <Text style={{ 
+                  color: 'rgba(255, 255, 255, 0.65)', 
+                  fontSize: 12, 
+                  fontWeight: '600',
+                  marginRight: 6 
+                }}>
+                  {sourceInfo.typeLabel}:
+                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <MarqueeText 
+                    text={sourceInfo.name} 
+                    style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }} 
+                    align="left"
+                  />
+                </View>
+              </View>
+
+              {/* 3. キュー一覧 */}
               <FlatList
                 data={playQueue}
                 keyExtractor={(item, index) => 'queue-v-' + index}

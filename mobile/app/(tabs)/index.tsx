@@ -85,6 +85,7 @@ const AppContent = () => {
     navStackLength, setNavStackLength,
     startQueue, handleNext, handlePrev, togglePlayPause,
     slideAnim, queueTransitionAnim, closeFullPlayer,
+    currentContext,
   } = useAudioPlayer();
 
   const {
@@ -100,14 +101,12 @@ const AppContent = () => {
     language
   });
 
-  // ★ API通信層からの「インターネットに接続できません」トースト通知リスナー登録
   useEffect(() => {
     registerToastListener((msg) => {
       showToast(msg);
     });
   }, [showToast]);
 
-  // ★ ネットワーク復帰時 ＆ フォアグラウンド移行時に未送信オフラインキューを自動バックグラウンド処理
   useEffect(() => {
     processOfflineQueue();
 
@@ -426,7 +425,36 @@ const AppContent = () => {
       </Modal>
 
       <Modal visible={isFullPlayer} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
-        <FullScreenPlayer dynamicStyles={actualDynamicStyles} themeColor={themeColor} themeTextColor={themeTextColor} currentSong={currentSong} isPlaying={isPlaying} playbackStatus={playbackStatus} sound={sound} playQueue={playQueue} currentIndex={currentIndex} loopMode={loopMode} isShuffle={isShuffle} showQueue={showQueue} showLyrics={showLyrics} toggleLoopMode={toggleLoopMode} toggleShuffleMode={toggleShuffleMode} setShowQueue={setShowQueue} setShowLyrics={setShowLyrics} handlePrev={handlePrev} togglePlayPause={togglePlayPause} handleNext={handleNext} slideAnim={slideAnim} queueTransitionAnim={queueTransitionAnim} closeFullPlayer={closeFullPlayer} toastVisible={toastVisible} toastMessage={toastMessage} toastAnim={toastAnim} />
+        <FullScreenPlayer 
+          dynamicStyles={actualDynamicStyles} 
+          themeColor={themeColor} 
+          themeTextColor={themeTextColor} 
+          currentSong={currentSong} 
+          isPlaying={isPlaying} 
+          playbackStatus={playbackStatus} 
+          sound={sound} 
+          playQueue={playQueue} 
+          currentIndex={currentIndex} 
+          loopMode={loopMode} 
+          isShuffle={isShuffle} 
+          showQueue={showQueue} 
+          showLyrics={showLyrics} 
+          toggleLoopMode={toggleLoopMode} 
+          toggleShuffleMode={toggleShuffleMode} 
+          setShowQueue={setShowQueue} 
+          setShowLyrics={setShowLyrics} 
+          handlePrev={handlePrev} 
+          togglePlayPause={togglePlayPause} 
+          handleNext={handleNext} 
+          slideAnim={slideAnim} 
+          queueTransitionAnim={queueTransitionAnim} 
+          closeFullPlayer={closeFullPlayer} 
+          toastVisible={toastVisible} 
+          toastMessage={toastMessage} 
+          toastAnim={toastAnim} 
+          currentContext={currentContext}
+          language={language}
+        />
       </Modal>
 
       <Modal visible={!!customAlert} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
@@ -486,7 +514,6 @@ const AppContent = () => {
         canClose={false}
       />
 
-      {/* 右上トースト通知 */}
       {toastVisible && !isFullPlayer && (
         <Animated.View 
           style={[

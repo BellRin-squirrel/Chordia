@@ -40,8 +40,14 @@ export const useAudioPlayer = () => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
 
+  // ★ 再生元コンテキストを State と Ref で管理
+  const [currentContext, setCurrentContext] = useState<PlayCollectionContext | null>(null);
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
   const isPlayingRef = useRef(false);
+
+  useEffect(() => {
+    currentContextRef.current = currentContext;
+  }, [currentContext]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -438,7 +444,11 @@ export const useAudioPlayer = () => {
       queueMgr.loopRef.current = initialLoop;
     }
 
-    currentContextRef.current = context !== undefined ? context : currentContextRef.current;
+    // ★ 再生元コンテキストを State と Ref の両方に反映
+    if (context !== undefined) {
+      currentContextRef.current = context;
+      setCurrentContext(context);
+    }
 
     if (startPositionMs && startPositionMs > 0) {
       sync.relayCooldownRef.current = true;
@@ -536,7 +546,6 @@ export const useAudioPlayer = () => {
     sync.sendNowPlayingUpdate();
   };
 
-  // ★ fromRemoteフラグを受け取り、RNTPネイティブ側ですでにスキップ済みの場合はJSから手動スキップを呼ばない
   const handleNextInternal = async (fromRemote = false) => {
     const now = Date.now();
     if (now - lastSkipTimeRef.current < 400) return;
@@ -581,7 +590,6 @@ export const useAudioPlayer = () => {
   handleNextRef.current = handleNextInternal;
   const handleNext = () => handleNextInternal(false);
 
-  // ★ fromRemoteフラグを受け取り、RNTPネイティブ側ですでにスキップ済みの場合はJSから手動スキップを呼ばない
   const handlePrevInternal = async (fromRemote = false) => {
     const now = Date.now();
     if (now - lastSkipTimeRef.current < 400) return;
@@ -793,6 +801,7 @@ export const useAudioPlayer = () => {
     togglePlayPause, 
     slideAnim, 
     queueTransitionAnim, 
-    closeFullPlayer 
+    closeFullPlayer,
+    currentContext, // ★ 公開
   };
 };
