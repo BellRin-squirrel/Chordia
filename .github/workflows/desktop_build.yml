@@ -5,7 +5,7 @@ on:
 
 # ★ ここでバージョン文字列を定義（各ファイル名の <version> に代入されます）
 env:
-  VERSION: "v5.0.0-beta3"
+  VERSION: "v5.0.0-beta4"
 
 defaults:
   run:
