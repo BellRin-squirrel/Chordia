@@ -1,9 +1,11 @@
 バージョン情報の変更
 main.rs
 Cargo.toml
-tauri.conf.json
 Cargo.lock
 readme
+
+betaはなし
+tauri.conf.json
 
 mac local build
 cargo tauri build --target universal-apple-darwin
