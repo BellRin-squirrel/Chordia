@@ -2,7 +2,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 use std::fs;
 use std::io::Read;
-use crate::utils::get_base_dir;
+use crate::core::utils::{get_base_dir, ensure_dir_writable, ensure_file_writable};
 
 #[tauri::command]
 pub async fn check_tool_updates() -> Result<Value, String> {
@@ -15,8 +15,10 @@ pub async fn check_tool_updates() -> Result<Value, String> {
             format!("yt-dlp{}", ext),
             format!("ffmpeg{}", ext),
             format!("deno{}", ext),
-            format!("cloudflared{}", ext), // ★ 追加
+            format!("cloudflared{}", ext),
         ];
+
+        let _ = ensure_dir_writable(&base);
 
         if let Ok(entries) = fs::read_dir(&base) {
             for entry in entries.filter_map(|e| e.ok()) {
@@ -24,6 +26,7 @@ pub async fn check_tool_updates() -> Result<Value, String> {
                 if path.is_file() {
                     if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                         if !allowed_files.contains(&file_name.to_string()) {
+                            ensure_file_writable(&path);
                             let _ = std::fs::remove_file(path);
                         }
                     }
@@ -92,7 +95,7 @@ pub async fn check_tool_updates() -> Result<Value, String> {
 pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let base_dir = get_base_dir().join("userfiles/bin");
-        let _ = fs::create_dir_all(&base_dir);
+        ensure_dir_writable(&base_dir).map_err(|e| format!("ディレクトリ権限取得エラー: {}", e))?;
         
         let url = match tool_name.as_str() {
             "yt-dlp" => {
@@ -179,15 +182,27 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
         let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
         let exe_path = base_dir.join(format!("{}{}", tool_name, ext));
 
+        // ★ 既存バイナリへの書き込み権限解除とクリーンアップ
+        if exe_path.exists() {
+            ensure_file_writable(&exe_path);
+            let _ = fs::remove_file(&exe_path);
+        }
+
         if url.ends_with(".tgz") {
-            let temp_tgz_path = base_dir.join("temp_cloudflared.tgz");
+            let temp_tgz_path = base_dir.join(format!("temp_{}.tgz", tool_name));
+            ensure_file_writable(&temp_tgz_path);
             fs::write(&temp_tgz_path, &data).map_err(|e| e.to_string())?;
+
+            let extracted_binary = base_dir.join("cloudflared");
+            if extracted_binary.exists() {
+                ensure_file_writable(&extracted_binary);
+                let _ = fs::remove_file(&extracted_binary);
+            }
 
             let mut cmd = std::process::Command::new("tar");
             cmd.args(&["-xzf", temp_tgz_path.to_str().unwrap(), "-C", base_dir.to_str().unwrap()]);
             let _ = cmd.output();
 
-            let extracted_binary = base_dir.join("cloudflared");
             if extracted_binary.exists() {
                 let _ = fs::rename(&extracted_binary, &exe_path);
             }
@@ -196,6 +211,14 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
             let cursor = std::io::Cursor::new(data);
             let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
             let mut extracted = false;
+            
+            // ★ 一時ファイル経由で安全に書き込み
+            let temp_extracted_path = base_dir.join(format!("temp_{}{}", tool_name, ext));
+            if temp_extracted_path.exists() {
+                ensure_file_writable(&temp_extracted_path);
+                let _ = fs::remove_file(&temp_extracted_path);
+            }
+
             for i in 0..archive.len() {
                 let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
                 let name = file.name().to_lowercase();
@@ -207,17 +230,28 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
                 };
 
                 if target_match {
-                    let mut out = fs::File::create(&exe_path).map_err(|e| e.to_string())?;
+                    let mut out = fs::File::create(&temp_extracted_path).map_err(|e| e.to_string())?;
                     std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+                    drop(out);
+                    let _ = fs::rename(&temp_extracted_path, &exe_path);
                     extracted = true;
                     break;
                 }
             }
             if !extracted {
+                let _ = fs::remove_file(&temp_extracted_path);
                 return Err(format!("ZIP内に {} が見つかりませんでした", tool_name));
             }
         } else {
-            fs::write(&exe_path, data).map_err(|e| e.to_string())?;
+            // ★ 単体バイナリも一時ファイルに書き込んでからアトミックにリネーム
+            let temp_bin_path = base_dir.join(format!("temp_{}{}", tool_name, ext));
+            if temp_bin_path.exists() {
+                ensure_file_writable(&temp_bin_path);
+                let _ = fs::remove_file(&temp_bin_path);
+            }
+
+            fs::write(&temp_bin_path, data).map_err(|e| e.to_string())?;
+            let _ = fs::rename(&temp_bin_path, &exe_path);
         }
 
         #[cfg(unix)]
@@ -227,6 +261,16 @@ pub async fn install_tool(tool_name: String, app: AppHandle) -> Result<(), Strin
                 let mut perms = metadata.permissions();
                 perms.set_mode(0o755); 
                 let _ = fs::set_permissions(&exe_path, perms);
+            }
+
+            // ★ macOS Gatekeeper の隔離フラグを解除
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(p_str) = exe_path.to_str() {
+                    let _ = std::process::Command::new("xattr")
+                        .args(&["-d", "com.apple.quarantine", p_str])
+                        .output();
+                }
             }
         }
 

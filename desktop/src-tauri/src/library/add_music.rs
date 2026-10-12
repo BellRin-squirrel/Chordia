@@ -14,6 +14,7 @@ use crate::cmd_cloud_sync::trigger_background_sync;
 
 fn verify_tool_executable(tool: &str) -> Result<(), String> {
     let b = crate::utils::get_base_dir().join("userfiles/bin");
+    let _ = ensure_dir_writable(&b);
     
     let ext = if cfg!(target_os = "windows") { ".exe" } else { "" };
     let allowed_files = [
@@ -29,6 +30,7 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
             if path.is_file() {
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                     if !allowed_files.contains(&file_name.to_string()) {
+                        ensure_file_writable(&path);
                         let _ = std::fs::remove_file(path);
                     }
                 }
@@ -155,6 +157,7 @@ async fn fetch_video_info_internal(url: &str) -> Result<Value, String> {
             "--extractor-args", "youtube:lang=ja",
             "--dump-json", 
             "--no-playlist", 
+            "--no-cache-dir",
             "--skip-download", 
             &url_string
         ]);
@@ -218,16 +221,22 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
 
     let base = get_base_dir();
     let bin = base.join("userfiles/bin");
+    let music_dir = base.join("library/music");
+    let images_dir = base.join("library/images");
+    let userfiles_dir = base.join("userfiles");
+
+    // ★ ディレクトリの作成と書き込み権限の確実な付与
+    let _ = ensure_dir_writable(&userfiles_dir);
+    let _ = ensure_dir_writable(&bin);
+    let _ = ensure_dir_writable(&music_dir);
+    let _ = ensure_dir_writable(&images_dir);
+
     let url = data.get("video_url").and_then(|v| v.as_str()).ok_or("No URL")?.to_string();
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     
-    let _ = fs::create_dir_all(base.join("userfiles"));
-    let _ = fs::create_dir_all(base.join("library/music")); 
-    let _ = fs::create_dir_all(base.join("library/images"));
-    
     let f_id_clone = f_id.clone();
     let bin_clone = bin.clone();
-    let base_clone = base.clone();
+    let music_dir_clone = music_dir.clone();
 
     let url_for_download = url.clone();
 
@@ -239,13 +248,17 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
             "--extractor-args", "youtube:lang=ja",
             "--ffmpeg-location", bin_clone.to_str().unwrap(),
             "--no-playlist", 
+            "--no-cache-dir", // ★ キャッシュ書き込みによる権限エラーを防止
             "--extract-audio", 
             "--audio-format", "mp3", 
             "--audio-quality", "0", 
             "-o", 
-            base_clone.join(format!("library/music/{}.%(ext)s", f_id_clone)).to_str().unwrap(), 
+            music_dir_clone.join(format!("{}.%(ext)s", f_id_clone)).to_str().unwrap(), 
             &url_for_download
         ]);
+
+        // ★ 一時ファイルの出力先がルートやRead-Only領域にならないようカレントディレクトリを設定
+        cmd.current_dir(&music_dir_clone);
 
         let mut path_env = bin_clone.to_string_lossy().to_string();
         if let Ok(existing) = std::env::var("PATH") {
@@ -322,6 +335,9 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
     }
     
     let m_rel = format!("library/music/{}.mp3", f_id);
+    let abs_m_path = base.join(&m_rel);
+    ensure_file_writable(&abs_m_path);
+
     data.insert("musicFilename".into(), m_rel.clone().into());
     data.insert("streamUrl".into(), get_asset_url(&m_rel).into());
     
@@ -336,7 +352,6 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
     db.push(data.clone()); 
     let _ = save_db(&db); 
 
-    // ★ クラウドへ楽曲一覧を自動バックグラウンド同期
     trigger_background_sync(app, true, false);
 
     Ok(true)
@@ -345,9 +360,9 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
 #[tauri::command]
 pub async fn save_music_data(app: AppHandle, mut data: serde_json::Map<String, Value>, state: State<'_, AppState>) -> Result<bool, String> {
     let base = get_base_dir();
-    let _ = fs::create_dir_all(base.join("userfiles"));
-    let _ = fs::create_dir_all(base.join("library/music"));
-    let _ = fs::create_dir_all(base.join("library/images"));
+    let _ = ensure_dir_writable(&base.join("userfiles"));
+    let _ = ensure_dir_writable(&base.join("library/music"));
+    let _ = ensure_dir_writable(&base.join("library/images"));
 
     let f_id: String = rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
     let base_clone = base.clone();
@@ -366,7 +381,9 @@ pub async fn save_music_data(app: AppHandle, mut data: serde_json::Map<String, V
                 if let Some(e) = std::path::Path::new(name).extension().and_then(|e| e.to_str()) { ext_inner = e.to_string(); }
             }
             rel_music_path = format!("library/music/{}.{}", f_id_clone, ext_inner);
-            fs::write(base_clone.join(&rel_music_path), bytes).map_err(|e| e.to_string())?;
+            let abs_path = base_clone.join(&rel_music_path);
+            ensure_file_writable(&abs_path);
+            fs::write(&abs_path, bytes).map_err(|e| e.to_string())?;
         }
 
         if let Some(artwork_data) = data_clone.get("artwork_data").and_then(|v| v.as_str()) {
@@ -413,7 +430,6 @@ pub async fn save_music_data(app: AppHandle, mut data: serde_json::Map<String, V
     db_guard.push(data);
     let _ = save_db(&db_guard);
 
-    // ★ クラウドへ楽曲一覧を自動バックグラウンド同期
     trigger_background_sync(app, true, false);
 
     Ok(true)
@@ -448,6 +464,7 @@ pub async fn fetch_youtube_playlist(url: String) -> Result<Value, String> {
             "--extractor-args", "youtube:lang=ja",
             "--dump-json", 
             "--flat-playlist", 
+            "--no-cache-dir",
             &url
         ]);
 
