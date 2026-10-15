@@ -27,7 +27,6 @@ pub fn ask_save_path(current_path: String) -> Option<String> {
     dialog.save_file().map(|p| p.to_string_lossy().to_string())
 }
 
-// ★ 追加：引継ぎ用インポートファイルをダイレクト選択するネイティブファイルダイアログ
 #[tauri::command]
 pub fn ask_import_path() -> Option<String> {
     rfd::FileDialog::new()
@@ -81,6 +80,7 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
         }
         if targets.get("images").and_then(|v| v.as_bool()).unwrap_or(false) {
             add_dir_to_zip(&mut zip, options.clone(), &base_dir.join("library/images"), "library/images")?;
+            add_dir_to_zip(&mut zip, options.clone(), &base_dir.join("library/cover_image"), "library/cover_image")?;
         }
         if targets.get("db").and_then(|v| v.as_bool()).unwrap_or(false) {
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/music.json"), "userfiles/music.json")?;
@@ -88,12 +88,15 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
         if targets.get("settings").and_then(|v| v.as_bool()).unwrap_or(false) {
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/settings.ini"), "userfiles/settings.ini")?;
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/custom_themes.json"), "userfiles/custom_themes.json")?;
+            // ★ 初期アルバムアート（default_art.png）も設定引継ぎ対象に含める
+            add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/default_art.png"), "userfiles/default_art.png")?;
         }
         if targets.get("playlists").and_then(|v| v.as_bool()).unwrap_or(false) {
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/playlist.json"), "userfiles/playlist.json")?;
             add_dir_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/playlist"), "userfiles/playlist")?;
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/history.json"), "userfiles/history.json")?;
             add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/played_times.json"), "userfiles/played_times.json")?;
+            add_file_to_zip(&mut zip, options.clone(), &base_dir.join("userfiles/playlist_covers.json"), "userfiles/playlist_covers.json")?;
         }
 
         zip.finish().map_err(|e| format!("ZIPの最終処理に失敗しました: {}", e))?;
@@ -107,7 +110,6 @@ pub async fn execute_export(targets: serde_json::Map<String, Value>, save_path: 
     }
 }
 
-// ★ 修正：JavaScriptメモリの上限（Out of memory）を100%回避するため、ファイルパス（zip_path）を受け取りディスクから直接ストリーム読み込み展開する仕様へ改修
 #[tauri::command]
 pub fn execute_migration_import(
     zip_path: String, 
@@ -123,11 +125,9 @@ pub fn execute_migration_import(
 
     let base_dir = get_base_dir();
     
-    // JSメモリを経由せず、ディスクから直接ストリームオープン
     let file = fs::File::open(&zip_path).map_err(|e| format!("ZIPファイルの読み込みに失敗しました: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("ZIPの解析に失敗しました: {}", e))?;
 
-    // 実際に暗号化されたファイルが存在するか確認
     let mut needs_password = false;
     for i in 0..archive.len() {
         match archive.by_index(i) {
@@ -152,7 +152,6 @@ pub fn execute_migration_import(
         return Ok(serde_json::json!({"status": "password_required"}));
     }
 
-    // 展開（リストア）開始
     for i in 0..archive.len() {
         let mut file = if needs_password {
             match archive.by_index_decrypt(i, pass_str.as_bytes()) {
@@ -182,10 +181,8 @@ pub fn execute_migration_import(
         }
     }
 
-    // メモリ再書込み中の表示をJSへ指示するためイベントをエミット
     let _ = app_handle.emit("migration_status", "rewriting_cache");
 
-    // ディスク上の新しい music.json と playlist.json を再ロードし、インメモリのAppStateを完全に書き換えてキャッシュクリーンを完了
     let new_db = crate::utils::load_db();
     let new_playlists = crate::utils::load_playlists_master();
 

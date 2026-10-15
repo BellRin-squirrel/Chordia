@@ -11,7 +11,6 @@ use crate::AppState;
 use crate::core::utils::{get_base_dir, normalize_rel_path, get_asset_url, force_save_as_png, save_db, get_duration_str, update_mp3_tags_from_song_map};
 use crate::cloud_sync::trigger_background_sync;
 
-// ★ ディスク直接ストリームとインメモリBase64の双方に対応する抽象ZipSource
 enum ZipSource {
     File(fs::File),
     Cursor(Cursor<Vec<u8>>),
@@ -118,7 +117,11 @@ pub fn execute_final_list_import(app: AppHandle, import_data_list: Vec<serde_jso
         }
         
         if !img_saved {
-            let rel_img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("app/icon/Chordia.png").to_string();
+            let mut rel_img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("userfiles/default_art.png").to_string();
+            if rel_img_path == "app/icon/Chordia.png" {
+                rel_img_path = "userfiles/default_art.png".to_string();
+            }
+            item.insert("imageFilename".to_string(), Value::String(rel_img_path.clone()));
             item.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
         }
         item.remove("artworkBase64");
@@ -158,7 +161,6 @@ pub fn check_import_duplicates(import_list: Vec<serde_json::Map<String, Value>>,
     duplicates
 }
 
-// ★ zip_path と zip_data_b64 の双方に対応し、missing key エラーを完全防止
 #[tauri::command]
 pub fn scan_zip_import(
     zip_path: Option<String>,
@@ -308,7 +310,6 @@ pub fn scan_zip_import(
     Ok(serde_json::json!({"status": "success", "data": data_list}))
 }
 
-// ★ zip_path と zip_data_b64 の双方に対応し、ファイル直接ストリーム抽出を実行
 #[tauri::command]
 pub fn execute_zip_import(
     app: AppHandle,
@@ -395,8 +396,8 @@ pub fn execute_zip_import(
                 }
                 
                 if !img_saved {
-                    item.insert("imageFilename".to_string(), Value::String("app/icon/Chordia.png".to_string()));
-                    item.insert("imageData".to_string(), Value::String(get_asset_url("app/icon/Chordia.png")));
+                    item.insert("imageFilename".to_string(), Value::String("userfiles/default_art.png".to_string()));
+                    item.insert("imageData".to_string(), Value::String(get_asset_url("userfiles/default_art.png")));
                 }
                 
                 item.remove("artworkBase64");

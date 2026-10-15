@@ -12,6 +12,9 @@ use std::os::unix::fs::PermissionsExt;
 
 use crate::AppState;
 
+// ★ プログラムのバイナリ内に初期画像を直接埋め込む
+pub const DEFAULT_APP_ICON_BYTES: &[u8] = include_bytes!("../../../app/icon/Chordia.png");
+
 pub fn get_base_dir() -> PathBuf {
     let mut path = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if cfg!(debug_assertions) {
@@ -74,6 +77,18 @@ pub fn safe_write_file<P: AsRef<std::path::Path>, C: AsRef<[u8]>>(path: P, conte
     Ok(())
 }
 
+// ★ アプリ起動時に userfiles/default_art.png が存在しない場合、埋め込みバイナリから展開・保存
+pub fn init_default_assets() {
+    let base = get_base_dir();
+    let userfiles = base.join("userfiles");
+    let _ = ensure_dir_writable(&userfiles);
+
+    let default_art = userfiles.join("default_art.png");
+    if !default_art.exists() {
+        let _ = safe_write_file(&default_art, DEFAULT_APP_ICON_BYTES);
+    }
+}
+
 pub fn normalize_rel_path(rel_path: &str) -> String {
     if rel_path.is_empty() { return "".to_string(); }
     let clean = rel_path.replace('\\', "/");
@@ -106,12 +121,15 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
             item.insert("musicFilename".to_string(), Value::String(norm));
         }
         if let Some(i_path) = item.get("imageFilename").and_then(|v| v.as_str()) {
-            let norm = normalize_rel_path(i_path);
+            let mut norm = normalize_rel_path(i_path);
+            if norm == "app/icon/Chordia.png" {
+                norm = "userfiles/default_art.png".to_string();
+            }
             item.insert("imageFilename".to_string(), Value::String(norm));
         }
 
         item.insert("duration".to_string(), Value::String(get_duration_str(item.get("musicFilename"))));
-        let img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("");
+        let img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("userfiles/default_art.png");
         item.insert("imageData".to_string(), Value::String(get_asset_url(img_path)));
         let music_path = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
         item.insert("streamUrl".to_string(), Value::String(get_asset_url(music_path)));
@@ -119,7 +137,6 @@ pub fn load_db() -> Vec<serde_json::Map<String, Value>> {
     db
 }
 
-// ★ 多言語化対応: status_code と数値を payload に含めて通知
 pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<String, Value>> {
     use tauri::Emitter;
     
@@ -158,12 +175,15 @@ pub fn load_db_with_progress(app: &tauri::AppHandle) -> Vec<serde_json::Map<Stri
             item.insert("musicFilename".to_string(), Value::String(norm));
         }
         if let Some(i_path) = item.get("imageFilename").and_then(|v| v.as_str()) {
-            let norm = normalize_rel_path(i_path);
+            let mut norm = normalize_rel_path(i_path);
+            if norm == "app/icon/Chordia.png" {
+                norm = "userfiles/default_art.png".to_string();
+            }
             item.insert("imageFilename".to_string(), Value::String(norm));
         }
 
         item.insert("duration".to_string(), Value::String(get_duration_str(item.get("musicFilename"))));
-        let img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("");
+        let img_path = item.get("imageFilename").and_then(|v| v.as_str()).unwrap_or("userfiles/default_art.png");
         item.insert("imageData".to_string(), Value::String(get_asset_url(img_path)));
         let music_path = item.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
         item.insert("streamUrl".to_string(), Value::String(get_asset_url(music_path)));
@@ -337,7 +357,11 @@ pub fn update_mp3_tags_from_song_map(song: &serde_json::Map<String, Value>) {
     }
 
     if let Some(rel_img_path) = song.get("imageFilename").and_then(|v| v.as_str()) {
-        if !rel_img_path.is_empty() && !rel_img_path.contains("Chordia.png") && !rel_img_path.contains("default.png") {
+        if !rel_img_path.is_empty() 
+            && !rel_img_path.contains("Chordia.png") 
+            && !rel_img_path.contains("default_art.png") 
+            && !rel_img_path.contains("default.png") 
+        {
             let norm_img = normalize_rel_path(rel_img_path);
             let abs_img_path = get_base_dir().join(&norm_img);
             if abs_img_path.exists() {

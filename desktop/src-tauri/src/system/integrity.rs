@@ -8,7 +8,7 @@ use ini::Ini;
 
 use crate::AppState;
 use crate::cmd_i18n::{DEFAULT_JAPANESE_INI, DEFAULT_ENGLISH_INI, is_language_file_safe};
-use crate::utils::{get_base_dir, normalize_rel_path, load_lufs_cache};
+use crate::core::utils::{get_base_dir, normalize_rel_path, load_lufs_cache, load_playlists_master, evaluate_smart_rules};
 
 #[derive(Serialize, Clone)]
 pub struct TagMismatchItem {
@@ -49,6 +49,7 @@ pub struct IntegrityReport {
     pub orphan_image_files: Vec<String>,
     pub missing_music_files: Vec<String>,
     pub missing_image_files: Vec<String>,
+    pub missing_playlist_image_files: Vec<String>,
 }
 
 fn normalize_ini_text(text: &str) -> String {
@@ -180,7 +181,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
         let userfiles_dir = base_dir.join("userfiles");
         let lang_dir = base_dir.join("lang");
 
-        // 公式言語パックの整合性チェック
         let official_checks = [
             ("Japanese.ini", DEFAULT_JAPANESE_INI),
             ("English.ini", DEFAULT_ENGLISH_INI),
@@ -194,7 +194,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     error_reason: "ERR_OFFICIAL_LANG_MISSING".to_string(),
                 });
             } else if !is_language_file_safe(&p) {
-                // 安全基準を満たさないものは無視（除外）
                 continue;
             } else if let Ok(actual_content) = fs::read_to_string(&p) {
                 let actual_normalized = normalize_ini_text(&actual_content);
@@ -214,7 +213,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // その他カスタム言語パックの構文チェック
         if lang_dir.exists() {
             if let Ok(entries) = fs::read_dir(&lang_dir) {
                 let official_names = ["Japanese.ini", "English.ini"];
@@ -223,7 +221,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("ini") {
                         if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
                             if !official_names.contains(&fname) {
-                                // ★ 安全検証に合格しないものは無視（スキップ）
                                 if !is_language_file_safe(&path) {
                                     continue;
                                 }
@@ -242,7 +239,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // userfiles JSON ファイルの整合性チェック
         let json_files = [
             "music.json",
             "playlist.json",
@@ -304,33 +300,104 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
 
         // 5. 不要・リンク切れファイル (library) の検出
         let mut referenced_music = HashSet::new();
-        let mut referenced_images = HashSet::new();
+        let mut db_referenced_images = HashSet::new();
+        let mut pl_referenced_images = HashSet::new();
+        let mut all_used_images = HashSet::new();
 
-        referenced_images.insert("app/icon/Chordia.png".to_string());
+        all_used_images.insert("userfiles/default_art.png".to_string());
+        all_used_images.insert("app/icon/Chordia.png".to_string());
 
         for song in db_data.iter() {
             if let Some(m) = song.get("musicFilename").and_then(|v| v.as_str()) {
-                if !m.is_empty() { referenced_music.insert(normalize_rel_path(m)); }
+                if !m.is_empty() { 
+                    referenced_music.insert(normalize_rel_path(m)); 
+                }
             }
             if let Some(i) = song.get("imageFilename").and_then(|v| v.as_str()) {
-                if !i.is_empty() { referenced_images.insert(normalize_rel_path(i)); }
+                if !i.is_empty() { 
+                    let norm_i = normalize_rel_path(i);
+                    db_referenced_images.insert(norm_i.clone());
+                    all_used_images.insert(norm_i);
+                }
             }
         }
+
+        let pl_master = load_playlists_master();
+        let valid_pl_ids: HashSet<String> = pl_master.iter()
+            .filter_map(|p| p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
+            .collect();
 
         let covers_path = userfiles_dir.join("playlist_covers.json");
         if covers_path.exists() {
             if let Ok(content) = fs::read_to_string(&covers_path) {
                 if let Ok(covers) = serde_json::from_str::<serde_json::Map<String, Value>>(&content) {
-                    for (_, val) in covers {
-                        if let Some(path_str) = val.as_str() {
-                            if !path_str.is_empty() {
-                                referenced_images.insert(normalize_rel_path(path_str));
+                    for (pl_id, val) in covers {
+                        if valid_pl_ids.contains(&pl_id) {
+                            if let Some(path_str) = val.as_str() {
+                                if !path_str.is_empty() {
+                                    let norm = normalize_rel_path(path_str);
+                                    pl_referenced_images.insert(norm.clone());
+                                    all_used_images.insert(norm);
+                                }
                             }
                         }
                     }
                 }
             }
         }
+
+        for pl in &pl_master {
+            let pl_id = pl.get("id").and_then(|v| v.as_str()).unwrap_or("");
+            let pl_type = pl.get("type").and_then(|v| v.as_str()).unwrap_or("normal");
+
+            if pl_type == "smart" {
+                if let Some(conds) = pl.get("conditions") {
+                    for song in db_data.iter() {
+                        if evaluate_smart_rules(song, conds) {
+                            if let Some(img) = song.get("imageFilename").and_then(|v| v.as_str()) {
+                                if !img.is_empty() {
+                                    all_used_images.insert(normalize_rel_path(img));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if !pl_id.is_empty() {
+                let p_file = userfiles_dir.join(format!("playlist/{}.json", pl_id));
+                if p_file.exists() {
+                    if let Ok(data) = fs::read_to_string(&p_file) {
+                        if let Ok(file_list) = serde_json::from_str::<Vec<String>>(&data) {
+                            for target_path in file_list {
+                                let norm_target = normalize_rel_path(&target_path);
+                                let target_fname = std::path::Path::new(&target_path).file_name().and_then(|n| n.to_str()).unwrap_or("");
+                                if let Some(song) = db_data.iter().find(|s| {
+                                    let s_path = s.get("musicFilename").and_then(|v| v.as_str()).unwrap_or("");
+                                    let s_norm = normalize_rel_path(s_path);
+                                    let s_fname = std::path::Path::new(s_path).file_name().and_then(|n| n.to_str()).unwrap_or("");
+                                    s_norm == norm_target || s_path == norm_target || s_fname == target_fname
+                                }) {
+                                    if let Some(img) = song.get("imageFilename").and_then(|v| v.as_str()) {
+                                        if !img.is_empty() {
+                                            all_used_images.insert(normalize_rel_path(img));
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // デフォルトカバーアート（userfiles/default_art.png または埋め込み画像）のバイト列を取得
+        let default_art_path = base_dir.join("userfiles/default_art.png");
+        let default_art_bytes: Vec<u8> = if default_art_path.exists() {
+            fs::read(&default_art_path).unwrap_or_else(|_| crate::core::utils::DEFAULT_APP_ICON_BYTES.to_vec())
+        } else {
+            crate::core::utils::DEFAULT_APP_ICON_BYTES.to_vec()
+        };
 
         let mut missing_music_files = Vec::new();
         for m in &referenced_music {
@@ -340,9 +407,16 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
         }
 
         let mut missing_image_files = Vec::new();
-        for img in &referenced_images {
-            if !base_dir.join(img).exists() {
+        for img in &db_referenced_images {
+            if !img.contains("default_art.png") && !img.contains("Chordia.png") && !img.contains("default.png") && !base_dir.join(img).exists() {
                 missing_image_files.push(img.clone());
+            }
+        }
+
+        let mut missing_playlist_image_files = Vec::new();
+        for img in &pl_referenced_images {
+            if !img.contains("default_art.png") && !img.contains("Chordia.png") && !img.contains("default.png") && !base_dir.join(img).exists() {
+                missing_playlist_image_files.push(img.clone());
             }
         }
 
@@ -369,9 +443,19 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     if entry.path().is_file() {
                         if let Ok(rel) = entry.path().strip_prefix(&base_dir) {
                             let rel_str = normalize_rel_path(&rel.to_string_lossy());
-                            if !referenced_images.contains(&rel_str) {
-                                orphan_image_files.push(rel_str);
+                            
+                            if all_used_images.contains(&rel_str) {
+                                continue;
                             }
+
+                            if let Ok(img_bytes) = fs::read(entry.path()) {
+                                if img_bytes == default_art_bytes {
+                                    all_used_images.insert(rel_str);
+                                    continue;
+                                }
+                            }
+
+                            orphan_image_files.push(rel_str);
                         }
                     }
                 }
@@ -387,6 +471,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             orphan_image_files,
             missing_music_files,
             missing_image_files,
+            missing_playlist_image_files,
         })
     }).await.map_err(|e| format!("整合性確認スレッドエラー: {}", e))?
 }

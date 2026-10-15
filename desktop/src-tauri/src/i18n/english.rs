@@ -498,6 +498,7 @@ desc_bin_invalid = "Tool {tool} failed to start properly."
 desc_bin_unexpected = "Unexpected file {file} found in bin folder."
 desc_missing_music = "Registered in database but file does not exist ({file})"
 desc_missing_image = "Registered in database but image does not exist ({file})"
+desc_missing_playlist_image = "Set as playlist cover but image does not exist ({file})"
 desc_orphan_music = "Unreferenced audio file ({file})"
 desc_orphan_image = "Unreferenced image file ({file})"
 

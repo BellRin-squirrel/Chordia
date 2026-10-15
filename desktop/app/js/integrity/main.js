@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         orphanCount += report.orphan_image_files ? report.orphan_image_files.length : 0;
         orphanCount += report.missing_music_files ? report.missing_music_files.length : 0;
         orphanCount += report.missing_image_files ? report.missing_image_files.length : 0;
+        orphanCount += report.missing_playlist_image_files ? report.missing_playlist_image_files.length : 0;
 
         const totalIssues = tagCount + binIssueCount + lufsCount + corruptedCount + orphanCount;
 
@@ -253,10 +254,20 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // DB由来のリンク切れ画像
         if (report.missing_image_files && report.missing_image_files.length > 0) {
             hasIssue = true;
             report.missing_image_files.forEach(file => {
                 const desc = window.i18n ? window.i18n.t('Integrity.desc_missing_image', { file: file }) : `DBに登録されていますが画像が存在しません (${file})`;
+                html += `<li><span class="status-err-text">${lblMissingImage}</span> ${escapeHtml(desc)}</li>`;
+            });
+        }
+
+        // ★ プレイリストカバー由来のリンク切れ画像
+        if (report.missing_playlist_image_files && report.missing_playlist_image_files.length > 0) {
+            hasIssue = true;
+            report.missing_playlist_image_files.forEach(file => {
+                const desc = window.i18n ? window.i18n.t('Integrity.desc_missing_playlist_image', { file: file }) : `プレイリストのカバーに設定されていますが画像が存在しません (${file})`;
                 html += `<li><span class="status-err-text">${lblMissingImage}</span> ${escapeHtml(desc)}</li>`;
             });
         }

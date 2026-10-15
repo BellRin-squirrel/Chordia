@@ -43,10 +43,10 @@ pub fn get_playlist_cover(pl_id: String, first_song_image: Option<String>) -> Re
         if !img.is_empty() {
             img.clone()
         } else {
-            "app/icon/Chordia.png".to_string()
+            "userfiles/default_art.png".to_string()
         }
     } else {
-        "app/icon/Chordia.png".to_string()
+        "userfiles/default_art.png".to_string()
     };
 
     covers.insert(pl_id, Value::String(target_path.clone()));
@@ -54,7 +54,7 @@ pub fn get_playlist_cover(pl_id: String, first_song_image: Option<String>) -> Re
 
     let url = get_asset_url(&target_path);
     if url.is_empty() {
-        Ok("icon/Chordia.png".to_string())
+        Ok(get_asset_url("userfiles/default_art.png"))
     } else {
         Ok(url)
     }

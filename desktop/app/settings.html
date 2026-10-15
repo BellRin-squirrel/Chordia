@@ -364,7 +364,6 @@
                                 <span id="generatedAuthCodeDisplay">--------</span>
                             </div>
 
-                            <!-- ★ 既定のWebブラウザで直接承認画面を開くリンク -->
                             <p style="margin-top: 14px; font-size: 0.88rem;">
                                 <a href="#" id="linkOpenSyncWeb" class="sync-web-link" style="color: var(--primary-color); text-decoration: underline; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
                                     <span data-i18n="Settings.sync_open_browser_link">Webブラウザを開いて承認画面へ進む</span>
@@ -425,7 +424,7 @@
                         <div class="stats-sub-box">
                             <h3 class="sub-box-title" data-i18n="Settings.ranking_top5_title">直近7日間の再生回数ランキング (TOP 5)</h3>
                             <div id="topRankingContainer" class="ranking-grid">
-                                <p style="color: var(--text-sub); font-size: 0.9rem;">集計中...</p>
+                                <p style="color: var(--text-sub); font-size: 0.9rem;" data-i18n="Common.loading">集計中...</p>
                             </div>
                         </div>
 
@@ -444,7 +443,7 @@
                                         </tr>
                                     </thead>
                                     <tbody id="playHistoryTableBody">
-                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
+                                        <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -482,7 +481,7 @@
                                             </tr>
                                         </thead>
                                         <tbody id="workHistoryTableBody">
-                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;">履歴を読み込み中...</td></tr>
+                                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub); padding: 24px;" data-i18n="Common.loading">履歴を読み込み中...</td></tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -498,7 +497,7 @@
                                 <img src="icon/Chordia_nobg.png" alt="Chordia" style="width: 72px; height: 72px; object-fit: contain;">
                             </div>
                             <h3 class="app-name" data-i18n="Info.app_name">Chordia Desktop版</h3>
-                            <p class="app-version" id="infoAppVersion">v5.0.0</p>
+                            <p class="app-version" id="infoAppVersion"></p>
                             <div class="divider"></div>
                             <p class="copyright" data-i18n="Info.copyright">&copy; 2026 BellRin</p>
                             <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-sub); line-height: 1.6;" data-i18n="Info.app_desc">
@@ -593,6 +592,7 @@
 
     <div id="toast" class="toast"></div>
 
+    <!-- 分割された設定画面用JS -->
     <script src="js/settings/general.js"></script>
     <script src="js/settings/equalizer.js"></script>
     <script src="js/settings/sync.js"></script>

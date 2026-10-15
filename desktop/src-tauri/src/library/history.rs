@@ -40,7 +40,6 @@ pub async fn record_playback(
     let title = song.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
     let artist = song.get("artist").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
     
-    // アルバム名を song から取得（空の場合は DB から自動補完）
     let mut album = song.get("album").and_then(|v| v.as_str()).unwrap_or("").to_string();
     if album.is_empty() {
         let db = state.db.lock().unwrap();
@@ -57,11 +56,9 @@ pub async fn record_playback(
 
     let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // ★ Chordia Sync にログインしているか確認
     let sid_opt = crate::cmd_cloud_sync::auth::get_saved_cloud_sid(&auth).await;
 
     if let Some(sid) = sid_opt {
-        // ★ Chordia Sync 接続中: ローカルには保存せず、API を叩くだけ
         let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(8)).build();
         if let Ok(c) = client {
             let res = crate::cmd_cloud_sync::send_single_play_history_to_cloud(
@@ -78,7 +75,6 @@ pub async fn record_playback(
             }
         }
     } else {
-        // ★ 未接続の場合のみ: ローカルの history.json へ保存
         let h_path = base.join("userfiles/history.json");
         let mut h: Vec<Value> = fs::read_to_string(&h_path)
             .ok()
@@ -120,7 +116,7 @@ pub fn get_playback_history(state: State<'_, AppState>) -> Vec<Value> {
                 }
                 
                 if found_img.is_empty() {
-                    found_img = get_asset_url("app/icon/Chordia.png");
+                    found_img = get_asset_url("userfiles/default_art.png");
                 }
                 
                 if let Some(obj) = h.as_object_mut() {

@@ -498,6 +498,7 @@ desc_bin_invalid = "ツール {tool} が正しく起動できません。"
 desc_bin_unexpected = "binフォルダ内に未知の不要ファイル {file} が存在します。"
 desc_missing_music = "DBに登録されていますがファイルが存在しません ({file})"
 desc_missing_image = "DBに登録されていますが画像が存在しません ({file})"
+desc_missing_playlist_image = "プレイリストのカバーに設定されていますが画像が存在しません ({file})"
 desc_orphan_music = "DBで参照されていない不要な楽曲ファイル ({file})"
 desc_orphan_image = "DBやプレイリストで参照されていない不要な画像 ({file})"
 

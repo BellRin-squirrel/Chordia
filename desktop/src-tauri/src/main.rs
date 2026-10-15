@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use tauri::{Manager, Emitter, AppHandle, WebviewUrl, WebviewWindowBuilder};
 use std::collections::HashMap;
-use core::utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime};
+use core::utils::{load_playlists_master, load_lufs_cache, save_lufs_cache, get_base_dir, load_db_with_progress, update_db_mtime, update_playlists_mtime, init_default_assets};
 use cloud_sync::trigger_background_sync;
 
 #[cfg(target_os = "macos")]
@@ -105,6 +105,8 @@ fn main() {
     set_app_user_model_id();
 
     i18n::commands::init_default_languages();
+    // ★ 起動時に userfiles/default_art.png がなければバイナリ埋め込みデータから自動展開
+    init_default_assets();
 
     let auth_state = Arc::new(Mutex::new(mobile_sync::server::AuthState::new()));
     let auth_state_for_task = auth_state.clone();

@@ -85,18 +85,25 @@ fn verify_tool_executable(tool: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ★ 初期アルバムアートは userfiles/default_art.png を参照
 #[tauri::command]
-pub fn get_default_art_url() -> String { get_asset_url("app/icon/Chordia.png") }
+pub fn get_default_art_url() -> String { 
+    init_default_assets();
+    get_asset_url("userfiles/default_art.png") 
+}
 
+// ★ 変更時は userfiles/default_art.png に直接保存
 #[tauri::command]
 pub fn update_default_artwork(b64_data: String) -> bool {
     let b64 = if b64_data.contains(',') { b64_data.split(',').nth(1).unwrap() } else { &b64_data };
-    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("app/icon/Chordia.png"))).unwrap_or(false)
+    general_purpose::STANDARD.decode(b64).ok().map(|bytes| force_save_as_png(&bytes, &get_base_dir().join("userfiles/default_art.png"))).unwrap_or(false)
 }
 
+// ★ 初期値に戻すボタン押下時、バイナリ埋め込みデータから上書き復元
 #[tauri::command]
 pub fn reset_default_artwork() -> bool {
-    true
+    let default_art_path = get_base_dir().join("userfiles/default_art.png");
+    safe_write_file(&default_art_path, crate::core::utils::DEFAULT_APP_ICON_BYTES).is_ok()
 }
 
 #[tauri::command]
@@ -225,7 +232,6 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
     let images_dir = base.join("library/images");
     let userfiles_dir = base.join("userfiles");
 
-    // ★ ディレクトリの作成と書き込み権限の確実な付与
     let _ = ensure_dir_writable(&userfiles_dir);
     let _ = ensure_dir_writable(&bin);
     let _ = ensure_dir_writable(&music_dir);
@@ -248,7 +254,7 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
             "--extractor-args", "youtube:lang=ja",
             "--ffmpeg-location", bin_clone.to_str().unwrap(),
             "--no-playlist", 
-            "--no-cache-dir", // ★ キャッシュ書き込みによる権限エラーを防止
+            "--no-cache-dir",
             "--extract-audio", 
             "--audio-format", "mp3", 
             "--audio-quality", "0", 
@@ -257,7 +263,6 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
             &url_for_download
         ]);
 
-        // ★ 一時ファイルの出力先がルートやRead-Only領域にならないようカレントディレクトリを設定
         cmd.current_dir(&music_dir_clone);
 
         let mut path_env = bin_clone.to_string_lossy().to_string();
@@ -313,7 +318,7 @@ pub async fn download_and_save_music(app: AppHandle, mut data: serde_json::Map<S
         }
     }
 
-    let mut i_rel = "app/icon/Chordia.png".to_string();
+    let mut i_rel = "userfiles/default_art.png".to_string();
     if let Some(by) = artwork_bytes {
         let ir = format!("library/images/{}.png", f_id);
         let base_for_img = base.clone();
@@ -413,8 +418,8 @@ pub async fn save_music_data(app: AppHandle, mut data: serde_json::Map<String, V
         data.insert("imageFilename".to_string(), Value::String(rel_img_path.clone()));
         data.insert("imageData".to_string(), Value::String(get_asset_url(&rel_img_path)));
     } else {
-        data.insert("imageFilename".to_string(), Value::String("app/icon/Chordia.png".to_string()));
-        data.insert("imageData".to_string(), Value::String(get_asset_url("app/icon/Chordia.png")));
+        data.insert("imageFilename".to_string(), Value::String("userfiles/default_art.png".to_string()));
+        data.insert("imageData".to_string(), Value::String(get_asset_url("userfiles/default_art.png")));
     }
 
     let mut db_guard = state.db.lock().unwrap();

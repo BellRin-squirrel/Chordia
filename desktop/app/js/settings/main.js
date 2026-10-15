@@ -12,14 +12,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(e);
     }
 
-    // バージョン情報表示
+    // ★ main.rs の APP_VERSION を一元取得して表示
     const appVersionContainer = document.getElementById("infoAppVersion");
     if (appVersionContainer) {
         try {
             const appVersion = await invoke("get_app_version");
             appVersionContainer.textContent = appVersion;
         } catch(e) {
-            appVersionContainer.textContent = "v5.0.0";
+            console.error("Failed to get app version:", e);
+            appVersionContainer.textContent = "";
         }
     }
 
