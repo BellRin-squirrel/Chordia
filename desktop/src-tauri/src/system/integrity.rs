@@ -45,6 +45,7 @@ pub struct IntegrityReport {
     pub bin_status: BinCheckResult,
     pub uncalculated_lufs: Vec<UncalculatedLufsItem>,
     pub corrupted_userfiles: Vec<CorruptedFileItem>,
+    pub unexpected_userfiles: Vec<String>, // ★ userfiles内の不要ファイル一覧
     pub orphan_music_files: Vec<String>,
     pub orphan_image_files: Vec<String>,
     pub missing_music_files: Vec<String>,
@@ -56,6 +57,26 @@ fn normalize_ini_text(text: &str) -> String {
     text.trim_start_matches('\u{feff}')
         .lines()
         .map(|line| line.trim_end())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
+fn normalize_tag_str(text: &str) -> String {
+    text.trim_start_matches('\u{feff}')
+        .trim_matches('\0')
+        .trim()
+        .to_string()
+}
+
+fn normalize_lyric_text(text: &str) -> String {
+    text.trim_start_matches('\u{feff}')
+        .trim_matches('\0')
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .lines()
+        .map(|line| line.trim())
         .collect::<Vec<_>>()
         .join("\n")
         .trim()
@@ -96,7 +117,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                     ];
 
                     for (field, db_val, tag_val) in checks {
-                        if db_val.trim() != tag_val.trim() {
+                        if normalize_tag_str(db_val) != normalize_tag_str(tag_val) {
                             tag_mismatches.push(TagMismatchItem {
                                 filename: rel_music.to_string(),
                                 title: song_title.to_string(),
@@ -107,15 +128,15 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
                         }
                     }
 
-                    let db_lyric = song.get("lyric").and_then(|v| v.as_str()).unwrap_or("").replace("\r\n", "\n").replace('\r', "\n");
-                    let tag_lyric = tag.lyrics().next().map(|l| l.text.replace("\r\n", "\n").replace('\r', "\n")).unwrap_or_default();
-                    if db_lyric.trim() != tag_lyric.trim() {
+                    let db_lyric = song.get("lyric").and_then(|v| v.as_str()).unwrap_or("");
+                    let tag_lyric = tag.lyrics().next().map(|l| l.text.as_str()).unwrap_or_default();
+                    if normalize_lyric_text(db_lyric) != normalize_lyric_text(tag_lyric) {
                         tag_mismatches.push(TagMismatchItem {
                             filename: rel_music.to_string(),
                             title: song_title.to_string(),
                             field: "lyric".to_string(),
-                            db_value: db_lyric,
-                            file_value: tag_lyric,
+                            db_value: db_lyric.to_string(),
+                            file_value: tag_lyric.to_string(),
                         });
                     }
                 }
@@ -176,7 +197,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // 4. userfiles & lang フォルダ内のファイル破損チェック
+        // 4. userfiles & lang フォルダ内のファイル破損・不要ファイルチェック
         let mut corrupted_userfiles = Vec::new();
         let userfiles_dir = base_dir.join("userfiles");
         let lang_dir = base_dir.join("lang");
@@ -298,6 +319,79 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
+        let pl_master = load_playlists_master();
+
+        // ★ userfiles フォルダ内の不要ファイル・予期しない残骸ファイルの検出
+        let mut unexpected_userfiles = Vec::new();
+
+        let allowed_userfiles_root = [
+            "music.json",
+            "playlist.json",
+            "history.json",
+            "played_times.json",
+            "lufs_cache.json",
+            "custom_themes.json",
+            "playlist_covers.json",
+            "settings.ini",
+            "sync_auth.json",
+            "work_history.json",
+            "default_art.png",
+        ];
+
+        let valid_playlist_filenames: HashSet<String> = pl_master.iter()
+            .filter_map(|p| {
+                let id = p.get("id").and_then(|v| v.as_str())?;
+                let p_type = p.get("type").and_then(|v| v.as_str()).unwrap_or("normal");
+                if p_type != "smart" {
+                    Some(format!("{}.json", id))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if userfiles_dir.exists() {
+            if let Ok(entries) = fs::read_dir(&userfiles_dir) {
+                for entry in entries.filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        // OSの隠しファイルはスキップ
+                        if name.starts_with('.') || name == "desktop.ini" || name == "Thumbs.db" {
+                            continue;
+                        }
+
+                        if path.is_file() {
+                            if !allowed_userfiles_root.contains(&name) {
+                                unexpected_userfiles.push(format!("userfiles/{}", name));
+                            }
+                        } else if path.is_dir() {
+                            if name == "playlist" {
+                                if let Ok(pl_entries) = fs::read_dir(&path) {
+                                    for pl_entry in pl_entries.filter_map(|e| e.ok()) {
+                                        let pl_path = pl_entry.path();
+                                        if let Some(pl_file_name) = pl_path.file_name().and_then(|n| n.to_str()) {
+                                            if pl_file_name.starts_with('.') || pl_file_name == "desktop.ini" || pl_file_name == "Thumbs.db" {
+                                                continue;
+                                            }
+                                            if pl_path.is_file() {
+                                                if !valid_playlist_filenames.contains(pl_file_name) {
+                                                    unexpected_userfiles.push(format!("userfiles/playlist/{}", pl_file_name));
+                                                }
+                                            } else {
+                                                unexpected_userfiles.push(format!("userfiles/playlist/{}/", pl_file_name));
+                                            }
+                                        }
+                                    }
+                                }
+                            } else if name != "bin" {
+                                unexpected_userfiles.push(format!("userfiles/{}/", name));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // 5. 不要・リンク切れファイル (library) の検出
         let mut referenced_music = HashSet::new();
         let mut db_referenced_images = HashSet::new();
@@ -322,7 +416,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        let pl_master = load_playlists_master();
         let valid_pl_ids: HashSet<String> = pl_master.iter()
             .filter_map(|p| p.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()))
             .collect();
@@ -391,7 +484,6 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             }
         }
 
-        // デフォルトカバーアート（userfiles/default_art.png または埋め込み画像）のバイト列を取得
         let default_art_path = base_dir.join("userfiles/default_art.png");
         let default_art_bytes: Vec<u8> = if default_art_path.exists() {
             fs::read(&default_art_path).unwrap_or_else(|_| crate::core::utils::DEFAULT_APP_ICON_BYTES.to_vec())
@@ -467,6 +559,7 @@ pub async fn check_system_integrity(state: State<'_, AppState>) -> Result<Integr
             bin_status,
             uncalculated_lufs,
             corrupted_userfiles,
+            unexpected_userfiles,
             orphan_music_files,
             orphan_image_files,
             missing_music_files,

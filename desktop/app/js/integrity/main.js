@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const lufsCount = report.uncalculated_lufs ? report.uncalculated_lufs.length : 0;
         const corruptedCount = report.corrupted_userfiles ? report.corrupted_userfiles.length : 0;
+        const unexpectedUserfilesCount = report.unexpected_userfiles ? report.unexpected_userfiles.length : 0;
 
         let orphanCount = 0;
         orphanCount += report.orphan_music_files ? report.orphan_music_files.length : 0;
@@ -46,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
         orphanCount += report.missing_image_files ? report.missing_image_files.length : 0;
         orphanCount += report.missing_playlist_image_files ? report.missing_playlist_image_files.length : 0;
 
-        const totalIssues = tagCount + binIssueCount + lufsCount + corruptedCount + orphanCount;
+        const totalIssues = tagCount + binIssueCount + lufsCount + corruptedCount + unexpectedUserfilesCount + orphanCount;
 
         const statusValEl = document.getElementById('summaryStatusVal');
         const issueCountValEl = document.getElementById('summaryIssueCountVal');
@@ -79,8 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateBadge('badgeLufsCount', lufsCount);
         renderLufsUncalculated(report.uncalculated_lufs);
 
-        updateBadge('badgeCorruptedCount', corruptedCount);
-        renderCorruptedFiles(report.corrupted_userfiles);
+        updateBadge('badgeCorruptedCount', corruptedCount + unexpectedUserfilesCount);
+        renderCorruptedFiles(report.corrupted_userfiles, report.unexpected_userfiles);
 
         updateBadge('badgeOrphanCount', orphanCount);
         renderOrphanFiles(report);
@@ -193,43 +194,60 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = html;
     }
 
-    function renderCorruptedFiles(list) {
+    function renderCorruptedFiles(corruptedList, unexpectedList) {
         const box = document.getElementById('boxCorruptedFiles');
         if (!box) return;
 
-        if (!list || list.length === 0) {
-            box.innerHTML = `<div class="status-ok-text">${window.i18n ? window.i18n.t('Integrity.msg_corrupted_ok') : '設定、言語パック、およびデータベースファイルに破損は見つかりませんでした。'}</div>`;
+        const hasCorrupted = corruptedList && corruptedList.length > 0;
+        const hasUnexpected = unexpectedList && unexpectedList.length > 0;
+
+        if (!hasCorrupted && !hasUnexpected) {
+            box.innerHTML = `<div class="status-ok-text">${window.i18n ? window.i18n.t('Integrity.msg_corrupted_ok') : '設定、言語パック、およびデータベースファイルに破損や不要ファイルは見つかりませんでした。'}</div>`;
             return;
         }
 
         const lblCorrupted = window.i18n ? window.i18n.t('Integrity.label_corrupted') : '❌ 読込エラー:';
+        const lblUnexpected = window.i18n ? window.i18n.t('Integrity.label_unexpected_userfile') : '❓ 不要ファイル:';
+        
         let html = '<ul class="integrity-list">';
-        list.forEach(item => {
-            let reasonText = item.error_reason;
-            if (window.i18n) {
-                switch(item.error_reason) {
-                    case "ERR_OFFICIAL_LANG_MISSING":
-                        reasonText = window.i18n.t('Integrity.err_official_lang_missing');
-                        break;
-                    case "ERR_LANG_FILE_MODIFIED":
-                        reasonText = window.i18n.t('Integrity.err_lang_file_modified');
-                        break;
-                    case "ERR_INI_SYNTAX":
-                        reasonText = window.i18n.t('Integrity.err_ini_syntax');
-                        break;
-                    case "ERR_JSON_SYNTAX":
-                        reasonText = window.i18n.t('Integrity.err_json_syntax');
-                        break;
-                    case "ERR_PLAYLIST_SYNTAX":
-                        reasonText = window.i18n.t('Integrity.err_playlist_syntax');
-                        break;
-                    case "ERR_FILE_READ":
-                        reasonText = window.i18n.t('Integrity.err_file_read');
-                        break;
+
+        if (hasCorrupted) {
+            corruptedList.forEach(item => {
+                let reasonText = item.error_reason;
+                if (window.i18n) {
+                    switch(item.error_reason) {
+                        case "ERR_OFFICIAL_LANG_MISSING":
+                            reasonText = window.i18n.t('Integrity.err_official_lang_missing');
+                            break;
+                        case "ERR_LANG_FILE_MODIFIED":
+                            reasonText = window.i18n.t('Integrity.err_lang_file_modified');
+                            break;
+                        case "ERR_INI_SYNTAX":
+                            reasonText = window.i18n.t('Integrity.err_ini_syntax');
+                            break;
+                        case "ERR_JSON_SYNTAX":
+                            reasonText = window.i18n.t('Integrity.err_json_syntax');
+                            break;
+                        case "ERR_PLAYLIST_SYNTAX":
+                            reasonText = window.i18n.t('Integrity.err_playlist_syntax');
+                            break;
+                        case "ERR_FILE_READ":
+                            reasonText = window.i18n.t('Integrity.err_file_read');
+                            break;
+                    }
                 }
-            }
-            html += `<li><span class="status-err-text">${lblCorrupted}</span> <strong>${escapeHtml(item.filepath)}</strong> (${escapeHtml(reasonText)})</li>`;
-        });
+                html += `<li><span class="status-err-text">${lblCorrupted}</span> <strong>${escapeHtml(item.filepath)}</strong> (${escapeHtml(reasonText)})</li>`;
+            });
+        }
+
+        // ★ userfiles 内の不要・残骸ファイルの警告表示
+        if (hasUnexpected) {
+            unexpectedList.forEach(file => {
+                const desc = window.i18n ? window.i18n.t('Integrity.desc_unexpected_userfile', { file: file }) : `userfiles内に不要なファイルが存在します (${file})`;
+                html += `<li><span class="status-warn-text">${lblUnexpected}</span> ${escapeHtml(desc)}</li>`;
+            });
+        }
+
         html += '</ul>';
         box.innerHTML = html;
     }
@@ -254,7 +272,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // DB由来のリンク切れ画像
         if (report.missing_image_files && report.missing_image_files.length > 0) {
             hasIssue = true;
             report.missing_image_files.forEach(file => {
@@ -263,7 +280,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // ★ プレイリストカバー由来のリンク切れ画像
         if (report.missing_playlist_image_files && report.missing_playlist_image_files.length > 0) {
             hasIssue = true;
             report.missing_playlist_image_files.forEach(file => {
