@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';

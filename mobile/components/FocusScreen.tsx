@@ -284,7 +284,7 @@ export const FocusScreen = ({
   const playAlarmSound = async () => {
     try {
       Vibration.vibrate([0, 500, 200, 500]);
-      await setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true });
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
       
       const alarmPlayer = createAudioPlayer('https://raw.githubusercontent.com/freeCodeCamp/cdn/master/build/testable-projects-fcc/audio/BeepSound.wav');
       alarmPlayer.play();

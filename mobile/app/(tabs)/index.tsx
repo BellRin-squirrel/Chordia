@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, LogBox, AppState } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, LogBox, AppState } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
@@ -244,7 +243,7 @@ const AppContent = () => {
   return (
     <View style={[styles.container, { backgroundColor: rootBgColor }]}>
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: rootBgColor, zIndex: -1 }} />
-      <StatusBar style={statusBarStyle} backgroundColor="transparent" translucent={true} />
+      <StatusBar barStyle={statusBarStyle === 'light' ? 'light-content' : 'dark-content'} />
       
       <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
         {showSyncTab && activeTab === 'SYNC' && (

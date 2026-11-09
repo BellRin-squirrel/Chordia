@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { LanguageCode } from '../utils/i18n';
 
 export const useLibraryData = () => {

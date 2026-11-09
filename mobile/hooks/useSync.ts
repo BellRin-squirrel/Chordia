@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Alert, Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Camera } from 'expo-camera';
 import * as Device from 'expo-device';

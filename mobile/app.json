@@ -8,7 +8,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "chordia",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.bellrin.chordia",
       "supportsTablet": true,
@@ -49,9 +48,7 @@
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "kotlinVersion": "1.9.24"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
