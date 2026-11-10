@@ -10,7 +10,7 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 android {
-  compileSdkVersion 34
+  compileSdkVersion rootProject.ext.compileSdkVersion
   namespace "com.bellrin.chordia.equalizer"
 
   defaultConfig {

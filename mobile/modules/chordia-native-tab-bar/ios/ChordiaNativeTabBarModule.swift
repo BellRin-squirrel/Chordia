@@ -67,6 +67,8 @@ public final class ChordiaNativeTabBarModule: Module {
     Name("ChordiaNativeTabBar")
 
     View(ChordiaNativeTabBarView.self) {
+      ViewName("NativeTabBar")
+
       Events("onTabSelected")
 
       Prop("tabs") { (view, tabs: [[String: String]]?) in
