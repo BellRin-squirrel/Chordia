@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  View, Text, FlatList, Image, TouchableOpacity, Modal, 
+  View, Text, FlatList, Image, TouchableOpacity, Modal, Pressable, StyleSheet,
   TouchableWithoutFeedback, TextInput, Alert, Animated, Easing, 
-  KeyboardAvoidingView, Platform, useWindowDimensions 
+  KeyboardAvoidingView, Platform, useWindowDimensions, type StyleProp, type ViewStyle
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { SymbolView } from 'expo-symbols';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,10 +20,54 @@ import { syncMusicAndPlaylistsToCloud } from '../../utils/chordiaSync';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
+type LiquidGlassMenuOptionProps = {
+  children: React.ReactNode;
+  onPress: () => void;
+  isDark: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+const LiquidGlassMenuOption = ({ children, onPress, isDark, style }: LiquidGlassMenuOptionProps) => {
+  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button" style={[style, { overflow: 'hidden' }]}>
+        <GlassView
+          glassEffectStyle="regular"
+          isInteractive
+          colorScheme={isDark ? 'dark' : 'light'}
+          style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+        />
+        {children}
+      </Pressable>
+    );
+  }
+
+  return (
+    <TouchableOpacity style={style} onPress={onPress} activeOpacity={0.6}>
+      {children}
+    </TouchableOpacity>
+  );
+};
+
 const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+
+  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button">
+        <GlassView
+          glassEffectStyle="regular"
+          isInteractive
+          colorScheme={isDark ? 'dark' : 'light'}
+          style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+        >
+          <SymbolView name="ellipsis" size={18} weight="medium" tintColor={textStyle} />
+        </GlassView>
+      </Pressable>
+    );
+  }
 
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -44,6 +90,21 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+
+  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
+    return (
+      <Pressable onPress={onPress} accessibilityRole="button">
+        <GlassView
+          glassEffectStyle="regular"
+          isInteractive
+          colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+          style={{ height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+        >
+          <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{label || 'キャンセル'}</Text>
+        </GlassView>
+      </Pressable>
+    );
+  }
 
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
@@ -647,8 +708,9 @@ export const LibraryCategoryView = ({
           }}>
             <TouchableWithoutFeedback>
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimHeader.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
-                  <TouchableOpacity 
+                <View style={{ backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 0 : 1, borderColor: dynamicStyles.border, gap: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 8 : 0 }}>
+                  <LiquidGlassMenuOption
+                    isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       closeHeaderMenu(() => {
@@ -656,24 +718,23 @@ export const LibraryCategoryView = ({
                         setCreateNameModalVisible(true);
                       });
                     }}
-                    activeOpacity={0.6}
                   >
                     <Ionicons name="add-circle-outline" size={22} color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('create_new_playlist', language)}</Text>
-                  </TouchableOpacity>
+                  </LiquidGlassMenuOption>
 
-                  <TouchableOpacity 
+                  <LiquidGlassMenuOption
+                    isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                     onPress={() => {
                       closeHeaderMenu(() => {
                         setSmartEditorConfig({ visible: true, mode: 'CREATE', targetPlaylist: null });
                       });
                     }}
-                    activeOpacity={0.6}
                   >
                     <Ionicons name="flash-outline" size={22} color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('create_smart_playlist', language)}</Text>
-                  </TouchableOpacity>
+                  </LiquidGlassMenuOption>
                 </View>
 
                 <AnimatedCancelButton onPress={() => closeHeaderMenu()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
@@ -694,7 +755,7 @@ export const LibraryCategoryView = ({
           }}>
             <TouchableWithoutFeedback>
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+                <View style={{ backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 0 : 1, borderColor: dynamicStyles.border, gap: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 8 : 0 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}>
                     <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -708,33 +769,34 @@ export const LibraryCategoryView = ({
                   {/* ★ 「すべての楽曲」の場合は、カバー画像変更と複製のみを表示 */}
                   {rowActionTarget?.isAll ? (
                     <>
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => openCoverPickerSheet(target));
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="image-outline" size={22} color={themeColor} />
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
 
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDuplicatePlaylist(target));
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="copy-outline" size={22} color={themeColor} />
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
                     </>
                   ) : (
                     <>
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
@@ -743,28 +805,28 @@ export const LibraryCategoryView = ({
                             setRenameInput(target.playlistName);
                           });
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="create-outline" size={22} color={themeColor} />
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
 
                       {/* ★ カバー画像変更メニューが正常に反応するように修正 */}
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => openCoverPickerSheet(target));
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="image-outline" size={22} color={themeColor} />
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('change_cover_image', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
 
                       {rowActionTarget?.type === 'smart' ? (
                         <>
-                          <TouchableOpacity 
+                          <LiquidGlassMenuOption
+                            isDark={isDark}
                             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
@@ -772,63 +834,62 @@ export const LibraryCategoryView = ({
                                 setSmartEditorConfig({ visible: true, mode: 'EDIT', targetPlaylist: target });
                               });
                             }}
-                            activeOpacity={0.6}
                           >
                             <Ionicons name="options-outline" size={22} color={themeColor} />
                             <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_rules', language)}</Text>
-                          </TouchableOpacity>
+                          </LiquidGlassMenuOption>
 
-                          <TouchableOpacity 
+                          <LiquidGlassMenuOption
+                            isDark={isDark}
                             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
                               closeRowActionSheet(() => handleConvertToNormalPlaylist(target));
                             }}
-                            activeOpacity={0.6}
                           >
                             <Ionicons name="swap-horizontal-outline" size={22} color={themeColor} />
                             <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('convert_to_normal_playlist', language)}</Text>
-                          </TouchableOpacity>
+                          </LiquidGlassMenuOption>
                         </>
                       ) : (
                         <>
-                          <TouchableOpacity 
+                          <LiquidGlassMenuOption
+                            isDark={isDark}
                             style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
                               closeRowActionSheet(() => openEditPlaylistSongsModal(target));
                             }}
-                            activeOpacity={0.6}
                           >
                             <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
                             <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('edit_playlist_songs', language)}</Text>
-                          </TouchableOpacity>
+                          </LiquidGlassMenuOption>
                         </>
                       )}
 
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDuplicatePlaylist(target));
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="copy-outline" size={22} color={themeColor} />
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('duplicate_playlist', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
 
-                      <TouchableOpacity 
+                      <LiquidGlassMenuOption
+                        isDark={isDark}
                         style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDeletePlaylist(target));
                         }}
-                        activeOpacity={0.6}
                       >
                         <Ionicons name="trash-outline" size={22} color="#ef4444" />
                         <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('delete_playlist', language)}</Text>
-                      </TouchableOpacity>
+                      </LiquidGlassMenuOption>
                     </>
                   )}
                 </View>
@@ -851,60 +912,60 @@ export const LibraryCategoryView = ({
           }}>
             <TouchableWithoutFeedback>
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimCover.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+                <View style={{ backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 0 : 1, borderColor: dynamicStyles.border, gap: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 8 : 0 }}>
                   <View style={{ padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border, alignItems: 'center' }}>
                     <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }}>{t('set_cover_image_title', language)}</Text>
                     <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>{coverPickerTarget?.playlistName}</Text>
                   </View>
 
-                  <TouchableOpacity 
+                  <LiquidGlassMenuOption
+                    isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       const target = coverPickerTarget;
                       closeCoverPickerSheet(() => pickFromLibrary(target));
                     }}
-                    activeOpacity={0.6}
                   >
                     <Ionicons name="images-outline" size={22} color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_photos', language)}</Text>
-                  </TouchableOpacity>
+                  </LiquidGlassMenuOption>
 
-                  <TouchableOpacity 
+                  <LiquidGlassMenuOption
+                    isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       const target = coverPickerTarget;
                       closeCoverPickerSheet(() => pickFromCamera(target));
                     }}
-                    activeOpacity={0.6}
                   >
                     <Ionicons name="camera-outline" size={22} color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('take_photo', language)}</Text>
-                  </TouchableOpacity>
+                  </LiquidGlassMenuOption>
 
-                  <TouchableOpacity 
+                  <LiquidGlassMenuOption
+                    isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: (coverPickerTarget?.localCoverImageUri || (coverPickerTarget?.isAll && allSongsCoverUri)) ? 1 : 0, borderBottomColor: dynamicStyles.border }}
                     onPress={() => {
                       const target = coverPickerTarget;
                       closeCoverPickerSheet(() => pickFromDocuments(target));
                     }}
-                    activeOpacity={0.6}
                   >
                     <Ionicons name="folder-open-outline" size={22} color={themeColor} />
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_files', language)}</Text>
-                  </TouchableOpacity>
+                  </LiquidGlassMenuOption>
 
                   {(coverPickerTarget?.localCoverImageUri || (coverPickerTarget?.isAll && allSongsCoverUri)) && (
-                    <TouchableOpacity 
+                    <LiquidGlassMenuOption
+                      isDark={isDark}
                       style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
                       onPress={() => {
                         const target = coverPickerTarget;
                         closeCoverPickerSheet(() => applyCoverImage(target, null));
                       }}
-                      activeOpacity={0.6}
                     >
                       <Ionicons name="refresh-outline" size={22} color="#ef4444" />
                       <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>{t('reset_cover_image', language)}</Text>
-                    </TouchableOpacity>
+                    </LiquidGlassMenuOption>
                   )}
                 </View>
 

@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, Alert, LayoutAnimation, Platform, UIManager, Animated, useWindowDimensions, PanResponder, Linking, Vibration } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, TextInput, StyleSheet, Modal, Alert, LayoutAnimation, Platform, UIManager, Animated, useWindowDimensions, PanResponder, Linking, Vibration } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TrackPlayer, { RepeatMode } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
@@ -561,29 +562,47 @@ export const FocusScreen = ({
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
       <View style={[s.header, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), backgroundColor: dynamicStyles.bg }]}>
-        <TouchableOpacity 
-          style={{ 
-            position: 'absolute', 
-            left: 16, 
-            bottom: 4, 
-            height: 36, 
-            paddingHorizontal: 16, 
-            borderRadius: 18, 
-            backgroundColor: themeColor, 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            opacity: isReady ? 1 : 0.8, 
-            zIndex: 10,
-            shadowColor: themeColor,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            elevation: 3,
-          }}
-          onPress={handleFinishSetup}
-        >
-          <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>{t('finish_setup_btn', language)}</Text>
-        </TouchableOpacity>
+        {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
+          <Pressable
+            onPress={handleFinishSetup}
+            accessibilityRole="button"
+            style={{ position: 'absolute', left: 16, bottom: 4, opacity: isReady ? 1 : 0.8, zIndex: 10 }}
+          >
+            <GlassView
+              glassEffectStyle="regular"
+              isInteractive
+              colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+              tintColor={themeColor}
+              style={{ height: 36, paddingHorizontal: 16, borderRadius: 18, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+            >
+              <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>{t('finish_setup_btn', language)}</Text>
+            </GlassView>
+          </Pressable>
+        ) : (
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              left: 16,
+              bottom: 4,
+              height: 36,
+              paddingHorizontal: 16,
+              borderRadius: 18,
+              backgroundColor: themeColor,
+              justifyContent: 'center',
+              alignItems: 'center',
+              opacity: isReady ? 1 : 0.8,
+              zIndex: 10,
+              shadowColor: themeColor,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+            onPress={handleFinishSetup}
+          >
+            <Text style={{ color: buttonTextColor, fontSize: 14, fontWeight: '900' }}>{t('finish_setup_btn', language)}</Text>
+          </TouchableOpacity>
+        )}
         <Text style={[s.headerTitle, { color: dynamicStyles.text }]}>{t('focus_setup_title', language)}</Text>
       </View>
       

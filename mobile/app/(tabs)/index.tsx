@@ -6,6 +6,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import * as Network from 'expo-network';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -65,6 +66,7 @@ const AppContent = () => {
   const isAppDark = colorScheme === 'dark';
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const useNativeTabBar = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const {
     isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
@@ -204,16 +206,16 @@ const AppContent = () => {
 
   const miniPlayerShiftAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const shouldShift = isLandscape && activeTab === 'PLAYER' && navStackLength === 3;
+    const shouldShift = isLandscape && !useNativeTabBar && activeTab === 'PLAYER' && navStackLength === 3;
     Animated.spring(miniPlayerShiftAnim, { toValue: shouldShift ? 1 : 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
-  }, [navStackLength, isLandscape, activeTab]);
+  }, [navStackLength, isLandscape, activeTab, useNativeTabBar]);
 
   const isPlayerTab = activeTab === 'PLAYER';
   const contentPaddingRight = (isFocusing || isPlayerTab) 
     ? 0 
-    : (isLandscape ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0);
+    : (isLandscape && !useNativeTabBar ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0);
 
-  const availableWidth = width - (isLandscape ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0) - 16;
+  const availableWidth = width - (isLandscape && !useNativeTabBar ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0) - 16;
   const heroWidth = availableWidth * 0.4;
   const miniPlayerLeft = miniPlayerShiftAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 16 + heroWidth] });
 
@@ -365,10 +367,10 @@ const AppContent = () => {
               isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], 
               { 
                 bottom: isLandscape 
-                  ? 10 
+                  ? (useNativeTabBar ? TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + insets.bottom + MINI_PLAYER_GAP : 10)
                   : (TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + MINI_PLAYER_GAP), 
-                left: isLandscape ? miniPlayerLeft : 16, 
-                right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16, 
+                left: isLandscape && !useNativeTabBar ? miniPlayerLeft : 16,
+                right: isLandscape && !useNativeTabBar ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16,
                 shadowOpacity: 0.1, 
                 elevation: 10 
               }
@@ -378,9 +380,9 @@ const AppContent = () => {
           )}
 
           <View style={
-            isLandscape 
+            isLandscape && !useNativeTabBar
               ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 10 }] 
-              : [styles.commonWrapperPortrait, { bottom: TAB_BAR_BOTTOM, height: TAB_BAR_HEIGHT }]
+              : [styles.commonWrapperPortrait, { bottom: TAB_BAR_BOTTOM, height: TAB_BAR_HEIGHT + (useNativeTabBar ? insets.bottom : 0) }]
           }>
               <TabBar 
                 activeTab={activeTab} 

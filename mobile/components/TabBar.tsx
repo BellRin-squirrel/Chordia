@@ -5,9 +5,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
-import { t } from '../utils/i18n';
+import NativeTabBar from '../modules/chordia-native-tab-bar';
+import { LanguageCode, t } from '../utils/i18n';
 
 interface TabBarProps {
   activeTab: string;
@@ -18,7 +20,7 @@ interface TabBarProps {
   isBlurBackground?: boolean;
   showFocusTab?: boolean;
   showSyncTab?: boolean;
-  language?: string;
+  language?: LanguageCode;
 }
 
 const PILL_PADDING = 6;
@@ -43,15 +45,22 @@ export const TabBar: React.FC<TabBarProps> = ({
 }) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const containerRef = useRef<View>(null);
 
   const tabs = useMemo(() => [
-    ...(showSyncTab !== false ? [{ key: 'SYNC', label: t('tab_sync', language), icon: 'cloud-download' }] : []),
-    { key: 'PLAYER', label: t('tab_player', language), icon: 'play-circle' },
-    ...(showFocusTab ? [{ key: 'FOCUS', label: t('tab_focus', language), icon: 'timer' }] : []),
-    { key: 'INFO', label: t('tab_info', language), icon: 'information-circle' }
+    ...(showSyncTab !== false ? [{ key: 'SYNC', label: t('tab_sync', language), icon: 'cloud-download', nativeIcon: 'arrow.down.circle', nativeSelectedIcon: 'arrow.down.circle.fill' }] : []),
+    { key: 'PLAYER', label: t('tab_player', language), icon: 'play-circle', nativeIcon: 'music.note.list', nativeSelectedIcon: 'music.note.list' },
+    ...(showFocusTab ? [{ key: 'FOCUS', label: t('tab_focus', language), icon: 'timer', nativeIcon: 'timer', nativeSelectedIcon: 'timer' }] : []),
+    { key: 'INFO', label: t('tab_info', language), icon: 'information-circle', nativeIcon: 'info.circle', nativeSelectedIcon: 'info.circle.fill' }
   ], [showSyncTab, showFocusTab, language]);
+  const nativeTabs = tabs.map(tab => ({
+    key: tab.key,
+    title: tab.label,
+    icon: tab.nativeIcon,
+    selectedIcon: tab.nativeSelectedIcon,
+  }));
 
   const tabCount = tabs.length;
 
@@ -366,6 +375,19 @@ export const TabBar: React.FC<TabBarProps> = ({
 
   const pillRadius = Math.min(pillWidth, pillHeight) / 2;
 
+  if (useLiquidGlass) {
+    return (
+      <NativeTabBar
+        style={{ width: '100%', height: TAB_BAR_HEIGHT }}
+        tabs={nativeTabs}
+        selectedKey={activeTab}
+        tintColor={themeColor}
+        unselectedTintColor={themeTextColor || (isDark ? '#fff' : '#666')}
+        onTabSelected={({ nativeEvent }) => setActiveTab(nativeEvent.key)}
+      />
+    );
+  }
+
   return (
     <Animated.View 
       ref={containerRef}
@@ -389,30 +411,39 @@ export const TabBar: React.FC<TabBarProps> = ({
       {...panResponder.panHandlers}
     >
       {/* 1. タブバー本体のすりガラス背景 */}
-      <View 
-        pointerEvents="none" 
-        style={[
-          StyleSheet.absoluteFill, 
-          {
-            borderRadius: 40, 
-            overflow: 'hidden',
-            backgroundColor: isDark 
-              ? 'rgba(20, 20, 25, 0.55)' 
-              : 'rgba(25, 25, 30, 0.085)',
-            borderWidth: 1,
-            borderColor: isDark 
-              ? 'rgba(255, 255, 255, 0.22)' 
-              : 'rgba(0, 0, 0, 0.12)',
-          }
-        ]}
-      >
-        <BlurView 
-          intensity={Platform.OS === 'ios' ? 65 : 95} 
-          tint={isDark ? 'dark' : 'light'} 
-          style={StyleSheet.absoluteFill} 
+      {useLiquidGlass ? (
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="regular"
+          colorScheme={isDark ? 'dark' : 'light'}
+          style={[StyleSheet.absoluteFill, { borderRadius: 40, overflow: 'hidden' }]}
         />
-        <View style={s.topEdgeHighlight} />
-      </View>
+      ) : (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              borderRadius: 40,
+              overflow: 'hidden',
+              backgroundColor: isDark
+                ? 'rgba(20, 20, 25, 0.55)'
+                : 'rgba(25, 25, 30, 0.085)',
+              borderWidth: 1,
+              borderColor: isDark
+                ? 'rgba(255, 255, 255, 0.22)'
+                : 'rgba(0, 0, 0, 0.12)',
+            }
+          ]}
+        >
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 65 : 95}
+            tint={isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={s.topEdgeHighlight} />
+        </View>
+      )}
 
       {/* 2. Liquid Active Pill（タブカーソル本体 - ふわっと吸着） */}
       {tabSlotSize > 0 && (

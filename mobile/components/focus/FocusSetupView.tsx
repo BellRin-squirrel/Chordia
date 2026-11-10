@@ -2,14 +2,22 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useMemo } from 'react';
 import { 
   FlatList, Image, Modal, ScrollView, StyleSheet, 
-  Switch, Text, TextInput, TouchableOpacity, View, useWindowDimensions 
+  Switch, Text, TextInput, TouchableOpacity, Pressable, View, useWindowDimensions, Platform
 } from 'react-native';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
 type CategoryTab = 'PLAYLIST' | 'ALBUM' | 'ARTIST';
+type DisplayOptionPicker = {
+  label: string;
+  icon: string;
+  options: { key: string; label: string }[];
+  current: string;
+  setter: (value: string) => void;
+} | null;
 
 export const FocusSetupView = ({ 
     dynamicStyles, themeColor, buttonTextColor,
@@ -30,6 +38,7 @@ export const FocusSetupView = ({
 
   const [modalTab, setModalTab] = useState<CategoryTab>('PLAYLIST');
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayOptionPicker, setDisplayOptionPicker] = useState<DisplayOptionPicker>(null);
 
   const formatCustomSec = (sec: number) => {
     const h = Math.floor(sec / 3600);
@@ -208,26 +217,14 @@ export const FocusSetupView = ({
   const renderDisplayOption = (label: string, options: { key: string; label: string }[], current: string, setter: (v: string) => void, icon: string) => (
     <View style={s.settingSection}>
       <View style={s.sectionHeaderRow}><Ionicons name={icon as any} size={18} color={themeColor} /><Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text></View>
-      <View style={s.displayTileContainer}>
-        {options.map(opt => {
-          const isSelected = String(current) === opt.key;
-          return (
-            <TouchableOpacity 
-              key={opt.key} 
-              onPress={() => setter(opt.key)} 
-              style={[
-                s.tileBtn, 
-                { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
-                { flex: 1, paddingHorizontal: 2 }, 
-                isSelected && s.tileBtnSelected
-              ]}
-            >
-              <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt.label}</Text>
-              {isSelected && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setDisplayOptionPicker({ label, options, current, setter, icon })}
+        style={[s.pickerBox, { backgroundColor: dynamicStyles.bg, borderColor: dynamicStyles.border }]}
+      >
+        <Text style={{ color: dynamicStyles.text, fontWeight: '600', flex: 1 }}>{options.find(option => option.key === current)?.label || current}</Text>
+        <Ionicons name="chevron-down" size={16} color={dynamicStyles.subText} />
+      </Pressable>
     </View>
   );
 
@@ -322,26 +319,84 @@ export const FocusSetupView = ({
             )}
         </View>
 
-        <TouchableOpacity 
-          style={[
-            s.primaryBtn, 
-            { 
-              backgroundColor: themeColor, 
-              marginTop: 30, 
-              opacity: isReady ? 1 : 0.8,
-              shadowColor: themeColor,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.35,
-              shadowRadius: 8,
-              elevation: 4,
-            }
-          ]} 
-          onPress={handleFinishSetup}
-        >
-          <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
-        </TouchableOpacity>
+        {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
+          <Pressable onPress={handleFinishSetup} accessibilityRole="button" style={{ marginTop: 30, opacity: isReady ? 1 : 0.8 }}>
+            <GlassView
+              glassEffectStyle="regular"
+              isInteractive
+              tintColor={themeColor}
+              style={[s.primaryBtn, { overflow: 'hidden' }]}
+            >
+              <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
+            </GlassView>
+          </Pressable>
+        ) : (
+          <TouchableOpacity
+            style={[
+              s.primaryBtn,
+              {
+                backgroundColor: themeColor,
+                marginTop: 30,
+                opacity: isReady ? 1 : 0.8,
+                shadowColor: themeColor,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.35,
+                shadowRadius: 8,
+                elevation: 4,
+              }
+            ]}
+            onPress={handleFinishSetup}
+          >
+            <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
+          </TouchableOpacity>
+        )}
 
       </ScrollView>
+
+      <Modal visible={displayOptionPicker !== null} transparent animationType="fade" onRequestClose={() => setDisplayOptionPicker(null)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Pressable
+            onPress={() => setDisplayOptionPicker(null)}
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+          />
+          <View style={{ width: '100%', maxWidth: 420, padding: 18, borderRadius: 24, backgroundColor: dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border, gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 4 }}>
+              <Ionicons name={(displayOptionPicker?.icon || 'calendar') as any} size={20} color={themeColor} />
+              <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold' }}>{displayOptionPicker?.label}</Text>
+            </View>
+            {displayOptionPicker?.options.map(option => {
+              const isSelected = option.key === displayOptionPicker.current;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => {
+                    displayOptionPicker.setter(option.key);
+                    setDisplayOptionPicker(null);
+                  }}
+                  accessibilityRole="button"
+                  style={{ minHeight: 50, borderRadius: 16, overflow: 'hidden', justifyContent: 'center' }}
+                >
+                  {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
+                    <GlassView
+                      glassEffectStyle="regular"
+                      isInteractive
+                      colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                      tintColor={isSelected ? themeColor : undefined}
+                      style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+                    />
+                  ) : (
+                    <View style={[StyleSheet.absoluteFill, { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderWidth: 1, borderColor: dynamicStyles.border, borderRadius: 16 }]} />
+                  )}
+                  <View style={{ minHeight: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ color: isSelected ? textColor : dynamicStyles.text, fontSize: 16, fontWeight: isSelected ? '700' : '500' }}>{option.label}</Text>
+                    {isSelected && <Ionicons name="checkmark-circle" size={20} color={textColor} />}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
 
       {/* 全画面ポップアップ型 再生リスト選択モーダル */}
       <Modal visible={pickerVisible} animationType="fade" transparent={true} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
