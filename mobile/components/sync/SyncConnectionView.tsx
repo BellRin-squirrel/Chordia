@@ -1,10 +1,11 @@
 import React from 'react';
 import { 
-  View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert 
+  View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../../styles/styles';
 import { t } from '../../utils/i18n';
+import { GlassActionButton } from '../ui/GlassActionButton';
 
 interface SyncConnectionViewProps {
   dynamicStyles: any;
@@ -55,7 +56,9 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
         </Text>
       </View>
 
-      <TouchableOpacity 
+      <GlassActionButton
+        isDark={isDark}
+        glassTintColor="#34c759"
         style={[styles.smallBtn, { backgroundColor: '#34c759', marginBottom: 20 }]} 
         onPress={async () => { 
           const granted = await requestCameraPermission(); 
@@ -69,7 +72,7 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
           <Ionicons name="qr-code-outline" size={20} color="#fff" />
           <Text style={styles.btnText}>{t('qr_auto_connect', language)}</Text>
         </View>
-      </TouchableOpacity>
+      </GlassActionButton>
       
       <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 20 }} />
       
@@ -107,12 +110,14 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
               />
             </View>
           </View>
-          <TouchableOpacity 
+          <GlassActionButton
+            isDark={isDark}
+            glassTintColor={themeColor}
             style={[styles.smallBtn, { backgroundColor: themeColor }]} 
             onPress={() => requestAuthToPC(serverIp, serverPort)}
           >
             <Text style={[styles.btnText, { color: textColor }]}>{t('request_connect_pc', language)}</Text>
-          </TouchableOpacity>
+          </GlassActionButton>
         </>
       ) : (
         <>
@@ -133,7 +138,9 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
               keyboardType="url" 
             />
           </View>
-          <TouchableOpacity 
+          <GlassActionButton
+            isDark={isDark}
+            glassTintColor={themeColor}
             style={[styles.smallBtn, { backgroundColor: themeColor }]} 
             onPress={() => { 
               if (!wanUrlInput.trim() || (!wanUrlInput.startsWith('http://') && !wanUrlInput.startsWith('https://'))) {
@@ -146,7 +153,7 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
             }}
           >
             <Text style={[styles.btnText, { color: textColor }]}>{t('wan_connect_btn', language)}</Text>
-          </TouchableOpacity>
+          </GlassActionButton>
         </>
       )}
 

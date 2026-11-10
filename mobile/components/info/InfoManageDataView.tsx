@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Animated, TextInput, 
-  Image, Modal, TouchableWithoutFeedback, useWindowDimensions, ScrollView 
+  Image, Modal, TouchableWithoutFeedback, useWindowDimensions, ScrollView,
+  Platform, StyleSheet, Pressable
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { MarqueeText } from '../MarqueeText';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
@@ -22,6 +24,7 @@ export const InfoManageDataView = ({
   addToPlaylistTargetSongs, setAddToPlaylistTargetSongs, getCommonValue, language = 'ja'
 }: any) => {
   const { width } = useWindowDimensions();
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedSongUris, setSelectedSongUris] = useState<Set<string>>(new Set());
   const [searchSongQuery, setSearchSongQuery] = useState('');
@@ -164,20 +167,40 @@ export const InfoManageDataView = ({
 
   const selectedSongs = localLibrary.filter((s: any) => selectedSongUris.has(s.localMusicUri));
 
+  const renderMenuButton = (onPress: () => void, disabled = false) => useLiquidGlass ? (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      disabled={disabled}
+      style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', opacity: disabled ? 0.4 : 1 }}
+    >
+      <GlassView
+        pointerEvents="none"
+        glassEffectStyle="regular"
+        colorScheme={isDark ? 'dark' : 'light'}
+        style={StyleSheet.absoluteFill}
+      />
+      <Ionicons name="ellipsis-horizontal" size={18} color={disabled ? dynamicStyles.subText : dynamicStyles.text} />
+    </Pressable>
+  ) : (
+    <AnimatedMenuButton
+      onPress={onPress}
+      isDark={isDark}
+      textStyle={disabled ? dynamicStyles.subText : dynamicStyles.text}
+      disabled={disabled}
+    />
+  );
+
   const selectionHeaderBtn = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      {isSelectionMode && (
-        <AnimatedMenuButton 
-          onPress={() => {
-            if (selectedSongs.length > 0) openActionSheet(selectedSongs);
-          }}
-          isDark={isDark}
-          textStyle={selectedSongs.length > 0 ? dynamicStyles.text : dynamicStyles.subText}
-          disabled={selectedSongs.length === 0}
-        />
+      {isSelectionMode && renderMenuButton(
+        () => {
+          if (selectedSongs.length > 0) openActionSheet(selectedSongs);
+        },
+        selectedSongs.length === 0,
       )}
 
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={() => {
           setIsSelectionMode(!isSelectionMode);
           if (isSelectionMode) setSelectedSongUris(new Set());
@@ -186,9 +209,20 @@ export const InfoManageDataView = ({
           paddingHorizontal: 14,
           paddingVertical: 6,
           borderRadius: 14,
-          backgroundColor: isSelectionMode ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb'),
+          backgroundColor: useLiquidGlass ? 'transparent' : (isSelectionMode ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb')),
+          overflow: 'hidden',
         }}
       >
+        {useLiquidGlass && (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={isDark ? 'dark' : 'light'}
+            tintColor={isSelectionMode ? themeColor : undefined}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <Text style={{ 
           color: isSelectionMode ? textColor : dynamicStyles.text, 
           fontWeight: 'bold', 
@@ -208,8 +242,17 @@ export const InfoManageDataView = ({
       <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 }}>
         <View style={{
           flexDirection: 'row', alignItems: 'center', height: 40, borderRadius: 12, paddingHorizontal: 12,
-          backgroundColor: dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border
+          backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card,
+          borderWidth: 1, borderColor: dynamicStyles.border, overflow: 'hidden',
         }}>
+          {useLiquidGlass && (
+            <GlassView
+              pointerEvents="none"
+              glassEffectStyle="regular"
+              colorScheme={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           <Ionicons name="search" size={16} color={dynamicStyles.subText} style={{ marginRight: 8 }} />
           <TextInput
             style={{ flex: 1, color: dynamicStyles.text, fontSize: 14 }}
@@ -265,7 +308,8 @@ export const InfoManageDataView = ({
             <TouchableOpacity
               style={{
                 flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16,
-                backgroundColor: dynamicStyles.card, marginBottom: 8, borderWidth: 1,
+                backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card,
+                marginBottom: 8, borderWidth: 1, overflow: 'hidden',
                 borderColor: isSelected ? themeColor : dynamicStyles.border,
               }}
               onPress={() => {
@@ -278,6 +322,16 @@ export const InfoManageDataView = ({
               }}
               activeOpacity={0.7}
             >
+              {useLiquidGlass && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  isInteractive
+                  colorScheme={isDark ? 'dark' : 'light'}
+                  tintColor={isSelected ? themeColor : undefined}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               {isSelectionMode && (
                 <View style={{ marginRight: 12 }}>
                   <Ionicons name={isSelected ? "checkbox" : "square-outline"} size={22} color={isSelected ? themeColor : dynamicStyles.subText} />
@@ -293,11 +347,7 @@ export const InfoManageDataView = ({
               </View>
 
               {!isSelectionMode && (
-                <AnimatedMenuButton 
-                  onPress={() => openActionSheet([item])}
-                  isDark={isDark}
-                  textStyle={dynamicStyles.text}
-                />
+                renderMenuButton(() => openActionSheet([item]))
               )}
             </TouchableOpacity>
           );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  View, Text, TouchableOpacity, Modal, Animated, StyleSheet, 
+  View, Text, TouchableOpacity, Modal, Animated, StyleSheet, ScrollView,
   useWindowDimensions 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,8 +12,8 @@ export const LanguageSelectModal = ({
   visible, currentLanguage = 'ja', onSelectLanguage, onClose,
   dynamicStyles, themeColor, textColor, isDark, canClose = false
 }: any) => {
-  const { width } = useWindowDimensions();
-  const isLandscape = width > 500;
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   // ガイダンステキストの多言語ローテーション用 State & Anim
   const [titleIndex, setTitleIndex] = useState(0);
@@ -44,14 +44,20 @@ export const LanguageSelectModal = ({
   const currentTitleObj = LANGUAGE_SELECTION_TITLES[titleIndex];
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+    >
       <View style={s.overlay}>
         <View style={[
           s.card, 
-          { 
+          {
             backgroundColor: dynamicStyles.card, 
             borderColor: dynamicStyles.border,
             width: isLandscape ? Math.min(width * 0.9, 520) : '90%',
+            maxHeight: height * 0.92,
           }
         ]}>
           {/* ヘッダー */}
@@ -68,49 +74,51 @@ export const LanguageSelectModal = ({
           </View>
 
           {/* ★ 多言語にアニメーション変化する案内テキスト */}
-          <View style={s.titleContainer}>
-            <Animated.Text style={[s.animatedText, { color: dynamicStyles.text, opacity: fadeAnim }]}>
-              {currentTitleObj.text}
-            </Animated.Text>
-          </View>
+          <ScrollView style={{ flexShrink: 1 }} bounces={false} contentContainerStyle={{ paddingBottom: 2 }}>
+            <View style={[s.titleContainer, isLandscape && { height: 34, marginBottom: 8 }]}>
+              <Animated.Text style={[s.animatedText, { color: dynamicStyles.text, opacity: fadeAnim }]}>
+                {currentTitleObj.text}
+              </Animated.Text>
+            </View>
 
-          {/* 言語リスト（2列グリッド） */}
-          <View style={s.gridContainer}>
-            {LANGUAGES.map((lang) => {
-              const isSelected = currentLanguage === lang.code;
+            <View style={[s.gridContainer, isLandscape && { gap: 8 }]}>
+              {LANGUAGES.map((lang) => {
+                const isSelected = currentLanguage === lang.code;
 
-              return (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={[
-                    s.langBtn,
-                    { 
-                      backgroundColor: isSelected ? themeColor : (isDark ? '#2c2c2e' : '#f2f2f7'),
-                      borderColor: isSelected ? themeColor : dynamicStyles.border,
-                    }
-                  ]}
-                  onPress={() => onSelectLanguage(lang.code)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[s.langLabel, { color: isSelected ? textColor : dynamicStyles.text }]}>
-                    {lang.label}
-                  </Text>
-                  <Text style={[s.langEnglish, { color: isSelected ? textColor : dynamicStyles.subText }]}>
-                    {lang.englishLabel}
-                  </Text>
+                return (
+                  <TouchableOpacity
+                    key={lang.code}
+                    style={[
+                      s.langBtn,
+                      isLandscape && { height: 52 },
+                      {
+                        backgroundColor: isSelected ? themeColor : (isDark ? '#2c2c2e' : '#f2f2f7'),
+                        borderColor: isSelected ? themeColor : dynamicStyles.border,
+                      }
+                    ]}
+                    onPress={() => onSelectLanguage(lang.code)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.langLabel, { color: isSelected ? textColor : dynamicStyles.text }]}>
+                      {lang.label}
+                    </Text>
+                    <Text style={[s.langEnglish, { color: isSelected ? textColor : dynamicStyles.subText }]}>
+                      {lang.englishLabel}
+                    </Text>
 
-                  {isSelected && (
-                    <Ionicons 
-                      name="checkmark-circle" 
-                      size={18} 
-                      color={textColor} 
-                      style={s.checkIcon} 
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    {isSelected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color={textColor}
+                        style={s.checkIcon}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

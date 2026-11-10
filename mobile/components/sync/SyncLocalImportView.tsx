@@ -5,6 +5,7 @@ import { styles } from '../../styles/styles';
 import { t } from '../../utils/i18n';
 import { MarqueeText } from '../MarqueeText';
 import { StagedSong } from './types';
+import { GlassActionButton } from '../ui/GlassActionButton';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
@@ -63,11 +64,12 @@ export const SyncLocalImportView: React.FC<SyncLocalImportViewProps> = ({
           {t('local_import_desc', language)}
         </Text>
 
-        <TouchableOpacity 
+        <GlassActionButton
+          isDark={isDark}
+          glassTintColor={themeColor}
           style={[styles.smallBtn, { backgroundColor: themeColor, width: '100%', maxWidth: 300 }]} 
           onPress={handlePickLocalMP3Files}
           disabled={isPickingOrParsing}
-          activeOpacity={0.8}
         >
           {isPickingOrParsing ? (
             <ActivityIndicator color={textColor} />
@@ -79,7 +81,7 @@ export const SyncLocalImportView: React.FC<SyncLocalImportViewProps> = ({
               </Text>
             </View>
           )}
-        </TouchableOpacity>
+        </GlassActionButton>
       </View>
     );
   }
@@ -120,12 +122,14 @@ export const SyncLocalImportView: React.FC<SyncLocalImportViewProps> = ({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <GlassActionButton
+            isDark={isDark}
+            glassTintColor={themeColor}
             onPress={handlePickLocalMP3Files}
             style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}
           >
             <Ionicons name="add" size={16} color={themeColor} />
-          </TouchableOpacity>
+          </GlassActionButton>
         </View>
       </View>
 

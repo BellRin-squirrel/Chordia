@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, 
   KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, 
-  Keyboard, ScrollView, useWindowDimensions 
+  Keyboard, ScrollView, useWindowDimensions, StyleSheet
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -27,6 +27,8 @@ import { SyncLocalImportView } from './sync/SyncLocalImportView';
 import { SyncPlaylistsView } from './sync/SyncPlaylistsView';
 import { SyncConflictModal } from './sync/SyncConflictModal';
 import { SyncModals } from './sync/SyncModals';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassActionButton } from './ui/GlassActionButton';
 
 export const SyncScreen = ({ 
   dynamicStyles, themeColor, themeTextColor, syncStage, setSyncStage, 
@@ -40,6 +42,7 @@ export const SyncScreen = ({
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const bottomPadding = (currentSong ? 280 : 160) + (insets?.bottom || 0);
   const textColor = themeTextColor || '#ffffff';
 
@@ -341,7 +344,15 @@ export const SyncScreen = ({
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View>
               {/* 画面上部タブバー */}
-              <View style={{ flexDirection: 'row', backgroundColor: dynamicStyles.card, borderRadius: 15, padding: 4, marginBottom: 12, borderWidth: 1, borderColor: dynamicStyles.border }}>
+              <View style={{ flexDirection: 'row', backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 15, padding: 4, marginBottom: 12, borderWidth: useLiquidGlass ? 0 : 1, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <TouchableOpacity 
                   style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12, backgroundColor: syncMode === 'LAN' ? themeColor : 'transparent' }}
                   onPress={() => setSyncMode('LAN')}
@@ -435,9 +446,14 @@ export const SyncScreen = ({
           <Text style={{ color: dynamicStyles.text, marginTop: 20, textAlign: 'center', fontSize: 16, fontWeight: 'bold' }}>
             {t('awaiting_approval_msg', language)}
           </Text>
-          <TouchableOpacity style={{ marginTop: 40 }} onPress={cancelSync}>
+          <GlassActionButton
+            isDark={isDark}
+            onPress={cancelSync}
+            style={{ marginTop: 40, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 20 }}
+            glassTintColor={themeColor}
+          >
             <Text style={{ color: themeColor, fontSize: 16 }}>{t('cancel', language)}</Text>
-          </TouchableOpacity>
+          </GlassActionButton>
         </View>
       )}
 
@@ -468,9 +484,14 @@ export const SyncScreen = ({
                 <TouchableOpacity style={[styles.smallBtn, { backgroundColor: themeColor, marginBottom: 10 }]} onPress={() => verifyAuthCode(serverIp, serverPort, authCodeInput)}>
                   <Text style={[styles.btnText, { color: textColor }]}>{t('verify_code_btn', language)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={{ marginTop: 15, alignItems: 'center' }} onPress={cancelSync}>
+                <GlassActionButton
+                  isDark={isDark}
+                  style={{ marginTop: 15, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 18 }}
+                  glassTintColor={themeColor}
+                  onPress={cancelSync}
+                >
                   <Text style={{ color: themeColor }}>{t('retry_btn', language)}</Text>
-                </TouchableOpacity>
+                </GlassActionButton>
               </View>
             </KeyboardAvoidingView>
           </TouchableWithoutFeedback>

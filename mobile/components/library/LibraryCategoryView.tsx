@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SymbolView } from 'expo-symbols';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,21 +52,6 @@ const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
-
-  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
-    return (
-      <Pressable onPress={onPress} accessibilityRole="button">
-        <GlassView
-          glassEffectStyle="regular"
-          isInteractive
-          colorScheme={isDark ? 'dark' : 'light'}
-          style={{ width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
-        >
-          <SymbolView name="ellipsis" size={18} weight="medium" tintColor={textStyle} />
-        </GlassView>
-      </Pressable>
-    );
-  }
 
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>

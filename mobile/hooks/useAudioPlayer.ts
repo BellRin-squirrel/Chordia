@@ -706,10 +706,17 @@ export const useAudioPlayer = () => {
 
   setPositionAsyncRef.current = setPositionAsync;
 
-  const closeFullPlayer = () => {
-    Animated.timing(slideAnim, { toValue: height, duration: 250, useNativeDriver: true }).start(() => { 
+  const closeFullPlayer = (animateSlide = true) => {
+    const finishClose = () => {
       setIsFullPlayer(false); setShowQueue(false); setShowLyrics(false); queueTransitionAnim.setValue(0);
-    });
+    };
+
+    if (!animateSlide) {
+      finishClose();
+      return;
+    }
+
+    Animated.timing(slideAnim, { toValue: height, duration: 250, useNativeDriver: true }).start(finishClose);
   };
 
   useEffect(() => {

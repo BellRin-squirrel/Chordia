@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
-import { styles, TAB_BAR_HEIGHT, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { styles, TAB_BAR_HEIGHT } from '../styles/styles';
 import NativeTabBar from '../modules/chordia-native-tab-bar';
 import { LanguageCode, t } from '../utils/i18n';
 
@@ -20,6 +20,7 @@ interface TabBarProps {
   isBlurBackground?: boolean;
   showFocusTab?: boolean;
   showSyncTab?: boolean;
+  bottomInset?: number;
   language?: LanguageCode;
 }
 
@@ -41,10 +42,10 @@ export const TabBar: React.FC<TabBarProps> = ({
   isDark,
   showFocusTab,
   showSyncTab,
+  bottomInset = 0,
   language = 'ja',
 }) => {
-  const { width, height } = useWindowDimensions();
-  const isLandscape = width > height;
+  const { width } = useWindowDimensions();
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const containerRef = useRef<View>(null);
@@ -65,9 +66,9 @@ export const TabBar: React.FC<TabBarProps> = ({
   const tabCount = tabs.length;
 
   const barMetricsRef = useRef({ pageX: 0, pageY: 0, width: 0, height: 0 });
-  const [containerSize, setContainerSize] = useState({ 
-    width: isLandscape ? LANDSCAPE_TAB_BAR_WIDTH : Math.min(width - 32, 800), 
-    height: isLandscape ? 400 : TAB_BAR_HEIGHT 
+  const [containerSize, setContainerSize] = useState({
+    width: Math.min(width - 32, 800),
+    height: TAB_BAR_HEIGHT,
   });
 
   const currentPosRef = useRef(0);
@@ -79,9 +80,6 @@ export const TabBar: React.FC<TabBarProps> = ({
   const isPointerDownRef = useRef(false);
   const startCoordRef = useRef(0);
   const animationFrameIdRef = useRef<number | null>(null);
-
-  // ★ 画面の向き（縦 ⇔ 横）が実際に切り替わった瞬間を検知するための Ref
-  const lastOrientationRef = useRef(isLandscape);
 
   const wobbleTimeRef = useRef(0);
   const wobbleIntensityRef = useRef(0);
@@ -102,21 +100,13 @@ export const TabBar: React.FC<TabBarProps> = ({
   }, [activeTab, tabs]);
 
   const tabSlotSize = useMemo(() => {
-    const totalSpan = isLandscape ? containerSize.height : containerSize.width;
+    const totalSpan = containerSize.width;
     const usableSpan = Math.max(0, totalSpan - (PILL_PADDING * 2));
     return tabCount > 0 ? usableSpan / tabCount : 0;
-  }, [containerSize, isLandscape, tabCount]);
+  }, [containerSize, tabCount]);
 
-  const pillWidth = isLandscape 
-    ? LANDSCAPE_TAB_BAR_WIDTH - (PILL_PADDING * 2)
-    : (tabSlotSize > 0 ? tabSlotSize : 74);
-
-  const pillHeight = isLandscape 
-    ? (tabSlotSize > 0 ? tabSlotSize : 52)
-    : TAB_BAR_HEIGHT - (PILL_PADDING * 2);
-
-  const isLandscapeRef = useRef(isLandscape);
-  isLandscapeRef.current = isLandscape;
+  const pillWidth = tabSlotSize > 0 ? tabSlotSize : 74;
+  const pillHeight = TAB_BAR_HEIGHT - (PILL_PADDING * 2);
 
   const tabSlotSizeRef = useRef(tabSlotSize);
   tabSlotSizeRef.current = tabSlotSize;
@@ -225,51 +215,21 @@ export const TabBar: React.FC<TabBarProps> = ({
 
   // ★ 修正：画面回転時のみワープし、タブタップ時はワープせず「ふわっと」滑らかに物理移動！
   useEffect(() => {
-    if (lastOrientationRef.current !== isLandscape) {
-      // 画面の向き（縦 ⇔ 横）が切り替わった時のみ瞬時に位置を同期
-      lastOrientationRef.current = isLandscape;
-      measureBar();
-      if (tabSlotSize > 0) {
-        const newTarget = activeIndex * tabSlotSize;
-        currentPosRef.current = newTarget;
-        prevPosRef.current = newTarget;
-        targetPosRef.current = newTarget;
-        pillPosAnim.setValue(newTarget);
-        pillWobbleXAnim.setValue(0);
-        pillWobbleYAnim.setValue(0);
-        pillWobbleRotateAnim.setValue(0);
-        currentScaleRef.current = 1.0;
-        targetScaleRef.current = 1.0;
-        pillScaleAnim.setValue(1.0);
-      }
-      return;
-    }
-
-    // タブ切り替え時は目標位置だけをセットして物理ループでふわりと吸い付く
     if (tabSlotSize > 0) {
       const nextTarget = activeIndex * tabSlotSize;
       targetPosRef.current = nextTarget;
       targetScaleRef.current = 1.0;
       startPhysicsLoop();
     }
-  }, [isLandscape, activeIndex, tabSlotSize, measureBar, startPhysicsLoop, pillPosAnim, pillWobbleXAnim, pillWobbleYAnim, pillWobbleRotateAnim, pillScaleAnim]);
+  }, [activeIndex, tabSlotSize, startPhysicsLoop]);
 
   const getRelativeCoord = (evt: any): number => {
-    const isLand = isLandscapeRef.current;
     const metrics = barMetricsRef.current;
-    const { pageX, pageY, locationX, locationY } = evt.nativeEvent;
-
-    if (isLand) {
-      if (metrics.height > 0 && metrics.pageY > 0) {
-        return pageY - metrics.pageY;
-      }
-      return locationY;
-    } else {
-      if (metrics.width > 0 && metrics.pageX > 0) {
-        return pageX - metrics.pageX;
-      }
-      return locationX;
+    const { pageX, locationX } = evt.nativeEvent;
+    if (metrics.width > 0 && metrics.pageX > 0) {
+      return pageX - metrics.pageX;
     }
+    return locationX;
   };
 
   const getClosestIndexFromRelative = (rel: number): number => {
@@ -361,12 +321,7 @@ export const TabBar: React.FC<TabBarProps> = ({
     })
   ).current;
 
-  const pillTransform = isLandscape ? [
-    { translateY: Animated.add(pillPosAnim, pillWobbleYAnim) },
-    { translateX: pillWobbleXAnim },
-    { scale: pillScaleAnim },
-    { rotate: pillWobbleRotateAnim.interpolate({ inputRange: [-5, 5], outputRange: ['-5deg', '5deg'] }) }
-  ] : [
+  const pillTransform = [
     { translateX: Animated.add(pillPosAnim, pillWobbleXAnim) },
     { translateY: pillWobbleYAnim },
     { scale: pillScaleAnim },
@@ -378,7 +333,7 @@ export const TabBar: React.FC<TabBarProps> = ({
   if (useLiquidGlass) {
     return (
       <NativeTabBar
-        style={{ width: '100%', height: TAB_BAR_HEIGHT }}
+        style={{ width: '100%', height: TAB_BAR_HEIGHT + bottomInset }}
         tabs={nativeTabs}
         selectedKey={activeTab}
         tintColor={themeColor}
@@ -392,7 +347,7 @@ export const TabBar: React.FC<TabBarProps> = ({
     <Animated.View 
       ref={containerRef}
       style={[
-        isLandscape ? styles.tabBarContainerLandscape : styles.tabBarContainer,
+        styles.tabBarContainer,
         {
           transform: [{ scale: tabbarScaleAnim }],
           overflow: 'visible',
@@ -506,10 +461,10 @@ export const TabBar: React.FC<TabBarProps> = ({
             key={tab.key}
             pointerEvents="none"
             style={[
-              isLandscape ? styles.tabItemLandscape : styles.tabItem,
-              { 
-                width: isLandscape ? '100%' : tabSlotSize, 
-                height: isLandscape ? tabSlotSize : '100%',
+              styles.tabItem,
+              {
+                width: tabSlotSize,
+                height: '100%',
                 zIndex: 2,
               }
             ]}
@@ -533,7 +488,7 @@ export const TabBar: React.FC<TabBarProps> = ({
 
             <Text
               style={[
-                isLandscape ? styles.tabTextLandscape : styles.tabText,
+                styles.tabText,
                 {
                   color: tabItemColor,
                   fontWeight: isActive ? '700' : '500',

@@ -1,9 +1,8 @@
 import { StyleSheet } from 'react-native';
 
 const SIDE_MARGIN = 16;
-export const TAB_BAR_HEIGHT = 64;
+export const TAB_BAR_HEIGHT = 76;
 const MINI_PLAYER_HEIGHT = 58;
-export const LANDSCAPE_TAB_BAR_WIDTH = 74;
 
 export const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -92,29 +91,10 @@ export const styles = StyleSheet.create({
   tabItem: { justifyContent: 'center', alignItems: 'center', zIndex: 2 },
   tabText: { fontSize: 10, letterSpacing: -0.1 },
 
-  tabBarWrapperLandscape: { 
-    position: 'absolute', right: SIDE_MARGIN, top: SIDE_MARGIN, bottom: SIDE_MARGIN, 
-    width: LANDSCAPE_TAB_BAR_WIDTH, justifyContent: 'center', overflow: 'visible' 
-  },
-  tabBarContainerLandscape: { 
-    width: '100%', height: '100%', maxHeight: 400,
-    borderRadius: 40, 
-    flexDirection: 'column',
-    overflow: 'visible',
-    position: 'relative',
-  },
-  tabItemLandscape: { justifyContent: 'center', alignItems: 'center', zIndex: 2, paddingVertical: 4 },
-  tabTextLandscape: { fontSize: 9, letterSpacing: -0.1 },
-
-  miniPlayerPosLandscape: {
-    position: 'absolute',
-    left: SIDE_MARGIN,
-    height: MINI_PLAYER_HEIGHT,
-  },
-
   miniPlayerCard: { 
     width: '100%',
     maxWidth: 800,
+    alignSelf: 'center',
     height: MINI_PLAYER_HEIGHT,
     borderRadius: 29, 
     overflow: 'hidden', 

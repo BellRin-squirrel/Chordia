@@ -6,7 +6,8 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
 import * as Network from 'expo-network';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import type { ViewInstance } from 'react-native';
 
 import TrackPlayer from 'react-native-track-player';
 
@@ -22,7 +23,7 @@ import { InfoScreen } from '../../components/InfoScreen';
 import { SyncScreen } from '../../components/SyncScreen';
 import { TabBar } from '../../components/TabBar';
 import { LanguageSelectModal } from '../../components/LanguageSelectModal';
-import { LANDSCAPE_TAB_BAR_WIDTH, styles, TAB_BAR_HEIGHT } from '../../styles/styles';
+import { styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 import { LanguageCode, t } from '../../utils/i18n';
 import { 
   verifyChordiaSyncSession, 
@@ -58,8 +59,10 @@ const AppContent = () => {
   
   const [playerResetTrigger, setPlayerResetTrigger] = useState(0);
   const [infoResetTrigger, setInfoResetTrigger] = useState(0);
+  const [playerOpeningFrame, setPlayerOpeningFrame] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const [customAlert, setCustomAlert] = useState<{title: string, message?: string, buttons?: any[]} | null>(null);
+  const miniPlayerRef = useRef<ViewInstance>(null);
 
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
@@ -129,7 +132,8 @@ const AppContent = () => {
     };
   }, []);
 
-  const handleTabPress = (tabKey: TabType) => {
+  const handleTabPress = (tabKey: string) => {
+    if (tabKey !== 'SYNC' && tabKey !== 'PLAYER' && tabKey !== 'FOCUS' && tabKey !== 'INFO') return;
     setActiveTab(tabKey);
     if (tabKey === 'PLAYER') {
       setPlayerResetTrigger(prev => prev + 1);
@@ -140,6 +144,27 @@ const AppContent = () => {
         setFocusStage('SETUP');
       }
     }
+  };
+
+  const openFullPlayer = () => {
+    const showPlayer = (frame: { x: number; y: number; width: number; height: number } | null) => {
+      setPlayerOpeningFrame(frame);
+      if (frame) {
+        slideAnim.setValue(0);
+      } else {
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
+      }
+      setIsFullPlayer(true);
+    };
+
+    if (!miniPlayerRef.current) {
+      showPlayer(null);
+      return;
+    }
+
+    miniPlayerRef.current.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      showPlayer(measuredWidth > 0 && measuredHeight > 0 ? { x, y, width: measuredWidth, height: measuredHeight } : null);
+    });
   };
 
   useEffect(() => {
@@ -204,21 +229,6 @@ const AppContent = () => {
     blur: isAppDark ? 'dark' as const : 'light' as const,
   };
 
-  const miniPlayerShiftAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const shouldShift = isLandscape && !useNativeTabBar && activeTab === 'PLAYER' && navStackLength === 3;
-    Animated.spring(miniPlayerShiftAnim, { toValue: shouldShift ? 1 : 0, useNativeDriver: false, friction: 8, tension: 40 }).start();
-  }, [navStackLength, isLandscape, activeTab, useNativeTabBar]);
-
-  const isPlayerTab = activeTab === 'PLAYER';
-  const contentPaddingRight = (isFocusing || isPlayerTab) 
-    ? 0 
-    : (isLandscape && !useNativeTabBar ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0);
-
-  const availableWidth = width - (isLandscape && !useNativeTabBar ? LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right : 0) - 16;
-  const heroWidth = availableWidth * 0.4;
-  const miniPlayerLeft = miniPlayerShiftAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 16 + heroWidth] });
-
   useEffect(() => {
     if (!showFocusTab && activeTab === 'FOCUS') {
       setActiveTab('PLAYER');
@@ -247,7 +257,7 @@ const AppContent = () => {
       <View style={{ position: 'absolute', top: -100, bottom: -100, left: -100, right: -100, backgroundColor: rootBgColor, zIndex: -1 }} />
       <StatusBar barStyle={statusBarStyle === 'light' ? 'light-content' : 'dark-content'} />
       
-      <View style={{ flex: 1, backgroundColor: rootBgColor, paddingRight: contentPaddingRight }}>
+      <View style={{ flex: 1, backgroundColor: rootBgColor }}>
         {showSyncTab && activeTab === 'SYNC' && (
           <SyncScreen 
             dynamicStyles={actualDynamicStyles} 
@@ -362,28 +372,34 @@ const AppContent = () => {
 
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
-          {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
+          {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && !isLandscape && (
             <Animated.View style={[
-              isLandscape ? styles.miniPlayerPosLandscape : [styles.commonWrapperPortrait, { height: MINI_PLAYER_HEIGHT }], 
-              { 
-                bottom: isLandscape 
-                  ? (useNativeTabBar ? TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + insets.bottom + MINI_PLAYER_GAP : 10)
-                  : (TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + MINI_PLAYER_GAP), 
-                left: isLandscape && !useNativeTabBar ? miniPlayerLeft : 16,
-                right: isLandscape && !useNativeTabBar ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16,
+              styles.commonWrapperPortrait,
+              {
+                left: '4%',
+                right: undefined,
+                width: '92%',
+                height: MINI_PLAYER_HEIGHT,
+                bottom: TAB_BAR_BOTTOM + TAB_BAR_HEIGHT + (useNativeTabBar ? insets.bottom : 0) + MINI_PLAYER_GAP,
                 shadowOpacity: 0.1, 
                 elevation: 10 
               }
             ]}>
-              <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={() => { setIsFullPlayer(true); Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start(); }} togglePlayPause={togglePlayPause} handleNext={handleNext} />
+              <View ref={miniPlayerRef} collapsable={false} style={{ width: '100%' }}>
+                <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={openFullPlayer} togglePlayPause={togglePlayPause} handleNext={handleNext} />
+              </View>
             </Animated.View>
           )}
 
-          <View style={
-            isLandscape && !useNativeTabBar
-              ? [styles.tabBarWrapperLandscape, { right: 16 + insets.right, top: 16 + insets.top, bottom: 10 }] 
-              : [styles.commonWrapperPortrait, { bottom: TAB_BAR_BOTTOM, height: TAB_BAR_HEIGHT + (useNativeTabBar ? insets.bottom : 0) }]
-          }>
+          {!isLandscape && (
+            <View style={[
+              styles.commonWrapperPortrait,
+              {
+                bottom: TAB_BAR_BOTTOM,
+                height: TAB_BAR_HEIGHT + (useNativeTabBar ? insets.bottom : 0),
+                justifyContent: 'flex-end',
+              },
+            ]}>
               <TabBar 
                 activeTab={activeTab} 
                 setActiveTab={handleTabPress} 
@@ -393,9 +409,48 @@ const AppContent = () => {
                 isBlurBackground={false} 
                 showFocusTab={showFocusTab} 
                 showSyncTab={showSyncTab} 
+                bottomInset={useNativeTabBar ? insets.bottom : 0}
                 language={language}
               />
-          </View>
+            </View>
+          )}
+
+          {isLandscape && (
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: TAB_BAR_BOTTOM,
+                height: TAB_BAR_HEIGHT + (useNativeTabBar ? insets.bottom : 0),
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <View style={{ width: currentSong && !isFullPlayer && activeTab !== 'FOCUS' ? '50%' : '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8 }}>
+                <TabBar
+                  activeTab={activeTab}
+                  setActiveTab={handleTabPress}
+                  themeColor={themeColor}
+                  themeTextColor={themeTextColor}
+                  isDark={isAppDark}
+                  isBlurBackground={false}
+                  showFocusTab={showFocusTab}
+                  showSyncTab={showSyncTab}
+                  bottomInset={useNativeTabBar ? insets.bottom : 0}
+                  language={language}
+                />
+              </View>
+              {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
+                <View style={{ width: '50%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8 }}>
+                  <View ref={miniPlayerRef} collapsable={false} style={{ width: '100%' }}>
+                    <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={openFullPlayer} togglePlayPause={togglePlayPause} handleNext={handleNext} />
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -405,12 +460,13 @@ const AppContent = () => {
             <ActivityIndicator size="large" color={themeColor} />
             <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center', marginBottom: 25 }]}>{syncProgress}</Text>
             
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{
-                backgroundColor: '#ef4444',
+                backgroundColor: useNativeTabBar ? 'transparent' : '#ef4444',
                 paddingVertical: 12,
                 paddingHorizontal: 35,
                 borderRadius: 25,
+                overflow: 'hidden',
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.2,
@@ -419,6 +475,15 @@ const AppContent = () => {
               }}
               onPress={cancelSync}
             >
+              {useNativeTabBar && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  isInteractive
+                  tintColor="rgba(239,68,68,0.28)"
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>{t('cancel', language)}</Text>
             </TouchableOpacity>
           </View>
@@ -454,20 +519,31 @@ const AppContent = () => {
           toastMessage={toastMessage} 
           toastAnim={toastAnim} 
           currentContext={currentContext}
+          openingFrame={playerOpeningFrame}
           language={language}
         />
       </Modal>
 
       <Modal visible={!!customAlert} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.modalOverlay}>
-          <BlurView 
-            intensity={isAppDark ? 75 : 95} 
-            tint={isAppDark ? 'dark' : 'light'} 
-            style={[styles.liquidAlertBox, { 
-              borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.65)',
-              backgroundColor: isAppDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.6)',
-            }]}
-          >
+          <View style={[styles.liquidAlertBox, { overflow: 'hidden' }]}>
+            {useNativeTabBar ? (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={isAppDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            ) : (
+              <BlurView
+                intensity={isAppDark ? 75 : 95}
+                tint={isAppDark ? 'dark' : 'light'}
+                style={[StyleSheet.absoluteFill, {
+                  borderColor: isAppDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.65)',
+                  backgroundColor: isAppDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.6)',
+                }]}
+              />
+            )}
             {customAlert && getAlertIcon(customAlert.title)}
             <Text style={[styles.liquidAlertTitle, { color: actualDynamicStyles.text }]}>{customAlert?.title}</Text>
             {customAlert?.message && <Text style={[styles.liquidAlertMessage, { color: actualDynamicStyles.subText }]}>{customAlert.message}</Text>}
@@ -497,7 +573,7 @@ const AppContent = () => {
                 </TouchableOpacity>
               )}
             </View>
-          </BlurView>
+          </View>
         </View>
       </Modal>
 
@@ -521,7 +597,7 @@ const AppContent = () => {
             styles.toastContainerTopRight, 
             { 
               top: insets.top + (isLandscape ? 8 : 12),
-              right: isLandscape ? (16 + LANDSCAPE_TAB_BAR_WIDTH + 16 + insets.right) : 16,
+              right: 16,
               opacity: toastAnim, 
               transform: [
                 { translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) },

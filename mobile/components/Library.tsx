@@ -9,7 +9,7 @@ import { GlassView } from 'expo-glass-effect';
 import { SymbolView } from 'expo-symbols';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
-import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { styles } from '../styles/styles';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { t } from '../utils/i18n';
@@ -103,7 +103,7 @@ export const Library = ({
   const safePadding = {
     paddingBottom: (isLandscape ? 50 : 180) + (insets?.bottom || 0),
     paddingLeft: isLandscape ? Math.max(insets?.left || 0, 16) : 0,
-    paddingRight: isLandscape ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 0,
+    paddingRight: isLandscape ? Math.max(insets?.right || 0, 16) : 0,
   };
 
   useEffect(() => {

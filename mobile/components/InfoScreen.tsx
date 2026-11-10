@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, FlatList, TouchableOpacity, Animated, StyleSheet, 
-  TouchableWithoutFeedback, useWindowDimensions, Easing 
+  TouchableWithoutFeedback, useWindowDimensions, Easing, Platform, Pressable
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { SymbolView } from 'expo-symbols';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
+import { styles } from '../styles/styles';
 import { t } from '../utils/i18n';
 import { verifyChordiaSyncSession, syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
 
@@ -61,6 +63,7 @@ export const InfoScreen = ({
 }: any) => {
   const { width } = useWindowDimensions();
   const textColor = themeTextColor || '#ffffff';
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const [navStack, setNavStack] = useState<string[]>(['MENU']);
   const navAnim = useRef(new Animated.Value(0)).current;
@@ -256,14 +259,27 @@ export const InfoScreen = ({
     <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 }]}>
       <View style={styles.navHeaderLeft}>
         {navStack.length > 1 && (
-          <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
-            <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
-              <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)', borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)' }]}>
-                <BlurView intensity={isDark ? 50 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
-              </View>
-            </Animated.View>
-          </TouchableWithoutFeedback>
+          Platform.OS === 'ios' ? (
+            <Pressable onPress={popView} accessibilityRole="button" accessibilityLabel={t('back', language)}>
+              <GlassView
+                glassEffectStyle="regular"
+                isInteractive
+                colorScheme={isDark ? 'dark' : 'light'}
+                style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+              >
+                <SymbolView name="chevron.backward" size={18} weight="medium" tintColor={themeColor} />
+              </GlassView>
+            </Pressable>
+          ) : (
+            <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
+              <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
+                <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)', borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)' }]}>
+                  <BlurView intensity={isDark ? 50 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
+                </View>
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          )
         )}
       </View>
       <Text style={[styles.navHeaderTitle, { color: dynamicStyles.text }]} numberOfLines={1}>{title}</Text>
@@ -276,7 +292,7 @@ export const InfoScreen = ({
   const safePadding = {
     paddingBottom: (isLandscape ? 50 : 180) + (insets?.bottom || 0),
     paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20,
-    paddingRight: isLandscape ? (Math.max(insets?.right || 0, 20) + LANDSCAPE_TAB_BAR_WIDTH + 16) : 20,
+    paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
   };
 
   return (
@@ -346,7 +362,7 @@ export const InfoScreen = ({
                 />
               )}
               {navStack[1] === 'LICENSE' && (
-                <InfoLicenseView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} />
+                <InfoLicenseView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} isLandscape={isLandscape} safePadding={safePadding} renderHeader={renderHeader} language={language} />
               )}
               <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: layer2Darken }]} />
             </Animated.View>

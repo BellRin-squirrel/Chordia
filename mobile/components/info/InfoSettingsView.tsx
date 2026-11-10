@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, TouchableOpacity, ScrollView, Switch, Modal, useWindowDimensions, TextInput 
+  View, Text, TouchableOpacity, ScrollView, Switch, Modal, useWindowDimensions, TextInput, Platform, StyleSheet
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { styles } from '../../styles/styles';
 import { LANGUAGES, LanguageCode, t } from '../../utils/i18n';
 import { LanguageSelectModal } from '../LanguageSelectModal';
@@ -27,6 +27,7 @@ export const InfoSettingsView = ({
 }: any) => {
   const { width } = useWindowDimensions();
   const modalContentWidth = isLandscape ? Math.min(width * 0.9, 600) : width * 0.85;
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const [langModalVisible, setLangModalVisible] = useState(false);
   const currentLangObj = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
@@ -63,19 +64,45 @@ export const InfoSettingsView = ({
         <Text style={[styles.recentHeader, { color: dynamicStyles.text, marginLeft: 0, marginTop: 40 }]}>
           {t('audio_engine', language)}
         </Text>
-        <View style={{ flexDirection: 'row', backgroundColor: dynamicStyles.card, borderRadius: 25, overflow: 'hidden', marginTop: 15, borderWidth: 1, borderColor: dynamicStyles.border }}>
+        <View style={{ flexDirection: 'row', backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 25, overflow: 'hidden', marginTop: 15, borderWidth: useLiquidGlass ? 0 : 1, borderColor: dynamicStyles.border }}>
+          {useLiquidGlass && (
+            <GlassView
+              pointerEvents="none"
+              glassEffectStyle="regular"
+              colorScheme={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           <TouchableOpacity 
-            style={{ flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'rntp' ? themeColor : 'transparent' }}
+            style={{ flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'rntp' && !useLiquidGlass ? themeColor : 'transparent', borderRadius: 25, overflow: 'hidden' }}
             onPress={() => changeAudioEngine('rntp')}
           >
+            {useLiquidGlass && audioEngine === 'rntp' && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={isDark ? 'dark' : 'light'}
+                tintColor={themeColor}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Text style={{ color: audioEngine === 'rntp' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>
               {t('rntp_label', language)}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={{ flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'expo-av' ? themeColor : 'transparent' }}
+            style={{ flex: 1, padding: 15, alignItems: 'center', backgroundColor: audioEngine === 'expo-av' && !useLiquidGlass ? themeColor : 'transparent', borderRadius: 25, overflow: 'hidden' }}
             onPress={() => changeAudioEngine('expo-av')}
           >
+            {useLiquidGlass && audioEngine === 'expo-av' && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={isDark ? 'dark' : 'light'}
+                tintColor={themeColor}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Text style={{ color: audioEngine === 'expo-av' ? textColor : dynamicStyles.text, fontWeight: 'bold' }}>
               {t('expo_label', language)}
             </Text>
@@ -103,9 +130,19 @@ export const InfoSettingsView = ({
                 {t('language_setting_desc', language)}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 }}>
-              <Text style={{ color: themeColor, fontWeight: 'bold', fontSize: 14 }}>{currentLangObj.label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+            <View style={{ borderRadius: 16, overflow: 'hidden' }}>
+              {useLiquidGlass ? (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  colorScheme={isDark ? 'dark' : 'light'}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 }}>
+                <Text style={{ color: themeColor, fontWeight: 'bold', fontSize: 14 }}>{currentLangObj.label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -193,7 +230,7 @@ export const InfoSettingsView = ({
       {/* カスタムRGBモーダル */}
       <Modal visible={showRGBModal} transparent animationType="fade" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.modalOverlay}>
-          <BlurView intensity={100} tint={dynamicStyles.blur} style={[styles.rgbModalContent, { width: modalContentWidth, padding: 20 }]}>
+          <View style={[styles.rgbModalContent, { width: modalContentWidth, padding: 20, backgroundColor: isDark ? '#000000' : '#ffffff' }]}>
             <Text style={[styles.modalTitle, { color: dynamicStyles.text, marginBottom: isLandscape ? 10 : 20, fontSize: isLandscape ? 16 : 18 }]}>
               {t('custom_color_title', language)}
             </Text>
@@ -263,14 +300,37 @@ export const InfoSettingsView = ({
               </View>
             </View>
             <View style={[styles.modalBtnRow, { marginTop: isLandscape ? 15 : 25 }]}>
-              <TouchableOpacity onPress={() => setShowRGBModal(false)} style={styles.modalBtnCancel}>
+              <TouchableOpacity
+                onPress={() => setShowRGBModal(false)}
+                style={[styles.modalBtnCancel, useLiquidGlass && { backgroundColor: 'transparent', borderRadius: 20, overflow: 'hidden' }]}
+              >
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <Text style={{ color: '#8e8e93' }}>{t('cancel', language)}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={applyCustomColor} style={[styles.modalBtnApply, { backgroundColor: themeColor }]}>
+              <TouchableOpacity
+                onPress={applyCustomColor}
+                style={[styles.modalBtnApply, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor }, useLiquidGlass && { overflow: 'hidden' }]}
+              >
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    tintColor={themeColor}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <Text style={{ color: textColor, fontWeight: 'bold' }}>{t('apply_color', language)}</Text>
               </TouchableOpacity>
             </View>
-          </BlurView>
+          </View>
         </View>
       </Modal>
 

@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
-import { View, Image, TouchableOpacity, TouchableHighlight, Animated, StyleSheet } from 'react-native';
+import { View, Image, TouchableOpacity, TouchableHighlight, Animated, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import * as Haptics from 'expo-haptics';
 import { styles } from '../styles/styles';
 import { MarqueeText } from './MarqueeText';
@@ -61,10 +62,21 @@ const BounceMiniButton = ({ children, onPress, isDark }: any) => {
 
 export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, togglePlayPause, handleNext }: any) => {
   const isDark = dynamicStyles?.bg === '#000000';
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   return (
     <TouchableOpacity style={styles.miniPlayerCard} onPress={onPress} activeOpacity={0.9}>
-      <BlurView intensity={90} tint={dynamicStyles.blur} style={styles.miniPlayerBlur}>
+      {useLiquidGlass ? (
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="regular"
+          colorScheme={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <BlurView intensity={90} tint={dynamicStyles.blur} style={StyleSheet.absoluteFill} />
+      )}
+      <View style={styles.miniPlayerBlur}>
         <Image source={currentSong.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON} style={styles.miniArt} />
         
         <View style={[styles.miniInfo, { flex: 1, minWidth: 0, overflow: 'hidden' }]}>
@@ -86,7 +98,7 @@ export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, tog
             <Ionicons name="play-forward" size={22} color={dynamicStyles.text} />
           </BounceMiniButton>
         </View>
-      </BlurView>
+      </View>
     </TouchableOpacity>
   );
 };

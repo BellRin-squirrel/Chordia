@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, Switch, TextInput, 
-  Modal, Alert, StyleSheet, useWindowDimensions, KeyboardAvoidingView, Platform 
+  Modal, Alert, StyleSheet, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { t } from '../../utils/i18n';
 import { 
   applyEqualizerSettings, 
@@ -66,12 +67,14 @@ const DEFAULT_BANDS: EqualizerBand[] = [
 export const InfoEqualizerView = ({
   dynamicStyles, themeColor, textColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [isEnabled, setIsEnabled] = useState(false);
   const [bands, setBands] = useState<EqualizerBand[]>(DEFAULT_BANDS);
   const [preamp, setPreamp] = useState<number>(0);
   const [activePresetId, setActivePresetId] = useState<string | null>('flat');
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
   const [sliderVersion, setSliderVersion] = useState(0);
+  const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
 
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [debugModalVisible, setDebugModalVisible] = useState(false);
@@ -316,6 +319,11 @@ export const InfoEqualizerView = ({
 
   const isNativeConnected = debugInfo?.isNativeConnected === true;
   const isEngineRunning = debugInfo?.isEngineRunning === true;
+  const activeBuiltInPreset = BUILTIN_PRESETS.find(preset => preset.id === activePresetId);
+  const getBuiltInPresetLabel = (preset: BuiltInPreset) => {
+    const translatedLabel = t('eq_preset_' + preset.id, language);
+    return translatedLabel !== ('eq_preset_' + preset.id) ? translatedLabel : preset.name;
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
@@ -402,10 +410,19 @@ export const InfoEqualizerView = ({
               </View>
 
               <TouchableOpacity 
-                style={[s.saveSmallBtn, { backgroundColor: themeColor }]}
+                style={[s.saveSmallBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, overflow: 'hidden' }]}
                 onPress={() => setSaveModalVisible(true)}
                 activeOpacity={0.8}
               >
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    tintColor={themeColor}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <Ionicons name="add" size={15} color={textColor} style={{ marginRight: 3 }} />
                 <Text style={{ color: textColor, fontSize: 12, fontWeight: 'bold' }}>
                   {t('equalizer_save_btn', language)}
@@ -469,42 +486,46 @@ export const InfoEqualizerView = ({
               </Text>
             </View>
 
-            <View style={s.presetGrid}>
-              {BUILTIN_PRESETS.map((preset) => {
-                const isSelected = isEnabled && activePresetId === preset.id;
-                const presetLabel = t('eq_preset_' + preset.id, language) !== ('eq_preset_' + preset.id)
-                  ? t('eq_preset_' + preset.id, language)
-                  : preset.name;
+            <TouchableOpacity
+              style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
+              onPress={() => setIsPresetDropdownOpen(open => !open)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: isPresetDropdownOpen }}
+            >
+              <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
+                {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
+              </Text>
+              <Ionicons name={isPresetDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
+            </TouchableOpacity>
 
-                return (
-                  <TouchableOpacity
-                    key={preset.id}
-                    style={[
-                      s.presetTile,
-                      {
-                        backgroundColor: isSelected ? themeColor : (isDark ? '#2c2c2e' : '#f2f2f7'),
-                        borderColor: isSelected ? themeColor : dynamicStyles.border,
-                      }
-                    ]}
-                    onPress={() => handleSelectBuiltInPreset(preset)}
-                    activeOpacity={0.7}
-                  >
-                    <Text 
-                      style={[
-                        s.presetTileText, 
-                        { color: isSelected ? textColor : dynamicStyles.text }
-                      ]} 
-                      numberOfLines={1}
+            {isPresetDropdownOpen && (
+              <ScrollView
+                style={[s.presetDropdownMenu, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {BUILTIN_PRESETS.map(preset => {
+                  const isSelected = activePresetId === preset.id;
+                  return (
+                    <TouchableOpacity
+                      key={preset.id}
+                      style={[s.presetDropdownItem, { backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : 'transparent' }]}
+                      onPress={() => {
+                        handleSelectBuiltInPreset(preset);
+                        setIsPresetDropdownOpen(false);
+                      }}
+                      activeOpacity={0.7}
                     >
-                      {presetLabel}
-                    </Text>
-                    {isSelected && (
-                      <Ionicons name="checkmark-circle" size={16} color={textColor} style={{ position: 'absolute', right: 8, top: 11 }} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text style={{ color: isSelected ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: isSelected ? 'bold' : 'normal', flex: 1 }} numberOfLines={1}>
+                        {getBuiltInPresetLabel(preset)}
+                      </Text>
+                      {isSelected && <Ionicons name="checkmark" size={18} color={themeColor} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         </View>
 
@@ -517,11 +538,20 @@ export const InfoEqualizerView = ({
             <TouchableOpacity 
               style={[
                 s.flatBtn, 
-                { backgroundColor: activePresetId === 'flat' ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb') }
+                { backgroundColor: useLiquidGlass ? 'transparent' : (activePresetId === 'flat' ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb')), overflow: 'hidden' }
               ]}
               onPress={handleResetFlat}
               disabled={!isEnabled}
             >
+              {useLiquidGlass && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  colorScheme={isDark ? 'dark' : 'light'}
+                  tintColor={activePresetId === 'flat' ? themeColor : undefined}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Text style={{ color: activePresetId === 'flat' ? textColor : dynamicStyles.text, fontSize: 12, fontWeight: 'bold' }}>
                 {t('equalizer_flat_btn', language)}
               </Text>
@@ -576,10 +606,19 @@ export const InfoEqualizerView = ({
 
           {/* 設定保存ボタン */}
           <TouchableOpacity 
-            style={[s.saveFullBtn, { backgroundColor: themeColor, marginTop: 18 }]}
+            style={[s.saveFullBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, marginTop: 18, overflow: 'hidden' }]}
             onPress={() => setSaveModalVisible(true)}
             activeOpacity={0.8}
           >
+            {useLiquidGlass && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={isDark ? 'dark' : 'light'}
+                tintColor={themeColor}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Ionicons name="bookmark-outline" size={17} color={textColor} style={{ marginRight: 6 }} />
             <Text style={{ color: textColor, fontSize: 14, fontWeight: 'bold' }}>
               {t('equalizer_save_btn', language)}
@@ -676,9 +715,9 @@ const s = StyleSheet.create({
   card: { borderRadius: 20, padding: 18, borderWidth: 1 },
   debugPanel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
-  presetTile: { width: '48%', height: 42, borderRadius: 12, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8, position: 'relative' },
-  presetTileText: { fontSize: 13, fontWeight: 'bold' },
+  presetDropdown: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
+  presetDropdownMenu: { maxHeight: 260, marginTop: 6, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  presetDropdownItem: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 },
   emptyCustomBox: { paddingVertical: 14, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
   flatBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   bandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

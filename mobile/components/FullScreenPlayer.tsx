@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { 
   View, Text, Image, TouchableHighlight, Animated, 
   ScrollView, FlatList, StyleSheet, useWindowDimensions, 
-  Platform 
+  Platform, Easing
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -84,7 +84,7 @@ export const FullScreenPlayer = ({
   handlePrev, togglePlayPause, handleNext,
   slideAnim, queueTransitionAnim, closeFullPlayer,
   toastVisible, toastMessage, toastAnim,
-  currentContext, language = 'ja'
+  currentContext, openingFrame, language = 'ja'
 }: any) => {
 
   const { width, height } = useWindowDimensions();
@@ -93,6 +93,7 @@ export const FullScreenPlayer = ({
   const activeIconColor = themeTextColor || '#000000';
 
   const transitionAnim = useRef(new Animated.Value(0)).current;
+  const openingProgress = useRef(new Animated.Value(openingFrame ? 0 : 1)).current;
   const scrollYRef = useRef(0);
 
   const mainViewAnim = useRef(new Animated.Value(1)).current;
@@ -100,6 +101,46 @@ export const FullScreenPlayer = ({
   const queueViewAnim = useRef(new Animated.Value(0)).current;
 
   const [isScrollAtTop, setIsScrollAtTop] = useState(true);
+
+  useEffect(() => {
+    if (!openingFrame) {
+      openingProgress.setValue(1);
+      return;
+    }
+
+    openingProgress.setValue(0);
+    const animation = Animated.timing(openingProgress, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [openingFrame, openingProgress]);
+
+  const requestClose = () => {
+    if (!openingFrame) {
+      closeFullPlayer();
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(openingProgress, {
+        toValue: 0,
+        duration: 210,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 210,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) closeFullPlayer(false);
+    });
+  };
   
   const isIphone = Platform.OS === 'ios' && !Platform.isPad;
   const isIpad = Platform.OS === 'ios' && Platform.isPad;
@@ -194,7 +235,7 @@ export const FullScreenPlayer = ({
     const { state, translationY, velocityY } = event.nativeEvent;
     if (state === State.END || state === State.CANCELLED) {
       if (translationY > 80 || velocityY > 300) {
-        closeFullPlayer();
+        requestClose();
       } else {
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
       }
@@ -866,10 +907,22 @@ export const FullScreenPlayer = ({
         styles.fullPlayerContainer,
         { top: Math.max(insets.top, 44) }
       ];
+  const animatedContainerStyle = openingFrame ? {
+    position: 'absolute' as const,
+    left: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.x, 0] }),
+    top: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.y, isLandscape ? 0 : Math.max(insets.top, 44)] }),
+    width: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.width, width] }),
+    height: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.height, height - (isLandscape ? 0 : Math.max(insets.top, 44))] }),
+    borderRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, 0] }),
+    borderTopLeftRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, isLandscape ? 0 : 40] }),
+    borderTopRightRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, isLandscape ? 0 : 40] }),
+    overflow: 'hidden' as const,
+  } : null;
 
+  const landscapeSideInset = isIphoneLandscape ? 52 : 16;
   const contentStyle = { 
     flex: 1, 
-    paddingLeft: Math.max(insets.left, 16), 
+    paddingLeft: Math.max(insets.left, landscapeSideInset),
     paddingRight: Math.max(insets.right, 16), 
     paddingTop: isLandscape ? Math.max(insets.top, 12) : 12, 
     paddingBottom: Math.max(insets.bottom, 16) 
@@ -877,21 +930,33 @@ export const FullScreenPlayer = ({
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.fullPlayerOverlay}>
-        <Animated.View
-          style={[containerStyle, { transform: [{ translateY: slideAnim }] }]}
-        >
-          <Image
-            source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : null}
-            style={StyleSheet.absoluteFill}
-            blurRadius={60}
+      <View style={[styles.fullPlayerOverlay, openingFrame && { backgroundColor: 'transparent' }]}>
+        {openingFrame && (
+          <Animated.View
             pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(0,0,0,0.65)',
+                opacity: openingProgress,
+              },
+            ]}
           />
+        )}
+        <Animated.View style={animatedContainerStyle || containerStyle}>
+          <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: slideAnim }] }]}>
+            <Image
+              source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+              style={StyleSheet.absoluteFill}
+              blurRadius={60}
+              pointerEvents="none"
+            />
 
-          <BlurView intensity={80} tint="dark" style={contentStyle}>
-            {handleBar}
-            {contentLayout}
-          </BlurView>
+            <BlurView intensity={80} tint="dark" style={contentStyle}>
+              {handleBar}
+              {contentLayout}
+            </BlurView>
+          </Animated.View>
         </Animated.View>
       </View>
     </GestureHandlerRootView>

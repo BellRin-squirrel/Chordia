@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking, NativeModules 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
 import { 
@@ -77,6 +78,7 @@ const SyncProgressBlockingOverlay = ({ visible, progressText, dynamicStyles, the
 export const InfoAccountView = ({
   dynamicStyles, themeColor, textColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [authStage, setAuthStage] = useState<AuthStage>('IDLE');
   const [username, setUsername] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -178,6 +180,14 @@ export const InfoAccountView = ({
   };
 
   const isFormValid = username.trim().length > 0 && deviceName.trim().length > 0;
+  const renderGlassBackground = () => useLiquidGlass ? (
+    <GlassView
+      pointerEvents="none"
+      glassEffectStyle="regular"
+      colorScheme={isDark ? 'dark' : 'light'}
+      style={StyleSheet.absoluteFill}
+    />
+  ) : null;
 
   const handleRegisterCode = async () => {
     if (!username.trim()) {
@@ -319,7 +329,8 @@ export const InfoAccountView = ({
       {renderHeader(t('menu_account', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 20 }]}>
-        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
+        <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
+          {renderGlassBackground()}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <View style={[s.iconBox, { backgroundColor: `rgba(79, 70, 229, 0.12)` }]}>
               <Ionicons name="cloud-outline" size={24} color={themeColor} />
@@ -330,7 +341,8 @@ export const InfoAccountView = ({
         </View>
 
         {authStage === 'AUTHENTICATED' && (
-          <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: themeColor, marginTop: 15 }]}>
+          <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: themeColor, marginTop: 15, overflow: 'hidden' }]}>
+            {renderGlassBackground()}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <Ionicons name="checkmark-circle" size={22} color={themeColor} />
               <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
@@ -377,8 +389,19 @@ export const InfoAccountView = ({
         )}
 
         {authStage === 'IDLE' && (
-          <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
-            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor }]} onPress={handleStartAuth} activeOpacity={0.8}>
+          <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15, overflow: 'hidden' }]}>
+            {renderGlassBackground()}
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, overflow: 'hidden' }]} onPress={handleStartAuth} activeOpacity={0.8}>
+              {useLiquidGlass && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  isInteractive
+                  colorScheme={isDark ? 'dark' : 'light'}
+                  tintColor={themeColor}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Ionicons name="key-outline" size={20} color={textColor} style={{ marginRight: 8 }} />
               <Text style={[s.primaryBtnText, { color: textColor }]}>{t('account_start_auth_btn', language)}</Text>
             </TouchableOpacity>
@@ -386,7 +409,8 @@ export const InfoAccountView = ({
         )}
 
         {authStage === 'INPUT' && (
-          <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15 }]}>
+          <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 15, overflow: 'hidden' }]}>
+            {renderGlassBackground()}
             <View style={{ gap: 16 }}>
               <View>
                 <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>{t('account_username_label', language)}</Text>
@@ -413,7 +437,8 @@ export const InfoAccountView = ({
         )}
 
         {authStage === 'WAITING_CODE' && generatedCode && (
-          <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: themeColor }]}>
+          <View style={[s.codeCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: themeColor, overflow: 'hidden' }]}>
+            {renderGlassBackground()}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <Ionicons name="key" size={20} color={themeColor} />
               <Text style={[s.codeCardTitle, { color: dynamicStyles.text }]}>{t('account_code_issued_title', language)}</Text>
@@ -490,7 +515,8 @@ export const InfoAccountView = ({
         )}
 
         {authStage === 'EXPIRED' && (
-          <View style={[s.codeCard, { backgroundColor: dynamicStyles.card, borderColor: '#ef4444' }]}>
+          <View style={[s.codeCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: '#ef4444', overflow: 'hidden' }]}>
+            {renderGlassBackground()}
             <Ionicons name="alert-circle" size={32} color="#ef4444" style={{ marginBottom: 6 }} />
             <Text style={[s.codeCardTitle, { color: '#ef4444' }]}>{t('account_auth_expired_title', language)}</Text>
             <Text style={[s.codeCardDesc, { color: dynamicStyles.subText, marginVertical: 10 }]}>{t('account_auth_expired_desc', language)}</Text>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   FlatList, Image, Modal, ScrollView, StyleSheet, 
   Switch, Text, TextInput, TouchableOpacity, Pressable, View, useWindowDimensions, Platform
@@ -11,12 +11,17 @@ import { t } from '../../utils/i18n';
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
 type CategoryTab = 'PLAYLIST' | 'ALBUM' | 'ARTIST';
+type MeasurableView = {
+  measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => void;
+};
 type DisplayOptionPicker = {
+  id: string;
   label: string;
   icon: string;
   options: { key: string; label: string }[];
   current: string;
   setter: (value: string) => void;
+  anchor: { x: number; y: number; width: number; height: number };
 } | null;
 
 export const FocusSetupView = ({ 
@@ -34,11 +39,13 @@ export const FocusSetupView = ({
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const textColor = buttonTextColor || '#ffffff';
 
   const [modalTab, setModalTab] = useState<CategoryTab>('PLAYLIST');
   const [searchQuery, setSearchQuery] = useState('');
   const [displayOptionPicker, setDisplayOptionPicker] = useState<DisplayOptionPicker>(null);
+  const dropdownButtonRefs = useRef<Record<string, MeasurableView | null>>({});
 
   const formatCustomSec = (sec: number) => {
     const h = Math.floor(sec / 3600);
@@ -160,71 +167,94 @@ export const FocusSetupView = ({
     { sec: 30 * 60, label: `30${t('minutes_unit', language)}`, isRec: false },
   ];
 
-  const renderPresetTiles = (label: string, presetList: typeof workPresetOptions, current: number, setter: (v: number) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
+  const renderPresetDropdown = (label: string, presetList: typeof workPresetOptions, current: number, setter: (v: number) => void, icon: string, type: 'WORK' | 'BREAK', isLast: boolean = false) => {
     const isCustomValue = !presetList.some(opt => opt.sec === current);
+    const options = [
+      ...presetList.map(option => ({
+        key: String(option.sec),
+        label: option.label + (option.isRec ? `  ·  ${t('recommended_badge', language)}` : ''),
+      })),
+      { key: 'custom', label: isCustomValue ? formatCustomSec(current) : t('custom_timer_btn', language) },
+    ];
 
     return (
-      <View style={[s.settingSection, isLast && { marginBottom: 0 }]}>
-        <View style={s.sectionHeaderRow}>
-            <Ionicons name={icon as any} size={18} color={themeColor} />
-            <Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text>
-        </View>
-        <View style={s.tileContainer}>
-          {presetList.map(opt => {
-            const isSelected = current === opt.sec && !isCustomValue;
-            
-            return (
-              <TouchableOpacity 
-                key={opt.sec} 
-                onPress={() => setter(opt.sec)} 
-                style={[
-                  s.tileBtn, 
-                  { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
-                  { width: '31%', paddingHorizontal: 4 }, 
-                  isSelected && s.tileBtnSelected
-                ]}
-              >
-                <Text style={[s.tileText, { color: isSelected ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>{opt.label}</Text>
-                {opt.isRec && (
-                  <View style={[s.recommendBadge, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}>
-                    <Text style={{ color: isSelected ? textColor : themeColor, fontSize: 8, fontWeight: 'bold' }}>{t('recommended_badge', language)}</Text>
-                  </View>
-                )}
-                {isSelected && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
-              </TouchableOpacity>
-            );
-          })}
-          
-          <TouchableOpacity 
-            onPress={() => openCustomTimerModal(type)} 
-            style={[
-              s.tileBtn, 
-              { backgroundColor: isCustomValue ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }, 
-              { width: '31%', paddingHorizontal: 4 }, 
-              isCustomValue && s.tileBtnSelected
-            ]}
-          >
-            <Text style={[s.tileText, { color: isCustomValue ? textColor : dynamicStyles.text }]} numberOfLines={1} adjustsFontSizeToFit>
-                {isCustomValue ? formatCustomSec(Number(current)) : t('custom_timer_btn', language)}
-            </Text>
-            {isCustomValue && <Ionicons name="checkmark-circle" size={14} color={textColor} style={s.checkIcon} />}
-          </TouchableOpacity>
-        </View>
-      </View>
+      renderSelectionDropdown(
+        `pomodoro-${type}`,
+        label,
+        options,
+        isCustomValue ? 'custom' : String(current),
+        (value) => {
+          if (value === 'custom') openCustomTimerModal(type);
+          else setter(Number(value));
+        },
+        icon,
+        isLast,
+      )
     );
   };
 
-  const renderDisplayOption = (label: string, options: { key: string; label: string }[], current: string, setter: (v: string) => void, icon: string) => (
-    <View style={s.settingSection}>
-      <View style={s.sectionHeaderRow}><Ionicons name={icon as any} size={18} color={themeColor} /><Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text></View>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setDisplayOptionPicker({ label, options, current, setter, icon })}
-        style={[s.pickerBox, { backgroundColor: dynamicStyles.bg, borderColor: dynamicStyles.border }]}
-      >
-        <Text style={{ color: dynamicStyles.text, fontWeight: '600', flex: 1 }}>{options.find(option => option.key === current)?.label || current}</Text>
-        <Ionicons name="chevron-down" size={16} color={dynamicStyles.subText} />
-      </Pressable>
+  const renderSelectionDropdown = (
+    id: string,
+    label: string,
+    options: { key: string; label: string }[],
+    current: string,
+    setter: (value: string) => void,
+    icon: string,
+    isLast = false,
+  ) => (
+    <View style={[s.settingSection, isLast && { marginBottom: 0 }]}>
+      <View style={s.displayOptionRow}>
+        <View style={[s.sectionHeaderRow, { marginBottom: 0, flex: 1 }]}>
+          <Ionicons name={icon as any} size={18} color={themeColor} />
+          <Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text>
+        </View>
+        <View
+          ref={button => {
+            dropdownButtonRefs.current[id] = button;
+          }}
+          collapsable={false}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: displayOptionPicker?.id === id }}
+            onPress={() => {
+              if (displayOptionPicker?.id === id) {
+                setDisplayOptionPicker(null);
+                return;
+              }
+              dropdownButtonRefs.current[id]?.measureInWindow((x, y, buttonWidth, buttonHeight) => {
+                setDisplayOptionPicker({
+                  id,
+                  label,
+                  options,
+                  current,
+                  setter,
+                  icon,
+                  anchor: { x, y, width: buttonWidth, height: buttonHeight },
+                });
+              });
+            }}
+            style={[
+              s.displayOptionButton,
+              {
+                backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.bg,
+                borderColor: dynamicStyles.border,
+              },
+            ]}
+          >
+            {useLiquidGlass && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
+            <Text style={{ color: dynamicStyles.text, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{options.find(option => option.key === current)?.label || current}</Text>
+            <Ionicons name={displayOptionPicker?.id === id ? 'chevron-up' : 'chevron-down'} size={16} color={dynamicStyles.subText} />
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 
@@ -277,9 +307,9 @@ export const FocusSetupView = ({
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 250 }}>
         
         <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
-            {renderDisplayOption(t('date_display', language), dateOptions, dateMode, setDateMode, 'calendar')}
-            {renderDisplayOption(t('day_display', language), dayOptions, dayMode, setDayMode, 'today')}
-            {renderDisplayOption(t('clock_display', language), clockOptions, clockMode, setClockMode, 'time')}
+            {renderSelectionDropdown('date', t('date_display', language), dateOptions, dateMode, setDateMode, 'calendar')}
+            {renderSelectionDropdown('day', t('day_display', language), dayOptions, dayMode, setDayMode, 'today')}
+            {renderSelectionDropdown('clock', t('clock_display', language), clockOptions, clockMode, setClockMode, 'time')}
             
             <View style={[s.switchRow, { marginTop: 10 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -300,8 +330,8 @@ export const FocusSetupView = ({
             </View>
             {pomoEnabled && (
                 <View style={{ marginTop: 15, borderTopWidth: 1, borderTopColor: dynamicStyles.border, paddingTop: 15 }}>
-                    {renderPresetTiles(t('work_time', language), workPresetOptions, workTime, setWorkTime, 'briefcase', 'WORK', false)}
-                    {renderPresetTiles(t('break_time', language), breakPresetOptions, breakTime, setBreakTime, 'cafe', 'BREAK', true)}
+                    {renderPresetDropdown(t('work_time', language), workPresetOptions, workTime, setWorkTime, 'briefcase', 'WORK', false)}
+                    {renderPresetDropdown(t('break_time', language), breakPresetOptions, breakTime, setBreakTime, 'cafe', 'BREAK', true)}
                 </View>
             )}
         </View>
@@ -353,48 +383,96 @@ export const FocusSetupView = ({
 
       </ScrollView>
 
-      <Modal visible={displayOptionPicker !== null} transparent animationType="fade" onRequestClose={() => setDisplayOptionPicker(null)}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+      <Modal
+        visible={displayOptionPicker !== null}
+        transparent
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+        onRequestClose={() => setDisplayOptionPicker(null)}
+      >
+        <View style={StyleSheet.absoluteFill}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('cancel', language)}
             onPress={() => setDisplayOptionPicker(null)}
-            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)' }]}
+            style={StyleSheet.absoluteFill}
           />
-          <View style={{ width: '100%', maxWidth: 420, padding: 18, borderRadius: 24, backgroundColor: dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border, gap: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 4 }}>
-              <Ionicons name={(displayOptionPicker?.icon || 'calendar') as any} size={20} color={themeColor} />
-              <Text style={{ color: dynamicStyles.text, fontSize: 18, fontWeight: 'bold' }}>{displayOptionPicker?.label}</Text>
-            </View>
-            {displayOptionPicker?.options.map(option => {
-              const isSelected = option.key === displayOptionPicker.current;
-              return (
-                <Pressable
-                  key={option.key}
-                  onPress={() => {
-                    displayOptionPicker.setter(option.key);
-                    setDisplayOptionPicker(null);
-                  }}
-                  accessibilityRole="button"
-                  style={{ minHeight: 50, borderRadius: 16, overflow: 'hidden', justifyContent: 'center' }}
-                >
-                  {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
-                    <GlassView
-                      glassEffectStyle="regular"
-                      isInteractive
-                      colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
-                      tintColor={isSelected ? themeColor : undefined}
-                      style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
-                    />
-                  ) : (
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: isSelected ? themeColor : dynamicStyles.bg, borderWidth: 1, borderColor: dynamicStyles.border, borderRadius: 16 }]} />
-                  )}
-                  <View style={{ minHeight: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ color: isSelected ? textColor : dynamicStyles.text, fontSize: 16, fontWeight: isSelected ? '700' : '500' }}>{option.label}</Text>
-                    {isSelected && <Ionicons name="checkmark-circle" size={20} color={textColor} />}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+          {displayOptionPicker && (() => {
+            const menuWidth = Math.min(width - 32, 280);
+            const menuHeight = Math.min(displayOptionPicker.options.length * 44, 280);
+            const left = Math.max(16, Math.min(displayOptionPicker.anchor.x, width - menuWidth - 16));
+            const belowTop = displayOptionPicker.anchor.y + displayOptionPicker.anchor.height + 8;
+            const top = belowTop + menuHeight <= height - 12
+              ? belowTop
+              : Math.max(12, displayOptionPicker.anchor.y - menuHeight - 8);
+
+            return (
+              <View
+                style={[
+                  s.dropdownOptions,
+                  {
+                    position: 'absolute',
+                    top,
+                    left,
+                    width: menuWidth,
+                    maxHeight: 280,
+                    borderColor: dynamicStyles.border,
+                    backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 8 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 16,
+                    elevation: 12,
+                  },
+                ]}
+              >
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
+                <ScrollView bounces={false} keyboardShouldPersistTaps="handled">
+                  {displayOptionPicker.options.map((option, index) => {
+                    const isSelected = option.key === displayOptionPicker.current;
+                    return (
+                      <Pressable
+                        key={option.key}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        onPress={() => {
+                          displayOptionPicker.setter(option.key);
+                          setDisplayOptionPicker(null);
+                        }}
+                        style={[
+                          s.dropdownOption,
+                          {
+                            borderBottomColor: dynamicStyles.border,
+                            borderBottomWidth: index === displayOptionPicker.options.length - 1 ? 0 : StyleSheet.hairlineWidth,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            color: dynamicStyles.text,
+                            fontSize: 14,
+                            fontWeight: isSelected ? '700' : '500',
+                            flex: 1,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {option.label}
+                        </Text>
+                        {isSelected && <Ionicons name="checkmark" size={18} color={themeColor} />}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            );
+          })()}
         </View>
       </Modal>
 
@@ -415,32 +493,82 @@ export const FocusSetupView = ({
                 <Ionicons name="musical-notes" size={22} color={themeColor} />
                 <Text style={[s.popupTitle, { color: dynamicStyles.text }]}>{getTargetTitle()}</Text>
               </View>
-              <TouchableOpacity onPress={() => setPickerVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close-circle" size={28} color={dynamicStyles.subText} />
-              </TouchableOpacity>
+              <Pressable
+                onPress={() => setPickerVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel={t('close', language)}
+                style={[s.pickerCloseButton, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.bg, borderColor: dynamicStyles.border }]}
+                hitSlop={8}
+              >
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    isInteractive
+                    colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
+                <Ionicons name="close" size={19} color={dynamicStyles.subText} />
+              </Pressable>
             </View>
 
-            <View style={[s.tabSwitchContainer, { backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#e5e7eb', borderColor: dynamicStyles.border }]}>
+            <View style={[s.tabSwitchContainer, {
+              backgroundColor: useLiquidGlass ? 'transparent' : (dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#e5e7eb'),
+              borderColor: dynamicStyles.border,
+              overflow: 'hidden',
+            }]}>
+              {useLiquidGlass && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               {(['PLAYLIST', 'ALBUM', 'ARTIST'] as CategoryTab[]).map((tabKey) => {
                 const isSelected = modalTab === tabKey;
                 const label = tabKey === 'PLAYLIST' ? t('playlist_label', language) : tabKey === 'ALBUM' ? t('album_label', language) : t('artist_label', language);
                 const icon = tabKey === 'PLAYLIST' ? 'musical-notes-outline' : tabKey === 'ALBUM' ? 'disc-outline' : 'mic-outline';
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={tabKey}
-                    style={[s.tabSwitchBtn, isSelected && { backgroundColor: themeColor }]}
+                    style={[s.tabSwitchBtn, isSelected && !useLiquidGlass && { backgroundColor: themeColor }, { overflow: 'hidden' }]}
                     onPress={() => setModalTab(tabKey)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: isSelected }}
                   >
+                    {useLiquidGlass && isSelected && (
+                      <GlassView
+                        pointerEvents="none"
+                        glassEffectStyle="regular"
+                        tintColor={themeColor}
+                        colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
                     <Ionicons name={icon as any} size={16} color={isSelected ? textColor : dynamicStyles.subText} style={{ marginRight: 6 }} />
                     <Text style={{ color: isSelected ? textColor : dynamicStyles.text, fontWeight: 'bold', fontSize: 13 }}>
                       {label}
                     </Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
             </View>
 
-            <View style={[s.searchBarBox, { backgroundColor: dynamicStyles.bg === '#000000' ? '#1c1c1e' : '#f2f2f7', borderColor: dynamicStyles.border }]}>
+            <View style={[s.searchBarBox, {
+              backgroundColor: useLiquidGlass ? 'transparent' : (dynamicStyles.bg === '#000000' ? '#1c1c1e' : '#f2f2f7'),
+              borderColor: dynamicStyles.border,
+              overflow: 'hidden',
+            }]}>
+              {useLiquidGlass && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Ionicons name="search" size={16} color={dynamicStyles.subText} style={{ marginRight: 8 }} />
               <TextInput
                 style={[s.searchInput, { color: dynamicStyles.text }]}
@@ -518,14 +646,11 @@ const s = StyleSheet.create({
   mainCard: { borderRadius: 24, padding: 18, borderWidth: 1 },
   settingSection: { marginBottom: 20 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  displayOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  displayOptionButton: { minHeight: 40, minWidth: 132, maxWidth: '56%', borderRadius: 16, borderWidth: 1, overflow: 'hidden', paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  dropdownOptions: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  dropdownOption: { minHeight: 44, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionTitleSmall: { fontSize: 14, fontWeight: 'bold' },
-  tileContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: '3%' }, 
-  displayTileContainer: { flexDirection: 'row', gap: 8 }, 
-  tileBtn: { paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: 8 },
-  tileBtnSelected: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  tileText: { fontSize: 12, fontWeight: '600' },
-  recommendBadge: { position: 'absolute', top: -6, right: -4, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
-  checkIcon: { position: 'absolute', top: 2, right: 2 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   playlistRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
   playlistLabel: { fontSize: 11, marginBottom: 5, fontWeight: '600' },
@@ -536,6 +661,7 @@ const s = StyleSheet.create({
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)' },
   fullPopupCard: { borderRadius: 28, padding: 20, borderWidth: 1.5, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
   popupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  pickerCloseButton: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   popupTitle: { fontSize: 18, fontWeight: 'bold' },
   tabSwitchContainer: { flexDirection: 'row', borderRadius: 14, padding: 4, marginBottom: 12, borderWidth: 1 },
   tabSwitchBtn: { flex: 1, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10 },

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity, FlatList, Image, 
-  Alert, ActivityIndicator, Modal, TouchableWithoutFeedback, Animated, Easing, StyleSheet 
+  Alert, ActivityIndicator, Modal, TouchableWithoutFeedback, Animated, Easing, StyleSheet, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { MarqueeText } from '../MarqueeText';
 import { LanguageCode, t } from '../../utils/i18n';
 import { 
@@ -177,6 +178,7 @@ export const InfoStatisticsView = ({
   dynamicStyles, themeColor, isDark, isLandscape, safePadding,
   focusHistory = [], pushView, renderHeader, language = 'ja', localLibrary = []
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(6);
   const [playbackHistory, setPlaybackHistory] = useState<any[]>([]);
   const [activeFocusHistory, setActiveFocusHistory] = useState<any[]>(focusHistory);
@@ -324,7 +326,10 @@ export const InfoStatisticsView = ({
             </Text>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isSyncAccount ? `rgba(79, 70, 229, 0.12)` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: isSyncAccount ? themeColor : dynamicStyles.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: useLiquidGlass ? 'transparent' : (isSyncAccount ? `rgba(79, 70, 229, 0.12)` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: isSyncAccount ? themeColor : dynamicStyles.border, overflow: 'hidden' }}>
+            {useLiquidGlass && (
+              <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            )}
             <Ionicons name={isSyncAccount ? "cloud-done" : "phone-portrait-outline"} size={13} color={isSyncAccount ? themeColor : dynamicStyles.subText} />
             <Text style={{ color: isSyncAccount ? themeColor : dynamicStyles.subText, fontSize: 11, fontWeight: 'bold' }}>{isSyncAccount ? "Sync" : "Local"}</Text>
           </View>
@@ -373,7 +378,10 @@ export const InfoStatisticsView = ({
           </View>
         </View>
 
-        <TouchableOpacity style={{ backgroundColor: isDark ? '#1c1c1e' : '#f2f2f7', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 25, borderWidth: 1, borderColor: dynamicStyles.border, flexDirection: 'row', justifyContent: 'center', gap: 8 }} onPress={() => pushView('STATS_ALL')} activeOpacity={0.7}>
+        <TouchableOpacity style={{ backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? '#1c1c1e' : '#f2f2f7'), paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 25, borderWidth: 1, borderColor: dynamicStyles.border, flexDirection: 'row', justifyContent: 'center', gap: 8, overflow: 'hidden' }} onPress={() => pushView('STATS_ALL')} activeOpacity={0.7}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <Ionicons name="time-outline" size={18} color={themeColor} />
           <Text style={{ color: themeColor, fontSize: 15, fontWeight: 'bold' }}>{t('view_all_focus_history', language)}</Text>
         </TouchableOpacity>
@@ -414,17 +422,21 @@ export const InfoStatisticsView = ({
                     marginTop: 8, 
                     paddingVertical: 12, 
                     borderRadius: 14, 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                     borderWidth: 1, 
                     borderColor: dynamicStyles.border,
                     flexDirection: 'row', 
                     alignItems: 'center', 
                     justifyContent: 'center', 
-                    gap: 6 
+                    gap: 6,
+                    overflow: 'hidden'
                   }}
                   onPress={() => pushView('RANKING_ALL')}
                   activeOpacity={0.7}
                 >
+                  {useLiquidGlass && (
+                    <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  )}
                   <Text style={{ color: themeColor, fontSize: 13, fontWeight: 'bold' }}>
                     {t('view_more_ranking', language)} ({allRankingSongsLast7Days.length} {t('songs_count', language)})
                   </Text>
@@ -440,12 +452,18 @@ export const InfoStatisticsView = ({
           )}
         </View>
 
-        <TouchableOpacity style={{ backgroundColor: isDark ? '#1c1c1e' : '#f2f2f7', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 35, borderWidth: 1, borderColor: dynamicStyles.border, flexDirection: 'row', justifyContent: 'center', gap: 8 }} onPress={() => pushView('PLAY_HISTORY')} activeOpacity={0.7}>
+        <TouchableOpacity style={{ backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? '#1c1c1e' : '#f2f2f7'), paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 35, borderWidth: 1, borderColor: dynamicStyles.border, flexDirection: 'row', justifyContent: 'center', gap: 8, overflow: 'hidden' }} onPress={() => pushView('PLAY_HISTORY')} activeOpacity={0.7}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <Ionicons name="list-outline" size={18} color={themeColor} />
           <Text style={{ color: themeColor, fontSize: 15, fontWeight: 'bold' }}>{t('view_all_playback_history', language)}</Text>
         </TouchableOpacity>
 
-        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+        <View style={{ alignItems: 'center', padding: 20, borderRadius: 20, backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderWidth: 1, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <Text style={{ color: dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', marginBottom: 8 }}>{t('total_focus_week', language)}</Text>
           <Text style={{ color: themeColor, fontSize: 40, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{formatSecToHMS(weekTotalSec)}</Text>
         </View>

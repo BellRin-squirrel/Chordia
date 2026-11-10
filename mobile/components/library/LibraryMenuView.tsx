@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  View, Text, FlatList, TouchableOpacity, Modal, 
+  View, Text, FlatList, TouchableOpacity, Modal, Platform,
   TouchableWithoutFeedback, StyleSheet, Alert, AppState, ActivityIndicator 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../../styles/styles';
+import { styles } from '../../styles/styles';
 import { RecentSection } from '../RecentSection';
 import { getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
@@ -34,6 +35,7 @@ export const LibraryMenuView = ({
 }: any) => {
 
   const isDark = dynamicStyles.bg === '#000000';
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
   const [relayModalVisible, setRelayModalVisible] = useState(false);
@@ -411,9 +413,7 @@ export const LibraryMenuView = ({
           paddingTop: insets?.top || 0, 
           height: 44 + (insets?.top || 0),
           paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20,
-          paddingRight: isLandscape 
-            ? (Math.max(insets?.right || 0, 16) + LANDSCAPE_TAB_BAR_WIDTH + 16) 
-            : 20,
+          paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
           justifyContent: 'space-between',
         }
       ]}>
@@ -516,7 +516,15 @@ export const LibraryMenuView = ({
         <TouchableWithoutFeedback onPress={() => setRelayModalVisible(false)}>
           <View style={s.modalOverlay}>
             <TouchableWithoutFeedback>
-              <View style={[s.modalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
+              <View style={[s.modalCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <View style={s.modalHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="cloud-outline" size={22} color={themeColor} />
