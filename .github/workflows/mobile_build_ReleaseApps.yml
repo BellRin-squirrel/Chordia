@@ -94,7 +94,7 @@ jobs:
             applyKotlinExpoModulesCorePlugin()
           }
           android {
-            compileSdkVersion 34
+            compileSdkVersion rootProject.ext.compileSdkVersion
             namespace "com.bellrin.chordia.equalizer"
             defaultConfig { minSdkVersion 24 }
             sourceSets {
@@ -320,7 +320,7 @@ jobs:
             applyKotlinExpoModulesCorePlugin()
           }
           android {
-            compileSdkVersion 34
+            compileSdkVersion rootProject.ext.compileSdkVersion
             namespace "com.bellrin.chordia.equalizer"
             defaultConfig { minSdkVersion 24 }
             sourceSets {

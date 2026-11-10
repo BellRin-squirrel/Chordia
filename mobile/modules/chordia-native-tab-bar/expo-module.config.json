@@ -1,6 +1,7 @@
 {
   "platforms": ["apple"],
   "apple": {
+    "podspecPath": "chordia-native-tab-bar.podspec",
     "modules": ["ChordiaNativeTabBarModule"]
   }
 }

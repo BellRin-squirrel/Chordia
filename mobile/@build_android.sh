@@ -44,7 +44,7 @@ if (expoModulesCorePlugin.exists()) {
 }
 
 android {
-  compileSdkVersion 34
+  compileSdkVersion rootProject.ext.compileSdkVersion
   namespace "com.bellrin.chordia.equalizer"
   defaultConfig { minSdkVersion 24 }
 
