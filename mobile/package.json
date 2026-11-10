@@ -1,7 +1,7 @@
 {
   "name": "chordia-mobile",
   "main": "expo-router/entry",
-  "version": "6.0.0",
+  "version": "6.2.0",
   "scripts": {
     "start": "expo start --dev-client",
     "reset-project": "node ./scripts/reset-project.js",

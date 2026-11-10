@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../styles/styles';
+import { APP_VERSION } from '../constants/config';
 
 const PRESET_COLORS =[
   {r: 79, g: 70, b: 229}, {r: 0, g: 122, b: 255}, {r: 52, g: 199, b: 89},
@@ -80,7 +81,7 @@ export const SettingsScreen = ({ dynamicStyles, themeColor, themeTextColor, isCu
         <View style={{ marginTop: 40, alignItems: 'center' }}>
           <View style={[styles.licenseCard, { backgroundColor: dynamicStyles.card }]}>
             <Text style={[styles.appNameLabel, { color: dynamicStyles.text }]}>Chordia Mobile版</Text>
-            <Text style={styles.appVersionLabel}>v6.1.0</Text>
+            <Text style={styles.appVersionLabel}>{APP_VERSION}</Text>
             <View style={[styles.divider, { backgroundColor: dynamicStyles.bg, marginTop: 25 }]} />
             <Text style={[styles.copyrightLabel, { color: dynamicStyles.text }]}>© 2026 BellRin</Text>
 
