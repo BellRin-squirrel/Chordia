@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  View, Text, Animated, StyleSheet, TouchableWithoutFeedback, 
-  useWindowDimensions, Easing, Alert, Keyboard 
+  View, Text, Animated, StyleSheet, TouchableWithoutFeedback, Pressable,
+  useWindowDimensions, Easing, Alert, Keyboard, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { GlassView } from 'expo-glass-effect';
+import { SymbolView } from 'expo-symbols';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { styles, LANDSCAPE_TAB_BAR_WIDTH } from '../styles/styles';
@@ -383,18 +385,39 @@ export const Library = ({
   const handlePressIn = () => { Animated.spring(backButtonScale, { toValue: 1.85, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
 
+  const renderBackButton = (onPress: () => void) => {
+    if (Platform.OS === 'ios') {
+      return (
+        <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={t('back', language)}>
+          <GlassView
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={isDark ? 'dark' : 'light'}
+            style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+          >
+            <SymbolView name="chevron.backward" size={18} weight="medium" tintColor={themeColor} />
+          </GlassView>
+        </Pressable>
+      );
+    }
+
+    return (
+      <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
+        <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
+          <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(255,255,255,0.5)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)' }]}>
+            <BlurView intensity={isDark ? 60 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
+          </View>
+        </Animated.View>
+      </TouchableWithoutFeedback>
+    );
+  };
+
   const renderHeader = (title: string, rightElement?: React.ReactNode) => (
     <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 }]}>
       <View style={styles.navHeaderLeft}>
         {navStack.length > 1 && (
-          <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
-            <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
-              <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.4)' : 'rgba(255,255,255,0.4)', borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.6)' }]}>
-                <BlurView intensity={isDark ? 50 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-                <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
-              </View>
-            </Animated.View>
-          </TouchableWithoutFeedback>
+          renderBackButton(popView)
         )}
       </View>
       <Text style={[styles.navHeaderTitle, { color: dynamicStyles.text }]} numberOfLines={1}>{title}</Text>
@@ -406,14 +429,7 @@ export const Library = ({
 
   const renderFloatingBackButton = () => (
     <View style={{ position: 'absolute', top: 12, left: isLandscape ? Math.max(insets?.left || 0, 16) : 16, zIndex: 30 }}>
-      <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={popView}>
-        <Animated.View style={{ transform: [{ scale: backButtonScale }] }}>
-          <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(255,255,255,0.5)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)' }]}>
-            <BlurView intensity={isDark ? 60 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <Ionicons name="chevron-back" size={24} color={themeColor} style={{ marginLeft: -2 }} />
-          </View>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+      {renderBackButton(popView)}
     </View>
   );
 
