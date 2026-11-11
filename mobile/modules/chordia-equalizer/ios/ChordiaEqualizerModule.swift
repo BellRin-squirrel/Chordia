@@ -7,6 +7,7 @@ public class ChordiaEqualizerModule: Module {
   private var isEQEnabled: Bool = false
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
+  private var soundCheckGain: Float = 0.0
   private var engineMode: String = "rntp"
   
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
@@ -74,6 +75,15 @@ public class ChordiaEqualizerModule: Module {
       self.currentPreamp = Float(preamp)
       self.currentGains = gains.map { Float($0) }
       self.updateEqualizerHardware()
+    }
+
+    Function("setSoundCheckGain") { (gainDb: Double) in
+      self.soundCheckGain = Float(max(-12.0, min(12.0, gainDb)))
+      self.updateEqualizerHardware()
+    }
+
+    AsyncFunction("analyzeAudioLoudness") { (source: String) throws -> Double in
+      return try self.analyzeAudioLoudness(source: source)
     }
 
     Function("setEngineMode") { (mode: String) in
@@ -396,8 +406,8 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func updateEqualizerHardware() {
-    equalizerUnit.bypass = !isEQEnabled
-    equalizerUnit.globalGain = isEQEnabled ? currentPreamp : 0.0
+    equalizerUnit.bypass = !isEQEnabled && soundCheckGain == 0.0
+    equalizerUnit.globalGain = (isEQEnabled ? currentPreamp : 0.0) + soundCheckGain
 
     let maxAllowedFreq = Float(fileSampleRate / 2.0) - 200.0
 
@@ -407,6 +417,49 @@ public class ChordiaEqualizerModule: Module {
       band.gain = isEQEnabled ? currentGains[i] : 0.0
       band.bypass = !isEQEnabled
     }
+  }
+
+  private func analyzeAudioLoudness(source: String) throws -> Double {
+    let url: URL
+    if let parsed = URL(string: source), parsed.isFileURL {
+      url = parsed
+    } else {
+      url = URL(fileURLWithPath: source)
+    }
+
+    let file = try AVAudioFile(forReading: url)
+    let format = file.processingFormat
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 8192),
+          let channels = buffer.floatChannelData else {
+      throw NSError(domain: "ChordiaSoundCheck", code: 1, userInfo: [NSLocalizedDescriptionKey: "Audio format cannot be analyzed."])
+    }
+
+    var sumSquares = 0.0
+    var sampleCount = 0
+    var peak = 0.0
+
+    while file.framePosition < file.length {
+      try file.read(into: buffer, frameCount: 8192)
+      let frameCount = Int(buffer.frameLength)
+      if frameCount == 0 { break }
+
+      for channel in 0..<Int(format.channelCount) {
+        for frame in 0..<frameCount {
+          let sample = Double(channels[channel][frame])
+          sumSquares += sample * sample
+          peak = max(peak, abs(sample))
+          sampleCount += 1
+        }
+      }
+    }
+
+    guard sampleCount > 0, peak > 0 else { return 0 }
+
+    let rms = sqrt(sumSquares / Double(sampleCount))
+    guard rms > 0 else { return 0 }
+    let rmsDb = 20.0 * log10(rms)
+    let peakDb = 20.0 * log10(peak)
+    return max(-12.0, min(12.0, min(-16.0 - rmsDb, -1.0 - peakDb)))
   }
 
   private func resolveFileURL(filePath: String) -> URL? {

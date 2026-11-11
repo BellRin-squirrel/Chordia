@@ -53,6 +53,7 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
 
 export const InfoScreen = ({ 
   dynamicStyles, themeColor, themeTextColor, isCustomTheme, 
+  appearanceMode, changeAppearanceMode, soundCheckEnabled, changeSoundCheckEnabled,
   themeR, themeG, themeB, recentColors, setThemeR, setThemeG, setThemeB, 
   showRGBModal, setShowRGBModal, saveColor, applyCustomColor, 
   insets, audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab, 
@@ -328,6 +329,8 @@ export const InfoScreen = ({
               {navStack[1] === 'SETTINGS' && (
                 <InfoSettingsView 
                   dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isCustomTheme={isCustomTheme} isDark={isDark}
+                  appearanceMode={appearanceMode} changeAppearanceMode={changeAppearanceMode}
+                  soundCheckEnabled={soundCheckEnabled} changeSoundCheckEnabled={changeSoundCheckEnabled}
                   themeR={themeR} themeG={themeG} themeB={themeB} recentColors={recentColors} setThemeR={setThemeR} setThemeG={setThemeG} setThemeB={setThemeB}
                   showRGBModal={showRGBModal} setShowRGBModal={setShowRGBModal} saveColor={saveColor} applyCustomColor={applyCustomColor}
                   audioEngine={audioEngine} changeAudioEngine={changeAudioEngine} showFocusTab={showFocusTab} toggleFocusTab={toggleFocusTab}

@@ -364,28 +364,30 @@ export const InfoAccountView = ({
             </View>
 
             <View style={{ gap: 10 }}>
-              <TouchableOpacity 
-                style={[s.primaryBtn, { backgroundColor: themeColor }]}
+              <GlassActionButton
+                isDark={isDark}
+                glassTintColor={themeColor}
+                style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor }]}
                 onPress={handleResyncAllData}
-                activeOpacity={0.8}
               >
                 <Ionicons name="cloud-upload-outline" size={19} color={textColor} style={{ marginRight: 8 }} />
                 <Text style={[s.primaryBtnText, { color: textColor }]}>
                   {t('account_resync_btn', language)}
                 </Text>
-              </TouchableOpacity>
+              </GlassActionButton>
 
-              <TouchableOpacity 
-                style={{ height: 46, borderRadius: 23, backgroundColor: 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
+              <GlassActionButton
+                isDark={isDark}
+                style={{ height: 46, borderRadius: 23, backgroundColor: useLiquidGlass ? 'transparent' : 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
                 onPress={handleLogoutPress}
                 disabled={isLoggingOut}
               >
                 {isLoggingOut ? (
                   <ActivityIndicator color="#ef4444" size="small" />
                 ) : (
-                  <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 14 }}>{t('account_logout_btn', language)}</Text>
+                  <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }}>{t('account_logout_btn', language)}</Text>
                 )}
-              </TouchableOpacity>
+              </GlassActionButton>
             </View>
           </View>
         )}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Animated, Dimensions, Platform } from 'react-native';
+import { Animated, Dimensions, Easing, Platform } from 'react-native';
 import TrackPlayer, { RepeatMode, Event } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -18,14 +18,16 @@ import {
   initEqualizer, 
   applyEqualizerSettings, 
   addEqualizerChangeListener, 
-  EqualizerApplyPayload 
+  EqualizerApplyPayload,
+  setSoundCheckGain
 } from '../utils/equalizer';
+import { gainDbToPlaybackVolume, getSoundCheckGain } from '../utils/soundCheck';
 
 export type { PlayCollectionContext };
 
 const { height } = Dimensions.get('window');
 
-export const useAudioPlayer = () => {
+export const useAudioPlayer = (soundCheckEnabled = false) => {
   const [audioEngine, setAudioEngine] = useState<AudioEngineType>('rntp');
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -60,6 +62,50 @@ export const useAudioPlayer = () => {
   const setPositionAsyncRef = useRef<(v: number) => void>(() => {});
 
   const lastSkipTimeRef = useRef(0);
+  const soundCheckRequestRef = useRef(0);
+
+  const applySoundCheckForSong = async (song: any) => {
+    const requestId = ++soundCheckRequestRef.current;
+    if (!soundCheckEnabled) {
+      setSoundCheckGain(0);
+      try {
+        if (audioEngine === 'rntp') {
+          await TrackPlayer.setVolume(1);
+        } else if (expoAudio.expoAudioPlayerRef.current) {
+          expoAudio.expoAudioPlayerRef.current.volume = 1;
+        }
+      } catch (error) {
+        console.error('[SoundCheck] Failed to restore playback volume:', error);
+      }
+      return;
+    }
+
+    try {
+      const gainDb = await getSoundCheckGain(song.localMusicUri);
+      if (requestId !== soundCheckRequestRef.current) return;
+
+      if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
+        setSoundCheckGain(gainDb);
+        return;
+      }
+
+      const playbackVolume = gainDbToPlaybackVolume(gainDb);
+      if (Platform.OS === 'android' && audioEngine === 'rntp') {
+        await rntp.syncAndroidEqualizerSession();
+        if (requestId !== soundCheckRequestRef.current) return;
+        setSoundCheckGain(gainDb);
+        await TrackPlayer.setVolume(playbackVolume);
+      } else if (audioEngine === 'rntp') {
+        await TrackPlayer.setVolume(playbackVolume);
+      } else if (expoAudio.expoAudioPlayerRef.current) {
+        expoAudio.expoAudioPlayerRef.current.volume = playbackVolume;
+      }
+    } catch (error) {
+      if (requestId !== soundCheckRequestRef.current) return;
+      setSoundCheckGain(0);
+      console.error('[SoundCheck] Could not normalize track:', error);
+    }
+  };
 
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
@@ -215,7 +261,7 @@ export const useAudioPlayer = () => {
       if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
     } catch (e) {}
 
-    if (Platform.OS === 'ios' && isEQEnabled) {
+    if (Platform.OS === 'ios' && (isEQEnabled || soundCheckEnabled)) {
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
 
@@ -223,6 +269,7 @@ export const useAudioPlayer = () => {
       const success = iosEq.loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
       if (success) {
         iosEq.isIOSEQActiveRef.current = true;
+        void applySoundCheckForSong(song);
         setIsPlaying(shouldPlay);
         iosEq.startIOSEQPolling(setIsPlaying);
 
@@ -253,6 +300,7 @@ export const useAudioPlayer = () => {
 
     try {
       if (engineToUse === 'rntp') {
+        await rntp.ensureRNTPInitialized();
         expoAudio.clearExpoResources();
         await rntp.restoreRNTPNotification();
         await TrackPlayer.reset();
@@ -293,12 +341,15 @@ export const useAudioPlayer = () => {
                     const cur = await TrackPlayer.getPosition();
                     if (targetSeconds > 1 && cur < 0.5) await TrackPlayer.seekTo(targetSeconds);
                     await TrackPlayer.setVolume(1.0);
+                    void applySoundCheckForSong(song);
                   } catch (e) {
                     try { await TrackPlayer.setVolume(1.0); } catch (_) {}
+                    void applySoundCheckForSong(song);
                   }
                 }, 120);
               } else {
                 await TrackPlayer.setVolume(1.0);
+                void applySoundCheckForSong(song);
               }
               sync.sendNowPlayingUpdate(Math.floor(targetSeconds));
             } else {
@@ -313,6 +364,7 @@ export const useAudioPlayer = () => {
         await rntp.clearRNTPNotification();
         const isLoopOne = queueMgr.loopRef.current === 'ONE';
         await expoAudio.initExpoAudioPlayer(song, isLoopOne, targetSeconds > 0 ? false : shouldPlay, setIsPlaying);
+        void applySoundCheckForSong(song);
 
         if (targetSeconds > 0) {
           setTimeout(() => {
@@ -336,6 +388,22 @@ export const useAudioPlayer = () => {
       sync.saveHistory(song);
     } catch (e) {}
   };
+
+  useEffect(() => {
+    const current = queueMgr.currentSongRef.current;
+    if (!current || !isPlayingRef.current) return;
+    if (Platform.OS === 'ios' && (soundCheckEnabled || iosEq.isIOSEQActiveRef.current)) {
+      void (async () => {
+        let positionMs = 0;
+        if (iosEq.isIOSEQActiveRef.current) positionMs = iosEq.getPositionIOS() * 1000;
+        else if (audioEngine === 'rntp') positionMs = (await TrackPlayer.getPosition()) * 1000;
+        else positionMs = expoAudio.playbackStatusExpo.positionMillis || 0;
+        loadAndPlayInternal(current, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, positionMs, true);
+      })();
+      return;
+    }
+    void applySoundCheckForSong(current);
+  }, [soundCheckEnabled]);
 
   useEffect(() => {
     let lastKnownEnabled: boolean | null = null;
@@ -716,7 +784,12 @@ export const useAudioPlayer = () => {
       return;
     }
 
-    Animated.timing(slideAnim, { toValue: height, duration: 250, useNativeDriver: true }).start(finishClose);
+    Animated.timing(slideAnim, {
+      toValue: height,
+      duration: 320,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(finishClose);
   };
 
   useEffect(() => {
@@ -726,6 +799,7 @@ export const useAudioPlayer = () => {
         const newSong = event.track.originalData;
         queueMgr.setCurrentSong(newSong);
         queueMgr.currentSongRef.current = newSong;
+        void applySoundCheckForSong(newSong);
 
         const activeQueue = queueMgr.activeQueueRef.current;
         const idx = activeQueue.findIndex((s) => s.localMusicUri === newSong.localMusicUri);

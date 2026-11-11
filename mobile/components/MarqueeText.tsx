@@ -128,7 +128,6 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
           style={[
             style, 
             { flexShrink: 0 },
-            isOverflow && { width: textWidth }
           ]} 
           numberOfLines={1}
           ellipsizeMode="clip"
@@ -140,7 +139,7 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
           <Text 
             style={[
               style, 
-              { marginLeft: spacing, flexShrink: 0, width: textWidth }
+              { marginLeft: spacing, flexShrink: 0 }
             ]} 
             numberOfLines={1}
             ellipsizeMode="clip"

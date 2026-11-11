@@ -512,7 +512,12 @@ export const LibraryMenuView = ({
         contentContainerStyle={safePadding}
       />
 
-      <Modal visible={relayModalVisible} transparent animationType="fade">
+      <Modal
+        visible={relayModalVisible}
+        transparent
+        animationType="fade"
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      >
         <TouchableWithoutFeedback onPress={() => setRelayModalVisible(false)}>
           <View style={s.modalOverlay}>
             <TouchableWithoutFeedback>
@@ -522,8 +527,20 @@ export const LibraryMenuView = ({
                     <Ionicons name="cloud-outline" size={22} color={themeColor} />
                     <Text style={[s.modalTitle, { color: dynamicStyles.text }]}>Chordia Relay</Text>
                   </View>
-                  <TouchableOpacity onPress={() => setRelayModalVisible(false)}>
-                    <Ionicons name="close-circle" size={24} color={dynamicStyles.subText} />
+                  <TouchableOpacity
+                    onPress={() => setRelayModalVisible(false)}
+                    style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', overflow: 'hidden' }}
+                  >
+                    {useLiquidGlass && (
+                      <GlassView
+                        pointerEvents="none"
+                        glassEffectStyle="regular"
+                        isInteractive
+                        colorScheme={isDark ? 'dark' : 'light'}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
+                    <Ionicons name="close" size={20} color={dynamicStyles.subText} />
                   </TouchableOpacity>
                 </View>
 
@@ -532,7 +549,15 @@ export const LibraryMenuView = ({
                 </Text>
 
                 {isLoggedIn && (
-                  <View style={[s.statusRow, { borderColor: dynamicStyles.border, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }]}>
+                  <View style={[s.statusRow, { borderColor: dynamicStyles.border, backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'), overflow: 'hidden' }]}>
+                    {useLiquidGlass && (
+                      <GlassView
+                        pointerEvents="none"
+                        glassEffectStyle="regular"
+                        colorScheme={isDark ? 'dark' : 'light'}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
                     {isFetchingRelay ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <ActivityIndicator size="small" color={themeColor} />

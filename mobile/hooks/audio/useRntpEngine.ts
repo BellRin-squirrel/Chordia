@@ -11,7 +11,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initEqualizer, applyEqualizerSettings } from '../../utils/equalizer';
 import { isStatePlaying } from './types';
 
-let isRNTPInitialized = false;
+let rntpSetupPromise: Promise<void> | null = null;
+
+const ensureRNTPInitialized = () => {
+  if (!rntpSetupPromise) {
+    rntpSetupPromise = TrackPlayer.setupPlayer({ autoHandleInterruptions: true }).catch((error) => {
+      rntpSetupPromise = null;
+      throw error;
+    });
+  }
+  return rntpSetupPromise;
+};
 
 interface UseRntpEngineHandlers {
   onPlay?: () => void;
@@ -90,12 +100,12 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
 
   useEffect(() => {
     const initRNTP = async () => {
-      if (isRNTPInitialized) return;
       try {
-        await TrackPlayer.setupPlayer({ autoHandleInterruptions: true });
+        await ensureRNTPInitialized();
         await restoreRNTPNotification();
-        isRNTPInitialized = true;
-      } catch (e) {}
+      } catch (error) {
+        console.error('[RNTP] Failed to initialize playback:', error);
+      }
     };
     initRNTP();
   }, []);
@@ -146,6 +156,7 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     rntpState,
     rntpProgress,
     isRNTPPlaying,
+    ensureRNTPInitialized,
     syncAndroidEqualizerSession,
     clearRNTPNotification,
     restoreRNTPNotification,

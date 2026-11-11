@@ -17,7 +17,8 @@ const PRESET_COLORS = [
 ];
 
 export const InfoSettingsView = ({
-  dynamicStyles, themeColor, textColor, isCustomTheme, isDark,
+  dynamicStyles, themeColor, textColor, isCustomTheme, isDark, appearanceMode = 'system', changeAppearanceMode,
+  soundCheckEnabled = false, changeSoundCheckEnabled,
   themeR, themeG, themeB, recentColors, setThemeR, setThemeG, setThemeB,
   showRGBModal, setShowRGBModal, saveColor, applyCustomColor,
   audioEngine, changeAudioEngine, showFocusTab, toggleFocusTab,
@@ -59,6 +60,27 @@ export const InfoSettingsView = ({
               <LinearGradient colors={['#FF9A9E', '#A18CD1', '#84FAB0', '#F6D365']} style={{ flex: 1, borderRadius: 25 }} />
             )}
           </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.recentHeader, { color: dynamicStyles.text, marginLeft: 0, marginTop: 30 }]}>
+          {t('appearance_setting', language)}
+        </Text>
+        <View style={{ flexDirection: 'row', backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 18, overflow: 'hidden', marginTop: 12, borderWidth: useLiquidGlass ? 0 : 1, borderColor: dynamicStyles.border }}>
+          {useLiquidGlass && <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+          {(['system', 'light', 'dark'] as const).map((mode) => {
+            const selected = appearanceMode === mode;
+            const label = mode === 'system' ? 'appearance_mode_system' : mode === 'light' ? 'appearance_mode_light' : 'appearance_mode_dark';
+            return (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => changeAppearanceMode(mode)}
+                style={{ flex: 1, paddingVertical: 13, alignItems: 'center', backgroundColor: selected && !useLiquidGlass ? themeColor : 'transparent' }}
+              >
+                {useLiquidGlass && selected && <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} tintColor={themeColor} style={StyleSheet.absoluteFill} />}
+                <Text style={{ color: selected ? textColor : dynamicStyles.text, fontSize: 13, fontWeight: '600' }}>{t(label, language)}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <Text style={[styles.recentHeader, { color: dynamicStyles.text, marginLeft: 0, marginTop: 40 }]}>
@@ -115,7 +137,15 @@ export const InfoSettingsView = ({
         <Text style={[styles.recentHeader, { color: dynamicStyles.text, marginLeft: 0, marginTop: 40 }]}>
           {t('features_settings', language)}
         </Text>
-        <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 15, marginTop: 15, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+        <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 15, marginTop: 15, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+          {useLiquidGlass && (
+            <GlassView
+              pointerEvents="none"
+              glassEffectStyle="regular"
+              colorScheme={isDark ? 'dark' : 'light'}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
           {/* 言語設定 */}
           <TouchableOpacity 
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}
@@ -145,6 +175,21 @@ export const InfoSettingsView = ({
               </View>
             </View>
           </TouchableOpacity>
+
+          <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('sound_check_title', language)}</Text>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>{t('sound_check_desc', language)}</Text>
+            </View>
+            <Switch
+              value={soundCheckEnabled}
+              onValueChange={(enabled) => changeSoundCheckEnabled(enabled)}
+              trackColor={{ false: '#767577', true: themeColor }}
+              thumbColor="#f4f3f4"
+            />
+          </View>
 
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
 

@@ -8,6 +8,8 @@ import { t } from '../../utils/i18n';
 import { GlassActionButton } from '../ui/GlassActionButton';
 import { GlassTextInput } from '../ui/GlassTextInput';
 
+const showNativeAlert = Alert.alert;
+
 interface SyncConnectionViewProps {
   dynamicStyles: any;
   themeColor: string;
@@ -154,7 +156,7 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
             style={[styles.smallBtn, { backgroundColor: themeColor }]} 
             onPress={() => { 
               if (!wanUrlInput.trim() || (!wanUrlInput.startsWith('http://') && !wanUrlInput.startsWith('https://'))) {
-                Alert.alert(t('alert_timer_error_title', language), t('invalid_wan_url', language));
+                showNativeAlert(t('alert_timer_error_title', language), t('invalid_wan_url', language));
                 return;
               }
               setServerIp(wanUrlInput.trim());

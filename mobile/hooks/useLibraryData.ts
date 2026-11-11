@@ -6,7 +6,8 @@ import { LanguageCode } from '../utils/i18n';
 
 export const useLibraryData = () => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const [appearanceMode, setAppearanceMode] = useState<'system' | 'light' | 'dark'>('system');
+  const isDark = appearanceMode === 'system' ? colorScheme === 'dark' : appearanceMode === 'dark';
   const [themeR, setThemeR] = useState(79);
   const [themeG, setThemeG] = useState(70);
   const [themeB, setThemeB] = useState(229);
@@ -19,6 +20,7 @@ export const useLibraryData = () => {
   const [showFocusTab, setShowFocusTab] = useState(true);
   const [showSyncTab, setShowSyncTab] = useState(true);
   const [showPlaylistTypeIcon, setShowPlaylistTypeIcon] = useState(true);
+  const [soundCheckEnabled, setSoundCheckEnabled] = useState(false);
 
   const [language, setLanguage] = useState<LanguageCode>('ja');
   const [isLanguageSelected, setIsLanguageSelected] = useState<boolean | null>(null);
@@ -49,6 +51,8 @@ export const useLibraryData = () => {
         const syncState = await AsyncStorage.getItem('show_sync_tab');
         const iconState = await AsyncStorage.getItem('show_playlist_type_icon');
         const savedLang = await AsyncStorage.getItem('app_language');
+        const savedAppearanceMode = await AsyncStorage.getItem('appearance_mode');
+        const savedSoundCheck = await AsyncStorage.getItem('chordia_sound_check_enabled');
         
         const baseDir = (FileSystem.documentDirectory || '') + 'chordia/';
         const fixUri = (uri: string | null | undefined) => {
@@ -83,6 +87,10 @@ export const useLibraryData = () => {
         if (focusState !== null) setShowFocusTab(focusState === 'true');
         if (syncState !== null) setShowSyncTab(syncState === 'true');
         if (iconState !== null) setShowPlaylistTypeIcon(iconState === 'true');
+        if (savedAppearanceMode === 'system' || savedAppearanceMode === 'light' || savedAppearanceMode === 'dark') {
+          setAppearanceMode(savedAppearanceMode);
+        }
+        if (savedSoundCheck !== null) setSoundCheckEnabled(savedSoundCheck === 'true');
 
         if (savedLang) {
           setLanguage(savedLang as LanguageCode);
@@ -134,8 +142,18 @@ export const useLibraryData = () => {
     await AsyncStorage.setItem('app_language', newLang);
   };
 
+  const changeAppearanceMode = async (mode: 'system' | 'light' | 'dark') => {
+    setAppearanceMode(mode);
+    await AsyncStorage.setItem('appearance_mode', mode);
+  };
+
+  const changeSoundCheckEnabled = async (enabled: boolean) => {
+    setSoundCheckEnabled(enabled);
+    await AsyncStorage.setItem('chordia_sound_check_enabled', enabled ? 'true' : 'false');
+  };
+
   return { 
-    isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme, 
+    isDark, appearanceMode, changeAppearanceMode, soundCheckEnabled, changeSoundCheckEnabled, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, isCustomTheme,
     recentColors, showRGBModal, setShowRGBModal, setThemeR, setThemeG, setThemeB, 
     setIsCustomTheme, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists, 
     saveColor, applyCustomColor, showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,

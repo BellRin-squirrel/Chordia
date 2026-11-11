@@ -10,6 +10,8 @@ import { getPlaylistSongs } from '../utils/playlistEvaluator';
 import { LanguageCode, t } from '../utils/i18n';
 import { syncMusicAndPlaylistsToCloud } from '../utils/chordiaSync';
 
+const showNativeAlert = Alert.alert;
+
 export interface ConflictItem {
   id: string;
   type: 'DESKTOP' | 'LOCAL';
@@ -205,7 +207,7 @@ export const useSync = ({
               else setSyncStage('AWAITING_CODE');
             } else if (data.status === 'rejected') {
               setIsAutoConnecting(false);
-              Alert.alert(t('sync_rejected_title', language), t('sync_rejected_desc', language));
+              showNativeAlert(t('sync_rejected_title', language), t('sync_rejected_desc', language));
               cancelSync();
             } else {
               setIsAutoConnecting(false);
@@ -218,7 +220,7 @@ export const useSync = ({
       timeoutHandler = setTimeout(() => {
         if (pollInterval) clearInterval(pollInterval);
         setIsAutoConnecting(false);
-        Alert.alert(t('sync_timeout_title', language), t('sync_timeout_desc', language));
+        showNativeAlert(t('sync_timeout_title', language), t('sync_timeout_desc', language));
         cancelSync();
       }, 30000);
     }
@@ -231,7 +233,7 @@ export const useSync = ({
   const requestCameraPermission = async () => {
     const { status } = await Camera.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(t('permission_required', language), t('sync_qr_permission_desc', language));
+      showNativeAlert(t('permission_required', language), t('sync_qr_permission_desc', language));
       return false;
     }
     return true;
@@ -255,7 +257,7 @@ export const useSync = ({
       }
     } catch (e: any) { 
       setIsAutoConnecting(false);
-      Alert.alert(t('sync_connect_error_title', language), `${t('sync_connect_error_prefix', language)}${e.message || 'Network Error'}`); 
+      showNativeAlert(t('sync_connect_error_title', language), `${t('sync_connect_error_prefix', language)}${e.message || 'Network Error'}`);
     } finally {
       setIsSyncing(false);
     }
@@ -278,7 +280,7 @@ export const useSync = ({
       } else { throw new Error(data.message || 'Auth failed'); }
     } catch (e: any) { 
       setIsAutoConnecting(false);
-      Alert.alert(t('sync_auth_error_title', language), e.message); 
+      showNativeAlert(t('sync_auth_error_title', language), e.message);
     } finally {
       setIsSyncing(false);
     }
@@ -292,7 +294,7 @@ export const useSync = ({
       });
       if (data.playlists) setPcPlaylists(data.playlists);
     } catch (e: any) {
-      Alert.alert(t('alert_timer_error_title', language), e.message);
+      showNativeAlert(t('alert_timer_error_title', language), e.message);
     }
   };
 
@@ -323,7 +325,7 @@ export const useSync = ({
 
   const startSyncDownload = async () => {
     if (!serverIp || !apiKey) {
-      Alert.alert(t('alert_timer_error_title', language), t('sync_not_connected', language));
+      showNativeAlert(t('alert_timer_error_title', language), t('sync_not_connected', language));
       return;
     }
 
@@ -715,7 +717,7 @@ export const useSync = ({
       setSyncProgress('');
 
       setTimeout(() => {
-        Alert.alert(
+        showNativeAlert(
           t('sync_complete_title', language), 
           t('sync_complete_desc', language).replace('{count}', String(downloadedDesktopSongs.length)), 
           [{ text: t('confirm', language), onPress: () => disconnect() }]
@@ -728,7 +730,7 @@ export const useSync = ({
       setSyncProgress('');
       const errMsg = e?.message || String(e) || 'Unknown Error';
       setTimeout(() => {
-        Alert.alert(t('sync_stopped_title', language), errMsg, [{ text: t('confirm', language), onPress: () => disconnect() }]);
+        showNativeAlert(t('sync_stopped_title', language), errMsg, [{ text: t('confirm', language), onPress: () => disconnect() }]);
       }, 100);
     }
   };

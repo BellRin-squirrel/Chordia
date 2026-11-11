@@ -22,6 +22,26 @@ for (const name of candidateNames) {
 
 export const getNativeModule = () => NativeModule;
 
+export const analyzeAudioLoudness = async (source: string): Promise<number> => {
+  if (!NativeModule?.analyzeAudioLoudness) {
+    throw new Error('Native audio analysis is unavailable. Rebuild the app with the current native module.');
+  }
+  const gainDb = await NativeModule.analyzeAudioLoudness(source);
+  if (typeof gainDb !== 'number' || !Number.isFinite(gainDb)) {
+    throw new Error('Native audio analysis returned an invalid gain value.');
+  }
+  return Math.max(-12, Math.min(12, gainDb));
+};
+
+export const setSoundCheckGain = (gainDb: number): void => {
+  if (!NativeModule?.setSoundCheckGain) return;
+  try {
+    NativeModule.setSoundCheckGain(Math.max(-12, Math.min(12, gainDb)));
+  } catch (error) {
+    console.error('[SoundCheck] Failed to apply native gain:', error);
+  }
+};
+
 export interface EqualizerApplyPayload {
   enabled: boolean;
   preamp: number;

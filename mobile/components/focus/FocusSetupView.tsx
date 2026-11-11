@@ -299,14 +299,33 @@ export const FocusSetupView = ({
     <View style={s.playlistRow}>
       <View style={{ flex: 1 }}>
         <Text style={[s.playlistLabel, { color: dynamicStyles.subText }]}>{label}</Text>
-        <TouchableOpacity style={[s.pickerBox, { backgroundColor: dynamicStyles.bg, borderColor: dynamicStyles.border }]} onPress={() => { setPickingTarget(target); setSearchQuery(''); setPickerVisible(true); }}>
+        <TouchableOpacity style={[s.pickerBox, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.bg, borderColor: dynamicStyles.border, overflow: 'hidden' }]} onPress={() => { setPickingTarget(target); setSearchQuery(''); setPickerVisible(true); }}>
+            {useLiquidGlass && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                isInteractive
+                colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Text style={{ color: selected ? dynamicStyles.text : dynamicStyles.subText, fontWeight: selected ? 'bold' : 'normal' }} numberOfLines={1}>
               {selected ? `${selected.title} (${selected.type === 'PLAYLIST' ? t('playlist_label', language) : selected.type === 'ALBUM' ? t('album_label', language) : t('artist_label', language)})` : t('select_playlist_placeholder', language)}
             </Text>
             <Ionicons name="chevron-down" size={16} color={dynamicStyles.subText} />
         </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={() => setShuffle(!shuffle)} style={[s.shuffleToggle, { backgroundColor: shuffle ? themeColor : dynamicStyles.bg, borderColor: dynamicStyles.border }]}>
+      <TouchableOpacity onPress={() => setShuffle(!shuffle)} style={[s.shuffleToggle, { backgroundColor: useLiquidGlass ? 'transparent' : (shuffle ? themeColor : dynamicStyles.bg), borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
+        {useLiquidGlass && (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+            tintColor={shuffle ? themeColor : undefined}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <Ionicons name="shuffle" size={22} color={shuffle ? textColor : dynamicStyles.subText} />
         <Text style={{ color: shuffle ? textColor : dynamicStyles.subText, fontSize: 9, fontWeight: 'bold' }}>{shuffle ? "ON" : "OFF"}</Text>
       </TouchableOpacity>
@@ -343,7 +362,10 @@ export const FocusSetupView = ({
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 250 }}>
         
-        <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
+        <View style={[s.mainCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
+            {useLiquidGlass && (
+              <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            )}
             {renderSelectionDropdown('date', t('date_display', language), dateOptions, dateMode, setDateMode, 'calendar')}
             {renderSelectionDropdown('day', t('day_display', language), dayOptions, dayMode, setDayMode, 'today')}
             {renderSelectionDropdown('clock', t('clock_display', language), clockOptions, clockMode, setClockMode, 'time')}
@@ -357,7 +379,10 @@ export const FocusSetupView = ({
             </View>
         </View>
 
-        <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20 }]}>
+        <View style={[s.mainCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20, overflow: 'hidden' }]}>
+            {useLiquidGlass && (
+              <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            )}
             <View style={s.switchRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="timer" size={22} color={themeColor} />
@@ -373,7 +398,10 @@ export const FocusSetupView = ({
             )}
         </View>
 
-        <View style={[s.mainCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20 }]}>
+        <View style={[s.mainCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 20, overflow: 'hidden' }]}>
+            {useLiquidGlass && (
+              <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            )}
             <View style={s.sectionHeaderRow}>
               <Ionicons name="musical-notes" size={20} color={themeColor} />
               <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('playback_settings', language)}</Text>
@@ -517,14 +545,22 @@ export const FocusSetupView = ({
       <Modal visible={pickerVisible} animationType="fade" transparent={true} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={s.modalOverlay}>
           <View style={[
-            s.fullPopupCard, 
-            { 
-              backgroundColor: dynamicStyles.card, 
+            s.fullPopupCard,
+            {
+              backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card,
               borderColor: dynamicStyles.border,
               width: isLandscape ? Math.min(width * 0.9, 680) : '92%',
               height: isLandscape ? Math.min(height * 0.9, 560) : '85%',
             }
           ]}>
+            {useLiquidGlass && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <View style={s.popupHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="musical-notes" size={22} color={themeColor} />
@@ -643,13 +679,24 @@ export const FocusSetupView = ({
                     style={[
                       s.listItemCard, 
                       { 
-                        backgroundColor: isSelected ? (dynamicStyles.bg === '#000000' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') : 'transparent', 
-                        borderColor: isSelected ? themeColor : dynamicStyles.border 
+                        backgroundColor: useLiquidGlass ? 'transparent' : (isSelected ? (dynamicStyles.bg === '#000000' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') : 'transparent'),
+                        borderColor: isSelected ? themeColor : dynamicStyles.border,
+                        overflow: 'hidden',
                       }
                     ]} 
                     onPress={() => onSelectCollection(item)}
                     activeOpacity={0.7}
                   >
+                    {useLiquidGlass && (
+                      <GlassView
+                        pointerEvents="none"
+                        glassEffectStyle="regular"
+                        isInteractive
+                        colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                        tintColor={isSelected ? themeColor : undefined}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
                     <Image 
                       source={item.art ? { uri: item.art } : DEFAULT_ICON} 
                       style={[s.listArtImage, isArtist && { borderRadius: 25 }]} 

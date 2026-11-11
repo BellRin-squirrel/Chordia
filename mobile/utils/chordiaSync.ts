@@ -62,9 +62,11 @@ export interface GetNowPlayingResponse {
 type ToastListener = (message: string) => void;
 let globalToastListener: ToastListener | null = null;
 let lastToastTime = 0;
+let currentLanguage: LanguageCode = 'ja';
 
-export const registerToastListener = (listener: ToastListener) => {
+export const registerToastListener = (listener: ToastListener, language: LanguageCode = 'ja') => {
   globalToastListener = listener;
+  currentLanguage = language;
 };
 
 export const triggerNoInternetToast = (language: LanguageCode = 'ja') => {
@@ -102,7 +104,7 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
     return res;
   } catch (e: any) {
     clearTimeout(timeoutId);
-    triggerNoInternetToast();
+    triggerNoInternetToast(currentLanguage);
     if (e.name === 'AbortError') throw new Error('通信がタイムアウトしました。');
     throw new Error('ネットワーク接続を確認してください。');
   }

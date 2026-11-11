@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, useColorScheme, useWindowDimensions, View, LogBox, AppState } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View, LogBox, AppState } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera } from 'expo-camera';
@@ -65,14 +65,12 @@ const AppContent = () => {
   const miniPlayerRef = useRef<ViewInstance>(null);
 
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isAppDark = colorScheme === 'dark';
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const useNativeTabBar = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const {
-    isDark, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
+    isDark, appearanceMode, changeAppearanceMode, soundCheckEnabled, changeSoundCheckEnabled, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
     saveColor, applyCustomColor, localLibrary, setLocalLibrary, localPlaylists, setLocalPlaylists,
     showFocusTab, toggleFocusTab, showSyncTab, toggleSyncTab,
@@ -90,7 +88,7 @@ const AppContent = () => {
     startQueue, handleNext, handlePrev, togglePlayPause,
     slideAnim, queueTransitionAnim, closeFullPlayer,
     currentContext,
-  } = useAudioPlayer();
+  } = useAudioPlayer(soundCheckEnabled);
 
   const {
     syncStage, setSyncStage, serverIp, setServerIp, serverPort, setServerPort, authCodeInput, setAuthCodeInput,
@@ -108,8 +106,8 @@ const AppContent = () => {
   useEffect(() => {
     registerToastListener((msg) => {
       showToast(msg);
-    });
-  }, [showToast]);
+    }, language);
+  }, [showToast, language]);
 
   useEffect(() => {
     processOfflineQueue();
@@ -217,6 +215,7 @@ const AppContent = () => {
   }, []);
 
   const isFocusing = activeTab === 'FOCUS' && focusStage === 'FOCUS';
+  const isAppDark = isDark;
   const rootBgColor = isFocusing ? '#000000' : (isAppDark ? '#000000' : '#f2f2f7');
   const statusBarStyle = (isFocusing || isAppDark) ? 'light' : 'dark';
 
@@ -348,6 +347,10 @@ const AppContent = () => {
             setShowRGBModal={setShowRGBModal} 
             saveColor={saveColor} 
             applyCustomColor={applyCustomColor} 
+            appearanceMode={appearanceMode}
+            changeAppearanceMode={changeAppearanceMode}
+            soundCheckEnabled={soundCheckEnabled}
+            changeSoundCheckEnabled={changeSoundCheckEnabled}
             insets={insets} 
             audioEngine={audioEngine} 
             changeAudioEngine={changeAudioEngine} 
@@ -372,7 +375,7 @@ const AppContent = () => {
 
       {!isFocusing && (
         <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none', zIndex: 100 }]}>
-          {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && !isLandscape && (
+          {currentSong && !isFullPlayer && !isLandscape && (
             <Animated.View style={[
               styles.commonWrapperPortrait,
               {
@@ -428,7 +431,7 @@ const AppContent = () => {
                 alignItems: 'center',
               }}
             >
-              <View style={{ width: currentSong && !isFullPlayer && activeTab !== 'FOCUS' ? '50%' : '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8 }}>
+              <View style={{ width: currentSong && !isFullPlayer ? '50%' : '100%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8 }}>
                 <TabBar
                   activeTab={activeTab}
                   setActiveTab={handleTabPress}
@@ -442,8 +445,8 @@ const AppContent = () => {
                   language={language}
                 />
               </View>
-              {currentSong && !isFullPlayer && activeTab !== 'FOCUS' && (
-                <View style={{ width: '50%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8 }}>
+              {currentSong && !isFullPlayer && (
+                <View style={{ width: '50%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 20 }}>
                   <View ref={miniPlayerRef} collapsable={false} style={{ width: '100%' }}>
                     <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={openFullPlayer} togglePlayPause={togglePlayPause} handleNext={handleNext} />
                   </View>

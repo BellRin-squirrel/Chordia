@@ -756,7 +756,10 @@ export const InfoAllHistoryView = ({
             const d = new Date(item.date);
             const dateStr = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             return (
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: dynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: dynamicStyles.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, padding: 16, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: dynamicStyles.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, overflow: 'hidden' }}>
+                {useLiquidGlass && (
+                  <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(79, 70, 229, 0.12)', justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
                     <Ionicons name="checkmark-done-circle" size={26} color={themeColor} />

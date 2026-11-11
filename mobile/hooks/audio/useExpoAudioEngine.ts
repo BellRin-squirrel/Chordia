@@ -12,6 +12,12 @@ export const useExpoAudioEngine = (onTrackEnded: () => void) => {
     onTrackEndedRef.current = onTrackEnded;
   }, [onTrackEnded]);
 
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true }).catch((error) => {
+      console.error('[ExpoAudio] Failed to enable background playback:', error);
+    });
+  }, []);
+
   const [playbackStatusExpo, setPlaybackStatusExpo] = useState({
     positionMillis: 0,
     durationMillis: 0,
@@ -20,7 +26,7 @@ export const useExpoAudioEngine = (onTrackEnded: () => void) => {
 
   const configureExpoAudioMode = async () => {
     try {
-      await setAudioModeAsync({ playsInSilentMode: true });
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
     } catch (e) {}
   };
 

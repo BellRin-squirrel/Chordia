@@ -15,8 +15,7 @@ import {
   applyEqualizerSettings, 
   initEqualizer, 
   setEqualizerEnabled, 
-  setEqualizerBands, 
-  getEqualizerDebugInfo 
+  setEqualizerBands
 } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
@@ -79,20 +78,10 @@ export const InfoEqualizerView = ({
   const [sliderVersion, setSliderVersion] = useState(0);
   const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
 
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-  const [debugModalVisible, setDebugModalVisible] = useState(false);
-
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
 
   const isProgrammaticChangeRef = useRef(false);
-
-  const refreshDebugInfo = () => {
-    try {
-      const info = getEqualizerDebugInfo();
-      setDebugInfo(info);
-    } catch (e) {}
-  };
 
   useEffect(() => {
     (async () => {
@@ -123,7 +112,6 @@ export const InfoEqualizerView = ({
           setCustomPresets(JSON.parse(savedPresets));
         }
 
-        refreshDebugInfo();
         setTimeout(() => {
           isProgrammaticChangeRef.current = false;
         }, 500);
@@ -132,8 +120,6 @@ export const InfoEqualizerView = ({
       }
     })();
 
-    const timer = setInterval(refreshDebugInfo, 2000);
-    return () => clearInterval(timer);
   }, []);
 
   const saveAndSyncHardware = async (newEnabled: boolean, newBands: EqualizerBand[], newPreamp: number, newActivePresetId: string | null) => {
@@ -152,7 +138,6 @@ export const InfoEqualizerView = ({
         gains: newBands.map(b => b.gain),
       });
 
-      refreshDebugInfo();
     } catch (e) {}
   };
 
@@ -320,8 +305,6 @@ export const InfoEqualizerView = ({
     return val > 0 ? `+${str}dB` : `${str}dB`;
   };
 
-  const isNativeConnected = debugInfo?.isNativeConnected === true;
-  const isEngineRunning = debugInfo?.isEngineRunning === true;
   const activeBuiltInPreset = BUILTIN_PRESETS.find(preset => preset.id === activePresetId);
   const getBuiltInPresetLabel = (preset: BuiltInPreset) => {
     const translatedLabel = t('eq_preset_' + preset.id, language);
@@ -334,43 +317,11 @@ export const InfoEqualizerView = ({
       {renderHeader(t('equalizer_title', language))}
 
       <ScrollView contentContainerStyle={[safePadding, { paddingTop: 15 }]}>
-        {/* 詳細診断・状態確認デバッグパネル */}
-        <TouchableOpacity 
-          style={[
-            s.debugPanel, 
-            { 
-              backgroundColor: isNativeConnected 
-                ? (isEngineRunning ? 'rgba(52, 199, 89, 0.14)' : (isEnabled ? 'rgba(79, 70, 229, 0.12)' : 'rgba(142, 142, 147, 0.10)'))
-                : 'rgba(239, 68, 68, 0.14)',
-              borderColor: isNativeConnected 
-                ? (isEngineRunning ? '#34c759' : (isEnabled ? themeColor : dynamicStyles.border))
-                : '#ef4444' 
-            }
-          ]}
-          onPress={() => setDebugModalVisible(true)}
-          activeOpacity={0.7}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-            <Ionicons 
-              name={isNativeConnected ? (isEngineRunning ? "volume-high" : (isEnabled ? "checkmark-circle" : "pause-circle")) : "alert-circle"} 
-              size={18} 
-              color={isNativeConnected ? (isEngineRunning ? '#34c759' : (isEnabled ? themeColor : dynamicStyles.subText)) : '#ef4444'} 
-            />
-            <Text style={{ color: dynamicStyles.text, fontSize: 12, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
-              {isNativeConnected 
-                ? (isEngineRunning 
-                    ? `Native DSP: PLAYING (AVAudioEngine Active)` 
-                    : (Platform.OS === 'android' && isEnabled 
-                        ? `Native DSP: ACTIVE (Session: ${debugInfo?.activeSessionId}, Control=${debugInfo?.hasControl})` 
-                        : (isEnabled ? `Native DSP: Standby (Active on Track Start)` : `Native DSP: Off`)))
-                : `Native DSP: Disconnected (Tap for Log)`}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={dynamicStyles.subText} />
-        </TouchableOpacity>
-
         {/* 1. 有効/無効 スイッチ */}
-        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: isEnabled ? themeColor : dynamicStyles.border, marginBottom: 15 }]}>
+        <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 15, overflow: 'hidden' }]}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <View style={s.rowBetween}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Ionicons name="options-outline" size={22} color={themeColor} />
@@ -378,11 +329,6 @@ export const InfoEqualizerView = ({
                 <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
                   {t('equalizer_enable', language)}
                 </Text>
-                {isEnabled && (
-                  <Text style={{ color: themeColor, fontSize: 11, fontWeight: 'bold', marginTop: 2 }}>
-                    ● DSP FILTER ACTIVE
-                  </Text>
-                )}
               </View>
             </View>
             <Switch 
@@ -393,8 +339,13 @@ export const InfoEqualizerView = ({
           </View>
         </View>
 
+        {isEnabled && (
+          <>
         {/* 2. イコライザアセット一覧 */}
-        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 20 }]}>
+        <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 20, overflow: 'hidden' }]}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Ionicons name="layers-outline" size={22} color={themeColor} />
             <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold' }}>
@@ -449,13 +400,24 @@ export const InfoEqualizerView = ({
                       style={[
                         s.presetItem, 
                         { 
-                          backgroundColor: isCustomActive ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : (isDark ? '#2c2c2e' : '#f2f2f7'), 
+                          backgroundColor: useLiquidGlass ? 'transparent' : (isCustomActive ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : (isDark ? '#2c2c2e' : '#f2f2f7')),
                           borderColor: isCustomActive ? themeColor : dynamicStyles.border 
-                        }
+                          },
+                          { overflow: 'hidden' }
                       ]}
                       onPress={() => handleApplyCustomPreset(preset)}
                       activeOpacity={0.7}
                     >
+                      {useLiquidGlass && (
+                        <GlassView
+                          pointerEvents="none"
+                          glassEffectStyle="regular"
+                          isInteractive
+                          colorScheme={isDark ? 'dark' : 'light'}
+                          tintColor={isCustomActive ? themeColor : undefined}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      )}
                       <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
                         <Text style={{ color: isCustomActive ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: 'bold' }} numberOfLines={1}>
                           {preset.name}
@@ -495,9 +457,12 @@ export const InfoEqualizerView = ({
                   label={
                     <RNHostView matchContents>
                       <TouchableOpacity
-                        style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
+                        style={[s.presetDropdown, { backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? '#2c2c2e' : '#f2f2f7'), borderColor: dynamicStyles.border, overflow: 'hidden' }]}
                         activeOpacity={0.7}
                       >
+                        {useLiquidGlass && (
+                          <GlassView pointerEvents="none" glassEffectStyle="regular" isInteractive colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                        )}
                         <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
                           {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
                         </Text>
@@ -519,12 +484,15 @@ export const InfoEqualizerView = ({
             ) : (
               <>
                 <TouchableOpacity
-                  style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
+                  style={[s.presetDropdown, { backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? '#2c2c2e' : '#f2f2f7'), borderColor: dynamicStyles.border, overflow: 'hidden' }]}
                   onPress={() => setIsPresetDropdownOpen(open => !open)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: isPresetDropdownOpen }}
                 >
+                  {useLiquidGlass && (
+                    <GlassView pointerEvents="none" glassEffectStyle="regular" isInteractive colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  )}
                   <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
                     {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
                   </Text>
@@ -532,22 +500,35 @@ export const InfoEqualizerView = ({
                 </TouchableOpacity>
                 {isPresetDropdownOpen && (
                   <ScrollView
-                    style={[s.presetDropdownMenu, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}
+                    style={[s.presetDropdownMenu, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border }]}
                     nestedScrollEnabled
                     keyboardShouldPersistTaps="handled"
                   >
+                    {useLiquidGlass && (
+                      <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                    )}
                     {BUILTIN_PRESETS.map(preset => {
                       const isSelected = activePresetId === preset.id;
                       return (
                         <TouchableOpacity
                           key={preset.id}
-                          style={[s.presetDropdownItem, { backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : 'transparent' }]}
+                          style={[s.presetDropdownItem, { backgroundColor: useLiquidGlass ? 'transparent' : (isSelected ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : 'transparent'), overflow: 'hidden' }]}
                           onPress={() => {
                             handleSelectBuiltInPreset(preset);
                             setIsPresetDropdownOpen(false);
                           }}
                           activeOpacity={0.7}
                         >
+                          {useLiquidGlass && (
+                            <GlassView
+                              pointerEvents="none"
+                              glassEffectStyle="regular"
+                              isInteractive
+                              colorScheme={isDark ? 'dark' : 'light'}
+                              tintColor={isSelected ? themeColor : undefined}
+                              style={StyleSheet.absoluteFill}
+                            />
+                          )}
                           <Text style={{ color: isSelected ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: isSelected ? 'bold' : 'normal', flex: 1 }} numberOfLines={1}>
                             {getBuiltInPresetLabel(preset)}
                           </Text>
@@ -563,7 +544,10 @@ export const InfoEqualizerView = ({
         </View>
 
         {/* 3. イコライザ調節 */}
-        <View style={[s.card, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, opacity: isEnabled ? 1 : 0.5, marginBottom: 20 }]}>
+        <View style={[s.card, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginBottom: 20, overflow: 'hidden' }]}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <View style={[s.rowBetween, { marginBottom: 15 }]}>
             <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
               {t('equalizer_title', language)}
@@ -659,47 +643,9 @@ export const InfoEqualizerView = ({
             </Text>
           </TouchableOpacity>
         </View>
+          </>
+        )}
       </ScrollView>
-
-      {/* 詳細デバッグ情報モーダル */}
-      <Modal visible={debugModalVisible} transparent animationType="fade">
-        <View style={s.modalOverlay}>
-          <View style={[s.debugModalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}>
-            <View style={s.rowBetween}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="terminal-outline" size={20} color={themeColor} />
-                <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
-                  Equalizer Full Debug Log
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setDebugModalVisible(false)}>
-                <Ionicons name="close-circle" size={24} color={dynamicStyles.subText} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ maxHeight: 420, marginVertical: 14 }} showsVerticalScrollIndicator={true}>
-              <Text 
-                style={{ 
-                  color: isDark ? '#34c759' : '#047857', 
-                  fontSize: 11, 
-                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', 
-                  lineHeight: 16 
-                }}
-                selectable={true}
-              >
-                {JSON.stringify(debugInfo, null, 2)}
-              </Text>
-            </ScrollView>
-
-            <TouchableOpacity 
-              style={[s.modalBtn, { backgroundColor: themeColor, height: 42 }]} 
-              onPress={() => setDebugModalVisible(false)}
-            >
-              <Text style={{ color: textColor, fontWeight: 'bold' }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       {/* カスタム設定 保存モーダル */}
       <Modal visible={saveModalVisible} transparent animationType="none">
@@ -753,7 +699,6 @@ export const InfoEqualizerView = ({
 
 const s = StyleSheet.create({
   card: { borderRadius: 20, padding: 18, borderWidth: 1 },
-  debugPanel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   presetDropdown: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
   presetDropdownMenu: { maxHeight: 260, marginTop: 6, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
@@ -768,7 +713,6 @@ const s = StyleSheet.create({
   presetItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '100%', maxWidth: 380, borderRadius: 24, padding: 22, borderWidth: 1.5 },
-  debugModalCard: { width: '100%', maxWidth: 460, borderRadius: 24, padding: 20, borderWidth: 1.5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' },
   modalDesc: { fontSize: 13, marginBottom: 16, textAlign: 'center' },
   input: { height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15, borderWidth: 1, marginBottom: 18 },

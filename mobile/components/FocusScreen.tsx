@@ -22,6 +22,7 @@ import {
 const STORAGE_KEY = 'chordia_focus_settings';
 const HISTORY_KEY = 'chordia_focus_history';
 const TEMP_WORK_KEY = 'chordia_temp_work_seconds';
+const showNativeAlert = Alert.alert;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -93,6 +94,8 @@ export const FocusScreen = ({
   const workTimeRef = useRef(workTime);
   const breakTimeRef = useRef(breakTime);
   const totalWorkSecondsRef = useRef(0);
+  const isExitingFocusRef = useRef(false);
+  const [isExitingFocus, setIsExitingFocus] = useState(false);
   
   const playlistRefs = useRef<any>({});
   const workProgressRef = useRef({ index: 0, position: 0 });
@@ -258,11 +261,20 @@ export const FocusScreen = ({
     }
   }, []);
 
-  const exitFocusMode = useCallback(async () => {
-    await TrackPlayer.pause();
-    await saveSessionToHistory(totalWorkSecondsRef.current);
+  const exitFocusMode = useCallback(() => {
+    if (isExitingFocusRef.current) return;
+    isExitingFocusRef.current = true;
+    setIsExitingFocus(true);
     setStage('SETUP');
-  }, [setStage]);
+    void (async () => {
+      try {
+        await TrackPlayer.pause();
+        await saveSessionToHistory(totalWorkSecondsRef.current);
+      } catch (error) {
+        console.error('Failed to exit focus session:', error);
+      }
+    })();
+  }, [saveSessionToHistory, setStage]);
 
   const onSelectCollection = useCallback((item: any) => {
     if (pickingTarget === 'MAIN') setMainPlaylist(item);
@@ -413,6 +425,8 @@ export const FocusScreen = ({
   })).current;
 
   const startFocusSession = async () => {
+    isExitingFocusRef.current = false;
+    setIsExitingFocus(false);
     if (audioEngine !== 'rntp') { changeAudioEngine('rntp'); await new Promise(r => setTimeout(r, 500)); }
     await TrackPlayer.setVolume(1.0);
     await TrackPlayer.setRepeatMode(RepeatMode.Queue);
@@ -495,7 +509,7 @@ export const FocusScreen = ({
                             <Text style={{ color: buttonTextColor, fontWeight: 'bold', fontSize: 16 }}>{t('focus_help_resume_btn', language)}</Text>
                           </TouchableOpacity>
                           
-                          <TouchableOpacity style={{ marginTop: 20, paddingBottom: 10, alignItems: 'center' }} onPress={exitFocusMode}>
+                          <TouchableOpacity style={{ marginTop: 20, paddingBottom: 10, alignItems: 'center', opacity: isExitingFocus ? 0.5 : 1 }} onPress={exitFocusMode} disabled={isExitingFocus}>
                             <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>{t('focus_help_exit_now_btn', language)}</Text>
                           </TouchableOpacity>
                       </ScrollView>
@@ -511,7 +525,15 @@ export const FocusScreen = ({
         <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: dynamicStyles.bg, justifyContent: 'center', alignItems: 'center', padding: 30, paddingBottom: 200 }}>
             <Ionicons name="sparkles" size={60} color={themeColor} />
             <Text style={{ color: dynamicStyles.text, fontSize: 26, fontWeight: '900', marginTop: 20 }}>{t('guide_ready_title', language)}</Text>
-            <View style={[s.guideCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 30 }]}>
+            <View style={[s.guideCard, { backgroundColor: isLiquidGlassAvailable() && Platform.OS === 'ios' ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, marginTop: 30, overflow: 'hidden' }]}>
+                {Platform.OS === 'ios' && isLiquidGlassAvailable() && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
                 <View style={s.guideStep}>
                   <Ionicons name="shield-checkmark" size={24} color={themeColor} />
                   <Text style={[s.guideText, { color: dynamicStyles.text, fontWeight: 'bold' }]}>{t('guide_guided_access_title', language)}</Text>
@@ -546,18 +568,37 @@ export const FocusScreen = ({
                 </View>
             </View>
             
-            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: themeColor, marginTop: 40, width: '100%' }]} onPress={startFocusSession}>
+            <TouchableOpacity style={[s.primaryBtn, { backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : themeColor, marginTop: 40, width: '100%', overflow: 'hidden' }]} onPress={startFocusSession}>
+              {Platform.OS === 'ios' && isLiquidGlassAvailable() && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  isInteractive
+                  colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                  tintColor={themeColor}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Text style={[s.primaryBtnText, { color: buttonTextColor }]}>{t('guide_start_btn', language)}</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={{ marginTop: 25 }} onPress={() => setStage('SETUP')}>
+            <TouchableOpacity style={{ marginTop: 25, borderRadius: 20, overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 10 }} onPress={() => setStage('SETUP')}>
+              {Platform.OS === 'ios' && isLiquidGlassAvailable() && (
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="regular"
+                  isInteractive
+                  colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
               <Text style={{ color: dynamicStyles.subText, fontWeight: 'bold' }}>{t('guide_redo_setup', language)}</Text>
             </TouchableOpacity>
         </ScrollView>
     );
   }
 
-  const handleFinishSetup = () => isReady ? setStage('GUIDE') : Alert.alert(t('alert_no_list_title', language), t('alert_no_list_desc', language));
+  const handleFinishSetup = () => isReady ? setStage('GUIDE') : showNativeAlert(t('alert_no_list_title', language), t('alert_no_list_desc', language));
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
@@ -670,7 +711,7 @@ export const FocusScreen = ({
                           onPress={() => {
                               const totalSecs = (customH * 3600) + (customM * 60) + customS;
                               if (totalSecs <= 0) {
-                                  Alert.alert(t('alert_timer_error_title', language), t('alert_timer_error_desc', language));
+                                  showNativeAlert(t('alert_timer_error_title', language), t('alert_timer_error_desc', language));
                                   return;
                               }
                               if (customTimerType === 'WORK') setWorkTime(totalSecs);

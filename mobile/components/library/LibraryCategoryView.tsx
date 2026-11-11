@@ -105,6 +105,7 @@ export const LibraryCategoryView = ({
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [rowActionTarget, setRowActionTarget] = useState<any>(null);
   const [coverPickerTarget, setCoverPickerTarget] = useState<any>(null);
+  const [songCoverPickerTarget, setSongCoverPickerTarget] = useState<any>(null);
   const sheetAnimHeader = useRef(new Animated.Value(0)).current;
   const sheetAnimRow = useRef(new Animated.Value(0)).current;
   const sheetAnimCover = useRef(new Animated.Value(0)).current;
@@ -175,6 +176,10 @@ export const LibraryCategoryView = ({
       }
     });
   };
+
+  const songCoverPickerSongs = songCoverPickerTarget
+    ? getPlaylistSongs(songCoverPickerTarget, localLibrary).filter((song: any) => song.localImageUri)
+    : [];
 
   const openHeaderMenu = () => {
     setHeaderMenuVisible(true);
@@ -919,6 +924,20 @@ export const LibraryCategoryView = ({
                     <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_from_files', language)}</Text>
                   </LiquidGlassMenuOption>
 
+                  {getPlaylistSongs(coverPickerTarget, localLibrary).some((song: any) => song.localImageUri) && (
+                    <LiquidGlassMenuOption
+                      isDark={isDark}
+                      style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                      onPress={() => {
+                        const target = coverPickerTarget;
+                        closeCoverPickerSheet(() => setSongCoverPickerTarget(target));
+                      }}
+                    >
+                      <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
+                      <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('pick_cover_from_songs', language)}</Text>
+                    </LiquidGlassMenuOption>
+                  )}
+
                   {(coverPickerTarget?.localCoverImageUri || (coverPickerTarget?.isAll && allSongsCoverUri)) && (
                     <LiquidGlassMenuOption
                       isDark={isDark}
@@ -939,6 +958,42 @@ export const LibraryCategoryView = ({
             </TouchableWithoutFeedback>
           </Animated.View>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal visible={!!songCoverPickerTarget} transparent animationType="fade" onRequestClose={() => setSongCoverPickerTarget(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ maxHeight: '80%', backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
+            <Text style={{ color: dynamicStyles.text, fontSize: 17, fontWeight: 'bold', padding: 18 }}>{t('choose_song_cover_title', language)}</Text>
+            {songCoverPickerSongs.length > 0 ? (
+              <FlatList
+                data={songCoverPickerSongs}
+                keyExtractor={(song: any, index) => `${song.musicFilename || song.title}-${index}`}
+                renderItem={({ item }: any) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const target = songCoverPickerTarget;
+                      setSongCoverPickerTarget(null);
+                      void applyCoverImage(target, item.localImageUri);
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: 1, borderTopColor: dynamicStyles.border }}
+                  >
+                    <Image source={{ uri: item.localImageUri }} style={{ width: 48, height: 48, borderRadius: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={{ color: dynamicStyles.text, fontWeight: '600' }}>{item.title || 'Untitled'}</Text>
+                      <Text numberOfLines={1} style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 3 }}>{item.artist || 'Unknown Artist'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={dynamicStyles.subText} />
+                  </TouchableOpacity>
+                )}
+              />
+            ) : (
+              <Text style={{ color: dynamicStyles.subText, paddingHorizontal: 18, paddingBottom: 18 }}>{t('no_song_covers', language)}</Text>
+            )}
+            <TouchableOpacity onPress={() => setSongCoverPickerTarget(null)} style={{ padding: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: dynamicStyles.border }}>
+              <Text style={{ color: themeColor, fontWeight: '600' }}>{t('cancel', language)}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
 
       {/* 4. 新規プレイリスト名 入力モーダル */}

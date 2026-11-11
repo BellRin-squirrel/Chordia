@@ -111,8 +111,8 @@ export const FullScreenPlayer = ({
     openingProgress.setValue(0);
     const animation = Animated.timing(openingProgress, {
       toValue: 1,
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
+      duration: 320,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: false,
     });
     animation.start();
@@ -125,16 +125,18 @@ export const FullScreenPlayer = ({
       return;
     }
 
+    slideAnim.stopAnimation();
     Animated.parallel([
       Animated.timing(openingProgress, {
         toValue: 0,
-        duration: 210,
-        easing: Easing.in(Easing.cubic),
+        duration: 320,
+        easing: Easing.inOut(Easing.cubic),
         useNativeDriver: false,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 210,
+        duration: 320,
+        easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
