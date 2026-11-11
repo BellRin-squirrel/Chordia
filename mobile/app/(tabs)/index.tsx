@@ -19,12 +19,15 @@ import { FocusScreen } from '../../components/FocusScreen';
 import { FullScreenPlayer } from '../../components/FullScreenPlayer';
 import { Library } from '../../components/Library';
 import { MiniPlayer } from '../../components/MiniPlayer';
+import { MiniPlayerMenuModal } from '../../components/MiniPlayerMenuModal';
 import { InfoScreen } from '../../components/InfoScreen';
 import { SyncScreen } from '../../components/SyncScreen';
 import { TabBar } from '../../components/TabBar';
 import { LanguageSelectModal } from '../../components/LanguageSelectModal';
 import { styles, TAB_BAR_HEIGHT } from '../../styles/styles';
 import { LanguageCode, t } from '../../utils/i18n';
+import * as FileSystem from 'expo-file-system/legacy';
+import { getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { 
   verifyChordiaSyncSession, 
   syncMusicAndPlaylistsToCloud, 
@@ -85,10 +88,183 @@ const AppContent = () => {
     isFullPlayer, setIsFullPlayer, showQueue, setShowQueue, showLyrics, setShowLyrics,
     toastVisible, toastMessage, toastAnim, showToast,
     navStackLength, setNavStackLength,
-    startQueue, handleNext, handlePrev, togglePlayPause,
+    startQueue, handleNext, handlePrev, togglePlayPause, stopPlayback,
     slideAnim, queueTransitionAnim, closeFullPlayer,
     currentContext,
   } = useAudioPlayer(soundCheckEnabled);
+
+  const [isMiniPlayerMenuVisible, setIsMiniPlayerMenuVisible] = useState(false);
+  const [miniPlayerMenuOrigin, setMiniPlayerMenuOrigin] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [libraryNavigateTarget, setLibraryNavigateTarget] = useState<any>(null);
+
+  const openMiniPlayerMenu = (origin?: { x: number; y: number; width: number; height: number }) => {
+    if (origin) {
+      setMiniPlayerMenuOrigin(origin);
+      setIsMiniPlayerMenuVisible(true);
+      return;
+    }
+    const miniPlayer = miniPlayerRef.current;
+    if (!miniPlayer) {
+      setMiniPlayerMenuOrigin(null);
+      setIsMiniPlayerMenuVisible(true);
+      return;
+    }
+    miniPlayer.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      setMiniPlayerMenuOrigin({ x, y, width: measuredWidth, height: measuredHeight });
+      setIsMiniPlayerMenuVisible(true);
+    });
+  };
+
+  const closeMiniPlayerMenu = () => {
+    setIsMiniPlayerMenuVisible(false);
+    setMiniPlayerMenuOrigin(null);
+  };
+
+  const handleMiniPlayerNavigatePlaylist = () => {
+    setIsMiniPlayerMenuVisible(false);
+    if (!currentSong) return;
+
+    let targetPl: any = null;
+    if (currentContext && currentContext.type === 'PLAYLIST' && currentContext.playlistID) {
+      targetPl = localPlaylists.find((p: any) => p.id === currentContext.playlistID);
+    }
+
+    if (!targetPl) {
+      const targetFname = currentSong.musicFilename?.split(/[\\/]/).pop()?.toLowerCase();
+      targetPl = localPlaylists.find((p: any) => {
+        if (p.isAll || p.id === 'all_songs') return false;
+        if (p.type === 'smart') {
+          return getPlaylistSongs(p, localLibrary).some((s: any) => s.musicFilename?.split(/[\\/]/).pop()?.toLowerCase() === targetFname);
+        }
+        return (Array.isArray(p.music) ? p.music : []).some((m: any) => 
+          (typeof m === 'string' ? m : (m?.musicFilename || m?.path || '')).split(/[\\/]/).pop()?.toLowerCase() === targetFname
+        );
+      });
+    }
+
+    if (!targetPl) {
+      targetPl = localPlaylists.find((p: any) => p.isAll || p.id === 'all_songs') || {
+        id: 'all_songs',
+        playlistName: t('all_songs_item', language),
+        isAll: true,
+      };
+    }
+
+    setActiveTab('PLAYER');
+    setLibraryNavigateTarget({
+      category: 'PLAYLISTS',
+      type: 'PLAYLIST',
+      data: targetPl,
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleMiniPlayerNavigateAlbum = () => {
+    setIsMiniPlayerMenuVisible(false);
+    if (!currentSong) return;
+
+    const targetAlbum = {
+      album: currentSong.album || 'Unknown Album',
+      artist: currentSong.artist || 'Unknown Artist',
+      coverArt: currentSong.localImageUri,
+    };
+
+    setActiveTab('PLAYER');
+    setLibraryNavigateTarget({
+      category: 'ALBUMS',
+      type: 'ALBUM',
+      data: targetAlbum,
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleMiniPlayerNavigateArtist = () => {
+    setIsMiniPlayerMenuVisible(false);
+    if (!currentSong) return;
+
+    const targetArtist = currentSong.artist || 'Unknown Artist';
+
+    setActiveTab('PLAYER');
+    setLibraryNavigateTarget({
+      category: 'ARTISTS',
+      type: 'ARTIST',
+      data: targetArtist,
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleMiniPlayerDeleteFromLibrary = () => {
+    if (!currentSong) return;
+    const songToDelete = currentSong;
+    Alert.alert(
+      t('delete_song_permanently_title', language),
+      t('delete_song_permanently_desc', language).replace('{name}', songToDelete.title || 'Track'),
+      [
+        { text: t('cancel', language), style: 'cancel' },
+        {
+          text: t('delete_confirm_btn', language),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (songToDelete.localMusicUri && (await FileSystem.getInfoAsync(songToDelete.localMusicUri)).exists) {
+                await FileSystem.deleteAsync(songToDelete.localMusicUri, { idempotent: true });
+              }
+              const remainingLibrary = localLibrary.filter((s: any) => s.localMusicUri !== songToDelete.localMusicUri);
+              const targetFname = songToDelete.musicFilename?.split(/[\\/]/).pop();
+              const updatedPlaylists = localPlaylists.map((pl: any) =>
+                pl.isAll || !pl.music
+                  ? pl
+                  : { ...pl, music: pl.music.filter((m: string) => m.split(/[\\/]/).pop() !== targetFname) }
+              );
+
+              await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
+              await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+              setLocalLibrary(remainingLibrary);
+              setLocalPlaylists(updatedPlaylists);
+              syncMusicAndPlaylistsToCloud();
+
+              if (currentSong?.localMusicUri === songToDelete.localMusicUri) {
+                if (remainingLibrary.length > 0) {
+                  handleNext();
+                } else {
+                  await stopPlayback();
+                }
+              }
+              showToast(t('delete_from_library_done', language));
+            } catch (e: any) {
+              Alert.alert(t('alert_timer_error_title', language), e.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMiniPlayerAddToPlaylists = async (selectedIds: Set<string>) => {
+    if (!currentSong || selectedIds.size === 0) return;
+    const targetPlaylists = localPlaylists.filter((pl: any) => selectedIds.has(pl.id));
+    const songFname = currentSong.musicFilename?.split(/[\\/]/).pop();
+    if (!songFname) return;
+
+    try {
+      let updatedPlaylists = [...localPlaylists];
+      for (const pl of targetPlaylists) {
+        const currentMusicList = pl.type === 'smart'
+          ? getPlaylistSongs(pl, localLibrary).map((s: any) => s.musicFilename?.split(/[\\/]/).pop()).filter(Boolean)
+          : (Array.isArray(pl.music) ? pl.music : []);
+        const newMusicList = Array.from(new Set([...currentMusicList, songFname]));
+        updatedPlaylists = updatedPlaylists.map((p: any) =>
+          p.id === pl.id ? { ...p, conditions: undefined, type: 'normal', music: newMusicList } : p
+        );
+      }
+      await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
+      setLocalPlaylists(updatedPlaylists);
+      syncMusicAndPlaylistsToCloud();
+      showToast(t('added_to_playlists_done', language));
+    } catch (e: any) {
+      Alert.alert(t('alert_timer_error_title', language), e.message);
+    }
+  };
 
   const {
     syncStage, setSyncStage, serverIp, setServerIp, serverPort, setServerPort, authCodeInput, setAuthCodeInput,
@@ -311,6 +487,7 @@ const AppContent = () => {
             language={language}
             showToast={showToast}
             resetTrigger={playerResetTrigger}
+            libraryNavigateTarget={libraryNavigateTarget}
           />
         )}
         {showFocusTab && activeTab === 'FOCUS' && (
@@ -389,7 +566,16 @@ const AppContent = () => {
               }
             ]}>
               <View ref={miniPlayerRef} collapsable={false} style={{ width: '100%' }}>
-                <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={openFullPlayer} togglePlayPause={togglePlayPause} handleNext={handleNext} />
+                <MiniPlayer
+                  currentSong={currentSong}
+                  isPlaying={isPlaying}
+                  dynamicStyles={actualDynamicStyles}
+                  onPress={openFullPlayer}
+                  onLongPress={openMiniPlayerMenu}
+                  menuTargetY={Math.max(insets.top, 20) + 10 + 34}
+                  togglePlayPause={togglePlayPause}
+                  handleNext={handleNext}
+                />
               </View>
             </Animated.View>
           )}
@@ -448,7 +634,16 @@ const AppContent = () => {
               {currentSong && !isFullPlayer && (
                 <View style={{ width: '50%', height: '100%', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 20 }}>
                   <View ref={miniPlayerRef} collapsable={false} style={{ width: '100%' }}>
-                    <MiniPlayer currentSong={currentSong} isPlaying={isPlaying} dynamicStyles={actualDynamicStyles} onPress={openFullPlayer} togglePlayPause={togglePlayPause} handleNext={handleNext} />
+                    <MiniPlayer
+                      currentSong={currentSong}
+                      isPlaying={isPlaying}
+                      dynamicStyles={actualDynamicStyles}
+                      onPress={openFullPlayer}
+                      onLongPress={openMiniPlayerMenu}
+                      menuTargetY={Math.max(insets.top, 20) + 10 + 34}
+                      togglePlayPause={togglePlayPause}
+                      handleNext={handleNext}
+                    />
                   </View>
                 </View>
               )}
@@ -634,6 +829,29 @@ const AppContent = () => {
           </BlurView>
         </Animated.View>
       )}
+
+      <MiniPlayerMenuModal
+        visible={isMiniPlayerMenuVisible}
+        onClose={closeMiniPlayerMenu}
+        origin={miniPlayerMenuOrigin}
+        currentSong={currentSong}
+        localPlaylists={localPlaylists}
+        localLibrary={localLibrary}
+        dynamicStyles={actualDynamicStyles}
+        themeColor={themeColor}
+        isDark={isAppDark}
+        insets={insets}
+        isLandscape={isLandscape}
+        width={width}
+        height={height}
+        language={language}
+        showPlaylistTypeIcon={showPlaylistTypeIcon}
+        onNavigateToPlaylist={handleMiniPlayerNavigatePlaylist}
+        onNavigateToAlbum={handleMiniPlayerNavigateAlbum}
+        onNavigateToArtist={handleMiniPlayerNavigateArtist}
+        onDeleteFromLibrary={handleMiniPlayerDeleteFromLibrary}
+        onAddSongToPlaylists={handleMiniPlayerAddToPlaylists}
+      />
     </View>
   );
 };

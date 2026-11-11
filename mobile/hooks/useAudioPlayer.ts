@@ -190,12 +190,17 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   };
 
   useEffect(() => {
-    AsyncStorage.getItem('audioEngine').then((val) => {
+    AsyncStorage.getItem('audioEngine').then(async (val) => {
       const mode = (val === 'expo-av' || val === 'rntp') ? val : 'rntp';
       setAudioEngine(mode);
       if (Platform.OS === 'ios') {
         iosEq.setEngineMode(mode);
       }
+      if (mode === 'expo-av') {
+        await rntp.clearRNTPNotification();
+      }
+    }).catch((error) => {
+      console.error('[AudioPlayer] Failed to load audio engine setting:', error);
     });
 
     (async () => {
@@ -274,6 +279,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         iosEq.startIOSEQPolling(setIsPlaying);
 
         const dur = (song.duration || 0) > 0 ? song.duration : 180;
+        iosEq.setTrackISRC(song.isrc || null);
         iosEq.updateNowPlaying(
           song.title || 'Untitled',
           song.artist || 'Unknown Artist',
@@ -850,6 +856,19 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     };
   }, [audioEngine]);
 
+  const stopPlayback = async () => {
+    try {
+      iosEq.isIOSEQActiveRef.current = false;
+      iosEq.stopIosEQ();
+      await TrackPlayer.stop();
+      await TrackPlayer.reset();
+      expoAudio.clearExpoResources();
+      queueMgr.setCurrentSong(null);
+      queueMgr.setPlayQueue([]);
+      setIsPlaying(false);
+    } catch (e) {}
+  };
+
   return { 
     sound: { setPositionAsync },
     audioEngine, 
@@ -880,6 +899,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     handleNext, 
     handlePrev, 
     togglePlayPause, 
+    stopPlayback,
     slideAnim, 
     queueTransitionAnim, 
     closeFullPlayer,

@@ -88,6 +88,15 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
     paddingRight: 0,
     paddingHorizontal: 0,
   };
+  const contentTextStyle: TextStyle = {
+    ...flattenedStyle,
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    width: isOverflow ? textWidth : undefined,
+    minWidth: undefined,
+    maxWidth: undefined,
+  };
 
   return (
     <View 
@@ -126,8 +135,7 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
       >
         <Text 
           style={[
-            style, 
-            { flexShrink: 0 },
+            contentTextStyle,
           ]} 
           numberOfLines={1}
           ellipsizeMode="clip"
@@ -138,8 +146,8 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({
         {isOverflow && (
           <Text 
             style={[
-              style, 
-              { marginLeft: spacing, flexShrink: 0 }
+              contentTextStyle,
+              { marginLeft: spacing }
             ]} 
             numberOfLines={1}
             ellipsizeMode="clip"

@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  View, Text, FlatList, Image, TouchableOpacity, Modal, Pressable, StyleSheet,
+  View, Text, FlatList, ScrollView, Image, TouchableOpacity, Modal, Pressable, StyleSheet,
   TouchableWithoutFeedback, TextInput, Alert, Animated, Easing, 
   KeyboardAvoidingView, Platform, useWindowDimensions, type StyleProp, type ViewStyle
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +25,9 @@ type LiquidGlassMenuOptionProps = {
   onPress: () => void;
   isDark: boolean;
   style?: StyleProp<ViewStyle>;
+};
+type MeasurableView = {
+  measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => void;
 };
 
 const LiquidGlassMenuOption = ({ children, onPress, style }: LiquidGlassMenuOptionProps) => {
@@ -97,6 +101,11 @@ export const LibraryCategoryView = ({
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const landscapeMenuColumns = width >= 900 ? 3 : 2;
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+  const menuSurfaceColor = useLiquidGlass
+    ? (isDark ? 'rgba(32,32,36,0.78)' : 'rgba(248,248,252,0.82)')
+    : dynamicStyles.card;
 
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
@@ -104,10 +113,25 @@ export const LibraryCategoryView = ({
 
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [rowActionTarget, setRowActionTarget] = useState<any>(null);
+  const rowMenuColumns = rowActionTarget?.isAll ? 2 : landscapeMenuColumns;
+  const [pressedPlaylistKey, setPressedPlaylistKey] = useState<string | null>(null);
+  const pressedPlaylistKeyRef = useRef<string | null>(null);
+  const playlistPressTranslateX = useRef(new Animated.Value(0)).current;
+  const playlistPressTranslateY = useRef(new Animated.Value(0)).current;
+  const playlistPressScale = useRef(new Animated.Value(1)).current;
+  const playlistRowRefs = useRef<Record<string, MeasurableView | null>>({});
+  const rowActionOriginRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const rowActionHeaderRef = useRef<MeasurableView | null>(null);
+  const rowActionTransitionPending = useRef(false);
   const [coverPickerTarget, setCoverPickerTarget] = useState<any>(null);
   const [songCoverPickerTarget, setSongCoverPickerTarget] = useState<any>(null);
   const sheetAnimHeader = useRef(new Animated.Value(0)).current;
   const sheetAnimRow = useRef(new Animated.Value(0)).current;
+  const headerTranslateX = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(0)).current;
+  const headerScaleX = useRef(new Animated.Value(1)).current;
+  const headerScaleY = useRef(new Animated.Value(1)).current;
+  const headerTransitionAnim = useRef(new Animated.Value(1)).current;
   const sheetAnimCover = useRef(new Animated.Value(0)).current;
 
   const [createNameModalVisible, setCreateNameModalVisible] = useState(false);
@@ -162,6 +186,8 @@ export const LibraryCategoryView = ({
   const closeRowActionSheet = (callback?: () => void) => {
     Animated.timing(sheetAnimRow, { toValue: 0, duration: 180, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
       setRowActionTarget(null);
+      rowActionOriginRef.current = null;
+      rowActionTransitionPending.current = false;
       if (callback) {
         setTimeout(callback, Platform.OS === 'ios' ? 400 : 100);
       }
@@ -187,10 +213,98 @@ export const LibraryCategoryView = ({
     Animated.spring(sheetAnimHeader, { toValue: 1, useNativeDriver: true, damping: 24, mass: 0.8, stiffness: 300 }).start();
   };
 
-  const openRowActionSheet = (item: any) => {
+  const openRowActionSheet = (item: any, origin?: { x: number; y: number; width: number; height: number }) => {
+    rowActionOriginRef.current = origin || null;
+    rowActionTransitionPending.current = !!origin;
+    headerTranslateX.setValue(0);
+    headerTranslateY.setValue(0);
+    headerScaleX.setValue(1);
+    headerScaleY.setValue(1);
+    headerTransitionAnim.setValue(origin ? 0 : 1);
     setRowActionTarget(item);
     sheetAnimRow.setValue(0);
-    Animated.spring(sheetAnimRow, { toValue: 1, useNativeDriver: true, damping: 24, mass: 0.8, stiffness: 300 }).start();
+    Animated.timing(sheetAnimRow, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start();
+  };
+
+  const startPlaylistPressPreview = (rowKey: string) => {
+    pressedPlaylistKeyRef.current = rowKey;
+    playlistPressTranslateX.stopAnimation();
+    playlistPressTranslateY.stopAnimation();
+    playlistPressScale.stopAnimation();
+    playlistPressTranslateX.setValue(0);
+    playlistPressTranslateY.setValue(0);
+    playlistPressScale.setValue(1);
+    setPressedPlaylistKey(rowKey);
+    const row = playlistRowRefs.current[rowKey];
+    if (!row) return;
+    row.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      if (pressedPlaylistKeyRef.current !== rowKey) return;
+      Animated.parallel([
+        Animated.timing(playlistPressTranslateX, {
+          toValue: width / 2 - (x + measuredWidth / 2),
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(playlistPressTranslateY, {
+          toValue: Math.max(insets?.top || 0, 20) + 10 + 52 - (y + measuredHeight / 2),
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(playlistPressScale, {
+          toValue: 104 / Math.max(measuredHeight, 1),
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const resetPlaylistPressPreview = () => {
+    pressedPlaylistKeyRef.current = null;
+    Animated.parallel([
+      Animated.timing(playlistPressTranslateX, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(playlistPressTranslateY, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(playlistPressScale, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      if (finished) setPressedPlaylistKey(null);
+    });
+  };
+
+  const handlePlaylistLongPress = (item: any, rowKey: string) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (_) {}
+    const rowRef = playlistRowRefs.current[rowKey];
+    if (!rowRef) {
+      openRowActionSheet(item);
+      return;
+    }
+    rowRef.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      openRowActionSheet(item, { x, y, width: measuredWidth, height: measuredHeight });
+    });
+  };
+
+  const animatePlaylistIntoMenu = () => {
+    const origin = rowActionOriginRef.current;
+    const header = rowActionHeaderRef.current;
+    if (!rowActionTransitionPending.current || !origin || !header) return;
+    rowActionTransitionPending.current = false;
+    header.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      headerTranslateX.setValue(origin.x + origin.width / 2 - x - measuredWidth / 2);
+      headerTranslateY.setValue(origin.y + origin.height / 2 - y - measuredHeight / 2);
+      headerScaleX.setValue(origin.width / Math.max(measuredWidth, 1));
+      headerScaleY.setValue(origin.height / Math.max(measuredHeight, 1));
+      Animated.parallel([
+        Animated.timing(headerTranslateX, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTranslateY, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleX, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleY, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    });
   };
 
   const openCoverPickerSheet = (target: any) => {
@@ -618,16 +732,32 @@ export const LibraryCategoryView = ({
           const artSource = isPlaylistsTab ? getPlaylistFirstArt(item, localLibrary) : (item.coverArt ? { uri: item.coverArt } : DEFAULT_ICON);
           const isSmart = isPlaylistsTab && item.type === 'smart';
           const isLast = index === data.length - 1;
+          const rowKey = String(item.id ?? index);
 
           return (
-            <View style={{ backgroundColor: libraryBgColor }}>
+            <Animated.View style={{
+              backgroundColor: libraryBgColor,
+              transform: pressedPlaylistKey === rowKey
+                ? [
+                    { translateX: playlistPressTranslateX },
+                    { translateY: playlistPressTranslateY },
+                    { scale: playlistPressScale },
+                  ]
+                : undefined,
+            }}>
               <TouchableOpacity 
+                ref={(ref) => { playlistRowRefs.current[rowKey] = ref; }}
                 style={[styles.checkRow, { borderBottomWidth: 0, paddingVertical: 14 }]} 
+                onPressIn={isPlaylistsTab ? () => startPlaylistPressPreview(rowKey) : undefined}
+                onPressOut={isPlaylistsTab ? resetPlaylistPressPreview : undefined}
                 onPress={() => { 
+                  if (isPlaylistsTab) resetPlaylistPressPreview();
                   if (isPlaylistsTab) { setCurrentSelectionType('PLAYLIST'); setCurrentPlaylist(item); }
                   else { setCurrentSelectionType('ARTIST'); setCurrentArtist(item.artistName); }
                   pushView('SONG_LIST'); 
                 }}
+                onLongPress={isPlaylistsTab ? () => handlePlaylistLongPress(item, rowKey) : undefined}
+                delayLongPress={300}
               >
                 <Image source={artSource} style={[styles.playlistIconArt, category === 'ARTISTS' && { borderRadius: 35 }]} />
                 <View style={{ flex: 1, marginLeft: 15, marginRight: 10, minWidth: 0, overflow: 'hidden' }}>
@@ -661,7 +791,7 @@ export const LibraryCategoryView = ({
               {isPlaylistsTab && !isLast && (
                 <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginLeft: 95, marginRight: 20 }} />
               )}
-            </View>
+            </Animated.View>
           );
         }}
         contentContainerStyle={safePadding}
@@ -715,33 +845,104 @@ export const LibraryCategoryView = ({
       </Modal>
 
       {/* 2. 各プレイリスト行の3点メニュー */}
-      <Modal visible={!!rowActionTarget} transparent animationType="none">
+      <Modal visible={!!rowActionTarget} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <TouchableWithoutFeedback onPress={() => closeRowActionSheet()}>
           <Animated.View style={{ 
-            flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', opacity: sheetAnimRow, 
-            justifyContent: 'flex-end', paddingHorizontal: 15, 
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.48)',
+            opacity: sheetAnimRow,
+            justifyContent: 'flex-start',
+            paddingHorizontal: 12,
             paddingTop: Math.max(insets?.top || 0, 20) + 10,
-            paddingBottom: Math.max(insets?.bottom || 0, 20) + 15
+            paddingBottom: Math.max(insets?.bottom || 0, 12) + 12,
           }}>
             <TouchableWithoutFeedback>
-              <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}>
-                    <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
+              <Animated.View style={{
+                width: isLandscape ? Math.min(900, width - 24) : undefined,
+                maxWidth: Math.min(isLandscape ? 900 : 500, width - 24),
+                maxHeight: '100%',
+                alignSelf: 'center',
+                gap: 8,
+                transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }) }],
+              }}>
+                <Animated.View
+                  ref={(ref) => { rowActionHeaderRef.current = ref; }}
+                  onLayout={animatePlaylistIntoMenu}
+                  style={{
+                  transform: [
+                    { translateX: headerTranslateX },
+                    { translateY: headerTranslateY },
+                    { scaleX: headerScaleX },
+                    { scaleY: headerScaleY },
+                  ],
+                  opacity: headerTransitionAnim,
+                }}>
+                <View style={{
+                  backgroundColor: menuSurfaceColor,
+                  borderRadius: 28,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                }}>
+                  {useLiquidGlass && (
+                    <GlassView
+                      pointerEvents="none"
+                      glassEffectStyle="regular"
+                      colorScheme={isDark ? 'dark' : 'light'}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, minHeight: 104 }}>
+                    <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 80, height: 80, borderRadius: 18, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 14 }} numberOfLines={1}>{rowActionTarget?.playlistName}</Text>
-                      <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 2 }}>
+                      <Text style={{ color: dynamicStyles.text, fontWeight: '700', fontSize: 18 }} numberOfLines={2}>{rowActionTarget?.playlistName}</Text>
+                      <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 5 }}>
                         {rowActionTarget?.isAll ? t('all_songs_item', language) : (rowActionTarget?.type === 'smart' ? t('smart_playlist_label', language) : t('normal_playlist_label', language))}
                       </Text>
                     </View>
+                    <Ionicons name="chevron-forward" size={22} color={dynamicStyles.subText} style={{ marginLeft: 8 }} />
                   </View>
+                </View>
+                </Animated.View>
 
+                <View style={{
+                  backgroundColor: menuSurfaceColor,
+                  borderRadius: 26,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border,
+                  flexShrink: 1,
+                }}>
+                  {useLiquidGlass && (
+                    <GlassView
+                      pointerEvents="none"
+                      glassEffectStyle="regular"
+                      colorScheme={isDark ? 'dark' : 'light'}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  )}
+                  <ScrollView
+                    bounces={false}
+                    showsVerticalScrollIndicator={false}
+                    style={{
+                      flexGrow: 0,
+                      flexShrink: 1,
+                      maxHeight: Math.max(
+                        120,
+                        height - Math.max(insets?.top || 0, 12) - Math.max(insets?.bottom || 0, 12) - 232
+                      ),
+                    }}
+                    contentContainerStyle={[
+                      { paddingVertical: 0 },
+                      isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
+                    ]}
+                  >
                   {/* ★ 「すべての楽曲」の場合は、カバー画像変更と複製のみを表示 */}
                   {rowActionTarget?.isAll ? (
                     <>
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => openCoverPickerSheet(target));
@@ -753,7 +954,7 @@ export const LibraryCategoryView = ({
 
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+                        style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDuplicatePlaylist(target));
@@ -767,7 +968,7 @@ export const LibraryCategoryView = ({
                     <>
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => {
@@ -783,7 +984,7 @@ export const LibraryCategoryView = ({
                       {/* ★ カバー画像変更メニューが正常に反応するように修正 */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => openCoverPickerSheet(target));
@@ -797,7 +998,7 @@ export const LibraryCategoryView = ({
                         <>
                           <LiquidGlassMenuOption
                             isDark={isDark}
-                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
                               closeRowActionSheet(() => {
@@ -811,7 +1012,7 @@ export const LibraryCategoryView = ({
 
                           <LiquidGlassMenuOption
                             isDark={isDark}
-                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
                               closeRowActionSheet(() => handleConvertToNormalPlaylist(target));
@@ -825,7 +1026,7 @@ export const LibraryCategoryView = ({
                         <>
                           <LiquidGlassMenuOption
                             isDark={isDark}
-                            style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                             onPress={() => {
                               const target = rowActionTarget;
                               closeRowActionSheet(() => openEditPlaylistSongsModal(target));
@@ -839,7 +1040,7 @@ export const LibraryCategoryView = ({
 
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                        style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDuplicatePlaylist(target));
@@ -851,7 +1052,7 @@ export const LibraryCategoryView = ({
 
                       <LiquidGlassMenuOption
                         isDark={isDark}
-                        style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+                        style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}
                         onPress={() => {
                           const target = rowActionTarget;
                           closeRowActionSheet(() => handleDeletePlaylist(target));
@@ -862,9 +1063,9 @@ export const LibraryCategoryView = ({
                       </LiquidGlassMenuOption>
                     </>
                   )}
+                  </ScrollView>
                 </View>
 
-                <AnimatedCancelButton onPress={() => closeRowActionSheet()} dynamicStyles={dynamicStyles} label={t('cancel', language)} />
               </Animated.View>
             </TouchableWithoutFeedback>
           </Animated.View>

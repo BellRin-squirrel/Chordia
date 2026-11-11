@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { View, Image, TouchableOpacity, TouchableHighlight, Animated, StyleSheet, Platform } from 'react-native';
+import { View, Image, TouchableOpacity, TouchableHighlight, Animated, Easing, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import type { ViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -60,12 +61,88 @@ const BounceMiniButton = ({ children, onPress, isDark }: any) => {
   );
 };
 
-export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, togglePlayPause, handleNext }: any) => {
+export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, onLongPress, togglePlayPause, handleNext, menuTargetY = 70 }: any) => {
   const isDark = dynamicStyles?.bg === '#000000';
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+  const { width } = useWindowDimensions();
+  const playerRef = useRef<ViewInstance>(null);
+  const pressActiveRef = useRef(false);
+  const longPressTranslateX = useRef(new Animated.Value(0)).current;
+  const longPressTranslateY = useRef(new Animated.Value(0)).current;
+  const longPressScale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    pressActiveRef.current = true;
+    longPressTranslateX.stopAnimation();
+    longPressTranslateY.stopAnimation();
+    longPressScale.stopAnimation();
+    longPressTranslateX.setValue(0);
+    longPressTranslateY.setValue(0);
+    longPressScale.setValue(1);
+    playerRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      if (!pressActiveRef.current) return;
+      Animated.parallel([
+        Animated.timing(longPressTranslateX, {
+          toValue: width / 2 - (x + measuredWidth / 2),
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(longPressTranslateY, {
+          toValue: menuTargetY - (y + measuredHeight / 2),
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(longPressScale, {
+          toValue: 1.15,
+          duration: 650,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  };
+
+  const handlePressOut = () => {
+    pressActiveRef.current = false;
+    Animated.parallel([
+      Animated.timing(longPressTranslateX, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(longPressTranslateY, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(longPressScale, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleLongPress = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (_) {}
+    if (!playerRef.current) {
+      onLongPress?.();
+      return;
+    }
+    playerRef.current.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      onLongPress?.({ x, y, width: measuredWidth, height: measuredHeight });
+    });
+  };
 
   return (
-    <TouchableOpacity style={styles.miniPlayerCard} onPress={onPress} activeOpacity={0.9}>
+    <Animated.View style={{
+      transform: [
+        { translateX: longPressTranslateX },
+        { translateY: longPressTranslateY },
+        { scale: longPressScale },
+      ],
+    }} ref={playerRef}>
+      <TouchableOpacity
+        style={styles.miniPlayerCard}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onLongPress={handleLongPress}
+        delayLongPress={300}
+        activeOpacity={0.9}
+      >
       {useLiquidGlass ? (
         <GlassView
           pointerEvents="none"
@@ -99,6 +176,7 @@ export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, tog
           </BounceMiniButton>
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };

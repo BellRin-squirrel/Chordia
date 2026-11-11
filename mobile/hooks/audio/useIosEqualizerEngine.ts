@@ -11,6 +11,7 @@ import {
   isPlayingIOS,
   setIosEqualizerEngineMode,
   updateIosNowPlaying,
+  setIosTrackISRC,
   getNativeModule
 } from '../../utils/equalizer';
 
@@ -145,5 +146,6 @@ export const useIosEqualizerEngine = (
     getDurationIOS,
     setEngineMode: setIosEqualizerEngineMode,
     updateNowPlaying: updateIosNowPlaying,
+    setTrackISRC: setIosTrackISRC,
   };
 };

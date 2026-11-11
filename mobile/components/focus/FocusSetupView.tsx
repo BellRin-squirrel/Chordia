@@ -414,37 +414,25 @@ export const FocusSetupView = ({
             )}
         </View>
 
-        {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
-          <Pressable onPress={handleFinishSetup} accessibilityRole="button" style={{ marginTop: 30, opacity: isReady ? 1 : 0.8 }}>
-            <GlassView
-              glassEffectStyle="regular"
-              isInteractive
-              tintColor={themeColor}
-              style={[s.primaryBtn, { overflow: 'hidden' }]}
-            >
-              <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
-            </GlassView>
-          </Pressable>
-        ) : (
-          <TouchableOpacity
-            style={[
-              s.primaryBtn,
-              {
-                backgroundColor: themeColor,
-                marginTop: 30,
-                opacity: isReady ? 1 : 0.8,
-                shadowColor: themeColor,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.35,
-                shadowRadius: 8,
-                elevation: 4,
-              }
-            ]}
-            onPress={handleFinishSetup}
-          >
-            <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[
+            s.primaryBtn,
+            {
+              backgroundColor: themeColor,
+              marginTop: 30,
+              opacity: isReady ? 1 : 0.8,
+              shadowColor: themeColor,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.35,
+              shadowRadius: 8,
+              elevation: 4,
+            }
+          ]}
+          onPress={handleFinishSetup}
+          accessibilityRole="button"
+        >
+          <Text style={[s.primaryBtnText, { color: textColor }]}>{t('finish_setup_btn', language)}</Text>
+        </TouchableOpacity>
 
       </ScrollView>
 

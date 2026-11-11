@@ -29,7 +29,8 @@
         "NSBonjourServices": [
           "_http._tcp."
         ],
-        "AVAudioDefaultSpeakerAmbient": false
+        "AVAudioDefaultSpeakerAmbient": false,
+        "MusicHapticsSupported": true
       }
     },
     "android": {

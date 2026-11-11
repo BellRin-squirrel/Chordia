@@ -21,6 +21,19 @@ import {
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
 const STORAGE_CUSTOM_PRESETS_KEY = 'chordia_custom_equalizer_presets';
 
+const BAND_NAME_KEYS: Record<string, string> = {
+  '32Hz': 'eq_band_32Hz',
+  '64Hz': 'eq_band_64Hz',
+  '125Hz': 'eq_band_125Hz',
+  '250Hz': 'eq_band_250Hz',
+  '500Hz': 'eq_band_500Hz',
+  '1kHz': 'eq_band_1kHz',
+  '2kHz': 'eq_band_2kHz',
+  '4kHz': 'eq_band_4kHz',
+  '8kHz': 'eq_band_8kHz',
+  '16kHz': 'eq_band_16kHz',
+};
+
 export interface EqualizerBand {
   freq: string;
   gain: number;
@@ -578,7 +591,9 @@ export const InfoEqualizerView = ({
 
           {/* プリアンプ */}
           <View style={[s.bandRow, { paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border, marginBottom: 12 }]}>
-            <Text style={[s.bandLabel, { color: themeColor }]}>{t('equalizer_preamp', language)}</Text>
+            <View style={s.bandLabelContainer}>
+              <Text style={[s.bandLabel, { color: themeColor }]}>{t('equalizer_preamp', language)}</Text>
+            </View>
             <Slider
               key={`preamp-${sliderVersion}`}
               style={{ flex: 1 }}
@@ -599,27 +614,38 @@ export const InfoEqualizerView = ({
 
           {/* 10バンド周波数スライダー */}
           <View style={{ gap: 10 }}>
-            {bands.map((band, idx) => (
-              <View key={band.freq} style={s.bandRow}>
-                <Text style={[s.bandLabel, { color: dynamicStyles.text }]}>{band.freq}</Text>
-                <Slider
-                  key={`${band.freq}-${sliderVersion}`}
-                  style={{ flex: 1 }}
-                  minimumValue={-12}
-                  maximumValue={12}
-                  step={0.5}
-                  value={band.gain}
-                  onValueChange={(val) => handleGainChange(idx, val)}
-                  disabled={!isEnabled}
-                  minimumTrackTintColor={themeColor}
-                  maximumTrackTintColor={isDark ? '#3a3a3c' : '#e5e5ea'}
-                  thumbTintColor={themeColor}
-                />
-                <Text style={[s.gainLabel, { color: band.gain !== 0 ? themeColor : dynamicStyles.subText }]}>
-                  {formatDbText(band.gain)}
-                </Text>
-              </View>
-            ))}
+            {bands.map((band, idx) => {
+              const bandNameKey = BAND_NAME_KEYS[band.freq];
+              const bandName = bandNameKey ? t(bandNameKey, language) : '';
+              return (
+                <View key={band.freq} style={s.bandRow}>
+                  <View style={s.bandLabelContainer}>
+                    <Text style={[s.bandLabel, { color: dynamicStyles.text }]}>{band.freq}</Text>
+                    {bandName ? (
+                      <Text style={[s.bandSubLabel, { color: dynamicStyles.subText }]} numberOfLines={1}>
+                        {bandName}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Slider
+                    key={`${band.freq}-${sliderVersion}`}
+                    style={{ flex: 1 }}
+                    minimumValue={-12}
+                    maximumValue={12}
+                    step={0.5}
+                    value={band.gain}
+                    onValueChange={(val) => handleGainChange(idx, val)}
+                    disabled={!isEnabled}
+                    minimumTrackTintColor={themeColor}
+                    maximumTrackTintColor={isDark ? '#3a3a3c' : '#e5e5ea'}
+                    thumbTintColor={themeColor}
+                  />
+                  <Text style={[s.gainLabel, { color: band.gain !== 0 ? themeColor : dynamicStyles.subText }]}>
+                    {formatDbText(band.gain)}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
 
           {/* 設定保存ボタン */}
@@ -706,7 +732,9 @@ const s = StyleSheet.create({
   emptyCustomBox: { paddingVertical: 14, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' },
   flatBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
   bandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  bandLabel: { width: 65, fontSize: 13, fontWeight: 'bold' },
+  bandLabelContainer: { width: 75, justifyContent: 'center' },
+  bandLabel: { fontSize: 13, fontWeight: 'bold' },
+  bandSubLabel: { fontSize: 10, marginTop: 1 },
   gainLabel: { width: 56, fontSize: 12, fontWeight: 'bold', textAlign: 'right', fontVariant: ['tabular-nums'] },
   saveSmallBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   saveFullBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 44, borderRadius: 22 },

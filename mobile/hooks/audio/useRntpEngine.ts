@@ -68,10 +68,17 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
 
   const clearRNTPNotification = async () => {
     try {
+      await ensureRNTPInitialized();
       await TrackPlayer.stop();
       await TrackPlayer.reset();
-      await TrackPlayer.updateOptions({ capabilities: [], compactCapabilities: [] });
-    } catch (e) {}
+      await TrackPlayer.updateOptions({
+        capabilities: [],
+        compactCapabilities: [],
+        notificationCapabilities: [],
+      });
+    } catch (error) {
+      console.error('[RNTP] Failed to clear playback controls:', error);
+    }
   };
 
   const restoreRNTPNotification = async () => {
@@ -95,14 +102,21 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
           Capability.SeekTo
         ],
       });
-    } catch (e) {}
+    } catch (error) {
+      console.error('[RNTP] Failed to restore playback controls:', error);
+    }
   };
 
   useEffect(() => {
     const initRNTP = async () => {
       try {
         await ensureRNTPInitialized();
-        await restoreRNTPNotification();
+        const activeTrack = await TrackPlayer.getActiveTrack();
+        if (activeTrack) {
+          await restoreRNTPNotification();
+        } else {
+          await clearRNTPNotification();
+        }
       } catch (error) {
         console.error('[RNTP] Failed to initialize playback:', error);
       }

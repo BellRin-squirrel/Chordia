@@ -125,6 +125,13 @@ export const updateIosNowPlaying = (
   } catch (e) {}
 };
 
+export const setIosTrackISRC = (isrc?: string | null): void => {
+  if (Platform.OS !== 'ios' || !NativeModule?.setTrackISRC) return;
+  try {
+    NativeModule.setTrackISRC(isrc || null);
+  } catch (e) {}
+};
+
 export const getEqualizerDebugInfo = (): any => {
   if (!NativeModule) {
     return {

@@ -55,7 +55,7 @@ export const Library = ({
   dynamicStyles, themeColor, startQueue, currentSong, 
   localLibrary = [], setLocalLibrary, localPlaylists = [], setLocalPlaylists,
   setNavStackLength, insets, isDark, showPlaylistTypeIcon = true, language = 'ja',
-  showToast, resetTrigger
+  showToast, resetTrigger, libraryNavigateTarget
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -287,7 +287,7 @@ export const Library = ({
             const remainingLibrary = localLibrary.filter((s: any) => s.localMusicUri !== song.localMusicUri);
             const targetFname = song.musicFilename?.split(/[\\/]/).pop();
             const updatedPlaylists = localPlaylists.map((pl: any) => pl.isAll || !pl.music ? pl : { ...pl, music: pl.music.filter((m: string) => m.split(/[\\/]/).pop() !== targetFname) });
-            await AsyncStorage.setItem('local_library', JSON.stringify(updatedLibrary));
+            await AsyncStorage.setItem('local_library', JSON.stringify(remainingLibrary));
             await AsyncStorage.setItem('local_playlists', JSON.stringify(updatedPlaylists));
             if (setLocalLibrary) setLocalLibrary(remainingLibrary);
             if (setLocalPlaylists) setLocalPlaylists(updatedPlaylists);
@@ -357,6 +357,13 @@ export const Library = ({
     setNavStack(['MENU', category, 'SONG_LIST']);
     Animated.spring(navAnim, { toValue: 2, useNativeDriver: true, stiffness: 300, damping: 30, mass: 0.8, overshootClamping: true }).start();
   };
+
+  useEffect(() => {
+    if (libraryNavigateTarget && libraryNavigateTarget.timestamp) {
+      const { category, type, data } = libraryNavigateTarget;
+      openCollectionSongList(category, type, data);
+    }
+  }, [libraryNavigateTarget]);
 
   const onGestureEvent = (event: any) => {
     if (event?.nativeEvent?.translationX !== undefined) {
@@ -449,7 +456,8 @@ export const Library = ({
       playlistName: currentPlaylist?.playlistName || 'Playlist',
     };
   } else if (currentSelectionType === 'ALBUM') {
-    songs = localLibrary.filter((s: any) => s.album === currentAlbum?.album && s.artist === currentAlbum?.artist).sort((a: any, b: any) => (a.track || 0) - (b.track || 0));
+    const matchedWithArtist = localLibrary.filter((s: any) => s.album === currentAlbum?.album && (!currentAlbum?.artist || s.artist === currentAlbum?.artist));
+    songs = (matchedWithArtist.length > 0 ? matchedWithArtist : localLibrary.filter((s: any) => s.album === currentAlbum?.album)).sort((a: any, b: any) => (a.track || 0) - (b.track || 0));
     heroArtSource = currentAlbum?.coverArt ? { uri: currentAlbum.coverArt } : DEFAULT_ICON;
     heroTitle = currentAlbum?.album || '';
     collectionContext = {

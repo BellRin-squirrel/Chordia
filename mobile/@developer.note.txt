@@ -7,3 +7,6 @@ components/SettingsScreen.tsx
 app.json
 package-lock.json ２か所
 package.json
+
+tree表示 gitignore
+eza --tree --git-ignore

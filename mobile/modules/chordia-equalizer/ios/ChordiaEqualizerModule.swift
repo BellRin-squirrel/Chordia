@@ -34,6 +34,7 @@ public class ChordiaEqualizerModule: Module {
   private var currentTrackAlbum: String = ""
   private var currentArtworkUri: String? = nil
   private var currentDuration: Double = 0.0
+  private var currentISRC: String? = nil
 
   private var playTarget: Any?
   private var pauseTarget: Any?
@@ -88,7 +89,7 @@ public class ChordiaEqualizerModule: Module {
 
     Function("setEngineMode") { (mode: String) in
       self.engineMode = mode
-      self.applyAudioSessionCategory()
+      self.applyAudioSessionCategory(activate: false)
       self.updateRemoteCommandsState()
       self.refreshNowPlayingInfo()
     }
@@ -100,6 +101,11 @@ public class ChordiaEqualizerModule: Module {
       self.currentArtworkUri = artworkUri
       self.currentDuration = duration
       self.updateNowPlayingInfoCenter(duration: duration, position: position, isPlaying: isPlaying)
+      self.updateRemoteCommandsState()
+    }
+
+    Function("setTrackISRC") { (isrc: String?) in
+      self.currentISRC = isrc
     }
 
     Function("loadAndPlay") { (filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool in
@@ -120,7 +126,16 @@ public class ChordiaEqualizerModule: Module {
       self.playerNode.stop()
       self.isManualStop = false
       self.isNodePlaying = false
-      self.updateNowPlayingPlaybackRate(isPlaying: false)
+      self.currentAudioFile = nil
+      self.currentTrackTitle = ""
+      self.currentTrackArtist = ""
+      self.currentTrackAlbum = ""
+      self.currentArtworkUri = nil
+      self.currentISRC = nil
+      DispatchQueue.main.async {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      }
+      self.updateRemoteCommandsState()
       return true
     }
 
@@ -193,10 +208,10 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
 
-    applyAudioSessionCategory()
+    applyAudioSessionCategory(activate: false)
   }
 
-  private func applyAudioSessionCategory() {
+  private func applyAudioSessionCategory(activate: Bool = false) {
     do {
       let session = AVAudioSession.sharedInstance()
       if engineMode == "expo-av" {
@@ -204,7 +219,9 @@ public class ChordiaEqualizerModule: Module {
       } else {
         try session.setCategory(.playback, mode: .default, options: [])
       }
-      try session.setActive(true)
+      if activate {
+        try session.setActive(true)
+      }
       self.lastErrorMessage = "None (AudioSession configured: \(engineMode))"
     } catch let err as NSError {
       self.lastErrorMessage = "AudioSession error: \(err.localizedDescription)"
@@ -212,6 +229,7 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func playInternal() -> Bool {
+    applyAudioSessionCategory(activate: true)
     if !audioEngine.isRunning {
       do {
         try audioEngine.start()
@@ -306,17 +324,23 @@ public class ChordiaEqualizerModule: Module {
   private func updateRemoteCommandsState() {
     let commandCenter = MPRemoteCommandCenter.shared()
     let isRntp = (engineMode == "rntp")
-    commandCenter.playCommand.isEnabled = isRntp
-    commandCenter.pauseCommand.isEnabled = isRntp
-    commandCenter.togglePlayPauseCommand.isEnabled = isRntp
-    commandCenter.nextTrackCommand.isEnabled = isRntp
-    commandCenter.previousTrackCommand.isEnabled = isRntp
-    commandCenter.changePlaybackPositionCommand.isEnabled = isRntp
+    let hasTrack = (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil)
+    commandCenter.playCommand.isEnabled = isRntp && hasTrack
+    commandCenter.pauseCommand.isEnabled = isRntp && hasTrack
+    commandCenter.togglePlayPauseCommand.isEnabled = isRntp && hasTrack
+    commandCenter.nextTrackCommand.isEnabled = isRntp && hasTrack
+    commandCenter.previousTrackCommand.isEnabled = isRntp && hasTrack
+    commandCenter.changePlaybackPositionCommand.isEnabled = isRntp && hasTrack
   }
 
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
     DispatchQueue.main.async {
       guard self.engineMode == "rntp" else {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        return
+      }
+
+      guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         return
       }
@@ -331,18 +355,17 @@ public class ChordiaEqualizerModule: Module {
         MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
       ]
 
+      if #available(iOS 18.0, *) {
+        if let isrc = self.currentISRC, !isrc.isEmpty {
+          info[MPNowPlayingInfoPropertyInternationalStandardRecordingCode] = isrc
+        }
+      }
+
       var loadedImage: UIImage? = nil
       if let artPath = self.currentArtworkUri,
          let url = self.resolveFileURL(filePath: artPath),
          let img = UIImage(contentsOfFile: url.path) {
         loadedImage = img
-      } else {
-        if let iconsDict = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primaryIcon = iconsDict["CFBundlePrimaryIcon"] as? [String: Any],
-           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
-           let lastIcon = iconFiles.last {
-          loadedImage = UIImage(named: lastIcon)
-        }
       }
 
       if let originalImage = loadedImage {
@@ -381,6 +404,12 @@ public class ChordiaEqualizerModule: Module {
 
   private func updateNowPlayingPlaybackRate(isPlaying: Bool) {
     guard engineMode == "rntp" else { return }
+    guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
+      DispatchQueue.main.async {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      }
+      return
+    }
     DispatchQueue.main.async {
       if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.getCurrentPosition()
@@ -392,6 +421,12 @@ public class ChordiaEqualizerModule: Module {
 
   private func updateNowPlayingPosition(seconds: Double) {
     guard engineMode == "rntp" else { return }
+    guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
+      DispatchQueue.main.async {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      }
+      return
+    }
     DispatchQueue.main.async {
       if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = seconds
@@ -401,6 +436,12 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func refreshNowPlayingInfo() {
+    guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
+      DispatchQueue.main.async {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      }
+      return
+    }
     let dur = self.fileSampleRate > 0 ? Double(self.fileTotalFrames) / self.fileSampleRate : self.currentDuration
     updateNowPlayingInfoCenter(duration: dur, position: getCurrentPosition(), isPlaying: isNodePlaying)
   }
@@ -505,7 +546,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     do {
-      applyAudioSessionCategory()
+      applyAudioSessionCategory(activate: true)
 
       let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file

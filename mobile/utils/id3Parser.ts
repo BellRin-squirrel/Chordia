@@ -6,6 +6,7 @@ export interface ParsedId3Tags {
   album?: string;
   track?: string;
   year?: string;
+  isrc?: string;
   coverImageUri?: string | null;
 }
 
@@ -199,6 +200,8 @@ export const parseMp3Tags = async (fileUri: string): Promise<ParsedId3Tags> => {
           result.track = decodeString(frameData.subarray(1), frameData[0]);
         } else if (frameId === 'TYER' || frameId === 'TDRC') {
           result.year = decodeString(frameData.subarray(1), frameData[0]);
+        } else if (frameId === 'TSRC') {
+          result.isrc = decodeString(frameData.subarray(1), frameData[0]);
         } else if (frameId === 'APIC' || frameId === 'PIC') {
           // カバーアート画像の解析と一時保存
           try {

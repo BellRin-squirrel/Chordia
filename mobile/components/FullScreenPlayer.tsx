@@ -111,8 +111,8 @@ export const FullScreenPlayer = ({
     openingProgress.setValue(0);
     const animation = Animated.timing(openingProgress, {
       toValue: 1,
-      duration: 320,
-      easing: Easing.inOut(Easing.cubic),
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     });
     animation.start();
@@ -129,14 +129,14 @@ export const FullScreenPlayer = ({
     Animated.parallel([
       Animated.timing(openingProgress, {
         toValue: 0,
-        duration: 320,
-        easing: Easing.inOut(Easing.cubic),
+        duration: 350,
+        easing: Easing.in(Easing.cubic),
         useNativeDriver: false,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 320,
-        easing: Easing.inOut(Easing.cubic),
+        duration: 350,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -239,7 +239,13 @@ export const FullScreenPlayer = ({
       if (translationY > 80 || velocityY > 300) {
         requestClose();
       } else {
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 24,
+          stiffness: 260,
+          mass: 0.8,
+        }).start();
       }
     }
   };
@@ -946,7 +952,18 @@ export const FullScreenPlayer = ({
           />
         )}
         <Animated.View style={animatedContainerStyle || containerStyle}>
-          <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: slideAnim }] }]}>
+          <Animated.View style={[
+            StyleSheet.absoluteFill,
+            {
+              transform: [{ translateY: slideAnim }],
+              opacity: openingFrame
+                ? openingProgress.interpolate({
+                    inputRange: [0, 0.45, 1],
+                    outputRange: [0.25, 0.85, 1],
+                  })
+                : 1,
+            },
+          ]}>
             <Image
               source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
               style={StyleSheet.absoluteFill}
