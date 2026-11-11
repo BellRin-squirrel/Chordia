@@ -72,6 +72,11 @@ const AppContent = () => {
   const isLandscape = width > height;
   const useNativeTabBar = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
+  // ★ メニュー目標Y位置をもっと下の方（見やすく操作しやすい位置）に統一
+  const menuTargetY = isLandscape 
+    ? Math.max(insets.top, 20) + 40 
+    : Math.max(insets.top + 75, height * 0.16);
+
   const {
     isDark, appearanceMode, changeAppearanceMode, soundCheckEnabled, changeSoundCheckEnabled, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
     isCustomTheme, recentColors, showRGBModal, setShowRGBModal,
@@ -572,7 +577,7 @@ const AppContent = () => {
                   dynamicStyles={actualDynamicStyles}
                   onPress={openFullPlayer}
                   onLongPress={openMiniPlayerMenu}
-                  menuTargetY={Math.max(insets.top, 20) + 10 + 34}
+                  menuTargetY={menuTargetY}
                   togglePlayPause={togglePlayPause}
                   handleNext={handleNext}
                 />
@@ -640,7 +645,7 @@ const AppContent = () => {
                       dynamicStyles={actualDynamicStyles}
                       onPress={openFullPlayer}
                       onLongPress={openMiniPlayerMenu}
-                      menuTargetY={Math.max(insets.top, 20) + 10 + 34}
+                      menuTargetY={menuTargetY}
                       togglePlayPause={togglePlayPause}
                       handleNext={handleNext}
                     />
@@ -781,7 +786,7 @@ const AppContent = () => {
         onSelectLanguage={(newLang: LanguageCode) => {
           changeLanguage(newLang);
         }}
-        onClose={() => {}}
+        onClose={() => setCustomAlert(null)}
         dynamicStyles={actualDynamicStyles}
         themeColor={themeColor}
         textColor={themeTextColor}

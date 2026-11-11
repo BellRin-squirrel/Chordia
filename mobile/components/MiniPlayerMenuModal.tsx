@@ -79,6 +79,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   insets,
   isLandscape,
   width,
+  height,
   language = 'ja',
   showPlaylistTypeIcon,
   onNavigateToPlaylist,
@@ -106,6 +107,11 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   const headerTransitionAnim = useRef(new Animated.Value(1)).current;
   const headerTransitionPending = useRef(false);
 
+  // ★ メニューの表示位置をもっと下の方（見やすく指の届きやすい位置）に設定
+  const menuTopOffset = isLandscape 
+    ? Math.max(insets?.top || 0, 20) + 16 
+    : Math.max((insets?.top || 0) + 75, height * 0.16);
+
   useEffect(() => {
     if (visible) {
       headerTransitionPending.current = !!origin;
@@ -117,8 +123,8 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
       sheetAnim.setValue(0);
       Animated.timing(sheetAnim, {
         toValue: 1,
-        duration: 380,
-        easing: Easing.inOut(Easing.cubic),
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     }
@@ -134,11 +140,11 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
       headerScaleX.setValue(origin.width / Math.max(measuredWidth, 1));
       headerScaleY.setValue(origin.height / Math.max(measuredHeight, 1));
       Animated.parallel([
-        Animated.timing(headerTranslateX, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTranslateY, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleX, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleY, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTranslateX, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTranslateY, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleX, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleY, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start();
     });
   }, [origin, headerTranslateX, headerTranslateY, headerScaleX, headerScaleY, headerTransitionAnim]);
@@ -166,7 +172,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
 
   if (!visible || !currentSong) return null;
 
-  // 追加可能なプレイリスト一覧を算出
   const availablePlaylistsForSong = (localPlaylists || []).filter((pl: any) => {
     if (pl.isAll || pl.id === 'all_songs') return false;
     const targetFname = currentSong.musicFilename?.split(/[\\/]/).pop()?.toLowerCase();
@@ -210,7 +215,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
             opacity: sheetAnim,
             justifyContent: mode === 'MENU' ? 'flex-start' : 'flex-end',
             paddingHorizontal: 12,
-            paddingTop: Math.max(insets?.top || 0, 20) + 10,
+            paddingTop: mode === 'MENU' ? menuTopOffset : Math.max(insets?.top || 0, 20) + 10,
             paddingBottom: Math.max(insets?.bottom || 0, 20) + 15,
           }}
         >
@@ -226,7 +231,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                   {
                     translateY: sheetAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [32, 0],
+                      outputRange: [20, 0],
                     }),
                   },
                 ],
@@ -289,8 +294,10 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                       </View>
                     </Animated.View>
 
+                    {/* ★ flexGrow: 0 で不要な縦伸びを防止し、下部余白を極限までコンパクトに */}
                     <ScrollView
                       bounces={false}
+                      style={{ flexGrow: 0 }}
                       contentContainerStyle={[
                         { paddingBottom: 0 },
                         isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
@@ -422,7 +429,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         </View>
                       )}
 
-                      {/* 3. ライブラリから削除 */}
+                      {/* 3. ライブラリから削除（余計な下パディングなしでコンパクトに） */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{

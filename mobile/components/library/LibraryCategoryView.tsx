@@ -116,6 +116,10 @@ export const LibraryCategoryView = ({
   const rowMenuColumns = rowActionTarget?.isAll ? 2 : landscapeMenuColumns;
   const [pressedPlaylistKey, setPressedPlaylistKey] = useState<string | null>(null);
   const pressedPlaylistKeyRef = useRef<string | null>(null);
+  const pressActiveRef = useRef(false);
+  const isLongPressedRef = useRef(false);
+  const initialRowLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
   const playlistPressTranslateX = useRef(new Animated.Value(0)).current;
   const playlistPressTranslateY = useRef(new Animated.Value(0)).current;
   const playlistPressScale = useRef(new Animated.Value(1)).current;
@@ -154,6 +158,11 @@ export const LibraryCategoryView = ({
   }>({ visible: false, mode: 'CREATE', targetPlaylist: null });
 
   const isPlaylistsTab = category === 'PLAYLISTS';
+
+  // ★ メニュー・プレビューを画面上部に張り付かせず「もっと下の方」に表示するオフセット
+  const menuTopOffset = isLandscape 
+    ? Math.max(insets?.top || 0, 20) + 16 
+    : Math.max((insets?.top || 0) + 75, height * 0.16);
 
   // ★ 「すべての楽曲」専用カバー画像の読み込み
   useEffect(() => {
@@ -223,11 +232,15 @@ export const LibraryCategoryView = ({
     headerTransitionAnim.setValue(origin ? 0 : 1);
     setRowActionTarget(item);
     sheetAnimRow.setValue(0);
-    Animated.timing(sheetAnimRow, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(sheetAnimRow, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   };
 
+  // ★ プレイリスト長押しも「その場でプレビューチャージ」する方式に変更
   const startPlaylistPressPreview = (rowKey: string) => {
+    pressActiveRef.current = true;
+    isLongPressedRef.current = false;
     pressedPlaylistKeyRef.current = rowKey;
+
     playlistPressTranslateX.stopAnimation();
     playlistPressTranslateY.stopAnimation();
     playlistPressScale.stopAnimation();
@@ -235,56 +248,103 @@ export const LibraryCategoryView = ({
     playlistPressTranslateY.setValue(0);
     playlistPressScale.setValue(1);
     setPressedPlaylistKey(rowKey);
+
     const row = playlistRowRefs.current[rowKey];
-    if (!row) return;
-    row.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      if (pressedPlaylistKeyRef.current !== rowKey) return;
-      Animated.parallel([
-        Animated.timing(playlistPressTranslateX, {
-          toValue: width / 2 - (x + measuredWidth / 2),
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(playlistPressTranslateY, {
-          toValue: Math.max(insets?.top || 0, 20) + 10 + 52 - (y + measuredHeight / 2),
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(playlistPressScale, {
-          toValue: 104 / Math.max(measuredHeight, 1),
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
-    });
+    if (row) {
+      row.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+        if (measuredWidth > 0 && measuredHeight > 0) {
+          initialRowLayoutRef.current = { x, y, width: measuredWidth, height: measuredHeight };
+        }
+      });
+    }
+
+    // 長押し中は位置を動かさず、その場でゆっく〜り少し拡大（プレビューチャージ）
+    Animated.timing(playlistPressScale, {
+      toValue: 1.05,
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
   };
 
   const resetPlaylistPressPreview = () => {
-    pressedPlaylistKeyRef.current = null;
-    Animated.parallel([
-      Animated.timing(playlistPressTranslateX, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(playlistPressTranslateY, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(playlistPressScale, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished) setPressedPlaylistKey(null);
-    });
+    pressActiveRef.current = false;
+    if (!isLongPressedRef.current) {
+      pressedPlaylistKeyRef.current = null;
+      Animated.parallel([
+        Animated.timing(playlistPressTranslateX, { toValue: 0, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(playlistPressTranslateY, { toValue: 0, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(playlistPressScale, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) setPressedPlaylistKey(null);
+      });
+    }
   };
 
   const handlePlaylistLongPress = (item: any, rowKey: string) => {
+    isLongPressedRef.current = true;
+
+    // ★ 振動（Haptics）が鳴る
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (_) {}
-    const rowRef = playlistRowRefs.current[rowKey];
-    if (!rowRef) {
-      openRowActionSheet(item);
-      return;
+
+    const executeFastMove = (x: number, y: number, measuredWidth: number, measuredHeight: number) => {
+      // 目標位置（もっと下の方）へ急移動
+      const targetX = width / 2 - (x + measuredWidth / 2);
+      const targetY = menuTopOffset + 52 - (y + measuredHeight / 2);
+      const snapEasing = Easing.bezier(0.12, 0.95, 0.22, 1);
+
+      Animated.parallel([
+        Animated.timing(playlistPressTranslateX, {
+          toValue: targetX,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(playlistPressTranslateY, {
+          toValue: targetY,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(playlistPressScale, {
+          toValue: 1.08,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        openRowActionSheet(item, {
+          x: width / 2 - measuredWidth / 2,
+          y: menuTopOffset,
+          width: measuredWidth,
+          height: measuredHeight
+        });
+
+        setTimeout(() => {
+          pressedPlaylistKeyRef.current = null;
+          playlistPressTranslateX.setValue(0);
+          playlistPressTranslateY.setValue(0);
+          playlistPressScale.setValue(1);
+          setPressedPlaylistKey(null);
+        }, 120);
+      });
+    };
+
+    const cached = initialRowLayoutRef.current;
+    if (cached) {
+      executeFastMove(cached.x, cached.y, cached.width, cached.height);
+    } else {
+      const rowRef = playlistRowRefs.current[rowKey];
+      if (!rowRef) {
+        openRowActionSheet(item);
+        return;
+      }
+      rowRef.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+        executeFastMove(x, y, measuredWidth, measuredHeight);
+      });
     }
-    rowRef.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      openRowActionSheet(item, { x, y, width: measuredWidth, height: measuredHeight });
-    });
   };
 
   const animatePlaylistIntoMenu = () => {
@@ -298,11 +358,11 @@ export const LibraryCategoryView = ({
       headerScaleX.setValue(origin.width / Math.max(measuredWidth, 1));
       headerScaleY.setValue(origin.height / Math.max(measuredHeight, 1));
       Animated.parallel([
-        Animated.timing(headerTranslateX, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTranslateY, { toValue: 0, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleX, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleY, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 380, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTranslateX, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTranslateY, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleX, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerScaleY, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start();
     });
   };
@@ -743,7 +803,7 @@ export const LibraryCategoryView = ({
                     { translateY: playlistPressTranslateY },
                     { scale: playlistPressScale },
                   ]
-                : undefined,
+                : [],
             }}>
               <TouchableOpacity 
                 ref={(ref) => { playlistRowRefs.current[rowKey] = ref; }}
@@ -844,7 +904,7 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 2. 各プレイリスト行の3点メニュー */}
+      {/* 2. 各プレイリスト行の3点メニュー（下の方にゆったり表示） */}
       <Modal visible={!!rowActionTarget} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <TouchableWithoutFeedback onPress={() => closeRowActionSheet()}>
           <Animated.View style={{ 
@@ -853,7 +913,7 @@ export const LibraryCategoryView = ({
             opacity: sheetAnimRow,
             justifyContent: 'flex-start',
             paddingHorizontal: 12,
-            paddingTop: Math.max(insets?.top || 0, 20) + 10,
+            paddingTop: menuTopOffset,
             paddingBottom: Math.max(insets?.bottom || 0, 12) + 12,
           }}>
             <TouchableWithoutFeedback>
@@ -863,7 +923,7 @@ export const LibraryCategoryView = ({
                 maxHeight: '100%',
                 alignSelf: 'center',
                 gap: 8,
-                transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [32, 0] }) }],
+                transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
               }}>
                 <Animated.View
                   ref={(ref) => { rowActionHeaderRef.current = ref; }}
@@ -892,11 +952,11 @@ export const LibraryCategoryView = ({
                       style={StyleSheet.absoluteFill}
                     />
                   )}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, minHeight: 104 }}>
-                    <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 80, height: 80, borderRadius: 18, marginRight: 12 }} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, minHeight: 96 }}>
+                    <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 72, height: 72, borderRadius: 16, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ color: dynamicStyles.text, fontWeight: '700', fontSize: 18 }} numberOfLines={2}>{rowActionTarget?.playlistName}</Text>
-                      <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 5 }}>
+                      <Text style={{ color: dynamicStyles.text, fontWeight: '700', fontSize: 17 }} numberOfLines={2}>{rowActionTarget?.playlistName}</Text>
+                      <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 4 }}>
                         {rowActionTarget?.isAll ? t('all_songs_item', language) : (rowActionTarget?.type === 'smart' ? t('smart_playlist_label', language) : t('normal_playlist_label', language))}
                       </Text>
                     </View>
@@ -929,7 +989,7 @@ export const LibraryCategoryView = ({
                       flexShrink: 1,
                       maxHeight: Math.max(
                         120,
-                        height - Math.max(insets?.top || 0, 12) - Math.max(insets?.bottom || 0, 12) - 232
+                        height - menuTopOffset - Math.max(insets?.bottom || 0, 12) - 180
                       ),
                     }}
                     contentContainerStyle={[
@@ -981,7 +1041,7 @@ export const LibraryCategoryView = ({
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
                       </LiquidGlassMenuOption>
 
-                      {/* ★ カバー画像変更メニューが正常に反応するように修正 */}
+                      {/* ★ カバー画像変更メニュー */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}

@@ -335,12 +335,39 @@ export const InfoStatisticsView = ({
             </Text>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: useLiquidGlass ? 'transparent' : (isSyncAccount ? `rgba(79, 70, 229, 0.12)` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: isSyncAccount ? themeColor : dynamicStyles.border, overflow: 'hidden' }}>
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'center', 
+            gap: 4, 
+            backgroundColor: useLiquidGlass ? 'transparent' : (isSyncAccount ? `rgba(79, 70, 229, 0.12)` : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')), 
+            paddingHorizontal: 10, 
+            paddingVertical: 5, 
+            borderRadius: 12, 
+            borderWidth: 1, 
+            borderColor: isSyncAccount ? themeColor : dynamicStyles.border, 
+            overflow: 'hidden' 
+          }}>
             {useLiquidGlass && (
-              <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <GlassView 
+                pointerEvents="none" 
+                glassEffectStyle="regular" 
+                colorScheme={isDark ? 'dark' : 'light'} 
+                tintColor={isSyncAccount ? themeColor : undefined}
+                style={StyleSheet.absoluteFill} 
+              />
             )}
-            <Ionicons name={isSyncAccount ? "cloud-done" : "phone-portrait-outline"} size={13} color={isSyncAccount ? themeColor : dynamicStyles.subText} />
-            <Text style={{ color: isSyncAccount ? themeColor : dynamicStyles.subText, fontSize: 11, fontWeight: 'bold' }}>{isSyncAccount ? "Sync" : "Local"}</Text>
+            <Ionicons 
+              name={isSyncAccount ? "cloud-done" : "phone-portrait-outline"} 
+              size={13} 
+              color={isSyncAccount ? (useLiquidGlass ? '#ffffff' : themeColor) : dynamicStyles.subText} 
+            />
+            <Text style={{ 
+              color: isSyncAccount ? (useLiquidGlass ? '#ffffff' : themeColor) : dynamicStyles.subText, 
+              fontSize: 11, 
+              fontWeight: 'bold' 
+            }}>
+              {isSyncAccount ? "Sync" : "Local"}
+            </Text>
           </View>
         </View>
         

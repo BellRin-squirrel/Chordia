@@ -61,69 +61,117 @@ const BounceMiniButton = ({ children, onPress, isDark }: any) => {
   );
 };
 
-export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, onLongPress, togglePlayPause, handleNext, menuTargetY = 70 }: any) => {
+export const MiniPlayer = ({ currentSong, isPlaying, dynamicStyles, onPress, onLongPress, togglePlayPause, handleNext, menuTargetY = 140 }: any) => {
   const isDark = dynamicStyles?.bg === '#000000';
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const { width } = useWindowDimensions();
   const playerRef = useRef<ViewInstance>(null);
+
   const pressActiveRef = useRef(false);
+  const isLongPressedRef = useRef(false);
+  const initialLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
   const longPressTranslateX = useRef(new Animated.Value(0)).current;
   const longPressTranslateY = useRef(new Animated.Value(0)).current;
   const longPressScale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
     pressActiveRef.current = true;
+    isLongPressedRef.current = false;
     longPressTranslateX.stopAnimation();
     longPressTranslateY.stopAnimation();
     longPressScale.stopAnimation();
     longPressTranslateX.setValue(0);
     longPressTranslateY.setValue(0);
     longPressScale.setValue(1);
+
+    // 押された瞬間に現在位置を計測してキャッシュ
     playerRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      if (!pressActiveRef.current) return;
-      Animated.parallel([
-        Animated.timing(longPressTranslateX, {
-          toValue: width / 2 - (x + measuredWidth / 2),
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(longPressTranslateY, {
-          toValue: menuTargetY - (y + measuredHeight / 2),
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(longPressScale, {
-          toValue: 1.15,
-          duration: 650,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      if (measuredWidth > 0 && measuredHeight > 0) {
+        initialLayoutRef.current = { x, y, width: measuredWidth, height: measuredHeight };
+      }
     });
+
+    // ★ 長押し中は位置を動かさず、その場でゆっく〜り等倍率から少し拡大（プレビューチャージ）
+    Animated.timing(longPressScale, {
+      toValue: 1.05,
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
   };
 
   const handlePressOut = () => {
     pressActiveRef.current = false;
-    Animated.parallel([
-      Animated.timing(longPressTranslateX, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(longPressTranslateY, { toValue: 0, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(longPressScale, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-    ]).start();
+    // 長押し未成立で指が離れた場合は等倍に素早く復帰
+    if (!isLongPressedRef.current) {
+      Animated.parallel([
+        Animated.timing(longPressScale, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(longPressTranslateX, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(longPressTranslateY, { toValue: 0, duration: 150, useNativeDriver: true }),
+      ]).start();
+    }
   };
 
   const handleLongPress = () => {
+    isLongPressedRef.current = true;
+
+    // ★ 振動（Haptics）が鳴る
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (_) {}
-    if (!playerRef.current) {
-      onLongPress?.();
-      return;
+
+    const executeFastMove = (x: number, y: number, measuredWidth: number, measuredHeight: number) => {
+      const targetX = width / 2 - (x + measuredWidth / 2);
+      const targetY = menuTargetY - (y + measuredHeight / 2);
+      const snapEasing = Easing.bezier(0.12, 0.95, 0.22, 1);
+
+      // ★ 目標位置（下の方）へ急移動しながら、表示後のヘッダーサイズ（約1.15倍）に近づく
+      Animated.parallel([
+        Animated.timing(longPressTranslateX, {
+          toValue: targetX,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(longPressTranslateY, {
+          toValue: targetY,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(longPressScale, {
+          toValue: 1.15,
+          duration: 200,
+          easing: snapEasing,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // 到達時にメニューモーダルを展開
+        onLongPress?.({
+          x: width / 2 - measuredWidth / 2,
+          y: menuTargetY - measuredHeight / 2,
+          width: measuredWidth,
+          height: measuredHeight,
+        });
+
+        // モーダルが展開された後にミニプレイヤー本体の状態をリセット
+        setTimeout(() => {
+          longPressTranslateX.setValue(0);
+          longPressTranslateY.setValue(0);
+          longPressScale.setValue(1);
+        }, 120);
+      });
+    };
+
+    const layout = initialLayoutRef.current;
+    if (layout) {
+      executeFastMove(layout.x, layout.y, layout.width, layout.height);
+    } else {
+      playerRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+        executeFastMove(x, y, measuredWidth, measuredHeight);
+      });
     }
-    playerRef.current.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      onLongPress?.({ x, y, width: measuredWidth, height: measuredHeight });
-    });
   };
 
   return (
