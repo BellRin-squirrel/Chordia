@@ -47,14 +47,23 @@ export const formatSecToHMS = (sec: number) => {
   return `${s}s`;
 };
 
-const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
+const AnimatedMenuButton = ({ onPress, isDark, textStyle, useLiquidGlass = false }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
 
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-      <Animated.View style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', transform: [{ scale }] }}>
+      <Animated.View style={{ width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), overflow: 'hidden', transform: [{ scale }] }}>
+        {useLiquidGlass && (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <Ionicons name="ellipsis-horizontal" size={18} color={textStyle} />
       </Animated.View>
     </TouchableWithoutFeedback>
@@ -335,11 +344,17 @@ export const InfoStatisticsView = ({
           </View>
         </View>
         
-        <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25 }}>
+        <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25, overflow: 'hidden' }}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
             <Text style={{ color: dynamicStyles.subText, fontSize: 14, fontWeight: 'bold' }}>{t('last_7_days_focus', language)}</Text>
             {selectedDayData && (
-              <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }}>
+              <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                {useLiquidGlass && (
+                  <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                )}
                 <Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold' }}>{selectedDayData.fullDateLabel}: {formatSecToHMS(selectedDayData.totalSec)}</Text>
               </View>
             )}
@@ -387,7 +402,10 @@ export const InfoStatisticsView = ({
         </TouchableOpacity>
 
         {/* 7日間の再生回数ランキングカード */}
-        <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25 }}>
+        <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: dynamicStyles.border, marginBottom: 25, overflow: 'hidden' }}>
+          {useLiquidGlass && (
+            <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          )}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Ionicons name="trophy-outline" size={20} color="#f59e0b" />
@@ -400,7 +418,10 @@ export const InfoStatisticsView = ({
           ) : topPlayedSongsLast7Days.length > 0 ? (
             <View style={{ gap: 10 }}>
               {topPlayedSongsLast7Days.map((item, idx) => (
-                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, backgroundColor: dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7', borderWidth: 1, borderColor: dynamicStyles.border }}>
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12, backgroundColor: useLiquidGlass ? 'transparent' : (dynamicStyles.bg === '#000000' ? '#2c2c2e' : '#f2f2f7'), borderWidth: 1, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
+                  {useLiquidGlass && (
+                    <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                  )}
                   <View style={{ width: 26, alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
                     <Text style={{ color: getRankBadgeColor(idx), fontSize: 15, fontWeight: '900' }}>{idx + 1}</Text>
                   </View>
@@ -409,7 +430,10 @@ export const InfoStatisticsView = ({
                     <MarqueeText text={item.song.title || 'Untitled'} style={{ color: dynamicStyles.text, fontSize: 14, fontWeight: 'bold' }} />
                     <Text style={{ color: dynamicStyles.subText, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{item.song.artist || 'Unknown Artist'}</Text>
                   </View>
-                  <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                  <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, overflow: 'hidden' }}>
+                    {useLiquidGlass && (
+                      <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                    )}
                     <Text style={{ color: themeColor, fontSize: 12, fontWeight: 'bold' }}>{item.count} {t('times', language)}</Text>
                   </View>
                 </View>
@@ -476,6 +500,7 @@ export const InfoStatisticsView = ({
 export const InfoRanking7DaysView = ({
   dynamicStyles, themeColor, safePadding, renderHeader, language = 'ja', localLibrary = []
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [playbackHistory, setPlaybackHistory] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -568,7 +593,10 @@ export const InfoRanking7DaysView = ({
             </View>
           }
           renderItem={({ item, index }) => (
-            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, backgroundColor: dynamicStyles.card, marginBottom: 8, borderWidth: 1, borderColor: dynamicStyles.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, marginBottom: 8, borderWidth: 1, borderColor: dynamicStyles.border, overflow: 'hidden' }}>
+              {useLiquidGlass && (
+                <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              )}
               <View style={{ width: 30, alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
                 <Text style={{ color: getRankBadgeColor(index), fontSize: 16, fontWeight: '900' }}>
                   {index + 1}
@@ -582,7 +610,10 @@ export const InfoRanking7DaysView = ({
                   {item.song.artist || 'Unknown Artist'} • {item.song.album || 'Unknown Album'}
                 </Text>
               </View>
-              <View style={{ backgroundColor: dynamicStyles.bg === '#000000' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14 }}>
+              <View style={{ backgroundColor: useLiquidGlass ? 'transparent' : (dynamicStyles.bg === '#000000' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'), paddingHorizontal: 12, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>
+                {useLiquidGlass && (
+                  <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                )}
                 <Text style={{ color: themeColor, fontSize: 13, fontWeight: 'bold' }}>
                   {item.count} {t('times', language)}
                 </Text>
@@ -598,6 +629,7 @@ export const InfoRanking7DaysView = ({
 export const InfoAllHistoryView = ({
   dynamicStyles, themeColor, isDark, safePadding, renderHeader, language = 'ja'
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [historyList, setHistoryList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -700,7 +732,7 @@ export const InfoAllHistoryView = ({
   };
 
   const headerRight = (
-    <AnimatedMenuButton onPress={() => setMenuVisible(true)} isDark={isDark} textStyle={dynamicStyles.text} />
+    <AnimatedMenuButton onPress={() => setMenuVisible(true)} isDark={isDark} textStyle={dynamicStyles.text} useLiquidGlass={useLiquidGlass} />
   );
 
   return (
@@ -762,6 +794,7 @@ export const InfoAllHistoryView = ({
 export const InfoPlaybackHistoryView = ({
   dynamicStyles, themeColor, isDark, safePadding, renderHeader, language = 'ja', localLibrary = []
 }: any) => {
+  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [playbackList, setPlaybackList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -870,7 +903,7 @@ export const InfoPlaybackHistoryView = ({
   };
 
   const headerRight = (
-    <AnimatedMenuButton onPress={() => setMenuVisible(true)} isDark={isDark} textStyle={dynamicStyles.text} />
+    <AnimatedMenuButton onPress={() => setMenuVisible(true)} isDark={isDark} textStyle={dynamicStyles.text} useLiquidGlass={useLiquidGlass} />
   );
 
   return (
@@ -897,7 +930,10 @@ export const InfoPlaybackHistoryView = ({
             const artUri = item.localImageUri || libraryArtMap.get(key);
 
             return (
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: dynamicStyles.card, padding: 14, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: dynamicStyles.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, padding: 14, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: dynamicStyles.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 2, overflow: 'hidden' }}>
+                {useLiquidGlass && (
+                  <GlassView pointerEvents="none" glassEffectStyle="regular" colorScheme={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+                )}
                 <Image source={artUri ? { uri: artUri } : DEFAULT_ICON} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 12 }} />
                 <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
                   <MarqueeText text={item.title || 'Untitled'} style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold' }} />

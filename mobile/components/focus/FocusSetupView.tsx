@@ -5,6 +5,7 @@ import {
   Switch, Text, TextInput, TouchableOpacity, Pressable, View, useWindowDimensions, Platform
 } from 'react-native';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { Button as SwiftUIButton, Host as SwiftUIHost, Menu as SwiftUIMenu, RNHostView } from '@expo/ui/swift-ui';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
 import { t } from '../../utils/i18n';
 
@@ -40,6 +41,7 @@ export const FocusSetupView = ({
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+  const useSwiftUIMenu = Platform.OS === 'ios';
   const textColor = buttonTextColor || '#ffffff';
 
   const [modalTab, setModalTab] = useState<CategoryTab>('PLAYLIST');
@@ -208,52 +210,87 @@ export const FocusSetupView = ({
           <Ionicons name={icon as any} size={18} color={themeColor} />
           <Text style={[s.sectionTitleSmall, { color: dynamicStyles.text }]}>{label}</Text>
         </View>
-        <View
-          ref={button => {
-            dropdownButtonRefs.current[id] = button;
-          }}
-          collapsable={false}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: displayOptionPicker?.id === id }}
-            onPress={() => {
-              if (displayOptionPicker?.id === id) {
-                setDisplayOptionPicker(null);
-                return;
+        {useSwiftUIMenu ? (
+          <SwiftUIHost matchContents>
+            <SwiftUIMenu
+              label={
+                <RNHostView matchContents>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={[
+                      s.displayOptionButton,
+                      {
+                        backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.bg,
+                        borderColor: dynamicStyles.border,
+                      },
+                    ]}
+                  >
+                    {useLiquidGlass && (
+                      <GlassView
+                        pointerEvents="none"
+                        glassEffectStyle="regular"
+                        colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    )}
+                    <Text style={{ color: dynamicStyles.text, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>
+                      {options.find(option => option.key === current)?.label || current}
+                    </Text>
+                    <Ionicons name="chevron-down" size={16} color={dynamicStyles.subText} />
+                  </Pressable>
+                </RNHostView>
               }
-              dropdownButtonRefs.current[id]?.measureInWindow((x, y, buttonWidth, buttonHeight) => {
-                setDisplayOptionPicker({
-                  id,
-                  label,
-                  options,
-                  current,
-                  setter,
-                  icon,
-                  anchor: { x, y, width: buttonWidth, height: buttonHeight },
-                });
-              });
+            >
+              {options.map(option => (
+                <SwiftUIButton
+                  key={option.key}
+                  label={option.label}
+                  systemImage={option.key === current ? 'checkmark' : undefined}
+                  onPress={() => setter(option.key)}
+                />
+              ))}
+            </SwiftUIMenu>
+          </SwiftUIHost>
+        ) : (
+          <View
+            ref={button => {
+              dropdownButtonRefs.current[id] = button;
             }}
-            style={[
-              s.displayOptionButton,
-              {
-                backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.bg,
-                borderColor: dynamicStyles.border,
-              },
-            ]}
+            collapsable={false}
           >
-            {useLiquidGlass && (
-              <GlassView
-                pointerEvents="none"
-                glassEffectStyle="regular"
-                colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
-            <Text style={{ color: dynamicStyles.text, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{options.find(option => option.key === current)?.label || current}</Text>
-            <Ionicons name={displayOptionPicker?.id === id ? 'chevron-up' : 'chevron-down'} size={16} color={dynamicStyles.subText} />
-          </Pressable>
-        </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: displayOptionPicker?.id === id }}
+              onPress={() => {
+                if (displayOptionPicker?.id === id) {
+                  setDisplayOptionPicker(null);
+                  return;
+                }
+                dropdownButtonRefs.current[id]?.measureInWindow((x, y, buttonWidth, buttonHeight) => {
+                  setDisplayOptionPicker({
+                    id,
+                    label,
+                    options,
+                    current,
+                    setter,
+                    icon,
+                    anchor: { x, y, width: buttonWidth, height: buttonHeight },
+                  });
+                });
+              }}
+              style={[
+                s.displayOptionButton,
+                {
+                  backgroundColor: dynamicStyles.bg,
+                  borderColor: dynamicStyles.border,
+                },
+              ]}
+            >
+              <Text style={{ color: dynamicStyles.text, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{options.find(option => option.key === current)?.label || current}</Text>
+              <Ionicons name={displayOptionPicker?.id === id ? 'chevron-up' : 'chevron-down'} size={16} color={dynamicStyles.subText} />
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -384,7 +421,7 @@ export const FocusSetupView = ({
       </ScrollView>
 
       <Modal
-        visible={displayOptionPicker !== null}
+        visible={!useSwiftUIMenu && displayOptionPicker !== null}
         transparent
         animationType="fade"
         supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}

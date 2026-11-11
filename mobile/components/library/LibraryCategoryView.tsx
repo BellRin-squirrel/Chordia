@@ -26,21 +26,7 @@ type LiquidGlassMenuOptionProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-const LiquidGlassMenuOption = ({ children, onPress, isDark, style }: LiquidGlassMenuOptionProps) => {
-  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
-    return (
-      <Pressable onPress={onPress} accessibilityRole="button" style={[style, { overflow: 'hidden' }]}>
-        <GlassView
-          glassEffectStyle="regular"
-          isInteractive
-          colorScheme={isDark ? 'dark' : 'light'}
-          style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
-        />
-        {children}
-      </Pressable>
-    );
-  }
-
+const LiquidGlassMenuOption = ({ children, onPress, style }: LiquidGlassMenuOptionProps) => {
   return (
     <TouchableOpacity style={style} onPress={onPress} activeOpacity={0.6}>
       {children}
@@ -61,9 +47,19 @@ const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
         borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+        backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'),
+        overflow: 'hidden',
         transform: [{ scale }]
       }}>
+        {Platform.OS === 'ios' && isLiquidGlassAvailable() && (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            isInteractive
+            colorScheme={isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <Ionicons name="ellipsis-horizontal" size={18} color={textStyle} />
       </Animated.View>
     </TouchableWithoutFeedback>
@@ -74,21 +70,6 @@ const AnimatedCancelButton = ({ onPress, dynamicStyles, label }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
   const handlePressIn = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
   const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
-
-  if (Platform.OS === 'ios' && isLiquidGlassAvailable()) {
-    return (
-      <Pressable onPress={onPress} accessibilityRole="button">
-        <GlassView
-          glassEffectStyle="regular"
-          isInteractive
-          colorScheme={dynamicStyles.bg === '#000000' ? 'dark' : 'light'}
-          style={{ height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
-        >
-          <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{label || 'キャンセル'}</Text>
-        </GlassView>
-      </Pressable>
-    );
-  }
 
   return (
     <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
@@ -692,7 +673,7 @@ export const LibraryCategoryView = ({
           }}>
             <TouchableWithoutFeedback>
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimHeader.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 0 : 1, borderColor: dynamicStyles.border, gap: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 8 : 0 }}>
+                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
                   <LiquidGlassMenuOption
                     isDark={isDark}
                     style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
@@ -739,7 +720,7 @@ export const LibraryCategoryView = ({
           }}>
             <TouchableWithoutFeedback>
               <Animated.View style={{ gap: 10, transform: [{ translateY: sheetAnimRow.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }] }}>
-                <View style={{ backgroundColor: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 'transparent' : dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 0 : 1, borderColor: dynamicStyles.border, gap: Platform.OS === 'ios' && isLiquidGlassAvailable() ? 8 : 0 }}>
+                <View style={{ backgroundColor: dynamicStyles.card, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: dynamicStyles.border }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}>
                     <Image source={getPlaylistFirstArt(rowActionTarget, localLibrary)} style={{ width: 40, height: 40, borderRadius: 8, marginRight: 12 }} />
                     <View style={{ flex: 1, minWidth: 0 }}>

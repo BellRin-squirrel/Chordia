@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  View, Text, ScrollView, TouchableOpacity, Switch, TextInput, 
+  View, Text, ScrollView, TouchableOpacity, Switch,
   Modal, Alert, StyleSheet, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+import { Button as SwiftUIButton, Host as SwiftUIHost, Menu as SwiftUIMenu, RNHostView } from '@expo/ui/swift-ui';
 import { t } from '../../utils/i18n';
+import { GlassActionButton } from '../ui/GlassActionButton';
+import { GlassTextInput } from '../ui/GlassTextInput';
 import { 
   applyEqualizerSettings, 
   initEqualizer, 
@@ -486,45 +489,75 @@ export const InfoEqualizerView = ({
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
-              onPress={() => setIsPresetDropdownOpen(open => !open)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: isPresetDropdownOpen }}
-            >
-              <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
-                {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
-              </Text>
-              <Ionicons name={isPresetDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
-            </TouchableOpacity>
-
-            {isPresetDropdownOpen && (
-              <ScrollView
-                style={[s.presetDropdownMenu, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}
-                nestedScrollEnabled
-                keyboardShouldPersistTaps="handled"
-              >
-                {BUILTIN_PRESETS.map(preset => {
-                  const isSelected = activePresetId === preset.id;
-                  return (
-                    <TouchableOpacity
+            {Platform.OS === 'ios' ? (
+              <SwiftUIHost matchContents>
+                <SwiftUIMenu
+                  label={
+                    <RNHostView matchContents>
+                      <TouchableOpacity
+                        style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
+                          {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
+                        </Text>
+                        <Ionicons name="chevron-down" size={18} color={dynamicStyles.subText} />
+                      </TouchableOpacity>
+                    </RNHostView>
+                  }
+                >
+                  {BUILTIN_PRESETS.map(preset => (
+                    <SwiftUIButton
                       key={preset.id}
-                      style={[s.presetDropdownItem, { backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : 'transparent' }]}
-                      onPress={() => {
-                        handleSelectBuiltInPreset(preset);
-                        setIsPresetDropdownOpen(false);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={{ color: isSelected ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: isSelected ? 'bold' : 'normal', flex: 1 }} numberOfLines={1}>
-                        {getBuiltInPresetLabel(preset)}
-                      </Text>
-                      {isSelected && <Ionicons name="checkmark" size={18} color={themeColor} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                      label={getBuiltInPresetLabel(preset)}
+                      systemImage={activePresetId === preset.id ? 'checkmark' : undefined}
+                      onPress={() => handleSelectBuiltInPreset(preset)}
+                    />
+                  ))}
+                </SwiftUIMenu>
+              </SwiftUIHost>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[s.presetDropdown, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', borderColor: dynamicStyles.border }]}
+                  onPress={() => setIsPresetDropdownOpen(open => !open)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isPresetDropdownOpen }}
+                >
+                  <Text style={{ color: activeBuiltInPreset ? dynamicStyles.text : dynamicStyles.subText, fontSize: 14, fontWeight: 'bold', flex: 1 }} numberOfLines={1}>
+                    {activeBuiltInPreset ? getBuiltInPresetLabel(activeBuiltInPreset) : t('equalizer_builtin_presets_subtitle', language)}
+                  </Text>
+                  <Ionicons name={isPresetDropdownOpen ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
+                </TouchableOpacity>
+                {isPresetDropdownOpen && (
+                  <ScrollView
+                    style={[s.presetDropdownMenu, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border }]}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {BUILTIN_PRESETS.map(preset => {
+                      const isSelected = activePresetId === preset.id;
+                      return (
+                        <TouchableOpacity
+                          key={preset.id}
+                          style={[s.presetDropdownItem, { backgroundColor: isSelected ? (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)') : 'transparent' }]}
+                          onPress={() => {
+                            handleSelectBuiltInPreset(preset);
+                            setIsPresetDropdownOpen(false);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ color: isSelected ? themeColor : dynamicStyles.text, fontSize: 14, fontWeight: isSelected ? 'bold' : 'normal', flex: 1 }} numberOfLines={1}>
+                            {getBuiltInPresetLabel(preset)}
+                          </Text>
+                          {isSelected && <Ionicons name="checkmark" size={18} color={themeColor} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
             )}
           </View>
         </View>
@@ -538,7 +571,7 @@ export const InfoEqualizerView = ({
             <TouchableOpacity 
               style={[
                 s.flatBtn, 
-                { backgroundColor: useLiquidGlass ? 'transparent' : (activePresetId === 'flat' ? themeColor : (isDark ? '#2c2c2e' : '#e5e7eb')), overflow: 'hidden' }
+                { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, overflow: 'hidden' }
               ]}
               onPress={handleResetFlat}
               disabled={!isEnabled}
@@ -548,11 +581,12 @@ export const InfoEqualizerView = ({
                   pointerEvents="none"
                   glassEffectStyle="regular"
                   colorScheme={isDark ? 'dark' : 'light'}
-                  tintColor={activePresetId === 'flat' ? themeColor : undefined}
+                  isInteractive
+                  tintColor={themeColor}
                   style={StyleSheet.absoluteFill}
                 />
               )}
-              <Text style={{ color: activePresetId === 'flat' ? textColor : dynamicStyles.text, fontSize: 12, fontWeight: 'bold' }}>
+              <Text style={{ color: textColor, fontSize: 12, fontWeight: 'bold' }}>
                 {t('equalizer_flat_btn', language)}
               </Text>
             </TouchableOpacity>
@@ -681,8 +715,11 @@ export const InfoEqualizerView = ({
               {t('equalizer_save_modal_desc', language)}
             </Text>
 
-            <TextInput 
-              style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]}
+            <GlassTextInput
+              isDark={isDark}
+              backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+              containerStyle={[s.input, { paddingHorizontal: 0, borderColor: dynamicStyles.border }]}
+              inputStyle={{ color: dynamicStyles.text, fontSize: 15, paddingHorizontal: 14 }}
               placeholder={t('equalizer_save_modal_placeholder', language)}
               placeholderTextColor={dynamicStyles.subText}
               value={presetNameInput}
@@ -691,18 +728,21 @@ export const InfoEqualizerView = ({
             />
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity 
-                style={[s.modalBtn, { backgroundColor: isDark ? '#2c2c2e' : '#e5e7eb' }]}
+              <GlassActionButton
+                isDark={isDark}
+                style={[s.modalBtn, { backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? '#2c2c2e' : '#e5e7eb') }]}
                 onPress={() => { setPresetNameInput(''); setSaveModalVisible(false); }}
               >
                 <Text style={{ color: dynamicStyles.text, fontWeight: 'bold' }}>{t('cancel', language)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[s.modalBtn, { backgroundColor: themeColor }]}
+              </GlassActionButton>
+              <GlassActionButton
+                isDark={isDark}
+                glassTintColor={themeColor}
+                style={[s.modalBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor }]}
                 onPress={handleSaveCustomPreset}
               >
                 <Text style={{ color: textColor, fontWeight: 'bold' }}>{t('save', language)}</Text>
-              </TouchableOpacity>
+              </GlassActionButton>
             </View>
           </View>
         </KeyboardAvoidingView>

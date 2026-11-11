@@ -1,11 +1,12 @@
 import React from 'react';
 import { 
-  View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert
+  View, Text, TouchableOpacity, ActivityIndicator, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { styles } from '../../styles/styles';
 import { t } from '../../utils/i18n';
 import { GlassActionButton } from '../ui/GlassActionButton';
+import { GlassTextInput } from '../ui/GlassTextInput';
 
 interface SyncConnectionViewProps {
   dynamicStyles: any;
@@ -86,8 +87,11 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
               <Text style={{ color: dynamicStyles.subText, fontSize: 11, marginBottom: 4 }}>
                 {t('ip_address', language)}
               </Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0 }]} 
+              <GlassTextInput
+                isDark={isDark}
+                backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+                containerStyle={[styles.input, { minHeight: 52, padding: 0, marginBottom: 0 }]}
+                inputStyle={{ color: dynamicStyles.text, fontSize: 16, padding: 14 }}
                 placeholder="192.168.0.x" 
                 placeholderTextColor="#888" 
                 value={serverIp} 
@@ -99,8 +103,11 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
               <Text style={{ color: dynamicStyles.subText, fontSize: 11, marginBottom: 4 }}>
                 {t('port', language)}
               </Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0 }]} 
+              <GlassTextInput
+                isDark={isDark}
+                backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+                containerStyle={[styles.input, { minHeight: 52, padding: 0, marginBottom: 0 }]}
+                inputStyle={{ color: dynamicStyles.text, fontSize: 16, padding: 14 }}
                 placeholder="5000" 
                 placeholderTextColor="#888" 
                 value={serverPort} 
@@ -128,8 +135,11 @@ export const SyncConnectionView: React.FC<SyncConnectionViewProps> = ({
             <Text style={{ color: dynamicStyles.subText, fontSize: 11, marginBottom: 4 }}>
               {t('wan_public_url_label', language)}
             </Text>
-            <TextInput 
-              style={[styles.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, marginBottom: 0 }]} 
+            <GlassTextInput
+              isDark={isDark}
+              backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+              containerStyle={[styles.input, { minHeight: 52, padding: 0, marginBottom: 0 }]}
+              inputStyle={{ color: dynamicStyles.text, fontSize: 16, padding: 14 }}
               placeholder="https://xxxx.lhr.life" 
               placeholderTextColor="#888" 
               value={wanUrlInput} 

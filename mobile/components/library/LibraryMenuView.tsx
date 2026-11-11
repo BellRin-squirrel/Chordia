@@ -516,15 +516,7 @@ export const LibraryMenuView = ({
         <TouchableWithoutFeedback onPress={() => setRelayModalVisible(false)}>
           <View style={s.modalOverlay}>
             <TouchableWithoutFeedback>
-              <View style={[s.modalCard, { backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
-                {useLiquidGlass && (
-                  <GlassView
-                    pointerEvents="none"
-                    glassEffectStyle="regular"
-                    colorScheme={isDark ? 'dark' : 'light'}
-                    style={StyleSheet.absoluteFill}
-                  />
-                )}
+              <View style={[s.modalCard, { backgroundColor: dynamicStyles.card, borderColor: dynamicStyles.border, overflow: 'hidden' }]}>
                 <View style={s.modalHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Ionicons name="cloud-outline" size={22} color={themeColor} />

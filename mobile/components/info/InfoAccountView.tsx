@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  View, Text, ScrollView, TouchableOpacity, TextInput, 
+  View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking, NativeModules 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { t } from '../../utils/i18n';
+import { GlassActionButton } from '../ui/GlassActionButton';
+import { GlassTextInput } from '../ui/GlassTextInput';
 import { 
   generateAuthCode, 
   registerAuthCodeApi, 
@@ -414,24 +416,52 @@ export const InfoAccountView = ({
             <View style={{ gap: 16 }}>
               <View>
                 <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>{t('account_username_label', language)}</Text>
-                <TextInput style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]} placeholder={t('account_username_placeholder', language)} placeholderTextColor={dynamicStyles.subText} value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} editable={!isLoading} />
+                <GlassTextInput
+                  isDark={isDark}
+                  backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+                  containerStyle={[s.input, { paddingHorizontal: 0, borderColor: dynamicStyles.border }]}
+                  inputStyle={{ color: dynamicStyles.text, fontSize: 15, paddingHorizontal: 14 }}
+                  placeholder={t('account_username_placeholder', language)}
+                  placeholderTextColor={dynamicStyles.subText}
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                />
                 <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>{t('account_username_desc', language)}</Text>
               </View>
 
               <View>
                 <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: 'bold', marginBottom: 6 }}>{t('account_devicename_label', language)}</Text>
-                <TextInput style={[s.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, borderColor: dynamicStyles.border }]} placeholder={t('account_devicename_placeholder', language)} placeholderTextColor={dynamicStyles.subText} value={deviceName} onChangeText={setDeviceName} editable={!isLoading} />
+                <GlassTextInput
+                  isDark={isDark}
+                  backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+                  containerStyle={[s.input, { paddingHorizontal: 0, borderColor: dynamicStyles.border }]}
+                  inputStyle={{ color: dynamicStyles.text, fontSize: 15, paddingHorizontal: 14 }}
+                  placeholder={t('account_devicename_placeholder', language)}
+                  placeholderTextColor={dynamicStyles.subText}
+                  value={deviceName}
+                  onChangeText={setDeviceName}
+                  editable={!isLoading}
+                />
                 <Text style={[s.fieldDesc, { color: dynamicStyles.subText }]}>{t('account_devicename_desc', language)}</Text>
               </View>
 
-              <TouchableOpacity style={[s.primaryBtn, { backgroundColor: isFormValid ? themeColor : (isDark ? '#3a3a3c' : '#c7c7cc'), opacity: isFormValid && !isLoading ? 1 : 0.6, marginTop: 4 }]} disabled={!isFormValid || isLoading} onPress={handleRegisterCode} activeOpacity={0.8}>
+              <GlassActionButton
+                isDark={isDark}
+                glassTintColor={isFormValid ? themeColor : (isDark ? '#3a3a3c' : '#c7c7cc')}
+                style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : (isFormValid ? themeColor : (isDark ? '#3a3a3c' : '#c7c7cc')), opacity: isFormValid && !isLoading ? 1 : 0.6, marginTop: 4 }]}
+                disabled={!isFormValid || isLoading}
+                onPress={handleRegisterCode}
+              >
                 {isLoading ? <ActivityIndicator color={textColor} /> : (
                   <>
                     <Ionicons name="globe-outline" size={19} color={isFormValid ? textColor : dynamicStyles.subText} style={{ marginRight: 8 }} />
                     <Text style={[s.primaryBtnText, { color: isFormValid ? textColor : dynamicStyles.subText }]}>{t('account_web_auth_btn', language)}</Text>
                   </>
                 )}
-              </TouchableOpacity>
+              </GlassActionButton>
             </View>
           </View>
         )}
@@ -496,16 +526,17 @@ export const InfoAccountView = ({
             </TouchableOpacity>
 
             {/* ブラウザで認証ボタン */}
-            <TouchableOpacity 
-              style={[s.primaryBtn, { backgroundColor: themeColor, width: '100%', marginTop: 14 }]}
+            <GlassActionButton
+              isDark={isDark}
+              glassTintColor={themeColor}
+              style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, width: '100%', marginTop: 14 }]}
               onPress={handleOpenBrowserAuth}
-              activeOpacity={0.8}
             >
               <Ionicons name="open-outline" size={18} color={textColor} style={{ marginRight: 8 }} />
               <Text style={[s.primaryBtnText, { color: textColor }]}>
                 {t('account_auth_in_browser_btn', language)}
               </Text>
-            </TouchableOpacity>
+            </GlassActionButton>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18 }}>
               <ActivityIndicator size="small" color={themeColor} />
