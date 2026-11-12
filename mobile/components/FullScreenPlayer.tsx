@@ -92,8 +92,8 @@ export const FullScreenPlayer = ({
   const insets = useSafeAreaInsets();
   const activeIconColor = themeTextColor || '#000000';
 
+  const animProgress = useRef(new Animated.Value(0)).current;
   const transitionAnim = useRef(new Animated.Value(0)).current;
-  const openingProgress = useRef(new Animated.Value(openingFrame ? 0 : 1)).current;
   const scrollYRef = useRef(0);
 
   const mainViewAnim = useRef(new Animated.Value(1)).current;
@@ -102,45 +102,34 @@ export const FullScreenPlayer = ({
 
   const [isScrollAtTop, setIsScrollAtTop] = useState(true);
 
+  // ネイティブドライバー 100% 対応の拡大アニメーション
   useEffect(() => {
-    if (!openingFrame) {
-      openingProgress.setValue(1);
-      return;
-    }
-
-    openingProgress.setValue(0);
-    const animation = Animated.timing(openingProgress, {
+    animProgress.setValue(0);
+    Animated.spring(animProgress, {
       toValue: 1,
-      duration: 420,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [openingFrame, openingProgress]);
+      damping: 24,
+      stiffness: 260,
+      mass: 0.8,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const requestClose = () => {
-    if (!openingFrame) {
-      closeFullPlayer();
-      return;
-    }
-
     slideAnim.stopAnimation();
     Animated.parallel([
-      Animated.timing(openingProgress, {
+      Animated.timing(animProgress, {
         toValue: 0,
-        duration: 350,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
+        duration: 260,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 350,
-        easing: Easing.out(Easing.cubic),
+        duration: 260,
         useNativeDriver: true,
       }),
-    ]).start(({ finished }) => {
-      if (finished) closeFullPlayer(false);
+    ]).start(() => {
+      closeFullPlayer(false);
     });
   };
   
@@ -155,7 +144,6 @@ export const FullScreenPlayer = ({
     btnScale = 1.2;
   }
 
-  // ★ 再生元情報（プレイリスト / アルバム / アーティスト / 最近再生した楽曲）の表示用ヘルパー
   const getSourceDisplay = () => {
     if (currentContext && currentContext.type === 'RECENT') {
       return {
@@ -182,7 +170,6 @@ export const FullScreenPlayer = ({
       };
     }
 
-    // 単曲再生（コンテキストがない場合など）のフォールバックは「最近再生した楽曲」
     return {
       typeLabel: t('collection_label', language),
       name: t('recent_played_songs', language),
@@ -217,7 +204,7 @@ export const FullScreenPlayer = ({
     const toValue = showLyrics ? 1 : 0;
     Animated.spring(transitionAnim, {
       toValue,
-      useNativeDriver: false,
+      useNativeDriver: true,
       friction: 8,
       tension: 40
     }).start();
@@ -482,7 +469,6 @@ export const FullScreenPlayer = ({
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[StyleSheet.absoluteFill, { padding: 20, opacity: transitionAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }) }]} pointerEvents={showLyrics ? 'none' : 'auto'}>
             
-            {/* ★ 横画面キュー側：再生元表示（固定ヘッダー） */}
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -694,12 +680,10 @@ export const FullScreenPlayer = ({
               )}
             </Animated.View>
 
-            {/* (C) キュー画面 */}
             <Animated.View 
               style={[StyleSheet.absoluteFill, queueViewStyle, { paddingHorizontal: 15, paddingTop: 10 }]}
               pointerEvents={showQueue ? 'auto' : 'none'}
             >
-              {/* 1. 現在再生中の楽曲 */}
               <View style={{ 
                 flexDirection: 'row', 
                 alignItems: 'center', 
@@ -729,7 +713,6 @@ export const FullScreenPlayer = ({
                 </View>
               </View>
 
-              {/* ★ 2. 再生元表示（固定ヘッダー：スクロールしても流れない） */}
               <View style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -764,7 +747,6 @@ export const FullScreenPlayer = ({
                 </View>
               </View>
 
-              {/* 3. キュー一覧 */}
               <FlatList
                 data={playQueue}
                 keyExtractor={(item, index) => 'queue-v-' + index}
@@ -909,23 +891,76 @@ export const FullScreenPlayer = ({
     );
   }
 
+  const targetTop = isLandscape ? 0 : Math.max(insets.top, 44);
+  const fullWidth = width;
+  const fullHeight = height - targetTop;
+
+  const fullCenterX = fullWidth / 2;
+  const fullCenterY = targetTop + fullHeight / 2;
+
+  const origin = openingFrame || {
+    x: 16,
+    y: height - 120,
+    width: width - 32,
+    height: 58,
+  };
+
+  const miniCenterX = origin.x + origin.width / 2;
+  const miniCenterY = origin.y + origin.height / 2;
+
+  const targetTranslateX = miniCenterX - fullCenterX;
+  const targetTranslateY = miniCenterY - fullCenterY;
+
+  const targetScaleX = Math.max(0.01, origin.width / fullWidth);
+  const targetScaleY = Math.max(0.01, origin.height / fullHeight);
+
+  // 幾何学変形による 100% Native Driver アニメーション
+  const transformStyle = [
+    {
+      translateX: animProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [targetTranslateX, 0],
+      }),
+    },
+    {
+      translateY: Animated.add(
+        animProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [targetTranslateY, 0],
+        }),
+        slideAnim
+      ),
+    },
+    {
+      scaleX: animProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [targetScaleX, 1],
+      }),
+    },
+    {
+      scaleY: animProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [targetScaleY, 1],
+      }),
+    },
+  ];
+
+  const contentOpacity = animProgress.interpolate({
+    inputRange: [0, 0.25, 1],
+    outputRange: [0.1, 0.85, 1],
+  });
+
+  const backdropOpacity = animProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
   const containerStyle = isLandscape
     ? { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' as const }
     : [
         styles.fullPlayerContainer,
-        { top: Math.max(insets.top, 44) }
+        { top: targetTop }
       ];
-  const animatedContainerStyle = openingFrame ? {
-    position: 'absolute' as const,
-    left: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.x, 0] }),
-    top: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.y, isLandscape ? 0 : Math.max(insets.top, 44)] }),
-    width: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.width, width] }),
-    height: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [openingFrame.height, height - (isLandscape ? 0 : Math.max(insets.top, 44))] }),
-    borderRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, 0] }),
-    borderTopLeftRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, isLandscape ? 0 : 40] }),
-    borderTopRightRadius: openingProgress.interpolate({ inputRange: [0, 1], outputRange: [29, isLandscape ? 0 : 40] }),
-    overflow: 'hidden' as const,
-  } : null;
 
   const landscapeSideInset = isIphoneLandscape ? 52 : 16;
   const contentStyle = { 
@@ -938,44 +973,37 @@ export const FullScreenPlayer = ({
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={[styles.fullPlayerOverlay, openingFrame && { backgroundColor: 'transparent' }]}>
-        {openingFrame && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                backgroundColor: 'rgba(0,0,0,0.65)',
-                opacity: openingProgress,
-              },
-            ]}
-          />
-        )}
-        <Animated.View style={animatedContainerStyle || containerStyle}>
-          <Animated.View style={[
+      <View style={styles.fullPlayerOverlay}>
+        <Animated.View
+          pointerEvents="none"
+          style={[
             StyleSheet.absoluteFill,
             {
-              transform: [{ translateY: slideAnim }],
-              opacity: openingFrame
-                ? openingProgress.interpolate({
-                    inputRange: [0, 0.45, 1],
-                    outputRange: [0.25, 0.85, 1],
-                  })
-                : 1,
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              opacity: backdropOpacity,
             },
-          ]}>
-            <Image
-              source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
-              style={StyleSheet.absoluteFill}
-              blurRadius={60}
-              pointerEvents="none"
-            />
+          ]}
+        />
+        <Animated.View
+          style={[
+            containerStyle,
+            {
+              transform: transformStyle,
+              opacity: contentOpacity,
+            },
+          ]}
+        >
+          <Image
+            source={currentSong?.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
+            style={StyleSheet.absoluteFill}
+            blurRadius={60}
+            pointerEvents="none"
+          />
 
-            <BlurView intensity={80} tint="dark" style={contentStyle}>
-              {handleBar}
-              {contentLayout}
-            </BlurView>
-          </Animated.View>
+          <BlurView intensity={80} tint="dark" style={contentStyle}>
+            {handleBar}
+            {contentLayout}
+          </BlurView>
         </Animated.View>
       </View>
     </GestureHandlerRootView>

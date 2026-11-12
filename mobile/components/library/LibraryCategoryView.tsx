@@ -120,9 +120,12 @@ export const LibraryCategoryView = ({
   const isLongPressedRef = useRef(false);
   const initialRowLayoutRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  // 横幅・縦幅をプレビューカードに近づけながら移動するための独立したScaleX, ScaleY
   const playlistPressTranslateX = useRef(new Animated.Value(0)).current;
   const playlistPressTranslateY = useRef(new Animated.Value(0)).current;
-  const playlistPressScale = useRef(new Animated.Value(1)).current;
+  const playlistPressScaleX = useRef(new Animated.Value(1)).current;
+  const playlistPressScaleY = useRef(new Animated.Value(1)).current;
+
   const playlistRowRefs = useRef<Record<string, MeasurableView | null>>({});
   const rowActionOriginRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const rowActionHeaderRef = useRef<MeasurableView | null>(null);
@@ -159,12 +162,11 @@ export const LibraryCategoryView = ({
 
   const isPlaylistsTab = category === 'PLAYLISTS';
 
-  // ★ メニュー・プレビューを画面上部に張り付かせず「もっと下の方」に表示するオフセット
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
   const menuTopOffset = isLandscape 
-    ? Math.max(insets?.top || 0, 20) + 16 
-    : Math.max((insets?.top || 0) + 75, height * 0.16);
+    ? Math.max(insets?.top || 0, 20) + (isPad ? 28 : 16)
+    : Math.max((insets?.top || 0) + (isPad ? 95 : 75), height * 0.16);
 
-  // ★ 「すべての楽曲」専用カバー画像の読み込み
   useEffect(() => {
     (async () => {
       try {
@@ -235,7 +237,7 @@ export const LibraryCategoryView = ({
     Animated.timing(sheetAnimRow, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   };
 
-  // ★ プレイリスト長押しも「その場でプレビューチャージ」する方式に変更
+  // プレビューチャージ開始（その場でわずかに拡大）
   const startPlaylistPressPreview = (rowKey: string) => {
     pressActiveRef.current = true;
     isLongPressedRef.current = false;
@@ -243,10 +245,12 @@ export const LibraryCategoryView = ({
 
     playlistPressTranslateX.stopAnimation();
     playlistPressTranslateY.stopAnimation();
-    playlistPressScale.stopAnimation();
+    playlistPressScaleX.stopAnimation();
+    playlistPressScaleY.stopAnimation();
     playlistPressTranslateX.setValue(0);
     playlistPressTranslateY.setValue(0);
-    playlistPressScale.setValue(1);
+    playlistPressScaleX.setValue(1);
+    playlistPressScaleY.setValue(1);
     setPressedPlaylistKey(rowKey);
 
     const row = playlistRowRefs.current[rowKey];
@@ -258,13 +262,20 @@ export const LibraryCategoryView = ({
       });
     }
 
-    // 長押し中は位置を動かさず、その場でゆっく〜り少し拡大（プレビューチャージ）
-    Animated.timing(playlistPressScale, {
-      toValue: 1.05,
-      duration: 320,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(playlistPressScaleX, {
+        toValue: 1.04,
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(playlistPressScaleY, {
+        toValue: 1.04,
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const resetPlaylistPressPreview = () => {
@@ -274,59 +285,80 @@ export const LibraryCategoryView = ({
       Animated.parallel([
         Animated.timing(playlistPressTranslateX, { toValue: 0, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.timing(playlistPressTranslateY, { toValue: 0, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(playlistPressScale, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(playlistPressScaleX, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(playlistPressScaleY, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]).start(({ finished }) => {
         if (finished) setPressedPlaylistKey(null);
       });
     }
   };
 
+  // チャージ完了後、行の横幅と縦幅をプレビューカードのサイズ・形状に近づけながら移動
   const handlePlaylistLongPress = (item: any, rowKey: string) => {
     isLongPressedRef.current = true;
 
-    // ★ 振動（Haptics）が鳴る
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch (_) {}
 
-    const executeFastMove = (x: number, y: number, measuredWidth: number, measuredHeight: number) => {
-      // 目標位置（もっと下の方）へ急移動
-      const targetX = width / 2 - (x + measuredWidth / 2);
-      const targetY = menuTopOffset + 52 - (y + measuredHeight / 2);
-      const snapEasing = Easing.bezier(0.12, 0.95, 0.22, 1);
+    const executeMorphMove = (x: number, y: number, measuredWidth: number, measuredHeight: number) => {
+      const targetCardWidth = Math.min(isLandscape ? 900 : 500, width - 24);
+      const targetCardHeight = 96;
+
+      const targetCenterX = width / 2;
+      const targetCenterY = menuTopOffset + targetCardHeight / 2;
+
+      const currentCenterX = x + measuredWidth / 2;
+      const currentCenterY = y + measuredHeight / 2;
+
+      const targetX = targetCenterX - currentCenterX;
+      const targetY = targetCenterY - currentCenterY;
+
+      // プレビューカードのサイズに近づけるスケール値
+      const targetScaleXVal = targetCardWidth / Math.max(measuredWidth, 1);
+      const targetScaleYVal = targetCardHeight / Math.max(measuredHeight, 1);
+
+      const morphEasing = Easing.bezier(0.16, 1, 0.3, 1);
 
       Animated.parallel([
         Animated.timing(playlistPressTranslateX, {
           toValue: targetX,
-          duration: 200,
-          easing: snapEasing,
+          duration: 220,
+          easing: morphEasing,
           useNativeDriver: true,
         }),
         Animated.timing(playlistPressTranslateY, {
           toValue: targetY,
-          duration: 200,
-          easing: snapEasing,
+          duration: 220,
+          easing: morphEasing,
           useNativeDriver: true,
         }),
-        Animated.timing(playlistPressScale, {
-          toValue: 1.08,
-          duration: 200,
-          easing: snapEasing,
+        Animated.timing(playlistPressScaleX, {
+          toValue: targetScaleXVal,
+          duration: 220,
+          easing: morphEasing,
+          useNativeDriver: true,
+        }),
+        Animated.timing(playlistPressScaleY, {
+          toValue: targetScaleYVal,
+          duration: 220,
+          easing: morphEasing,
           useNativeDriver: true,
         }),
       ]).start(() => {
         openRowActionSheet(item, {
-          x: width / 2 - measuredWidth / 2,
+          x: targetCenterX - targetCardWidth / 2,
           y: menuTopOffset,
-          width: measuredWidth,
-          height: measuredHeight
+          width: targetCardWidth,
+          height: targetCardHeight
         });
 
         setTimeout(() => {
           pressedPlaylistKeyRef.current = null;
           playlistPressTranslateX.setValue(0);
           playlistPressTranslateY.setValue(0);
-          playlistPressScale.setValue(1);
+          playlistPressScaleX.setValue(1);
+          playlistPressScaleY.setValue(1);
           setPressedPlaylistKey(null);
         }, 120);
       });
@@ -334,7 +366,7 @@ export const LibraryCategoryView = ({
 
     const cached = initialRowLayoutRef.current;
     if (cached) {
-      executeFastMove(cached.x, cached.y, cached.width, cached.height);
+      executeMorphMove(cached.x, cached.y, cached.width, cached.height);
     } else {
       const rowRef = playlistRowRefs.current[rowKey];
       if (!rowRef) {
@@ -342,7 +374,7 @@ export const LibraryCategoryView = ({
         return;
       }
       rowRef.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-        executeFastMove(x, y, measuredWidth, measuredHeight);
+        executeMorphMove(x, y, measuredWidth, measuredHeight);
       });
     }
   };
@@ -389,7 +421,6 @@ export const LibraryCategoryView = ({
         finalUri = destUri;
       }
 
-      // ★ 「すべての楽曲」のカバー画像保存・反映
       if (targetPl.isAll) {
         if (finalUri) {
           await AsyncStorage.setItem('all_songs_cover_uri', finalUri);
@@ -652,7 +683,6 @@ export const LibraryCategoryView = ({
     Alert.alert(t('confirm', language), t('tracks_updated_alert', language).replace('{name}', editSongsTargetPl.playlistName));
   };
 
-  // ★ 「すべての楽曲」または通常・スマートプレイリストの複製
   const handleDuplicatePlaylist = async (targetPl: any) => {
     let newPl: any;
 
@@ -801,7 +831,8 @@ export const LibraryCategoryView = ({
                 ? [
                     { translateX: playlistPressTranslateX },
                     { translateY: playlistPressTranslateY },
-                    { scale: playlistPressScale },
+                    { scaleX: playlistPressScaleX },
+                    { scaleY: playlistPressScaleY },
                   ]
                 : [],
             }}>
@@ -836,7 +867,6 @@ export const LibraryCategoryView = ({
                   </View>
                 </View>
                 
-                {/* ★ すべての楽曲にも三点マークボタンを表示 */}
                 {isPlaylistsTab ? (
                   <AnimatedMenuButton 
                     onPress={() => openRowActionSheet(item)}
@@ -904,7 +934,7 @@ export const LibraryCategoryView = ({
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* 2. 各プレイリスト行の3点メニュー（下の方にゆったり表示） */}
+      {/* 2. 各プレイリスト行の3点メニュー */}
       <Modal visible={!!rowActionTarget} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <TouchableWithoutFeedback onPress={() => closeRowActionSheet()}>
           <Animated.View style={{ 
@@ -997,7 +1027,6 @@ export const LibraryCategoryView = ({
                       isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
                     ]}
                   >
-                  {/* ★ 「すべての楽曲」の場合は、カバー画像変更と複製のみを表示 */}
                   {rowActionTarget?.isAll ? (
                     <>
                       <LiquidGlassMenuOption
@@ -1041,7 +1070,6 @@ export const LibraryCategoryView = ({
                         <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>{t('rename_playlist', language)}</Text>
                       </LiquidGlassMenuOption>
 
-                      {/* ★ カバー画像変更メニュー */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}

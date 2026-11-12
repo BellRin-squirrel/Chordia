@@ -107,7 +107,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   const headerTransitionAnim = useRef(new Animated.Value(1)).current;
   const headerTransitionPending = useRef(false);
 
-  // ★ メニューの表示位置をもっと下の方（見やすく指の届きやすい位置）に設定
   const menuTopOffset = isLandscape 
     ? Math.max(insets?.top || 0, 20) + 16 
     : Math.max((insets?.top || 0) + 75, height * 0.16);
@@ -156,18 +155,45 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   }, [visible, origin, animateSongHeaderIntoMenu]);
 
   const closeWithAnim = (callback?: () => void) => {
-    Animated.timing(sheetAnim, {
-      toValue: 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(() => {
-      setMode('MENU');
-      setIsNavExpanded(true);
-      setSelectedPlaylistsForAdd(new Set());
-      setConfirmingSmartConvert(false);
-      onClose();
-      if (callback) callback();
-    });
+    // 閉じる時にプレビューカードが元のミニプレイヤーの位置へ戻る逆アニメーション
+    const header = songHeaderRef.current;
+    if (origin && header) {
+      header.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+        const destX = origin.x + origin.width / 2 - x - measuredWidth / 2;
+        const destY = origin.y + origin.height / 2 - y - measuredHeight / 2;
+        const destScaleX = origin.width / Math.max(measuredWidth, 1);
+        const destScaleY = origin.height / Math.max(measuredHeight, 1);
+
+        Animated.parallel([
+          Animated.timing(sheetAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+          Animated.timing(headerTranslateX, { toValue: destX, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(headerTranslateY, { toValue: destY, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(headerScaleX, { toValue: destScaleX, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(headerScaleY, { toValue: destScaleY, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+          Animated.timing(headerTransitionAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+        ]).start(() => {
+          setMode('MENU');
+          setIsNavExpanded(true);
+          setSelectedPlaylistsForAdd(new Set());
+          setConfirmingSmartConvert(false);
+          onClose();
+          if (callback) callback();
+        });
+      });
+    } else {
+      Animated.timing(sheetAnim, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(() => {
+        setMode('MENU');
+        setIsNavExpanded(true);
+        setSelectedPlaylistsForAdd(new Set());
+        setConfirmingSmartConvert(false);
+        onClose();
+        if (callback) callback();
+      });
+    }
   };
 
   if (!visible || !currentSong) return null;
@@ -256,7 +282,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         style={StyleSheet.absoluteFill}
                       />
                     )}
-                    {/* 楽曲ヘッダー */}
                     <Animated.View
                       ref={songHeaderRef}
                       onLayout={animateSongHeaderIntoMenu}
@@ -294,7 +319,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                       </View>
                     </Animated.View>
 
-                    {/* ★ flexGrow: 0 で不要な縦伸びを防止し、下部余白を極限までコンパクトに */}
                     <ScrollView
                       bounces={false}
                       style={{ flexGrow: 0 }}
@@ -304,7 +328,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                       ]}
                       showsVerticalScrollIndicator={false}
                     >
-                      {/* 1. プレイリストに追加 */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{
@@ -325,7 +348,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
                       </LiquidGlassMenuOption>
 
-                      {/* 2. 移動 (親アコーディオン) */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{
@@ -348,7 +370,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         <Ionicons name={isNavExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
                       </LiquidGlassMenuOption>
 
-                      {/* 移動の展開サブメニュー */}
                       {isNavExpanded && (
                         <View
                           style={{
@@ -360,7 +381,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                             flexWrap: isLandscape ? 'wrap' : undefined,
                           }}
                         >
-                          {/* プレイリストに移動 */}
                           <LiquidGlassMenuOption
                             isDark={isDark}
                             style={{
@@ -383,7 +403,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                             <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
                           </LiquidGlassMenuOption>
 
-                          {/* アルバムに移動 */}
                           <LiquidGlassMenuOption
                             isDark={isDark}
                             style={{
@@ -406,7 +425,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                             <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
                           </LiquidGlassMenuOption>
 
-                          {/* アーティストに移動 */}
                           <LiquidGlassMenuOption
                             isDark={isDark}
                             style={{
@@ -429,7 +447,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         </View>
                       )}
 
-                      {/* 3. ライブラリから削除（余計な下パディングなしでコンパクトに） */}
                       <LiquidGlassMenuOption
                         isDark={isDark}
                         style={{
@@ -450,7 +467,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                   </View>
                 </>
               ) : (
-                /* プレイリスト選択画面 */
                 <View
                   style={{
                     backgroundColor: dynamicStyles.card,

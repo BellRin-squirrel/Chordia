@@ -83,7 +83,9 @@
           "cameraPermission": "カバー写真を撮影するためにカメラへのアクセスを許可してください。"
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

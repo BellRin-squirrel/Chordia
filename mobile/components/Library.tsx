@@ -59,8 +59,9 @@ export const Library = ({
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
 
-  // ★ 再生タブ専用の背景色 (ライト: #ffffff / ダーク: #000000)
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
   const [navStack, setNavStack] = useState<string[]>(['MENU']);
@@ -421,7 +422,12 @@ export const Library = ({
   };
 
   const renderHeader = (title: string, rightElement?: React.ReactNode) => (
-    <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 }]}>
+    <View style={[styles.navHeader, { 
+      paddingTop: (insets?.top || 0) + padTopOffset, 
+      height: 44 + (insets?.top || 0) + padTopOffset, 
+      paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, 
+      paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 
+    }]}>
       <View style={styles.navHeaderLeft}>
         {navStack.length > 1 && (
           renderBackButton(popView)
@@ -435,7 +441,12 @@ export const Library = ({
   );
 
   const renderFloatingBackButton = () => (
-    <View style={{ position: 'absolute', top: 12, left: isLandscape ? Math.max(insets?.left || 0, 16) : 16, zIndex: 30 }}>
+    <View style={{ 
+      position: 'absolute', 
+      top: (insets?.top || 0) + (isPad ? 22 : 12), 
+      left: isLandscape ? Math.max(insets?.left || 0, 16) : 16, 
+      zIndex: 30 
+    }}>
       {renderBackButton(popView)}
     </View>
   );

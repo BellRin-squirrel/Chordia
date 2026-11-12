@@ -35,6 +35,8 @@ export const LibraryMenuView = ({
 }: any) => {
 
   const isDark = dynamicStyles.bg === '#000000';
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const libraryBgColor = isDark ? '#000000' : '#ffffff';
 
@@ -72,7 +74,6 @@ export const LibraryMenuView = ({
     })();
   }, [recentlyPlayedSongs]);
 
-  // 再生回数が多い曲トップ10の集計（左が1位）
   const mostPlayedSongs = useMemo(() => {
     if (!rawPlayHistory || rawPlayHistory.length === 0) return [];
 
@@ -410,8 +411,8 @@ export const LibraryMenuView = ({
         styles.headerBar, 
         { 
           borderBottomColor: 'transparent', 
-          paddingTop: insets?.top || 0, 
-          height: 44 + (insets?.top || 0),
+          paddingTop: (insets?.top || 0) + padTopOffset, 
+          height: 44 + (insets?.top || 0) + padTopOffset,
           paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20,
           paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20,
           justifyContent: 'space-between',
@@ -461,13 +462,11 @@ export const LibraryMenuView = ({
             mostPlayedSongs={mostPlayedSongs}
             dynamicStyles={dynamicStyles} 
             themeColor={themeColor}
-            // ★ 単体再生時はコンテキストを「最近再生した楽曲」として渡す
             onPlaySong={(sVal: any) => startQueue([sVal], sVal, undefined, {
               type: 'RECENT',
               playlistID: 'recent_songs',
               playlistName: t('recent_played_songs', language)
             })}
-            // ★ 再生回数が多い曲からの再生も同様に単体再生
             onPlayMostPlayed={(sVal: any) => startQueue([sVal], sVal, undefined, {
               type: 'RECENT',
               playlistID: 'recent_songs',

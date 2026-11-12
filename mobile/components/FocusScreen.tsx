@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, TextInput, StyleSheet, Modal, Alert, LayoutAnimation, Platform, UIManager, Animated, useWindowDimensions, PanResponder, Linking, Vibration } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, TextInput, StyleSheet, Modal, Alert, Platform, UIManager, Animated, useWindowDimensions, PanResponder, Linking, Vibration } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import TrackPlayer, { RepeatMode } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,6 +35,8 @@ export const FocusScreen = ({
 }: any) => {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
 
   const [dateMode, setDateMode] = useState('年月日');
   const [dayMode, setDayMode] = useState('(日)');
@@ -172,7 +174,6 @@ export const FocusScreen = ({
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       await AsyncStorage.removeItem(TEMP_WORK_KEY);
 
-      // ★ 8. 作業セッション終了時のセッション検証 ＆ 作業履歴送信
       const isValid = await verifyChordiaSyncSession(true, language);
       if (isValid) {
         const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
@@ -602,7 +603,11 @@ export const FocusScreen = ({
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
-      <View style={[s.header, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), backgroundColor: dynamicStyles.bg }]}>
+      <View style={[s.header, { 
+        paddingTop: (insets?.top || 0) + padTopOffset, 
+        height: 44 + (insets?.top || 0) + padTopOffset, 
+        backgroundColor: dynamicStyles.bg 
+      }]}>
         {Platform.OS === 'ios' && isLiquidGlassAvailable() ? (
           <Pressable
             onPress={handleFinishSetup}

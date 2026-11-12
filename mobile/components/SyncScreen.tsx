@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 
 import { styles } from '../styles/styles';
 import { t } from '../utils/i18n';
@@ -27,8 +28,8 @@ import { SyncLocalImportView } from './sync/SyncLocalImportView';
 import { SyncPlaylistsView } from './sync/SyncPlaylistsView';
 import { SyncConflictModal } from './sync/SyncConflictModal';
 import { SyncModals } from './sync/SyncModals';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { GlassActionButton } from './ui/GlassActionButton';
+import { GlassTextInput } from './ui/GlassTextInput';
 
 export const SyncScreen = ({ 
   dynamicStyles, themeColor, themeTextColor, syncStage, setSyncStage, 
@@ -42,6 +43,8 @@ export const SyncScreen = ({
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const bottomPadding = (currentSong ? 280 : 160) + (insets?.bottom || 0);
   const textColor = themeTextColor || '#ffffff';
@@ -328,7 +331,12 @@ export const SyncScreen = ({
 
   return (
     <View style={{ flex: 1, backgroundColor: dynamicStyles.bg }}>
-      <View style={[styles.headerBar, { backgroundColor: dynamicStyles.bg, borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0) }]}>
+      <View style={[styles.headerBar, { 
+        backgroundColor: dynamicStyles.bg, 
+        borderBottomColor: 'transparent', 
+        paddingTop: (insets?.top || 0) + padTopOffset, 
+        height: 44 + (insets?.top || 0) + padTopOffset 
+      }]}>
         <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_sync', language)}</Text>
       </View>
       
@@ -404,7 +412,7 @@ export const SyncScreen = ({
                   isRegistering={isRegistering}
                   handlePickLocalMP3Files={handlePickLocalMP3Files}
                   openEditModal={openEditModal}
-                  setActionSheetTargets={setActionSheetTargets}
+                  removeStagedSongs={removeStagedSongs}
                   handleRegisterAllStagedToLibrary={handleRegisterAllStagedToLibrary}
                   toggleSelectAll={toggleSelectAll}
                   selectedStagedList={selectedStagedList}
@@ -440,6 +448,7 @@ export const SyncScreen = ({
         </ScrollView>
       )}
 
+      {/* PC接続許可待ち画面 */}
       {syncStage === 'AWAITING_APPROVAL' && (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
           <ActivityIndicator size="large" color={themeColor} />
@@ -449,14 +458,23 @@ export const SyncScreen = ({
           <GlassActionButton
             isDark={isDark}
             onPress={cancelSync}
-            style={{ marginTop: 40, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 20 }}
-            glassTintColor={themeColor}
+            style={{ 
+              marginTop: 40, 
+              paddingHorizontal: 28, 
+              paddingVertical: 12, 
+              borderRadius: 22,
+              backgroundColor: useLiquidGlass ? 'transparent' : 'rgba(239, 68, 68, 0.12)'
+            }}
+            glassTintColor="rgba(239, 68, 68, 0.25)"
           >
-            <Text style={{ color: themeColor, fontSize: 16 }}>{t('cancel', language)}</Text>
+            <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: 'bold' }}>
+              {t('cancel', language)}
+            </Text>
           </GlassActionButton>
         </View>
       )}
 
+      {/* 6桁コード入力画面 */}
       {syncStage === 'AWAITING_CODE' && (
         <ScrollView 
           style={{
@@ -468,12 +486,34 @@ export const SyncScreen = ({
         >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={[styles.syncCard, { backgroundColor: dynamicStyles.card, margin: 0 }]}>
-                <Text style={{ color: dynamicStyles.text, marginBottom: 15, fontSize: 16, fontWeight: 'bold' }}>
+              <View style={[
+                styles.syncCard, 
+                { 
+                  backgroundColor: useLiquidGlass ? 'transparent' : dynamicStyles.card, 
+                  margin: 0,
+                  overflow: 'hidden',
+                  borderWidth: 1,
+                  borderColor: dynamicStyles.border
+                }
+              ]}>
+                {useLiquidGlass && (
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="regular"
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                )}
+                
+                <Text style={{ color: dynamicStyles.text, marginBottom: 15, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>
                   {t('awaiting_code_msg', language)}
                 </Text>
-                <TextInput 
-                  style={[styles.input, { backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', color: dynamicStyles.text, fontSize: 32, textAlign: 'center', letterSpacing: 8, fontWeight: '800' }]} 
+
+                <GlassTextInput 
+                  isDark={isDark}
+                  backgroundColor={isDark ? '#2c2c2e' : '#f2f2f7'}
+                  containerStyle={[styles.input, { minHeight: 56, padding: 0, marginBottom: 15, borderWidth: 1, borderColor: dynamicStyles.border }]}
+                  inputStyle={{ color: dynamicStyles.text, fontSize: 32, textAlign: 'center', letterSpacing: 8, fontWeight: '800' }}
                   placeholder="000000" 
                   placeholderTextColor="#888" 
                   maxLength={6} 
@@ -481,16 +521,22 @@ export const SyncScreen = ({
                   onChangeText={setAuthCodeInput} 
                   keyboardType="number-pad" 
                 />
-                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: themeColor, marginBottom: 10 }]} onPress={() => verifyAuthCode(serverIp, serverPort, authCodeInput)}>
-                  <Text style={[styles.btnText, { color: textColor }]}>{t('verify_code_btn', language)}</Text>
-                </TouchableOpacity>
+
                 <GlassActionButton
                   isDark={isDark}
-                  style={{ marginTop: 15, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 18 }}
                   glassTintColor={themeColor}
+                  style={[styles.smallBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, marginBottom: 12 }]}
+                  onPress={() => verifyAuthCode(serverIp, serverPort, authCodeInput)}
+                >
+                  <Text style={[styles.btnText, { color: textColor }]}>{t('verify_code_btn', language)}</Text>
+                </GlassActionButton>
+
+                <GlassActionButton
+                  isDark={isDark}
+                  style={[styles.smallBtn, { height: 46, borderRadius: 23, backgroundColor: useLiquidGlass ? 'transparent' : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)') }]}
                   onPress={cancelSync}
                 >
-                  <Text style={{ color: themeColor }}>{t('retry_btn', language)}</Text>
+                  <Text style={{ color: dynamicStyles.text, fontSize: 14, fontWeight: 'bold' }}>{t('retry_btn', language)}</Text>
                 </GlassActionButton>
               </View>
             </KeyboardAvoidingView>

@@ -72,7 +72,6 @@ const AppContent = () => {
   const isLandscape = width > height;
   const useNativeTabBar = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
-  // ★ メニュー目標Y位置をもっと下の方（見やすく操作しやすい位置）に統一
   const menuTargetY = isLandscape 
     ? Math.max(insets.top, 20) + 40 
     : Math.max(insets.top + 75, height * 0.16);
@@ -326,24 +325,17 @@ const AppContent = () => {
   };
 
   const openFullPlayer = () => {
-    const showPlayer = (frame: { x: number; y: number; width: number; height: number } | null) => {
-      setPlayerOpeningFrame(frame);
-      if (frame) {
+    if (miniPlayerRef.current) {
+      miniPlayerRef.current.measureInWindow((x, y, w, h) => {
+        setPlayerOpeningFrame({ x, y, width: w, height: h });
         slideAnim.setValue(0);
-      } else {
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }).start();
-      }
+        setIsFullPlayer(true);
+      });
+    } else {
+      setPlayerOpeningFrame(null);
+      slideAnim.setValue(0);
       setIsFullPlayer(true);
-    };
-
-    if (!miniPlayerRef.current) {
-      showPlayer(null);
-      return;
     }
-
-    miniPlayerRef.current.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      showPlayer(measuredWidth > 0 && measuredHeight > 0 ? { x, y, width: measuredWidth, height: measuredHeight } : null);
-    });
   };
 
   useEffect(() => {
@@ -580,6 +572,7 @@ const AppContent = () => {
                   menuTargetY={menuTargetY}
                   togglePlayPause={togglePlayPause}
                   handleNext={handleNext}
+                  isHidden={isMiniPlayerMenuVisible}
                 />
               </View>
             </Animated.View>
@@ -657,37 +650,76 @@ const AppContent = () => {
         </View>
       )}
 
+      {/* 同期中プログレスポップアップ（固定幅＆鮮明な赤色キャンセルボタン） */}
       <Modal visible={isFullScreenSyncing} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={styles.fullScreenModalOverlay}>
-          <View style={[styles.fullScreenModalContent, { backgroundColor: actualDynamicStyles.card, paddingBottom: 25 }]}>
+          <View style={[
+            styles.fullScreenModalContent, 
+            { 
+              backgroundColor: useNativeTabBar ? 'transparent' : actualDynamicStyles.card, 
+              width: Math.min(width * 0.84, 320),
+              minHeight: 180,
+              paddingVertical: 28,
+              paddingHorizontal: 22,
+              borderRadius: 24,
+              overflow: 'hidden',
+              borderWidth: 1.5,
+              borderColor: actualDynamicStyles.border,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+              elevation: 12,
+            }
+          ]}>
+            {useNativeTabBar && (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme={isAppDark ? 'dark' : 'light'}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <ActivityIndicator size="large" color={themeColor} />
-            <Text style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center', marginBottom: 25 }]}>{syncProgress}</Text>
+            
+            <View style={{ height: 48, justifyContent: 'center', alignItems: 'center', width: '100%', marginVertical: 14 }}>
+              <Text 
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                style={[styles.fullScreenModalText, { color: actualDynamicStyles.text, textAlign: 'center', marginTop: 0, width: '100%', fontSize: 14, lineHeight: 20 }]}
+              >
+                {syncProgress}
+              </Text>
+            </View>
             
             <TouchableOpacity
               style={{
-                backgroundColor: useNativeTabBar ? 'transparent' : '#ef4444',
+                backgroundColor: '#ef4444',
                 paddingVertical: 12,
-                paddingHorizontal: 35,
-                borderRadius: 25,
+                paddingHorizontal: 36,
+                borderRadius: 24,
                 overflow: 'hidden',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-                elevation: 3,
+                shadowColor: '#ef4444',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.4,
+                shadowRadius: 6,
+                elevation: 4,
               }}
               onPress={cancelSync}
+              activeOpacity={0.8}
             >
               {useNativeTabBar && (
                 <GlassView
                   pointerEvents="none"
                   glassEffectStyle="regular"
                   isInteractive
-                  tintColor="rgba(239,68,68,0.28)"
+                  tintColor="rgba(239, 68, 68, 0.75)"
                   style={StyleSheet.absoluteFill}
                 />
               )}
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>{t('cancel', language)}</Text>
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: 'bold', textAlign: 'center' }}>
+                {t('cancel', language)}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -816,7 +848,7 @@ const AppContent = () => {
               styles.toastBlurNew, 
               { 
                 borderColor: isAppDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
-                backgroundColor: isAppDark ? 'rgba(24,24,27,0.85)' : 'rgba(255,255,255,0.88)',
+                backgroundColor: isAppDark ? 'rgba(248,248,252,0.85)' : 'rgba(255,255,255,0.88)',
               }
             ]}
           >

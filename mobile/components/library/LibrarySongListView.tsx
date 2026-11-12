@@ -26,6 +26,8 @@ export const LibrarySongListView = ({
   const isPlaylist = currentSelectionType === 'PLAYLIST';
   const isSmartPlaylist = isPlaylist && currentPlaylist?.type === 'smart';
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
   const { width } = useWindowDimensions();
   const searchExpandAnim = React.useRef(new Animated.Value(0)).current;
 
@@ -45,7 +47,7 @@ export const LibrarySongListView = ({
     <Animated.View
       style={{
         position: 'absolute',
-        top: Math.max(insets?.top || 0, 12),
+        top: (insets?.top || 0) + (isPad ? 22 : 12),
         right: Math.max(insets?.right || 0, 16),
         zIndex: 40,
         width: searchExpandAnim.interpolate({
@@ -171,7 +173,7 @@ export const LibrarySongListView = ({
               data={songs}
               keyExtractor={(item) => item.localMusicUri}
               style={{ flex: 1 }}
-              ListHeaderComponent={<View style={{ paddingTop: 64 }} />}
+              ListHeaderComponent={<View style={{ paddingTop: (insets?.top || 0) + (isPad ? 80 : 64) }} />}
               snapToOffsets={[0, 70]} 
               snapToEnd={false} 
               renderItem={({ item }) => (
@@ -197,7 +199,7 @@ export const LibrarySongListView = ({
           data={songs}
           keyExtractor={(item) => item.localMusicUri}
           style={StyleSheet.absoluteFill}
-          ListHeaderComponent={<View style={{ paddingTop: 64 }}>{heroSectionElement}</View>}
+          ListHeaderComponent={<View style={{ paddingTop: (insets?.top || 0) + (isPad ? 80 : 64) }}>{heroSectionElement}</View>}
           snapToOffsets={[0, 70]} 
           snapToEnd={false} 
           renderItem={({ item }) => (

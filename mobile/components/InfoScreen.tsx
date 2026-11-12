@@ -64,6 +64,8 @@ export const InfoScreen = ({
 }: any) => {
   const { width } = useWindowDimensions();
   const textColor = themeTextColor || '#ffffff';
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
+  const padTopOffset = isPad ? 36 : 8;
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
   const [navStack, setNavStack] = useState<string[]>(['MENU']);
@@ -257,7 +259,12 @@ export const InfoScreen = ({
   const handlePressOut = () => { Animated.spring(backButtonScale, { toValue: 1, useNativeDriver: true, bounciness: 15, speed: 20 }).start(); };
 
   const renderHeader = (title: string, rightElement?: React.ReactNode) => (
-    <View style={[styles.navHeader, { paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 }]}>
+    <View style={[styles.navHeader, { 
+      paddingTop: (insets?.top || 0) + padTopOffset, 
+      height: 44 + (insets?.top || 0) + padTopOffset, 
+      paddingLeft: isLandscape ? Math.max(insets?.left || 0, 15) : 15, 
+      paddingRight: isLandscape ? Math.max(insets?.right || 0, 15) : 15 
+    }]}>
       <View style={styles.navHeaderLeft}>
         {navStack.length > 1 && (
           Platform.OS === 'ios' ? (
@@ -303,7 +310,13 @@ export const InfoScreen = ({
       <PanGestureHandler activeOffsetX={[-500, 10]} failOffsetY={[-15, 15]} enabled={navStack.length > 1} onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
         <View style={{ flex: 1 }}>
           <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer1Translate }] }]}>
-            <View style={[styles.headerBar, { borderBottomColor: 'transparent', paddingTop: insets?.top || 0, height: 44 + (insets?.top || 0), paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 }]}>
+            <View style={[styles.headerBar, { 
+              borderBottomColor: 'transparent', 
+              paddingTop: (insets?.top || 0) + padTopOffset, 
+              height: 44 + (insets?.top || 0) + padTopOffset, 
+              paddingLeft: isLandscape ? Math.max(insets?.left || 0, 20) : 20, 
+              paddingRight: isLandscape ? Math.max(insets?.right || 0, 20) : 20 
+            }]}>
               <Text style={[styles.headerTitle, { color: dynamicStyles.text }]}>{t('tab_info', language)}</Text>
             </View>
             <FlatList
@@ -385,7 +398,6 @@ export const InfoScreen = ({
               {navStack[2] === 'PLAY_HISTORY' && (
                 <InfoPlaybackHistoryView dynamicStyles={dynamicStyles} themeColor={themeColor} isDark={isDark} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
               )}
-              {/* ★ 直近7日間の全ランキング画面 */}
               {navStack[2] === 'RANKING_ALL' && (
                 <InfoRanking7DaysView dynamicStyles={dynamicStyles} themeColor={themeColor} safePadding={safePadding} renderHeader={renderHeader} language={language} localLibrary={localLibrary} />
               )}
