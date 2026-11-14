@@ -521,4 +521,16 @@ export const es: Record<string, string> = {
 
   most_played_songs: 'Canciones más reproducidas',
   view_more_ranking: 'Ver ranking completo',
+
+  menu_volume_boost: 'Amplificación y ajuste de volumen',
+  menu_volume_boost_sub: 'Ajusta el volumen de la app más allá del límite',
+  volume_boost_title: 'Amplificación y ajuste de volumen',
+  volume_boost_desc: 'Aumenta el volumen por múltiplos enteros o redúcelo en fracciones dentro de Chordia sin alterar el volumen del dispositivo.',
+  volume_boost_current: 'Multiplicador actual',
+  volume_boost_normal_btn: 'Restablecer a 1x (Normal)',
+  volume_boost_tab_boost: 'Múltiplos enteros (Boost)',
+  volume_boost_tab_attenuate: '1 / Entero (Atenuación)',
+  volume_boost_times: 'x',
+  volume_boost_notice_title: 'Límites digitales y protección de hardware',
+  volume_boost_notice_desc: 'Debido a los límites de escala completa digital (0 dBFS) y los limitadores de protección de hardware del sistema operativo (para evitar distorsiones y daños en los altavoces), el aumento de volumen se satura entre 2x y 4x. Más allá de esto, el volumen no aumentará. Si necesita más volumen, aumente el volumen maestro de su dispositivo.',
 };

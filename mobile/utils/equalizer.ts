@@ -36,9 +36,20 @@ export const analyzeAudioLoudness = async (source: string): Promise<number> => {
 export const setSoundCheckGain = (gainDb: number): void => {
   if (!NativeModule?.setSoundCheckGain) return;
   try {
-    NativeModule.setSoundCheckGain(Math.max(-12, Math.min(12, gainDb)));
+    NativeModule.setSoundCheckGain(Math.max(-24, Math.min(24, gainDb)));
   } catch (error) {
     console.error('[SoundCheck] Failed to apply native gain:', error);
+  }
+};
+
+export const setAppVolumeMultiplierNative = (multiplier: number): boolean => {
+  if (!NativeModule?.setAppVolumeMultiplier) return false;
+  try {
+    NativeModule.setAppVolumeMultiplier(Math.max(0.01, Math.min(10.0, multiplier)));
+    return true;
+  } catch (error) {
+    console.error('[AppVolume] Failed to apply native volume multiplier:', error);
+    return false;
   }
 };
 
@@ -89,7 +100,7 @@ export const setEqualizerBands = (gains: number[], preamp: number = 0): void => 
   } catch (e) {}
 };
 
-export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => {
+export const applyEqualizerSettings = (payload: EqualizerApplyPayload, notify: boolean = true): void => {
   if (NativeModule) {
     try {
       if (NativeModule.applySettings) {
@@ -100,7 +111,9 @@ export const applyEqualizerSettings = (payload: EqualizerApplyPayload): void => 
       }
     } catch (e) {}
   }
-  notifyEqualizerChange(payload);
+  if (notify) {
+    notifyEqualizerChange(payload);
+  }
 };
 
 export const setIosEqualizerEngineMode = (mode: 'rntp' | 'expo-av'): void => {
@@ -239,6 +252,7 @@ export default {
   setEqualizerEnabled,
   setEqualizerBands,
   applyEqualizerSettings,
+  setAppVolumeMultiplierNative,
   setIosEqualizerEngineMode,
   updateIosNowPlaying,
   getNativeModule,

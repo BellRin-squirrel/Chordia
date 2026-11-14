@@ -521,4 +521,16 @@ export const en: Record<string, string> = {
 
   most_played_songs: 'Most Played Songs',
   view_more_ranking: 'View Full Ranking',
+
+  menu_volume_boost: 'Volume Boost & Attenuation',
+  menu_volume_boost_sub: 'Adjust app volume beyond device limits',
+  volume_boost_title: 'Volume Boost & Attenuation',
+  volume_boost_desc: 'Boost volume by integer multiples or attenuate by fractions within Chordia without affecting device volume.',
+  volume_boost_current: 'Current Multiplier',
+  volume_boost_normal_btn: 'Reset to 1x (Normal)',
+  volume_boost_tab_boost: 'Integer Multiples (Boost)',
+  volume_boost_tab_attenuate: '1 / Integer (Attenuate)',
+  volume_boost_times: 'x',
+  volume_boost_notice_title: 'Digital Limits & Hardware Protection',
+  volume_boost_notice_desc: 'Due to digital full-scale limits (0 dBFS) and OS/hardware protection limiters (preventing audio clipping and speaker damage), volume boost naturally caps around 2x to 4x. Beyond this, volume will not increase and audio may sound compressed. If you need higher volume, please increase your device\'s master volume.',
 };

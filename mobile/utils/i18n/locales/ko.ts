@@ -521,4 +521,16 @@ export const ko: Record<string, string> = {
 
   most_played_songs: '가장 많이 재생한 곡',
   view_more_ranking: '랭킹 더보기',
+
+  menu_volume_boost: '음량 증폭 및 미세 조절',
+  menu_volume_boost_sub: '기기 설정을 넘어 앱 내 음량 조절',
+  volume_boost_title: '음량 증폭 및 미세 조절',
+  volume_boost_desc: '기기 본체 음량을 변경하지 않고 Chordia 앱 내에서만 음량을 정수 배로 증폭하거나 1/정수 배로 줄입니다.',
+  volume_boost_current: '현재 배율',
+  volume_boost_normal_btn: '기본 배율로 복원 (1x)',
+  volume_boost_tab_boost: '정수 배 (증폭)',
+  volume_boost_tab_attenuate: '1 / 정수 배 (감쇠)',
+  volume_boost_times: '배',
+  volume_boost_notice_title: '디지털 한계 및 하드웨어 보호 안내',
+  volume_boost_notice_desc: '디지털 신호의 최대 한계(0 dBFS) 및 기기/OS의 하드웨어 보호 리미터(음 왜곡 및 스피커 손상 방지)가 동작하므로 약 2~4배 부근에서 음량 증가가 한계에 도달합니다. 그 이상에서는 음량이 더 커지지 않고 압축되어 들릴 수 있습니다. 더 큰 음량이 필요한 경우 기기 본체의 미디어 볼륨을 높여주세요.',
 };

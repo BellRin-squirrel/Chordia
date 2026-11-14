@@ -72,9 +72,10 @@ const AppContent = () => {
   const isLandscape = width > height;
   const useNativeTabBar = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
   const menuTargetY = isLandscape 
-    ? Math.max(insets.top, 20) + 40 
-    : Math.max(insets.top + 75, height * 0.16);
+    ? Math.max(insets.top, 20) + (isPad ? 28 : 16) 
+    : Math.max(insets.top + (isPad ? 95 : 75), height * 0.16);
 
   const {
     isDark, appearanceMode, changeAppearanceMode, soundCheckEnabled, changeSoundCheckEnabled, dynamicStyles, themeColor, themeTextColor, themeR, themeG, themeB, setThemeR, setThemeG, setThemeB,
@@ -641,6 +642,7 @@ const AppContent = () => {
                       menuTargetY={menuTargetY}
                       togglePlayPause={togglePlayPause}
                       handleNext={handleNext}
+                      isHidden={isMiniPlayerMenuVisible}
                     />
                   </View>
                 </View>

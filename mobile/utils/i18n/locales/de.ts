@@ -521,4 +521,16 @@ export const de: Record<string, string> = {
 
   most_played_songs: 'Meistgespielte Titel',
   view_more_ranking: 'Vollständiges Ranking anzeigen',
+
+  menu_volume_boost: 'Lautstärke-Boost & Dämpfung',
+  menu_volume_boost_sub: 'App-Lautstärke über Geräteeinstellungen hinaus anpassen',
+  volume_boost_title: 'Lautstärke-Boost & Dämpfung',
+  volume_boost_desc: 'Verstärken Sie die Lautstärke um ganzzahlige Vielfache oder dämpfen Sie sie in Chordia, ohne die Gerätelautstärke zu ändern.',
+  volume_boost_current: 'Aktuelle Verstärkung',
+  volume_boost_normal_btn: 'Auf 1x zurücksetzen (Normal)',
+  volume_boost_tab_boost: 'Ganzzahlige Vielfache (Boost)',
+  volume_boost_tab_attenuate: '1 / Ganzzahl (Dämpfung)',
+  volume_boost_times: 'x',
+  volume_boost_notice_title: 'Digitale Grenzwerte & Schutzmechanismen',
+  volume_boost_notice_desc: 'Aufgrund digitaler Maximalpegel (0 dBFS) und hardwarebasierter Schutzbegrenzer des Betriebssystems (zur Vermeidung von Verzerrungen und Lautsprecherschäden) stößt die Lautstärkeverstärkung ab ca. 2x bis 4x an ihre Grenze. Eine weitere Erhöhung verstärkt den Ton nicht weiter. Bitte erhöhen Sie für mehr Lautstärke die Hauptlautstärke des Geräts.',
 };

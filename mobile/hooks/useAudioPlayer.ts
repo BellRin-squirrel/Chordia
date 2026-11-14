@@ -19,9 +19,17 @@ import {
   applyEqualizerSettings, 
   addEqualizerChangeListener, 
   EqualizerApplyPayload,
-  setSoundCheckGain
+  setSoundCheckGain,
+  setAppVolumeMultiplierNative,
+  getEqualizerDebugInfo
 } from '../utils/equalizer';
 import { gainDbToPlaybackVolume, getSoundCheckGain } from '../utils/soundCheck';
+import { 
+  getAppVolumeSetting, 
+  addAppVolumeChangeListener, 
+  VolumeMultiplierSetting, 
+  DEFAULT_VOLUME_SETTING 
+} from '../utils/appVolume';
 
 export type { PlayCollectionContext };
 
@@ -42,10 +50,22 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const queueTransitionAnim = useRef(new Animated.Value(0)).current;
 
-  // ★ 再生元コンテキストを State と Ref で管理
   const [currentContext, setCurrentContext] = useState<PlayCollectionContext | null>(null);
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
   const isPlayingRef = useRef(false);
+
+  const soundCheckEnabledRef = useRef(soundCheckEnabled);
+  const audioEngineRef = useRef<AudioEngineType>(audioEngine);
+  const appVolumeSettingRef = useRef<VolumeMultiplierSetting>(DEFAULT_VOLUME_SETTING);
+  const isEQEnabledRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    soundCheckEnabledRef.current = soundCheckEnabled;
+  }, [soundCheckEnabled]);
+
+  useEffect(() => {
+    audioEngineRef.current = audioEngine;
+  }, [audioEngine]);
 
   useEffect(() => {
     currentContextRef.current = currentContext;
@@ -66,46 +86,65 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
   const applySoundCheckForSong = async (song: any) => {
     const requestId = ++soundCheckRequestRef.current;
-    if (!soundCheckEnabled) {
-      setSoundCheckGain(0);
+    const volSetting = appVolumeSettingRef.current;
+    const multiplier = volSetting.multiplier;
+    const currentSoundCheck = soundCheckEnabledRef.current;
+    const currentEngine = audioEngineRef.current;
+
+    const hasNativeMultiplier = setAppVolumeMultiplierNative(multiplier);
+    const boostDb = multiplier > 1.0 ? 20 * Math.log10(multiplier) : 0;
+    const attenuationVolume = multiplier <= 1.0 ? multiplier : 1.0;
+
+    let soundCheckDb = 0;
+    if (currentSoundCheck) {
       try {
-        if (audioEngine === 'rntp') {
-          await TrackPlayer.setVolume(1);
-        } else if (expoAudio.expoAudioPlayerRef.current) {
-          expoAudio.expoAudioPlayerRef.current.volume = 1;
-        }
+        soundCheckDb = await getSoundCheckGain(song.localMusicUri);
       } catch (error) {
-        console.error('[SoundCheck] Failed to restore playback volume:', error);
+        soundCheckDb = 0;
+        console.error('[SoundCheck] Could not normalize track:', error);
+      }
+      if (requestId !== soundCheckRequestRef.current) return;
+    }
+
+    if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
+      if (hasNativeMultiplier) {
+        setSoundCheckGain(soundCheckDb);
+      } else {
+        const volDb = multiplier !== 1.0 ? 20 * Math.log10(multiplier) : 0;
+        setSoundCheckGain(soundCheckDb + volDb);
       }
       return;
     }
 
-    try {
-      const gainDb = await getSoundCheckGain(song.localMusicUri);
-      if (requestId !== soundCheckRequestRef.current) return;
+    const basePlaybackVolume = currentSoundCheck ? gainDbToPlaybackVolume(soundCheckDb) : 1.0;
+    const finalPlaybackVolume = Math.min(1.0, Math.max(0, basePlaybackVolume * attenuationVolume));
 
-      if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
-        setSoundCheckGain(gainDb);
-        return;
-      }
-
-      const playbackVolume = gainDbToPlaybackVolume(gainDb);
-      if (Platform.OS === 'android' && audioEngine === 'rntp') {
+    if (Platform.OS === 'android' && currentEngine === 'rntp') {
+      if (currentSoundCheck || multiplier !== 1.0 || isEQEnabledRef.current) {
         await rntp.syncAndroidEqualizerSession();
         if (requestId !== soundCheckRequestRef.current) return;
-        setSoundCheckGain(gainDb);
-        await TrackPlayer.setVolume(playbackVolume);
-      } else if (audioEngine === 'rntp') {
-        await TrackPlayer.setVolume(playbackVolume);
-      } else if (expoAudio.expoAudioPlayerRef.current) {
-        expoAudio.expoAudioPlayerRef.current.volume = playbackVolume;
       }
-    } catch (error) {
-      if (requestId !== soundCheckRequestRef.current) return;
-      setSoundCheckGain(0);
-      console.error('[SoundCheck] Could not normalize track:', error);
+      if (hasNativeMultiplier) {
+        setSoundCheckGain(soundCheckDb);
+      } else {
+        setSoundCheckGain(soundCheckDb + boostDb);
+      }
+      try {
+        await TrackPlayer.setVolume(finalPlaybackVolume);
+      } catch (e) {}
+    } else if (currentEngine === 'rntp') {
+      setSoundCheckGain(hasNativeMultiplier ? soundCheckDb : soundCheckDb + boostDb);
+      try {
+        await TrackPlayer.setVolume(finalPlaybackVolume);
+      } catch (e) {}
+    } else if (expoAudio.expoAudioPlayerRef.current) {
+      setSoundCheckGain(hasNativeMultiplier ? soundCheckDb : soundCheckDb + boostDb);
+      expoAudio.expoAudioPlayerRef.current.volume = finalPlaybackVolume;
     }
   };
+
+  const applySoundCheckForSongRef = useRef(applySoundCheckForSong);
+  applySoundCheckForSongRef.current = applySoundCheckForSong;
 
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
@@ -169,7 +208,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       if (iosEq.isIOSEQActiveRef.current) {
         return Math.floor(iosEq.getPositionIOS());
       }
-      if (audioEngine === 'rntp') {
+      if (audioEngineRef.current === 'rntp') {
         return Math.floor(rntp.rntpProgress.position);
       }
       return Math.floor((expoAudio.playbackStatusExpo.positionMillis || 0) / 1000);
@@ -193,6 +232,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     AsyncStorage.getItem('audioEngine').then(async (val) => {
       const mode = (val === 'expo-av' || val === 'rntp') ? val : 'rntp';
       setAudioEngine(mode);
+      audioEngineRef.current = mode;
       if (Platform.OS === 'ios') {
         iosEq.setEngineMode(mode);
       }
@@ -209,13 +249,17 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
         if (eqJson) {
           const parsed = JSON.parse(eqJson);
+          isEQEnabledRef.current = !!parsed.isEnabled;
           iosEq.isIOSEQActiveRef.current = Platform.OS === 'ios' && !!parsed.isEnabled;
           applyEqualizerSettings({
             enabled: !!parsed.isEnabled,
             preamp: parsed.preamp || 0,
             gains: Array.isArray(parsed.bands) ? parsed.bands.map((b: any) => b.gain) : [],
-          });
+          }, false);
         }
+        const volSetting = await getAppVolumeSetting();
+        appVolumeSettingRef.current = volSetting;
+        setAppVolumeMultiplierNative(volSetting.multiplier);
       } catch (e) {}
     })();
 
@@ -242,12 +286,12 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   useEffect(() => {
     if (!Event.PlaybackState) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
+      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
         setIsPlaying(isStatePlaying(event));
       }
     });
     return () => sub.remove();
-  }, [audioEngine]);
+  }, []);
 
   const loadAndPlayInternal = async (
     song: any,
@@ -258,23 +302,40 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     targetEngine?: AudioEngineType
   ) => {
     const targetSeconds = startPositionMs > 0 ? startPositionMs / 1000 : 0;
-    const engineToUse = targetEngine || audioEngine;
+    const engineToUse = targetEngine || audioEngineRef.current;
 
-    let isEQEnabled = false;
+    let isEQEnabled = isEQEnabledRef.current;
+    let savedPreamp = 0;
+    let savedGains: number[] = [];
     try {
       const eqRaw = await AsyncStorage.getItem('chordia_equalizer_settings');
-      if (eqRaw) isEQEnabled = !!JSON.parse(eqRaw).isEnabled;
+      if (eqRaw) {
+        const parsed = JSON.parse(eqRaw);
+        isEQEnabled = !!parsed.isEnabled;
+        isEQEnabledRef.current = isEQEnabled;
+        savedPreamp = Number(parsed.preamp) || 0;
+        savedGains = Array.isArray(parsed.bands) ? parsed.bands.map((b: any) => Number(b.gain) || 0) : [];
+      }
     } catch (e) {}
 
-    if (Platform.OS === 'ios' && (isEQEnabled || soundCheckEnabled)) {
+    const hasVolumeSetting = appVolumeSettingRef.current.multiplier !== 1.0;
+
+    if (Platform.OS === 'ios' && (isEQEnabled || soundCheckEnabledRef.current || hasVolumeSetting)) {
+      iosEq.isIOSEQActiveRef.current = true;
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
 
       iosEq.setEngineMode(engineToUse);
+      // 再生前にネイティブ側へ最新のイコライザー設定を同期
+      applyEqualizerSettings({
+        enabled: isEQEnabled,
+        preamp: savedPreamp,
+        gains: savedGains,
+      }, false);
+
       const success = iosEq.loadAndPlayIOS(song.localMusicUri, targetSeconds, shouldPlay);
       if (success) {
-        iosEq.isIOSEQActiveRef.current = true;
-        void applySoundCheckForSong(song);
+        void applySoundCheckForSongRef.current(song);
         setIsPlaying(shouldPlay);
         iosEq.startIOSEQPolling(setIsPlaying);
 
@@ -346,16 +407,13 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
                   try {
                     const cur = await TrackPlayer.getPosition();
                     if (targetSeconds > 1 && cur < 0.5) await TrackPlayer.seekTo(targetSeconds);
-                    await TrackPlayer.setVolume(1.0);
-                    void applySoundCheckForSong(song);
+                    void applySoundCheckForSongRef.current(song);
                   } catch (e) {
-                    try { await TrackPlayer.setVolume(1.0); } catch (_) {}
-                    void applySoundCheckForSong(song);
+                    void applySoundCheckForSongRef.current(song);
                   }
                 }, 120);
               } else {
-                await TrackPlayer.setVolume(1.0);
-                void applySoundCheckForSong(song);
+                void applySoundCheckForSongRef.current(song);
               }
               sync.sendNowPlayingUpdate(Math.floor(targetSeconds));
             } else {
@@ -370,7 +428,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         await rntp.clearRNTPNotification();
         const isLoopOne = queueMgr.loopRef.current === 'ONE';
         await expoAudio.initExpoAudioPlayer(song, isLoopOne, targetSeconds > 0 ? false : shouldPlay, setIsPlaying);
-        void applySoundCheckForSong(song);
+        void applySoundCheckForSongRef.current(song);
 
         if (targetSeconds > 0) {
           setTimeout(() => {
@@ -395,72 +453,113 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     } catch (e) {}
   };
 
+  const loadAndPlayInternalRef = useRef(loadAndPlayInternal);
+  loadAndPlayInternalRef.current = loadAndPlayInternal;
+
+  // アプリ内音量倍率変更のリアルタイムリスナー
+  useEffect(() => {
+    const unsub = addAppVolumeChangeListener((newSetting) => {
+      appVolumeSettingRef.current = newSetting;
+
+      const cur = queueMgr.currentSongRef.current;
+      if (!cur) return;
+
+      if (Platform.OS === 'ios' && isPlayingRef.current) {
+        const hasVolAdjustment = newSetting.multiplier !== 1.0;
+        const shouldBeIOSEQ = isEQEnabledRef.current || soundCheckEnabledRef.current || hasVolAdjustment;
+        if (shouldBeIOSEQ !== iosEq.isIOSEQActiveRef.current) {
+          void (async () => {
+            let posMs = 0;
+            if (iosEq.isIOSEQActiveRef.current) posMs = iosEq.getPositionIOS() * 1000;
+            else if (audioEngineRef.current === 'rntp') {
+              try { posMs = (await TrackPlayer.getPosition()) * 1000; } catch (e) {}
+            } else posMs = expoAudio.playbackStatusExpo.positionMillis || 0;
+            loadAndPlayInternalRef.current(cur, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, posMs, true);
+          })();
+          return;
+        }
+      }
+
+      void applySoundCheckForSongRef.current(cur);
+    });
+
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     const current = queueMgr.currentSongRef.current;
     if (!current || !isPlayingRef.current) return;
-    if (Platform.OS === 'ios' && (soundCheckEnabled || iosEq.isIOSEQActiveRef.current)) {
+    const hasVolumeSetting = appVolumeSettingRef.current.multiplier !== 1.0;
+    if (Platform.OS === 'ios' && (soundCheckEnabled || iosEq.isIOSEQActiveRef.current || hasVolumeSetting)) {
       void (async () => {
         let positionMs = 0;
         if (iosEq.isIOSEQActiveRef.current) positionMs = iosEq.getPositionIOS() * 1000;
-        else if (audioEngine === 'rntp') positionMs = (await TrackPlayer.getPosition()) * 1000;
-        else positionMs = expoAudio.playbackStatusExpo.positionMillis || 0;
-        loadAndPlayInternal(current, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, positionMs, true);
+        else if (audioEngineRef.current === 'rntp') {
+          try { positionMs = (await TrackPlayer.getPosition()) * 1000; } catch (e) {}
+        } else positionMs = expoAudio.playbackStatusExpo.positionMillis || 0;
+        loadAndPlayInternalRef.current(current, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, positionMs, true);
       })();
       return;
     }
-    void applySoundCheckForSong(current);
+    void applySoundCheckForSongRef.current(current);
   }, [soundCheckEnabled]);
 
   useEffect(() => {
-    let lastKnownEnabled: boolean | null = null;
-
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
-      if (lastKnownEnabled === payload.enabled) {
-        if (Platform.OS === 'android') {
-          rntp.syncAndroidEqualizerSession();
-        }
+      isEQEnabledRef.current = payload.enabled;
+
+      const current = queueMgr.currentSongRef.current;
+      if (!current) return;
+
+      if (Platform.OS === 'android') {
+        void rntp.syncAndroidEqualizerSession();
         return;
       }
 
-      lastKnownEnabled = payload.enabled;
-
-      const current = queueMgr.currentSongRef.current;
-      if (!current || !isPlayingRef.current) return;
-
-      let curMs = 0;
-      if (iosEq.isIOSEQActiveRef.current) {
-        curMs = iosEq.getPositionIOS() * 1000;
-      } else if (audioEngine === 'rntp') {
-        curMs = rntp.rntpProgress.position * 1000;
-      } else {
-        curMs = expoAudio.playbackStatusExpo.positionMillis || 0;
-      }
-
       if (Platform.OS === 'ios') {
-        loadAndPlayInternal(
-          current,
-          queueMgr.activeQueueRef.current,
-          queueMgr.indexRef.current,
-          curMs,
-          true
-        );
-      } else if (Platform.OS === 'android') {
-        rntp.syncAndroidEqualizerSession();
+        const hasVolAdjustment = appVolumeSettingRef.current.multiplier !== 1.0;
+        const shouldBeIOSEQ = payload.enabled || soundCheckEnabledRef.current || hasVolAdjustment;
+        const needsEngineSwitch = (shouldBeIOSEQ !== iosEq.isIOSEQActiveRef.current);
+
+        if (!needsEngineSwitch) {
+          // 既に iosEq で再生中の場合、エンジン切り替えは不要でネイティブの updateEqualizerHardware に即反映される
+          void applySoundCheckForSongRef.current(current);
+          return;
+        }
+
+        const isCurrentlyPlaying = isPlayingRef.current;
+        void (async () => {
+          let curMs = 0;
+          if (iosEq.isIOSEQActiveRef.current) {
+            curMs = iosEq.getPositionIOS() * 1000;
+          } else if (audioEngineRef.current === 'rntp') {
+            try { curMs = (await TrackPlayer.getPosition()) * 1000; } catch (e) {}
+          } else {
+            curMs = expoAudio.playbackStatusExpo.positionMillis || 0;
+          }
+          loadAndPlayInternalRef.current(
+            current,
+            queueMgr.activeQueueRef.current,
+            queueMgr.indexRef.current,
+            curMs,
+            isCurrentlyPlaying
+          );
+        })();
       }
     });
 
     return () => unsub();
-  }, [audioEngine]);
+  }, []);
 
   const changeAudioEngine = async (newEngine: AudioEngineType) => {
-    if (newEngine === audioEngine) return;
+    if (newEngine === audioEngineRef.current) return;
     const wasPlaying = isPlayingRef.current;
     const current = queueMgr.currentSongRef.current;
 
     let curPositionMs = 0;
     if (iosEq.isIOSEQActiveRef.current) {
       curPositionMs = iosEq.getPositionIOS() * 1000;
-    } else if (audioEngine === 'rntp') {
+    } else if (audioEngineRef.current === 'rntp') {
       try {
         curPositionMs = (await TrackPlayer.getPosition()) * 1000;
       } catch (e) {}
@@ -469,6 +568,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     }
 
     setAudioEngine(newEngine);
+    audioEngineRef.current = newEngine;
     await AsyncStorage.setItem('audioEngine', newEngine);
 
     if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
@@ -477,14 +577,14 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     }
 
     if (current && queueMgr.activeQueueRef.current.length > 0) {
-      if (audioEngine === 'rntp') {
+      if (audioEngineRef.current === 'rntp') {
         await rntp.clearRNTPNotification();
       } else {
         expoAudio.clearExpoResources();
       }
 
       setTimeout(() => {
-        loadAndPlayInternal(
+        loadAndPlayInternalRef.current(
           current,
           queueMgr.activeQueueRef.current,
           queueMgr.indexRef.current,
@@ -518,7 +618,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       queueMgr.loopRef.current = initialLoop;
     }
 
-    // ★ 再生元コンテキストを State と Ref の両方に反映
     if (context !== undefined) {
       currentContextRef.current = context;
       setCurrentContext(context);
@@ -578,7 +677,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const targetIndex = newActiveQueue.findIndex((s) => s.localMusicUri === current.localMusicUri);
     queueMgr.updateQueueIndexes(targetIndex, newActiveQueue);
 
-    if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
+    if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
       try {
         const queue = await TrackPlayer.getQueue();
         const activeIndex = await TrackPlayer.getActiveTrackIndex();
@@ -607,7 +706,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     queueMgr.setLoopMode(nextLoop);
     queueMgr.loopRef.current = nextLoop;
 
-    if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
+    if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
       if (nextLoop === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
       else if (nextLoop === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
       else await TrackPlayer.setRepeatMode(RepeatMode.Off);
@@ -637,7 +736,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
     const nextIdx = idx + 1;
     if (nextIdx < activeQueue.length) {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
+      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
         if (!fromRemote) {
           await TrackPlayer.skipToNext();
         }
@@ -683,7 +782,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       return;
     }
 
-    if (audioEngine === 'rntp') {
+    if (audioEngineRef.current === 'rntp') {
       const currentPos = await TrackPlayer.getPosition();
       if (currentPos > 3) {
         await TrackPlayer.seekTo(0);
@@ -730,7 +829,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       return;
     }
 
-    if (audioEngine === 'rntp') {
+    if (audioEngineRef.current === 'rntp') {
       const state = await TrackPlayer.getState();
       const playing = isStatePlaying(state);
       if (playing) {
@@ -767,7 +866,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const setPositionAsync = async (v: number) => {
     if (iosEq.isIOSEQActiveRef.current) {
       iosEq.seekIosEQ(v / 1000);
-    } else if (audioEngine === 'rntp') {
+    } else if (audioEngineRef.current === 'rntp') {
       await TrackPlayer.seekTo(v / 1000);
     } else {
       try {
@@ -801,11 +900,11 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   useEffect(() => {
     if (!Event.PlaybackActiveTrackChanged) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp' && event.track && event.track.originalData) {
+      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp' && event.track && event.track.originalData) {
         const newSong = event.track.originalData;
         queueMgr.setCurrentSong(newSong);
         queueMgr.currentSongRef.current = newSong;
-        void applySoundCheckForSong(newSong);
+        void applySoundCheckForSongRef.current(newSong);
 
         const activeQueue = queueMgr.activeQueueRef.current;
         const idx = activeQueue.findIndex((s) => s.localMusicUri === newSong.localMusicUri);
@@ -816,7 +915,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
           if (queueMgr.shuffleRef.current && queueMgr.originalQueueRef.current.length > 0) {
             const nextShuffled = [...queueMgr.originalQueueRef.current].sort(() => Math.random() - 0.5);
             queueMgr.activeQueueRef.current = nextShuffled;
-            loadAndPlayInternal(nextShuffled[0], nextShuffled, 0, 0, true);
+            loadAndPlayInternalRef.current(nextShuffled[0], nextShuffled, 0, 0, true);
             return;
           }
         }
@@ -839,13 +938,13 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
     if (!Event.PlaybackQueueEnded) return;
     const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp' && queueMgr.loopRef.current === 'ALL') {
+      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp' && queueMgr.loopRef.current === 'ALL') {
         const queueToUse = queueMgr.shuffleRef.current 
           ? [...queueMgr.originalQueueRef.current].sort(() => Math.random() - 0.5)
           : [...queueMgr.originalQueueRef.current];
         if (queueToUse.length > 0) {
           queueMgr.activeQueueRef.current = queueToUse;
-          loadAndPlayInternal(queueToUse[0], queueToUse, 0, 0, true);
+          loadAndPlayInternalRef.current(queueToUse[0], queueToUse, 0, 0, true);
         }
       }
     });
@@ -854,7 +953,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       sub.remove();
       queueEndedSub.remove();
     };
-  }, [audioEngine]);
+  }, []);
 
   const stopPlayback = async () => {
     try {
@@ -903,6 +1002,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     slideAnim, 
     queueTransitionAnim, 
     closeFullPlayer,
-    currentContext, // ★ 公開
+    currentContext,
   };
 };

@@ -15,7 +15,8 @@ import {
   applyEqualizerSettings, 
   initEqualizer, 
   setEqualizerEnabled, 
-  setEqualizerBands
+  setEqualizerBands,
+  getEqualizerDebugInfo
 } from '../../utils/equalizer';
 
 const STORAGE_EQ_KEY = 'chordia_equalizer_settings';
@@ -100,7 +101,11 @@ export const InfoEqualizerView = ({
     (async () => {
       try {
         isProgrammaticChangeRef.current = true;
-        initEqualizer(0);
+        // 既に ExoPlayer 等の有効セッションに接続済みの場合は再初期化して破壊しない
+        const info = getEqualizerDebugInfo();
+        if (!info.isNativeConnected) {
+          await initEqualizer(0);
+        }
 
         const savedSettings = await AsyncStorage.getItem(STORAGE_EQ_KEY);
         if (savedSettings) {
@@ -115,9 +120,11 @@ export const InfoEqualizerView = ({
           if (parsed.activePresetId !== undefined) setActivePresetId(parsed.activePresetId);
           setSliderVersion(prev => prev + 1);
 
-          // ★ 画面表示時の初期化では、プレイヤーへの通知を発火させずネイティブ値のみセット
-          setEqualizerEnabled(loadedEnabled);
-          setEqualizerBands(loadedBands.map((b: EqualizerBand) => b.gain), loadedPreamp);
+          applyEqualizerSettings({
+            enabled: loadedEnabled,
+            preamp: loadedPreamp,
+            gains: loadedBands.map((b: EqualizerBand) => b.gain),
+          });
         }
 
         const savedPresets = await AsyncStorage.getItem(STORAGE_CUSTOM_PRESETS_KEY);
@@ -144,7 +151,6 @@ export const InfoEqualizerView = ({
         activePresetId: newActivePresetId 
       }));
 
-      // ★ ユーザーが実際に操作した時のみプレイヤーへ通知
       applyEqualizerSettings({
         enabled: newEnabled,
         preamp: newPreamp,
@@ -455,7 +461,7 @@ export const InfoEqualizerView = ({
 
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginBottom: 16 }} />
 
-          {/* (B) プリセット一覧 (10個) */}
+          {/* (B) プリセット一覧 */}
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <Ionicons name="musical-notes-outline" size={16} color={themeColor} />

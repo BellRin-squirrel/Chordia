@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   FlatList,
   ScrollView,
 } from 'react-native';
-import type { ViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
@@ -98,102 +97,58 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   const [selectedPlaylistsForAdd, setSelectedPlaylistsForAdd] = useState<Set<string>>(new Set());
   const [confirmingSmartConvert, setConfirmingSmartConvert] = useState(false);
 
-  const sheetAnim = useRef(new Animated.Value(0)).current;
-  const songHeaderRef = useRef<ViewInstance>(null);
-  const headerTranslateX = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(0)).current;
-  const headerScaleX = useRef(new Animated.Value(1)).current;
-  const headerScaleY = useRef(new Animated.Value(1)).current;
-  const headerTransitionAnim = useRef(new Animated.Value(1)).current;
-  const headerTransitionPending = useRef(false);
-
+  const isPad = Platform.OS === 'ios' && Platform.isPad;
   const menuTopOffset = isLandscape 
-    ? Math.max(insets?.top || 0, 20) + 16 
-    : Math.max((insets?.top || 0) + 75, height * 0.16);
+    ? Math.max(insets?.top || 0, 20) + (isPad ? 28 : 16)
+    : Math.max((insets?.top || 0) + (isPad ? 95 : 75), height * 0.16);
+
+  const morphProgress = useRef(new Animated.Value(0)).current;
+  const isClosingRef = useRef(false);
+
+  const targetCardWidth = isLandscape ? Math.min(900, width - 24) : width - 24;
+  const targetCardHeight = 68;
+
+  const targetCenterX = width / 2;
+  const targetCenterY = menuTopOffset + targetCardHeight / 2;
+
+  const originCenterX = (origin?.x ?? (width / 2 - targetCardWidth / 2)) + (origin?.width ?? targetCardWidth) / 2;
+  const originCenterY = (origin?.y ?? (height - 120)) + (origin?.height ?? targetCardHeight) / 2;
+
+  const startTranslateX = originCenterX - targetCenterX;
+  const startTranslateY = originCenterY - targetCenterY;
+  const startScaleX = (origin?.width ?? targetCardWidth) / targetCardWidth;
+  const startScaleY = (origin?.height ?? targetCardHeight) / targetCardHeight;
 
   useEffect(() => {
     if (visible) {
-      headerTransitionPending.current = !!origin;
-      headerTranslateX.setValue(0);
-      headerTranslateY.setValue(0);
-      headerScaleX.setValue(1);
-      headerScaleY.setValue(1);
-      headerTransitionAnim.setValue(origin ? 0 : 1);
-      sheetAnim.setValue(0);
-      Animated.timing(sheetAnim, {
+      isClosingRef.current = false;
+      morphProgress.setValue(0);
+      Animated.timing(morphProgress, {
         toValue: 1,
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
+        duration: 250,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
         useNativeDriver: true,
       }).start();
     }
-  }, [visible, origin, headerTranslateX, headerTranslateY, headerScaleX, headerScaleY, headerTransitionAnim, sheetAnim]);
-
-  const animateSongHeaderIntoMenu = useCallback(() => {
-    const header = songHeaderRef.current;
-    if (!headerTransitionPending.current || !origin || !header) return;
-    headerTransitionPending.current = false;
-    header.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-      headerTranslateX.setValue(origin.x + origin.width / 2 - x - measuredWidth / 2);
-      headerTranslateY.setValue(origin.y + origin.height / 2 - y - measuredHeight / 2);
-      headerScaleX.setValue(origin.width / Math.max(measuredWidth, 1));
-      headerScaleY.setValue(origin.height / Math.max(measuredHeight, 1));
-      Animated.parallel([
-        Animated.timing(headerTranslateX, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTranslateY, { toValue: 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleX, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerScaleY, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(headerTransitionAnim, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start();
-    });
-  }, [origin, headerTranslateX, headerTranslateY, headerScaleX, headerScaleY, headerTransitionAnim]);
-
-  useEffect(() => {
-    if (!visible || !origin) return;
-    const frame = requestAnimationFrame(animateSongHeaderIntoMenu);
-    return () => cancelAnimationFrame(frame);
-  }, [visible, origin, animateSongHeaderIntoMenu]);
+  }, [visible]);
 
   const closeWithAnim = (callback?: () => void) => {
-    // 閉じる時にプレビューカードが元のミニプレイヤーの位置へ戻る逆アニメーション
-    const header = songHeaderRef.current;
-    if (origin && header) {
-      header.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-        const destX = origin.x + origin.width / 2 - x - measuredWidth / 2;
-        const destY = origin.y + origin.height / 2 - y - measuredHeight / 2;
-        const destScaleX = origin.width / Math.max(measuredWidth, 1);
-        const destScaleY = origin.height / Math.max(measuredHeight, 1);
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
 
-        Animated.parallel([
-          Animated.timing(sheetAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-          Animated.timing(headerTranslateX, { toValue: destX, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(headerTranslateY, { toValue: destY, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(headerScaleX, { toValue: destScaleX, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(headerScaleY, { toValue: destScaleY, duration: 180, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-          Animated.timing(headerTransitionAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-        ]).start(() => {
-          setMode('MENU');
-          setIsNavExpanded(true);
-          setSelectedPlaylistsForAdd(new Set());
-          setConfirmingSmartConvert(false);
-          onClose();
-          if (callback) callback();
-        });
-      });
-    } else {
-      Animated.timing(sheetAnim, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }).start(() => {
-        setMode('MENU');
-        setIsNavExpanded(true);
-        setSelectedPlaylistsForAdd(new Set());
-        setConfirmingSmartConvert(false);
-        onClose();
-        if (callback) callback();
-      });
-    }
+    Animated.timing(morphProgress, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setMode('MENU');
+      setIsNavExpanded(true);
+      setSelectedPlaylistsForAdd(new Set());
+      setConfirmingSmartConvert(false);
+      onClose();
+      if (callback) callback();
+    });
   };
 
   if (!visible || !currentSong) return null;
@@ -231,6 +186,38 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
     closeWithAnim();
   };
 
+  const headerTransform = [
+    {
+      translateX: morphProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startTranslateX, 0],
+      }),
+    },
+    {
+      translateY: morphProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startTranslateY, 0],
+      }),
+    },
+    {
+      scaleX: morphProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startScaleX, 1],
+      }),
+    },
+    {
+      scaleY: morphProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [startScaleY, 1],
+      }),
+    },
+  ];
+
+  const menuOpacity = morphProgress.interpolate({
+    inputRange: [0, 0.4, 1],
+    outputRange: [0, 0.2, 1],
+  });
+
   return (
     <Modal visible={visible} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <TouchableWithoutFeedback onPress={() => closeWithAnim()}>
@@ -238,7 +225,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
           style={{
             flex: 1,
             backgroundColor: 'rgba(0,0,0,0.6)',
-            opacity: sheetAnim,
+            opacity: morphProgress,
             justifyContent: mode === 'MENU' ? 'flex-start' : 'flex-end',
             paddingHorizontal: 12,
             paddingTop: mode === 'MENU' ? menuTopOffset : Math.max(insets?.top || 0, 20) + 10,
@@ -246,21 +233,13 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
           }}
         >
           <TouchableWithoutFeedback>
-            <Animated.View
+            <View
               style={{
-                width: mode === 'MENU' && isLandscape ? Math.min(900, width - 24) : (mode === 'MENU' ? undefined : '100%'),
+                width: mode === 'MENU' ? targetCardWidth : undefined,
                 maxWidth: width - 24,
                 alignSelf: 'center',
                 gap: mode === 'MENU' ? 8 : 10,
                 maxHeight: '90%',
-                transform: [
-                  {
-                    translateY: sheetAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [20, 0],
-                    }),
-                  },
-                ],
               }}
             >
               {mode === 'MENU' ? (
@@ -282,17 +261,10 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         style={StyleSheet.absoluteFill}
                       />
                     )}
+                    {/* プレビューカード（ミニプレイヤーの位置・形状から拡大移動し、閉じる時は戻る） */}
                     <Animated.View
-                      ref={songHeaderRef}
-                      onLayout={animateSongHeaderIntoMenu}
                       style={{
-                        transform: [
-                          { translateX: headerTranslateX },
-                          { translateY: headerTranslateY },
-                          { scaleX: headerScaleX },
-                          { scaleY: headerScaleY },
-                        ],
-                        opacity: headerTransitionAnim,
+                        transform: headerTransform,
                       }}
                     >
                       <View
@@ -300,6 +272,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                           flexDirection: 'row',
                           alignItems: 'center',
                           padding: 12,
+                          height: targetCardHeight,
                           borderBottomWidth: 1,
                           borderBottomColor: dynamicStyles.border,
                         }}
@@ -319,151 +292,154 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                       </View>
                     </Animated.View>
 
-                    <ScrollView
-                      bounces={false}
-                      style={{ flexGrow: 0 }}
-                      contentContainerStyle={[
-                        { paddingBottom: 0 },
-                        isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
-                      ]}
-                      showsVerticalScrollIndicator={false}
-                    >
-                      <LiquidGlassMenuOption
-                        isDark={isDark}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          padding: 12,
-                          gap: 10,
-                          width: isLandscape ? `${50}%` : undefined,
-                          borderBottomWidth: 1,
-                          borderBottomColor: dynamicStyles.border,
-                        }}
-                        onPress={() => setMode('ADD_TO_PLAYLIST')}
+                    {/* 下部メニュー一覧（フェード連動） */}
+                    <Animated.View style={{ opacity: menuOpacity }}>
+                      <ScrollView
+                        bounces={false}
+                        style={{ flexGrow: 0 }}
+                        contentContainerStyle={[
+                          { paddingBottom: 0 },
+                          isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
+                        ]}
+                        showsVerticalScrollIndicator={false}
                       >
-                        <Ionicons name="add-circle-outline" size={22} color={themeColor} />
-                        <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>
-                          {t('add_to_playlist', language)}
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
-                      </LiquidGlassMenuOption>
-
-                      <LiquidGlassMenuOption
-                        isDark={isDark}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: 12,
-                          width: isLandscape ? `${50}%` : undefined,
-                          borderBottomWidth: 1,
-                          borderBottomColor: dynamicStyles.border,
-                        }}
-                        onPress={() => setIsNavExpanded((prev) => !prev)}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <Ionicons name="arrow-redo-outline" size={22} color={themeColor} />
-                          <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>
-                            {t('menu_navigate', language)}
-                          </Text>
-                        </View>
-                        <Ionicons name={isNavExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
-                      </LiquidGlassMenuOption>
-
-                      {isNavExpanded && (
-                        <View
+                        <LiquidGlassMenuOption
+                          isDark={isDark}
                           style={{
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            padding: 12,
+                            gap: 10,
+                            width: isLandscape ? `${50}%` : undefined,
                             borderBottomWidth: 1,
                             borderBottomColor: dynamicStyles.border,
-                            width: isLandscape ? '100%' : undefined,
-                            flexDirection: isLandscape ? 'row' : undefined,
-                            flexWrap: isLandscape ? 'wrap' : undefined,
                           }}
+                          onPress={() => setMode('ADD_TO_PLAYLIST')}
                         >
-                          <LiquidGlassMenuOption
-                            isDark={isDark}
+                          <Ionicons name="add-circle-outline" size={22} color={themeColor} />
+                          <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>
+                            {t('add_to_playlist', language)}
+                          </Text>
+                          <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+                        </LiquidGlassMenuOption>
+
+                        <LiquidGlassMenuOption
+                          isDark={isDark}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: 12,
+                            width: isLandscape ? `${50}%` : undefined,
+                            borderBottomWidth: 1,
+                            borderBottomColor: dynamicStyles.border,
+                          }}
+                          onPress={() => setIsNavExpanded((prev) => !prev)}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Ionicons name="arrow-redo-outline" size={22} color={themeColor} />
+                            <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: '600' }}>
+                              {t('menu_navigate', language)}
+                            </Text>
+                          </View>
+                          <Ionicons name={isNavExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={dynamicStyles.subText} />
+                        </LiquidGlassMenuOption>
+
+                        {isNavExpanded && (
+                          <View
                             style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingVertical: 10,
-                              paddingHorizontal: 12,
-                              paddingLeft: 24,
-                              gap: 10,
-                              width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                               borderBottomWidth: 1,
                               borderBottomColor: dynamicStyles.border,
+                              width: isLandscape ? '100%' : undefined,
+                              flexDirection: isLandscape ? 'row' : undefined,
+                              flexWrap: isLandscape ? 'wrap' : undefined,
                             }}
-                            onPress={() => closeWithAnim(onNavigateToPlaylist)}
                           >
-                            <Ionicons name="musical-notes-outline" size={20} color={themeColor} />
-                            <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
-                              {t('navigate_to_playlist', language)}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
-                          </LiquidGlassMenuOption>
+                            <LiquidGlassMenuOption
+                              isDark={isDark}
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                paddingLeft: 24,
+                                gap: 10,
+                                width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
+                                borderBottomWidth: 1,
+                                borderBottomColor: dynamicStyles.border,
+                              }}
+                              onPress={() => closeWithAnim(onNavigateToPlaylist)}
+                            >
+                              <Ionicons name="musical-notes-outline" size={20} color={themeColor} />
+                              <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
+                                {t('navigate_to_playlist', language)}
+                              </Text>
+                              <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+                            </LiquidGlassMenuOption>
 
-                          <LiquidGlassMenuOption
-                            isDark={isDark}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingVertical: 10,
-                              paddingHorizontal: 12,
-                              paddingLeft: 24,
-                              gap: 10,
-                              width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
-                              borderBottomWidth: 1,
-                              borderBottomColor: dynamicStyles.border,
-                            }}
-                            onPress={() => closeWithAnim(onNavigateToAlbum)}
-                          >
-                            <Ionicons name="disc-outline" size={20} color={themeColor} />
-                            <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
-                              {t('navigate_to_album', language)}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
-                          </LiquidGlassMenuOption>
+                            <LiquidGlassMenuOption
+                              isDark={isDark}
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                paddingLeft: 24,
+                                gap: 10,
+                                width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
+                                borderBottomWidth: 1,
+                                borderBottomColor: dynamicStyles.border,
+                              }}
+                              onPress={() => closeWithAnim(onNavigateToAlbum)}
+                            >
+                              <Ionicons name="disc-outline" size={20} color={themeColor} />
+                              <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
+                                {t('navigate_to_album', language)}
+                              </Text>
+                              <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+                            </LiquidGlassMenuOption>
 
-                          <LiquidGlassMenuOption
-                            isDark={isDark}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingVertical: 10,
-                              paddingHorizontal: 12,
-                              paddingLeft: 24,
-                              gap: 10,
-                              width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
-                            }}
-                            onPress={() => closeWithAnim(onNavigateToArtist)}
-                          >
-                            <Ionicons name="mic-outline" size={20} color={themeColor} />
-                            <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
-                              {t('navigate_to_artist', language)}
-                            </Text>
-                            <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
-                          </LiquidGlassMenuOption>
-                        </View>
-                      )}
+                            <LiquidGlassMenuOption
+                              isDark={isDark}
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 12,
+                                paddingLeft: 24,
+                                gap: 10,
+                                width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
+                              }}
+                              onPress={() => closeWithAnim(onNavigateToArtist)}
+                            >
+                              <Ionicons name="mic-outline" size={20} color={themeColor} />
+                              <Text style={{ color: dynamicStyles.text, fontSize: 15, fontWeight: '500' }}>
+                                {t('navigate_to_artist', language)}
+                              </Text>
+                              <Ionicons name="chevron-forward" size={16} color={dynamicStyles.subText} />
+                            </LiquidGlassMenuOption>
+                          </View>
+                        )}
 
-                      <LiquidGlassMenuOption
-                        isDark={isDark}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          padding: 12,
-                          gap: 10,
-                          width: isLandscape ? `${50}%` : undefined,
-                        }}
-                        onPress={() => closeWithAnim(onDeleteFromLibrary)}
-                      >
-                        <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                        <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
-                          {t('delete_from_library_menu', language)}
-                        </Text>
-                      </LiquidGlassMenuOption>
-                    </ScrollView>
+                        <LiquidGlassMenuOption
+                          isDark={isDark}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            padding: 12,
+                            gap: 10,
+                            width: isLandscape ? `${50}%` : undefined,
+                          }}
+                          onPress={() => closeWithAnim(onDeleteFromLibrary)}
+                        >
+                          <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                          <Text style={{ color: '#ef4444', fontSize: 16, fontWeight: '600' }}>
+                            {t('delete_from_library_menu', language)}
+                          </Text>
+                        </LiquidGlassMenuOption>
+                      </ScrollView>
+                    </Animated.View>
                   </View>
                 </>
               ) : (
@@ -619,7 +595,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                   )}
                 </View>
               )}
-            </Animated.View>
+            </View>
           </TouchableWithoutFeedback>
         </Animated.View>
       </TouchableWithoutFeedback>

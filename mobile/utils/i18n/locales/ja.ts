@@ -520,4 +520,16 @@ export const ja: Record<string, string> = {
 
   most_played_songs: '再生回数が多い曲',
   view_more_ranking: 'ランキングの続きを確認',
+
+  menu_volume_boost: '音量ブースト・微調整',
+  menu_volume_boost_sub: 'アプリ内の音量を端末設定以上に変更',
+  volume_boost_title: '音量ブースト・微調整',
+  volume_boost_desc: '端末の音量設定に影響を与えることなく、Chordiaアプリ内のみで音量を整数倍に増幅、または1/整数倍に減衰します。',
+  volume_boost_current: '現在の倍率',
+  volume_boost_normal_btn: '等倍に戻す (1x)',
+  volume_boost_tab_boost: '整数倍 (ブースト)',
+  volume_boost_tab_attenuate: '1 / 整数倍 (減衰)',
+  volume_boost_times: '倍',
+  volume_boost_notice_title: 'デジタル上限と保護機構について',
+  volume_boost_notice_desc: 'デジタルオーディオには最大出力上限（0 dBFS）が存在し、端末やOSのハードウェア保護リミッター（音割れ・スピーカー破損防止）が働くため、約2〜4倍程度で音量の増加は頭打ちになります。それ以上は音量は大きくならず、音が圧縮されたように感じられます。さらに大きな音量が必要な場合は、端末本体の音量を上げてください。',
 };

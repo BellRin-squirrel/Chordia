@@ -178,6 +178,7 @@ export const InfoSettingsView = ({
 
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
 
+          {/* 一定音量 */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}>
             <View style={{ flex: 1, marginRight: 10 }}>
               <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>{t('sound_check_title', language)}</Text>
@@ -253,7 +254,7 @@ export const InfoSettingsView = ({
 
           <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
 
-          {/* ★ イコライザ設定（設定画面の一番下に追加） */}
+          {/* イコライザ設定 */}
           <TouchableOpacity 
             style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}
             onPress={() => pushView && pushView('EQUALIZER')}
@@ -265,6 +266,25 @@ export const InfoSettingsView = ({
               </Text>
               <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>
                 {t('menu_equalizer_sub', language)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
+          </TouchableOpacity>
+
+          <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginHorizontal: 20 }} />
+
+          {/* 音量ブースト・微調整設定（一番下に追加） */}
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 }}
+            onPress={() => pushView && pushView('VOLUME_BOOST')}
+            activeOpacity={0.6}
+          >
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={{ color: dynamicStyles.text, fontSize: 16, fontWeight: 'bold' }}>
+                {t('menu_volume_boost', language)}
+              </Text>
+              <Text style={{ color: dynamicStyles.subText, fontSize: 12, marginTop: 4 }}>
+                {t('menu_volume_boost_sub', language)}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
@@ -285,7 +305,6 @@ export const InfoSettingsView = ({
                 <Text style={[styles.rgbText, { color: dynamicStyles.text, marginTop: 8, fontSize: 14 }]}>{themeColor}</Text>
               </View>
               <View style={{ flex: isLandscape ? 1 : 0, width: '100%' }}>
-                {/* ★ RGB各行：アルファベットの隣に数字を表示し、タップして直接入力可能 */}
                 {[{ l: 'R', v: themeR, s: setThemeR, c: '#ef4444' }, { l: 'G', v: themeG, s: setThemeG, c: '#10b981' }, { l: 'B', v: themeB, s: setThemeB, c: '#3b82f6' }].map((item, i) => (
                   <View key={i} style={[styles.sliderRow, { marginBottom: isLandscape ? 6 : 10, alignItems: 'center' }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', width: 72, marginRight: 8 }}>

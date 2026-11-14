@@ -8,6 +8,7 @@ public class ChordiaEqualizerModule: Module {
   private var currentPreamp: Float = 0.0
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
   private var soundCheckGain: Float = 0.0
+  private var appVolumeMultiplier: Float = 1.0
   private var engineMode: String = "rntp"
   
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
@@ -79,7 +80,12 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("setSoundCheckGain") { (gainDb: Double) in
-      self.soundCheckGain = Float(max(-12.0, min(12.0, gainDb)))
+      self.soundCheckGain = Float(max(-24.0, min(24.0, gainDb)))
+      self.updateEqualizerHardware()
+    }
+
+    Function("setAppVolumeMultiplier") { (multiplier: Double) in
+      self.appVolumeMultiplier = Float(max(0.01, min(10.0, multiplier)))
       self.updateEqualizerHardware()
     }
 
@@ -171,6 +177,7 @@ public class ChordiaEqualizerModule: Module {
         "isEQEnabled": self.isEQEnabled,
         "preamp": Double(self.currentPreamp),
         "gains": self.currentGains.map { Double($0) },
+        "appVolumeMultiplier": Double(self.appVolumeMultiplier),
         "hasAudioFile": self.currentAudioFile != nil,
         "resolvedPath": self.lastResolvedPath,
         "sampleRate": self.fileSampleRate,
@@ -318,7 +325,7 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func isIOSEQActive() -> Bool {
-    return isEQEnabled && currentAudioFile != nil
+    return (isEQEnabled || soundCheckGain != 0.0 || appVolumeMultiplier != 1.0) && currentAudioFile != nil
   }
 
   private func updateRemoteCommandsState() {
@@ -447,8 +454,14 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func updateEqualizerHardware() {
-    equalizerUnit.bypass = !isEQEnabled && soundCheckGain == 0.0
-    equalizerUnit.globalGain = (isEQEnabled ? currentPreamp : 0.0) + soundCheckGain
+    let attenVolume: Float = appVolumeMultiplier < 1.0 ? appVolumeMultiplier : 1.0
+    playerNode.volume = attenVolume
+
+    let boostGainDb: Float = appVolumeMultiplier > 1.0 ? Float(20.0 * log10(Double(appVolumeMultiplier))) : 0.0
+    let totalGlobalGain = (isEQEnabled ? currentPreamp : 0.0) + soundCheckGain + boostGainDb
+
+    equalizerUnit.bypass = !isEQEnabled && soundCheckGain == 0.0 && boostGainDb == 0.0
+    equalizerUnit.globalGain = max(-96.0, min(24.0, totalGlobalGain))
 
     let maxAllowedFreq = Float(fileSampleRate / 2.0) - 200.0
 

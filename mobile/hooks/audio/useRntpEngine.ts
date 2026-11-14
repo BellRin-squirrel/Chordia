@@ -8,7 +8,8 @@ import TrackPlayer, {
   Event 
 } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initEqualizer, applyEqualizerSettings } from '../../utils/equalizer';
+import { initEqualizer, applyEqualizerSettings, setAppVolumeMultiplierNative } from '../../utils/equalizer';
+import { getAppVolumeSetting } from '../../utils/appVolume';
 import { isStatePlaying } from './types';
 
 let rntpSetupPromise: Promise<void> | null = null;
@@ -54,12 +55,16 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
             const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
             if (eqJson) {
               const parsed = JSON.parse(eqJson);
+              // 無限ループを防ぐため notify = false でネイティブへ直接適用
               applyEqualizerSettings({
                 enabled: !!parsed.isEnabled,
                 preamp: parsed.preamp || 0,
                 gains: Array.isArray(parsed.bands) ? parsed.bands.map((b: any) => b.gain) : [],
-              });
+              }, false);
             }
+
+            const volSetting = await getAppVolumeSetting();
+            setAppVolumeMultiplierNative(volSetting.multiplier);
           }
         }
       } catch (e) {}
@@ -144,15 +149,12 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
     safeAddListener(Event.RemoteTogglePlayPause, () => {
       handlersRef.current?.onTogglePlayPause?.();
     });
-    
-    // ★ ロック画面等のリモートからのスキップ時は fromRemote = true を渡す
     safeAddListener(Event.RemoteNext, () => {
       handlersRef.current?.onNext?.(true);
     });
     safeAddListener(Event.RemotePrevious, () => {
       handlersRef.current?.onPrev?.(true);
     });
-    
     safeAddListener(Event.RemoteSeek, (event) => {
       handlersRef.current?.onSeek?.(event.position);
     });

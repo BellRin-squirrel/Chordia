@@ -520,4 +520,16 @@ export const fr: Record<string, string> = {
 
   most_played_songs: 'Morceaux les plus écoutés',
   view_more_ranking: 'Voir tout le classement',
+
+  menu_volume_boost: 'Amplification et atténuation du volume',
+  menu_volume_boost_sub: 'Régler le volume de l\'app au-delà des limites',
+  volume_boost_title: 'Amplification et atténuation',
+  volume_boost_desc: 'Augmentez le volume par multiples entiers ou atténuez-le par fractions dans Chordia sans modifier le volume de l\'appareil.',
+  volume_boost_current: 'Multiplicateur actuel',
+  volume_boost_normal_btn: 'Rétablir à 1x (Normal)',
+  volume_boost_tab_boost: 'Multiples entiers (Boost)',
+  volume_boost_tab_attenuate: '1 / Entier (Atténuation)',
+  volume_boost_times: 'x',
+  volume_boost_notice_title: 'Limites numériques et protection matérielle',
+  volume_boost_notice_desc: 'En raison des limites numériques (0 dBFS) et des limiteurs de protection matérielle de l\'OS (évitant la distorsion et les dommages aux haut-parleurs), le boost de volume plafonne naturellement vers 2x à 4x. Au-delà, le volume n\'augmente plus. Si vous avez besoin de plus de volume, veuillez augmenter le volume principal de votre appareil.',
 };

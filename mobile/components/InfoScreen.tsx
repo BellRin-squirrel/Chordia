@@ -20,6 +20,7 @@ import { InfoManageDataView } from './info/InfoManageDataView';
 import { InfoEditSongView } from './info/InfoEditSongView';
 import { InfoLicenseView } from './info/InfoLicenseView';
 import { InfoEqualizerView } from './info/InfoEqualizerView';
+import { InfoVolumeBoostView } from './info/InfoVolumeBoostView';
 
 const HISTORY_KEY = 'chordia_focus_history';
 
@@ -388,6 +389,12 @@ export const InfoScreen = ({
             <Animated.View style={[StyleSheet.absoluteFill, layerBorderStyle, { zIndex: 3, backgroundColor: dynamicStyles.bg, transform: [{ translateX: layer3Translate }] }]}>
               {navStack[2] === 'EQUALIZER' && (
                 <InfoEqualizerView 
+                  dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isDark={isDark}
+                  safePadding={safePadding} renderHeader={renderHeader} language={language}
+                />
+              )}
+              {navStack[2] === 'VOLUME_BOOST' && (
+                <InfoVolumeBoostView 
                   dynamicStyles={dynamicStyles} themeColor={themeColor} textColor={textColor} isDark={isDark}
                   safePadding={safePadding} renderHeader={renderHeader} language={language}
                 />
