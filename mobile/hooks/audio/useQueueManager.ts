@@ -25,8 +25,12 @@ export const useQueueManager = () => {
   const rebuildActiveQueue = (forceShuffle: boolean, song: any) => {
     if (!song || originalQueueRef.current.length === 0) return [];
     if (forceShuffle) {
-      const remaining = originalQueueRef.current.filter((s) => s.localMusicUri !== song.localMusicUri);
-      return [song, ...remaining.sort(() => Math.random() - 0.5)];
+      const queueCopy = [...originalQueueRef.current];
+      const songIdx = queueCopy.findIndex((s) => s.localMusicUri === song.localMusicUri);
+      if (songIdx !== -1) {
+        queueCopy.splice(songIdx, 1);
+      }
+      return [song, ...queueCopy.sort(() => Math.random() - 0.5)];
     } else {
       return [...originalQueueRef.current];
     }

@@ -55,7 +55,6 @@ export const useRntpEngine = (handlers?: UseRntpEngineHandlers) => {
             const eqJson = await AsyncStorage.getItem('chordia_equalizer_settings');
             if (eqJson) {
               const parsed = JSON.parse(eqJson);
-              // 無限ループを防ぐため notify = false でネイティブへ直接適用
               applyEqualizerSettings({
                 enabled: !!parsed.isEnabled,
                 preamp: parsed.preamp || 0,

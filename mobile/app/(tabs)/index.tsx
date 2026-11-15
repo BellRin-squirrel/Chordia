@@ -94,6 +94,7 @@ const AppContent = () => {
     toastVisible, toastMessage, toastAnim, showToast,
     navStackLength, setNavStackLength,
     startQueue, handleNext, handlePrev, togglePlayPause, stopPlayback,
+    startFocusQueue, pauseFocusAudio, resumeFocusAudio, setFocusFadeVolume, stopFocusAudio,
     slideAnim, queueTransitionAnim, closeFullPlayer,
     currentContext,
   } = useAudioPlayer(soundCheckEnabled);
@@ -279,7 +280,7 @@ const AppContent = () => {
     activeConflictSet, resolveCurrentConflict
   } = useSync({ 
     closeFullPlayer, 
-    stopAndUnloadPlayer: async () => { await TrackPlayer.stop(); },
+    stopAndUnloadPlayer: async () => { await stopPlayback(); },
     localLibrary, setLocalLibrary, setLocalPlaylists,
     language
   });
@@ -496,7 +497,12 @@ const AppContent = () => {
             localLibrary={localLibrary} 
             localPlaylists={localPlaylists} 
             currentSong={currentSong} 
-            startQueue={startQueue} 
+            startQueue={startQueue}
+            startFocusQueue={startFocusQueue}
+            pauseFocusAudio={pauseFocusAudio}
+            resumeFocusAudio={resumeFocusAudio}
+            setFocusFadeVolume={setFocusFadeVolume}
+            stopFocusAudio={stopFocusAudio}
             stage={focusStage} 
             setStage={setFocusStage} 
             audioEngine={audioEngine} 

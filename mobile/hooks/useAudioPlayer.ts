@@ -13,6 +13,7 @@ import { useQueueManager } from './audio/useQueueManager';
 import { useRntpEngine } from './audio/useRntpEngine';
 import { useExpoAudioEngine } from './audio/useExpoAudioEngine';
 import { useIosEqualizerEngine } from './audio/useIosEqualizerEngine';
+import { useFocusAudioEngine } from './audio/useFocusAudioEngine';
 import { usePlayerSync } from './audio/usePlayerSync';
 import { 
   initEqualizer, 
@@ -20,8 +21,7 @@ import {
   addEqualizerChangeListener, 
   EqualizerApplyPayload,
   setSoundCheckGain,
-  setAppVolumeMultiplierNative,
-  getEqualizerDebugInfo
+  setAppVolumeMultiplierNative
 } from '../utils/equalizer';
 import { gainDbToPlaybackVolume, getSoundCheckGain } from '../utils/soundCheck';
 import { 
@@ -53,6 +53,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const [currentContext, setCurrentContext] = useState<PlayCollectionContext | null>(null);
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
   const isPlayingRef = useRef(false);
+  const needsReloadFromFocusRef = useRef(false);
 
   const soundCheckEnabledRef = useRef(soundCheckEnabled);
   const audioEngineRef = useRef<AudioEngineType>(audioEngine);
@@ -149,6 +150,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const iosEq = useIosEqualizerEngine(
     () => handleNextRef.current(),
     (action: string, param?: any) => {
+      if (focusEngine.isFocusActiveRef.current) return;
       if (action === 'play') {
         setIsPlaying(true);
         sync.sendNowPlayingUpdate();
@@ -167,30 +169,50 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     }
   );
 
+  // service.ts と重複して TrackPlayer.play/pause/seekTo を呼ばない（状態同期のみ行う）
   const rntp = useRntpEngine({
     onPlay: () => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      if (!isPlayingRef.current) togglePlayPauseRef.current();
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      setIsPlaying(true);
+      sync.sendNowPlayingUpdate();
     },
     onPause: () => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      if (isPlayingRef.current) togglePlayPauseRef.current();
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      setIsPlaying(false);
+      sync.sendNowPlayingUpdate();
     },
     onTogglePlayPause: () => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      togglePlayPauseRef.current();
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      sync.sendNowPlayingUpdate();
     },
     onNext: (fromRemote: boolean) => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      handleNextRef.current(fromRemote);
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      const activeQueue = queueMgr.activeQueueRef.current;
+      const idx = queueMgr.indexRef.current;
+      if (idx + 1 >= activeQueue.length) {
+        handleNextRef.current(fromRemote);
+      }
     },
     onPrev: (fromRemote: boolean) => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      handlePrevRef.current(fromRemote);
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      if (queueMgr.indexRef.current <= 0 && queueMgr.loopRef.current === 'ALL') {
+        void (async () => {
+          try {
+            const pos = await TrackPlayer.getPosition();
+            if (pos <= 3) {
+              const activeQueue = queueMgr.activeQueueRef.current;
+              if (activeQueue.length > 0) {
+                const lastIdx = activeQueue.length - 1;
+                loadAndPlayInternalRef.current(activeQueue[lastIdx], activeQueue, lastIdx, 0, true);
+              }
+            }
+          } catch (e) {}
+        })();
+      }
     },
     onSeek: (seconds) => {
-      if (iosEq.isIOSEQActiveRef.current) return;
-      setPositionAsyncRef.current(seconds * 1000);
+      if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
+      sync.sendNowPlayingUpdate(Math.floor(seconds));
     },
   });
 
@@ -212,6 +234,22 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         return Math.floor(rntp.rntpProgress.position);
       }
       return Math.floor((expoAudio.playbackStatusExpo.positionMillis || 0) / 1000);
+    },
+  });
+
+  const focusEngine = useFocusAudioEngine({
+    soundCheckEnabledRef,
+    appVolumeSettingRef,
+    isEQEnabledRef,
+    onTrackChange: (song, index, queue) => {
+      queueMgr.setCurrentSong(song);
+      queueMgr.currentSongRef.current = song;
+      queueMgr.activeQueueRef.current = queue;
+      queueMgr.updateQueueIndexes(index, queue);
+      sync.saveHistory(song);
+    },
+    onPlayStateChange: (playing) => {
+      setIsPlaying(playing);
     },
   });
 
@@ -266,6 +304,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     return () => {
       expoAudio.clearExpoResources();
       iosEq.clearIOSEQPolling();
+      void focusEngine.stopFocusAudio();
     };
   }, []);
 
@@ -278,7 +317,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       } : expoAudio.playbackStatusExpo);
 
   useEffect(() => {
-    if (!iosEq.isIOSEQActiveRef.current && audioEngine === 'rntp') {
+    if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngine === 'rntp') {
       setIsPlaying(rntp.isRNTPPlaying);
     }
   }, [rntp.isRNTPPlaying, audioEngine]);
@@ -286,7 +325,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   useEffect(() => {
     if (!Event.PlaybackState) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
+      if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp') {
         setIsPlaying(isStatePlaying(event));
       }
     });
@@ -301,6 +340,11 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     shouldPlay: boolean = true,
     targetEngine?: AudioEngineType
   ) => {
+    if (focusEngine.isFocusActiveRef.current) {
+      await focusEngine.stopFocusAudio();
+    }
+    needsReloadFromFocusRef.current = false;
+
     const targetSeconds = startPositionMs > 0 ? startPositionMs / 1000 : 0;
     const engineToUse = targetEngine || audioEngineRef.current;
 
@@ -326,7 +370,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       await rntp.clearRNTPNotification();
 
       iosEq.setEngineMode(engineToUse);
-      // 再生前にネイティブ側へ最新のイコライザー設定を同期
       applyEqualizerSettings({
         enabled: isEQEnabled,
         preamp: savedPreamp,
@@ -369,11 +412,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       if (engineToUse === 'rntp') {
         await rntp.ensureRNTPInitialized();
         expoAudio.clearExpoResources();
-        await rntp.restoreRNTPNotification();
         await TrackPlayer.reset();
 
-        const tracks = activeQueue.map((s) => ({
-          id: s.localMusicUri,
+        const tracks = activeQueue.map((s, idx) => ({
+          id: `${s.localMusicUri}_${idx}`,
           url: s.localMusicUri,
           title: s.title || 'Unknown',
           artist: s.artist || 'Unknown',
@@ -381,7 +423,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
           originalData: s,
         }));
         await TrackPlayer.add(tracks);
-        await TrackPlayer.skip(startIndex);
+        if (startIndex > 0 && startIndex < tracks.length) {
+          await TrackPlayer.skip(startIndex);
+        }
+        await rntp.restoreRNTPNotification();
 
         if (queueMgr.loopRef.current === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
         else if (queueMgr.loopRef.current === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
@@ -456,10 +501,14 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const loadAndPlayInternalRef = useRef(loadAndPlayInternal);
   loadAndPlayInternalRef.current = loadAndPlayInternal;
 
-  // アプリ内音量倍率変更のリアルタイムリスナー
   useEffect(() => {
     const unsub = addAppVolumeChangeListener((newSetting) => {
       appVolumeSettingRef.current = newSetting;
+
+      if (focusEngine.isFocusActiveRef.current) {
+        setAppVolumeMultiplierNative(newSetting.multiplier);
+        return;
+      }
 
       const cur = queueMgr.currentSongRef.current;
       if (!cur) return;
@@ -487,6 +536,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   }, []);
 
   useEffect(() => {
+    if (focusEngine.isFocusActiveRef.current) return;
     const current = queueMgr.currentSongRef.current;
     if (!current || !isPlayingRef.current) return;
     const hasVolumeSetting = appVolumeSettingRef.current.multiplier !== 1.0;
@@ -508,6 +558,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const unsub = addEqualizerChangeListener((payload: EqualizerApplyPayload) => {
       isEQEnabledRef.current = payload.enabled;
 
+      if (focusEngine.isFocusActiveRef.current) return;
+
       const current = queueMgr.currentSongRef.current;
       if (!current) return;
 
@@ -522,7 +574,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         const needsEngineSwitch = (shouldBeIOSEQ !== iosEq.isIOSEQActiveRef.current);
 
         if (!needsEngineSwitch) {
-          // 既に iosEq で再生中の場合、エンジン切り替えは不要でネイティブの updateEqualizerHardware に即反映される
           void applySoundCheckForSongRef.current(current);
           return;
         }
@@ -571,6 +622,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     audioEngineRef.current = newEngine;
     await AsyncStorage.setItem('audioEngine', newEngine);
 
+    if (focusEngine.isFocusActiveRef.current) {
+      return;
+    }
+
     if (Platform.OS === 'ios' && iosEq.isIOSEQActiveRef.current) {
       iosEq.setEngineMode(newEngine);
       return;
@@ -596,6 +651,35 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     }
   };
 
+  const startFocusQueue = async (
+    songs: any[],
+    shuffle: boolean = false,
+    loopMode: LoopModeType = 'ALL'
+  ) => {
+    if (!songs || songs.length === 0) return;
+
+    iosEq.isIOSEQActiveRef.current = false;
+    iosEq.clearIOSEQPolling();
+    expoAudio.clearExpoResources();
+    await rntp.clearRNTPNotification();
+
+    currentContextRef.current = null;
+    setCurrentContext(null);
+    queueMgr.originalQueueRef.current = [...songs];
+    queueMgr.setIsShuffle(shuffle);
+    queueMgr.shuffleRef.current = shuffle;
+    queueMgr.setLoopMode(loopMode);
+    queueMgr.loopRef.current = loopMode;
+    needsReloadFromFocusRef.current = true;
+
+    await focusEngine.startFocusQueue(songs, shuffle, loopMode);
+  };
+
+  const stopFocusAudio = async () => {
+    await focusEngine.stopFocusAudio();
+    needsReloadFromFocusRef.current = !!queueMgr.currentSongRef.current;
+  };
+
   const startQueue = (
     songs: any[],
     selectedSong?: any | null,
@@ -607,6 +691,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   ) => {
     if (songs.length === 0 && (!customQueue || customQueue.length === 0)) return;
 
+    needsReloadFromFocusRef.current = false;
     queueMgr.originalQueueRef.current = songs.length > 0 ? [...songs] : (customQueue ? [...customQueue] : []);
 
     const newShuffle = forceShuffle !== undefined ? forceShuffle : queueMgr.isShuffle;
@@ -645,7 +730,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         }
       }
     } else {
-      let firstSong = selectedSong;
+      let firstSong = selectedSong || null;
       if (!firstSong) {
         if (newShuffle) {
           const shuffled = [...songs].sort(() => Math.random() - 0.5);
@@ -656,6 +741,9 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       }
       newActiveQueue = queueMgr.rebuildActiveQueue(newShuffle, firstSong);
       targetIndex = newActiveQueue.findIndex((s) => s.localMusicUri === firstSong.localMusicUri);
+      if (targetIndex === -1) {
+        targetIndex = 0;
+      }
     }
 
     queueMgr.activeQueueRef.current = newActiveQueue;
@@ -677,19 +765,19 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const targetIndex = newActiveQueue.findIndex((s) => s.localMusicUri === current.localMusicUri);
     queueMgr.updateQueueIndexes(targetIndex, newActiveQueue);
 
-    if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
+    if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp') {
       try {
         const queue = await TrackPlayer.getQueue();
         const activeIndex = await TrackPlayer.getActiveTrackIndex();
         if (activeIndex !== undefined && activeIndex !== null) {
           const indicesToRemove = queue.map((_, i) => i).filter((i) => i !== activeIndex);
           if (indicesToRemove.length > 0) await TrackPlayer.remove(indicesToRemove);
-          const tracksBefore = newActiveQueue.slice(0, targetIndex).map((s) => ({
-            id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
+          const tracksBefore = newActiveQueue.slice(0, targetIndex).map((s, idx) => ({
+            id: `${s.localMusicUri}_before_${idx}`, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
             artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s,
           }));
-          const tracksAfter = newActiveQueue.slice(targetIndex + 1).map((s) => ({
-            id: s.localMusicUri, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
+          const tracksAfter = newActiveQueue.slice(targetIndex + 1).map((s, idx) => ({
+            id: `${s.localMusicUri}_after_${idx}`, url: s.localMusicUri, title: s.title || 'Unknown', artist: s.artist || 'Unknown',
             artwork: s.localImageUri || require('../assets/images/icon.png'), originalData: s,
           }));
           if (tracksBefore.length > 0) await TrackPlayer.add(tracksBefore, 0);
@@ -706,11 +794,11 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     queueMgr.setLoopMode(nextLoop);
     queueMgr.loopRef.current = nextLoop;
 
-    if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp') {
+    if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp') {
       if (nextLoop === 'ONE') await TrackPlayer.setRepeatMode(RepeatMode.Track);
       else if (nextLoop === 'ALL') await TrackPlayer.setRepeatMode(RepeatMode.Queue);
       else await TrackPlayer.setRepeatMode(RepeatMode.Off);
-    } else if (!iosEq.isIOSEQActiveRef.current) {
+    } else if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current) {
       if (expoAudio.expoAudioPlayerRef.current) {
         expoAudio.expoAudioPlayerRef.current.loop = nextLoop === 'ONE';
         expoAudio.expoAudioPlayerRef.current.isLooping = nextLoop === 'ONE';
@@ -723,6 +811,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const now = Date.now();
     if (now - lastSkipTimeRef.current < 400) return;
     lastSkipTimeRef.current = now;
+
+    if (needsReloadFromFocusRef.current && queueMgr.currentSongRef.current) {
+      needsReloadFromFocusRef.current = false;
+    }
 
     const activeQueue = queueMgr.activeQueueRef.current;
     const currentSong = queueMgr.currentSongRef.current;
@@ -817,6 +909,18 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const handlePrev = () => handlePrevInternal(false);
 
   const togglePlayPauseInternal = async () => {
+    if (needsReloadFromFocusRef.current && queueMgr.currentSongRef.current && !focusEngine.isFocusActiveRef.current) {
+      needsReloadFromFocusRef.current = false;
+      loadAndPlayInternal(
+        queueMgr.currentSongRef.current,
+        queueMgr.activeQueueRef.current,
+        queueMgr.indexRef.current,
+        0,
+        true
+      );
+      return;
+    }
+
     if (iosEq.isIOSEQActiveRef.current) {
       if (isPlayingRef.current) {
         iosEq.pauseIosEQ();
@@ -900,14 +1004,16 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   useEffect(() => {
     if (!Event.PlaybackActiveTrackChanged) return;
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp' && event.track && event.track.originalData) {
+      if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp' && event.track && event.track.originalData) {
         const newSong = event.track.originalData;
         queueMgr.setCurrentSong(newSong);
         queueMgr.currentSongRef.current = newSong;
         void applySoundCheckForSongRef.current(newSong);
 
         const activeQueue = queueMgr.activeQueueRef.current;
-        const idx = activeQueue.findIndex((s) => s.localMusicUri === newSong.localMusicUri);
+        let idx = typeof event.index === 'number' && event.index >= 0 && event.index < activeQueue.length
+          ? event.index
+          : activeQueue.findIndex((s) => s.localMusicUri === newSong.localMusicUri);
 
         const prevIdx = queueMgr.indexRef.current;
         const lastIdx = activeQueue.length - 1;
@@ -938,7 +1044,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
     if (!Event.PlaybackQueueEnded) return;
     const queueEndedSub = TrackPlayer.addEventListener(Event.PlaybackQueueEnded, async () => {
-      if (!iosEq.isIOSEQActiveRef.current && audioEngineRef.current === 'rntp' && queueMgr.loopRef.current === 'ALL') {
+      if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp' && queueMgr.loopRef.current === 'ALL') {
         const queueToUse = queueMgr.shuffleRef.current 
           ? [...queueMgr.originalQueueRef.current].sort(() => Math.random() - 0.5)
           : [...queueMgr.originalQueueRef.current];
@@ -957,6 +1063,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
   const stopPlayback = async () => {
     try {
+      await focusEngine.stopFocusAudio();
+      needsReloadFromFocusRef.current = false;
       iosEq.isIOSEQActiveRef.current = false;
       iosEq.stopIosEQ();
       await TrackPlayer.stop();
@@ -999,6 +1107,11 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     handlePrev, 
     togglePlayPause, 
     stopPlayback,
+    startFocusQueue,
+    pauseFocusAudio: focusEngine.pauseFocusAudio,
+    resumeFocusAudio: focusEngine.resumeFocusAudio,
+    setFocusFadeVolume: focusEngine.setFocusFadeVolume,
+    stopFocusAudio,
     slideAnim, 
     queueTransitionAnim, 
     closeFullPlayer,

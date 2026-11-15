@@ -9,27 +9,43 @@ public class ChordiaEqualizerModule: Module {
   private var currentGains: [Float] = Array(repeating: 0.0, count: 10)
   private var soundCheckGain: Float = 0.0
   private var appVolumeMultiplier: Float = 1.0
+  private var fadeVolume: Float = 1.0
   private var engineMode: String = "rntp"
-  
+
   private let centerFrequencies: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
 
   private let audioEngine = AVAudioEngine()
   private let playerNode = AVAudioPlayerNode()
   private let equalizerUnit = AVAudioUnitEQ(numberOfBands: 10)
   private var currentAudioFile: AVAudioFile?
-  
+
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
   private var seekOffsetSeconds: Double = 0.0
   private var lastValidPositionSeconds: Double = 0.0
-  
+
   private var isNodePlaying: Bool = false
   private var isNodesAttached: Bool = false
   private var isManualStop: Bool = false
+  private var isInternalReconfiguring: Bool = false
+  private var currentScheduleToken: Int = 0
+
+  private var isNativePlayerActive: Bool = false
+  private var isFocusModeActive: Bool = false
+
+  private var focusQueuePaths: [String] = []
+  private var focusSoundCheckMap: [String: Double] = [:]
+  private var focusQueueIndex: Int = 0
+  private var focusLoopMode: String = "ALL"
+  private var focusShuffle: Bool = false
+
+  private var wasPlayingBeforeInterruption: Bool = false
+  private var observersRegistered: Bool = false
+
   private var lastErrorMessage: String = "None"
   private var lastResolvedPath: String = "None"
   private var debugDiagnostics: [String: Any] = [:]
-  
+
   private var currentTrackTitle: String = ""
   private var currentTrackArtist: String = ""
   private var currentTrackAlbum: String = ""
@@ -47,13 +63,18 @@ public class ChordiaEqualizerModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ChordiaEqualizer")
 
-    Events("onRemoteCommand", "onPlaybackEnded")
+    Events("onRemoteCommand", "onPlaybackEnded", "onFocusTrackChanged")
 
     OnCreate {
       self.setupAudioEngineNodes()
+      self.registerAudioNotifications()
       DispatchQueue.main.async {
         UIApplication.shared.beginReceivingRemoteControlEvents()
       }
+    }
+
+    OnDestroy {
+      self.unregisterAudioNotifications()
     }
 
     Function("initEqualizer") { (audioSessionId: Int) -> Bool in
@@ -89,18 +110,31 @@ public class ChordiaEqualizerModule: Module {
       self.updateEqualizerHardware()
     }
 
+    Function("setFocusFadeVolume") { (volume: Double) in
+      self.fadeVolume = Float(max(0.0, min(1.0, volume)))
+      self.updateEqualizerHardware()
+    }
+
     AsyncFunction("analyzeAudioLoudness") { (source: String) throws -> Double in
       return try self.analyzeAudioLoudness(source: source)
     }
 
     Function("setEngineMode") { (mode: String) in
       self.engineMode = mode
-      self.applyAudioSessionCategory(activate: false)
-      self.updateRemoteCommandsState()
-      self.refreshNowPlayingInfo()
+      if self.isFocusModeActive {
+        self.applyAudioSessionCategory(activate: true, forceExclusive: true)
+        self.disableAllRemoteCommandsAndNowPlaying()
+        return
+      }
+      if self.isNativePlayerActive {
+        self.applyAudioSessionCategory(activate: false, forceExclusive: false)
+        self.updateRemoteCommandsState()
+        self.refreshNowPlayingInfo()
+      }
     }
 
     Function("updateNowPlaying") { (title: String, artist: String, album: String, artworkUri: String?, duration: Double, position: Double, isPlaying: Bool) in
+      if self.isFocusModeActive { return }
       self.currentTrackTitle = title
       self.currentTrackArtist = artist
       self.currentTrackAlbum = album
@@ -111,11 +145,78 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("setTrackISRC") { (isrc: String?) in
+      if self.isFocusModeActive { return }
       self.currentISRC = isrc
     }
 
     Function("loadAndPlay") { (filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool in
+      self.isFocusModeActive = false
+      self.isNativePlayerActive = true
+      self.fadeVolume = 1.0
       return self.loadAndPlayFile(filePath: filePath, startSeconds: startSeconds, autoPlay: autoPlay)
+    }
+
+    Function("startFocusQueue") { (filePaths: [String], initialGains: [Double], startIndex: Int, loopMode: String, shuffle: Bool) -> Bool in
+      guard !filePaths.isEmpty else { return false }
+
+      self.isFocusModeActive = true
+      self.isNativePlayerActive = true
+      self.fadeVolume = 1.0
+      self.focusQueuePaths = filePaths
+      self.focusLoopMode = loopMode
+      self.focusShuffle = shuffle
+      self.focusSoundCheckMap = [:]
+
+      for (idx, path) in filePaths.enumerated() {
+        let gain = idx < initialGains.count ? initialGains[idx] : 0.0
+        self.focusSoundCheckMap[path] = gain
+      }
+
+      self.focusQueueIndex = max(0, min(startIndex, filePaths.count - 1))
+      self.currentTrackTitle = ""
+      self.currentTrackArtist = ""
+      self.currentTrackAlbum = ""
+      self.currentArtworkUri = nil
+      self.currentISRC = nil
+
+      self.disableAllRemoteCommandsAndNowPlaying()
+      self.applyAudioSessionCategory(activate: true, forceExclusive: true)
+
+      return self.playFocusTrack(at: self.focusQueueIndex)
+    }
+
+    Function("updateFocusTrackSoundCheck") { (filePath: String, gainDb: Double) in
+      let clamped = max(-24.0, min(24.0, gainDb))
+      self.focusSoundCheckMap[filePath] = clamped
+      if self.isFocusModeActive,
+         self.focusQueueIndex >= 0,
+         self.focusQueueIndex < self.focusQueuePaths.count,
+         self.focusQueuePaths[self.focusQueueIndex] == filePath {
+        self.soundCheckGain = Float(clamped)
+        self.updateEqualizerHardware()
+      }
+    }
+
+    Function("stopFocusMode") { () -> Bool in
+      self.currentScheduleToken += 1
+      self.isManualStop = true
+      self.playerNode.stop()
+      self.isManualStop = false
+      self.isNodePlaying = false
+      self.isFocusModeActive = false
+      self.isNativePlayerActive = false
+      self.currentAudioFile = nil
+      self.focusQueuePaths = []
+      self.focusSoundCheckMap = [:]
+      self.fadeVolume = 1.0
+      self.soundCheckGain = 0.0
+      self.currentTrackTitle = ""
+      self.currentTrackArtist = ""
+      self.currentTrackAlbum = ""
+      self.currentArtworkUri = nil
+      self.currentISRC = nil
+      self.disableAllRemoteCommandsAndNowPlaying()
+      return true
     }
 
     Function("pause") { () -> Bool in
@@ -128,26 +229,31 @@ public class ChordiaEqualizerModule: Module {
 
     Function("stop") { () -> Bool in
       _ = self.getCurrentPosition()
+      self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
       self.isManualStop = false
       self.isNodePlaying = false
+      self.isNativePlayerActive = false
+      self.isFocusModeActive = false
       self.currentAudioFile = nil
+      self.focusQueuePaths = []
+      self.focusSoundCheckMap = [:]
+      self.fadeVolume = 1.0
       self.currentTrackTitle = ""
       self.currentTrackArtist = ""
       self.currentTrackAlbum = ""
       self.currentArtworkUri = nil
       self.currentISRC = nil
-      DispatchQueue.main.async {
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-      }
-      self.updateRemoteCommandsState()
+      self.disableAllRemoteCommandsAndNowPlaying()
       return true
     }
 
     Function("seekTo") { (seconds: Double) -> Bool in
       let res = self.seek(to: seconds)
-      self.updateNowPlayingPosition(seconds: seconds)
+      if !self.isFocusModeActive {
+        self.updateNowPlayingPosition(seconds: seconds)
+      }
       return res
     }
 
@@ -172,12 +278,15 @@ public class ChordiaEqualizerModule: Module {
         "platform": "iOS",
         "isNativeConnected": true,
         "engineMode": self.engineMode,
+        "isNativePlayerActive": self.isNativePlayerActive,
+        "isFocusModeActive": self.isFocusModeActive,
         "isEngineRunning": self.audioEngine.isRunning,
         "isPlayerPlaying": self.playerNode.isPlaying,
         "isEQEnabled": self.isEQEnabled,
         "preamp": Double(self.currentPreamp),
         "gains": self.currentGains.map { Double($0) },
         "appVolumeMultiplier": Double(self.appVolumeMultiplier),
+        "fadeVolume": Double(self.fadeVolume),
         "hasAudioFile": self.currentAudioFile != nil,
         "resolvedPath": self.lastResolvedPath,
         "sampleRate": self.fileSampleRate,
@@ -214,14 +323,118 @@ public class ChordiaEqualizerModule: Module {
     audioEngine.attach(playerNode)
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
-
-    applyAudioSessionCategory(activate: false)
   }
 
-  private func applyAudioSessionCategory(activate: Bool = false) {
+  private func registerAudioNotifications() {
+    if observersRegistered { return }
+    observersRegistered = true
+
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleAudioInterruption(_:)),
+      name: AVAudioSession.interruptionNotification,
+      object: nil
+    )
+
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleEngineConfigurationChange(_:)),
+      name: .AVAudioEngineConfigurationChange,
+      object: audioEngine
+    )
+  }
+
+  private func unregisterAudioNotifications() {
+    if !observersRegistered { return }
+    observersRegistered = false
+    NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+    NotificationCenter.default.removeObserver(self, name: .AVAudioEngineConfigurationChange, object: audioEngine)
+  }
+
+  @objc private func handleAudioInterruption(_ notification: Notification) {
+    guard isNativePlayerActive,
+          let userInfo = notification.userInfo,
+          let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+      return
+    }
+
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self, self.isNativePlayerActive else { return }
+      if type == .began {
+        self.wasPlayingBeforeInterruption = self.isNodePlaying
+        if self.isNodePlaying {
+          _ = self.pauseInternal()
+        }
+      } else if type == .ended {
+        let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+        let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+        if self.wasPlayingBeforeInterruption && options.contains(.shouldResume) {
+          self.wasPlayingBeforeInterruption = false
+          _ = self.playInternal()
+        } else {
+          self.wasPlayingBeforeInterruption = false
+        }
+      }
+    }
+  }
+
+  @objc private func handleEngineConfigurationChange(_ notification: Notification) {
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self,
+            !self.isInternalReconfiguring,
+            self.isNativePlayerActive,
+            let file = self.currentAudioFile else {
+        return
+      }
+
+      let resumePos = self.getCurrentPosition()
+      let shouldResumePlay = self.isNodePlaying
+
+      self.isInternalReconfiguring = true
+      self.currentScheduleToken += 1
+      self.isManualStop = true
+      self.playerNode.stop()
+      if self.audioEngine.isRunning {
+        self.audioEngine.stop()
+      }
+      self.isManualStop = false
+
+      self.audioEngine.disconnectNodeOutput(self.playerNode)
+      self.audioEngine.disconnectNodeOutput(self.equalizerUnit)
+
+      let fileFormat = file.processingFormat
+      do {
+        self.audioEngine.connect(self.playerNode, to: self.equalizerUnit, format: fileFormat)
+        self.audioEngine.connect(self.equalizerUnit, to: self.audioEngine.mainMixerNode, format: fileFormat)
+        self.audioEngine.prepare()
+        try self.audioEngine.start()
+      } catch {
+        self.audioEngine.disconnectNodeOutput(self.playerNode)
+        self.audioEngine.disconnectNodeOutput(self.equalizerUnit)
+        self.audioEngine.connect(self.playerNode, to: self.equalizerUnit, format: nil)
+        self.audioEngine.connect(self.equalizerUnit, to: self.audioEngine.mainMixerNode, format: nil)
+        self.audioEngine.prepare()
+        try? self.audioEngine.start()
+      }
+
+      self.isInternalReconfiguring = false
+      self.updateEqualizerHardware()
+      self.scheduleAudioSegment(fromSeconds: resumePos)
+
+      if shouldResumePlay {
+        self.applyAudioSessionCategory(activate: true, forceExclusive: self.isFocusModeActive)
+        self.playerNode.play()
+        self.isNodePlaying = true
+        self.updateNowPlayingPlaybackRate(isPlaying: true)
+      }
+    }
+  }
+
+  private func applyAudioSessionCategory(activate: Bool = false, forceExclusive: Bool = false) {
     do {
       let session = AVAudioSession.sharedInstance()
-      if engineMode == "expo-av" {
+      if !forceExclusive && engineMode == "expo-av" {
         try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
       } else {
         try session.setCategory(.playback, mode: .default, options: [])
@@ -229,14 +442,14 @@ public class ChordiaEqualizerModule: Module {
       if activate {
         try session.setActive(true)
       }
-      self.lastErrorMessage = "None (AudioSession configured: \(engineMode))"
+      self.lastErrorMessage = "None (AudioSession configured: \(forceExclusive ? "exclusive-focus" : engineMode))"
     } catch let err as NSError {
       self.lastErrorMessage = "AudioSession error: \(err.localizedDescription)"
     }
   }
 
   private func playInternal() -> Bool {
-    applyAudioSessionCategory(activate: true)
+    applyAudioSessionCategory(activate: true, forceExclusive: isFocusModeActive)
     if !audioEngine.isRunning {
       do {
         try audioEngine.start()
@@ -260,6 +473,10 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func setupRemoteCommands() {
+    if isFocusModeActive {
+      disableAllRemoteCommandsAndNowPlaying()
+      return
+    }
     clearRemoteCommandTargets()
 
     let commandCenter = MPRemoteCommandCenter.shared()
@@ -324,11 +541,36 @@ public class ChordiaEqualizerModule: Module {
     if let t = seekTarget { commandCenter.changePlaybackPositionCommand.removeTarget(t); seekTarget = nil }
   }
 
+  private func disableAllRemoteCommandsAndNowPlaying() {
+    clearRemoteCommandTargets()
+    let commandCenter = MPRemoteCommandCenter.shared()
+    commandCenter.playCommand.isEnabled = false
+    commandCenter.pauseCommand.isEnabled = false
+    commandCenter.togglePlayPauseCommand.isEnabled = false
+    commandCenter.nextTrackCommand.isEnabled = false
+    commandCenter.previousTrackCommand.isEnabled = false
+    commandCenter.changePlaybackPositionCommand.isEnabled = false
+    commandCenter.skipForwardCommand.isEnabled = false
+    commandCenter.skipBackwardCommand.isEnabled = false
+    commandCenter.stopCommand.isEnabled = false
+    DispatchQueue.main.async {
+      MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+  }
+
   private func isIOSEQActive() -> Bool {
-    return (isEQEnabled || soundCheckGain != 0.0 || appVolumeMultiplier != 1.0) && currentAudioFile != nil
+    return isNativePlayerActive && !isFocusModeActive && currentAudioFile != nil
   }
 
   private func updateRemoteCommandsState() {
+    if isFocusModeActive {
+      disableAllRemoteCommandsAndNowPlaying()
+      return
+    }
+    guard isNativePlayerActive else {
+      return
+    }
+
     let commandCenter = MPRemoteCommandCenter.shared()
     let isRntp = (engineMode == "rntp")
     let hasTrack = (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil)
@@ -341,7 +583,13 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func updateNowPlayingInfoCenter(duration: Double, position: Double, isPlaying: Bool) {
+    if isFocusModeActive || !isNativePlayerActive { return }
+
     DispatchQueue.main.async {
+      if self.isFocusModeActive || !self.isNativePlayerActive {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        return
+      }
       guard self.engineMode == "rntp" else {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         return
@@ -410,7 +658,7 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func updateNowPlayingPlaybackRate(isPlaying: Bool) {
-    guard engineMode == "rntp" else { return }
+    guard isNativePlayerActive, !isFocusModeActive, engineMode == "rntp" else { return }
     guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
       DispatchQueue.main.async {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -418,6 +666,7 @@ public class ChordiaEqualizerModule: Module {
       return
     }
     DispatchQueue.main.async {
+      if self.isFocusModeActive || !self.isNativePlayerActive { return }
       if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = self.getCurrentPosition()
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1.0 : 0.0
@@ -427,7 +676,7 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func updateNowPlayingPosition(seconds: Double) {
-    guard engineMode == "rntp" else { return }
+    guard isNativePlayerActive, !isFocusModeActive, engineMode == "rntp" else { return }
     guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
       DispatchQueue.main.async {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -435,6 +684,7 @@ public class ChordiaEqualizerModule: Module {
       return
     }
     DispatchQueue.main.async {
+      if self.isFocusModeActive || !self.isNativePlayerActive { return }
       if var info = MPNowPlayingInfoCenter.default().nowPlayingInfo {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = seconds
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -443,6 +693,13 @@ public class ChordiaEqualizerModule: Module {
   }
 
   private func refreshNowPlayingInfo() {
+    if isFocusModeActive {
+      DispatchQueue.main.async {
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      }
+      return
+    }
+    guard isNativePlayerActive else { return }
     guard (!self.currentTrackTitle.isEmpty || self.currentAudioFile != nil) else {
       DispatchQueue.main.async {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -455,7 +712,7 @@ public class ChordiaEqualizerModule: Module {
 
   private func updateEqualizerHardware() {
     let attenVolume: Float = appVolumeMultiplier < 1.0 ? appVolumeMultiplier : 1.0
-    playerNode.volume = attenVolume
+    playerNode.volume = max(0.0, min(1.0, attenVolume * fadeVolume))
 
     let boostGainDb: Float = appVolumeMultiplier > 1.0 ? Float(20.0 * log10(Double(appVolumeMultiplier))) : 0.0
     let totalGlobalGain = (isEQEnabled ? currentPreamp : 0.0) + soundCheckGain + boostGainDb
@@ -550,6 +807,54 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
+  private func playFocusTrack(at index: Int, skipAttempts: Int = 0) -> Bool {
+    guard isFocusModeActive, !focusQueuePaths.isEmpty else { return false }
+    let safeIdx = max(0, min(index, focusQueuePaths.count - 1))
+    focusQueueIndex = safeIdx
+    let filePath = focusQueuePaths[safeIdx]
+    soundCheckGain = Float(focusSoundCheckMap[filePath] ?? 0.0)
+
+    let ok = loadAndPlayFile(filePath: filePath, startSeconds: 0.0, autoPlay: true)
+    if ok {
+      sendEvent("onFocusTrackChanged", ["index": safeIdx, "uri": filePath])
+      return true
+    }
+
+    if skipAttempts + 1 < focusQueuePaths.count {
+      let nextIdx = (safeIdx + 1) % focusQueuePaths.count
+      return playFocusTrack(at: nextIdx, skipAttempts: skipAttempts + 1)
+    }
+    return false
+  }
+
+  private func advanceFocusQueueTrack() {
+    guard isFocusModeActive, !focusQueuePaths.isEmpty else { return }
+
+    if focusLoopMode == "ONE" {
+      _ = playFocusTrack(at: focusQueueIndex)
+      return
+    }
+
+    let nextIdx = focusQueueIndex + 1
+    if nextIdx < focusQueuePaths.count {
+      _ = playFocusTrack(at: nextIdx)
+      return
+    }
+
+    if focusLoopMode == "ALL" {
+      if focusShuffle && focusQueuePaths.count > 1 {
+        let lastPlayed = focusQueuePaths[focusQueueIndex]
+        focusQueuePaths.shuffle()
+        if focusQueuePaths.first == lastPlayed && focusQueuePaths.count > 1 {
+          focusQueuePaths.swapAt(0, focusQueuePaths.count - 1)
+        }
+      }
+      _ = playFocusTrack(at: 0)
+    } else {
+      isNodePlaying = false
+    }
+  }
+
   private func loadAndPlayFile(filePath: String, startSeconds: Double, autoPlay: Bool) -> Bool {
     setupAudioEngineNodes()
 
@@ -559,13 +864,15 @@ public class ChordiaEqualizerModule: Module {
     }
 
     do {
-      applyAudioSessionCategory(activate: true)
+      applyAudioSessionCategory(activate: true, forceExclusive: isFocusModeActive)
 
       let file = try AVAudioFile(forReading: url)
       self.currentAudioFile = file
       self.fileSampleRate = file.processingFormat.sampleRate
       self.fileTotalFrames = file.length
 
+      self.isInternalReconfiguring = true
+      self.currentScheduleToken += 1
       self.isManualStop = true
       if playerNode.isPlaying {
         playerNode.stop()
@@ -597,6 +904,8 @@ public class ChordiaEqualizerModule: Module {
         startSuccess = true
       }
 
+      self.isInternalReconfiguring = false
+
       if !startSuccess {
         self.lastErrorMessage = "Failed to start audio engine"
         return false
@@ -604,7 +913,9 @@ public class ChordiaEqualizerModule: Module {
 
       updateEqualizerHardware()
 
-      if engineMode == "rntp" {
+      if isFocusModeActive {
+        disableAllRemoteCommandsAndNowPlaying()
+      } else if engineMode == "rntp" {
         setupRemoteCommands()
       } else {
         clearRemoteCommandTargets()
@@ -621,10 +932,13 @@ public class ChordiaEqualizerModule: Module {
         self.isNodePlaying = false
       }
 
-      refreshNowPlayingInfo()
+      if !isFocusModeActive {
+        refreshNowPlayingInfo()
+      }
       self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), rate=\(fileFormat.sampleRate), ch=\(fileFormat.channelCount))"
       return true
     } catch let err as NSError {
+      self.isInternalReconfiguring = false
       self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
       return false
     }
@@ -632,7 +946,10 @@ public class ChordiaEqualizerModule: Module {
 
   private func scheduleAudioSegment(fromSeconds seconds: Double) {
     guard let file = currentAudioFile else { return }
-    
+
+    self.currentScheduleToken += 1
+    let token = self.currentScheduleToken
+
     self.isManualStop = true
     playerNode.stop()
     self.isManualStop = false
@@ -645,7 +962,14 @@ public class ChordiaEqualizerModule: Module {
       seekOffsetSeconds = Double(totalFrames) / sampleRate
       lastValidPositionSeconds = seekOffsetSeconds
       DispatchQueue.main.async { [weak self] in
-        self?.sendEvent("onPlaybackEnded", [:])
+        guard let self = self, self.currentScheduleToken == token else { return }
+        if self.isFocusModeActive {
+          self.advanceFocusQueueTrack()
+        } else {
+          self.isNodePlaying = false
+          self.updateNowPlayingPlaybackRate(isPlaying: false)
+          self.sendEvent("onPlaybackEnded", [:])
+        }
       }
       return
     }
@@ -656,10 +980,19 @@ public class ChordiaEqualizerModule: Module {
     let rawRemaining = max(0, totalFrames - targetFrame)
     let remainingFrames = AVAudioFrameCount(clamping: rawRemaining)
 
-    playerNode.scheduleSegment(file, startingFrame: targetFrame, frameCount: remainingFrames, at: nil) { [weak self] in
+    playerNode.scheduleSegment(
+      file,
+      startingFrame: targetFrame,
+      frameCount: remainingFrames,
+      at: nil,
+      completionCallbackType: .dataPlayedBack
+    ) { [weak self] _ in
       DispatchQueue.main.async {
         guard let self = self else { return }
-        if !self.isManualStop {
+        guard self.currentScheduleToken == token, !self.isManualStop else { return }
+        if self.isFocusModeActive {
+          self.advanceFocusQueueTrack()
+        } else {
           self.isNodePlaying = false
           self.updateNowPlayingPlaybackRate(isPlaying: false)
           self.sendEvent("onPlaybackEnded", [:])
@@ -677,7 +1010,9 @@ public class ChordiaEqualizerModule: Module {
     if wasPlaying {
       playerNode.play()
       self.isNodePlaying = true
-      updateNowPlayingPlaybackRate(isPlaying: true)
+      if !isFocusModeActive {
+        updateNowPlayingPlaybackRate(isPlaying: true)
+      }
     }
     return true
   }

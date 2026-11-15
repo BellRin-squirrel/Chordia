@@ -44,13 +44,11 @@ export const useIosEqualizerEngine = (
       const emitter = new EventEmitter(mod);
       subRemote = emitter.addListener('onRemoteCommand', (event: any) => {
         if (event && event.action && onRemoteCommandRef.current) {
-          console.log(`[DEBUG-IOSEQ] onRemoteCommand received: ${event.action}`, event);
           onRemoteCommandRef.current(event.action, event.position);
         }
       });
       subEnded = emitter.addListener('onPlaybackEnded', () => {
-        if (!hasEndedTriggeredRef.current && onTrackEndedRef.current) {
-          console.log(`[DEBUG-IOSEQ] onPlaybackEnded received. Triggering next track.`);
+        if (isIOSEQActiveRef.current && !hasEndedTriggeredRef.current && onTrackEndedRef.current) {
           hasEndedTriggeredRef.current = true;
           onTrackEndedRef.current();
         }
@@ -95,9 +93,8 @@ export const useIosEqualizerEngine = (
       });
       onPlayStateChange(playing);
 
-      if (durSec > 0 && posSec >= durSec - 0.4) {
+      if (durSec > 0 && posSec >= durSec + 0.25 && !playing) {
         if (!hasEndedTriggeredRef.current) {
-          console.log(`[DEBUG-IOSEQ] Polling detected end of track. Triggering next.`);
           hasEndedTriggeredRef.current = true;
           onTrackEndedRef.current();
         }

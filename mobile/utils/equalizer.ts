@@ -184,6 +184,44 @@ export const loadAndPlayIOS = (filePath: string, startSeconds: number, autoPlay:
   }
 };
 
+export const startFocusQueueIOS = (
+  filePaths: string[],
+  initialGains: number[],
+  startIndex: number,
+  loopMode: 'OFF' | 'ALL' | 'ONE',
+  shuffle: boolean
+): boolean => {
+  if (Platform.OS !== 'ios' || !NativeModule?.startFocusQueue) return false;
+  try {
+    return NativeModule.startFocusQueue(filePaths, initialGains, startIndex, loopMode, shuffle);
+  } catch (e) {
+    return false;
+  }
+};
+
+export const updateFocusTrackSoundCheckIOS = (filePath: string, gainDb: number): void => {
+  if (Platform.OS !== 'ios' || !NativeModule?.updateFocusTrackSoundCheck) return;
+  try {
+    NativeModule.updateFocusTrackSoundCheck(filePath, Math.max(-24, Math.min(24, gainDb)));
+  } catch (e) {}
+};
+
+export const setFocusFadeVolumeIOS = (volume: number): void => {
+  if (Platform.OS !== 'ios' || !NativeModule?.setFocusFadeVolume) return;
+  try {
+    NativeModule.setFocusFadeVolume(Math.max(0, Math.min(1, volume)));
+  } catch (e) {}
+};
+
+export const stopFocusModeIOS = (): boolean => {
+  if (Platform.OS !== 'ios' || !NativeModule?.stopFocusMode) return false;
+  try {
+    return NativeModule.stopFocusMode();
+  } catch (e) {
+    return false;
+  }
+};
+
 export const pauseIOS = (): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.pause) return false;
   try {
@@ -258,6 +296,10 @@ export default {
   getNativeModule,
   getEqualizerDebugInfo,
   loadAndPlayIOS,
+  startFocusQueueIOS,
+  updateFocusTrackSoundCheckIOS,
+  setFocusFadeVolumeIOS,
+  stopFocusModeIOS,
   pauseIOS,
   playIOS,
   stopIOS,
