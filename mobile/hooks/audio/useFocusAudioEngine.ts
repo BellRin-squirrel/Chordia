@@ -5,6 +5,7 @@ import { EventEmitter } from 'expo-modules-core';
 import { createAudioPlaylist, setAudioModeAsync } from 'expo-audio';
 import {
   applyEqualizerSettings,
+  getEqualizerDebugInfo,
   getNativeModule,
   initEqualizer,
   pauseIOS,
@@ -36,12 +37,13 @@ export const useFocusAudioEngine = ({
   onPlayStateChange,
 }: UseFocusAudioEngineProps) => {
   const isFocusActiveRef = useRef(false);
+  const usingExpoFallbackRef = useRef(false);
   const focusQueueRef = useRef<any[]>([]);
   const focusSessionTokenRef = useRef(0);
   const fadeVolumeRef = useRef(1.0);
-  const androidPlaylistRef = useRef<any>(null);
-  const androidListenersRef = useRef<any[]>([]);
-  const androidCurrentSoundCheckDbRef = useRef(0);
+  const expoPlaylistRef = useRef<any>(null);
+  const expoListenersRef = useRef<any[]>([]);
+  const expoCurrentSoundCheckDbRef = useRef(0);
 
   const onTrackChangeRef = useRef(onTrackChange);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
@@ -64,7 +66,7 @@ export const useFocusAudioEngine = ({
     try {
       const emitter = new EventEmitter(mod);
       subFocusTrack = emitter.addListener('onFocusTrackChanged', (event: any) => {
-        if (!isFocusActiveRef.current || !event) return;
+        if (!isFocusActiveRef.current || usingExpoFallbackRef.current || !event) return;
         const queue = focusQueueRef.current;
         if (!queue || queue.length === 0) return;
 
@@ -91,17 +93,17 @@ export const useFocusAudioEngine = ({
     };
   }, []);
 
-  const clearAndroidPlaylist = () => {
-    androidListenersRef.current.forEach((sub) => {
+  const clearExpoPlaylist = () => {
+    expoListenersRef.current.forEach((sub) => {
       try {
         if (sub && typeof sub.remove === 'function') sub.remove();
       } catch (e) {}
     });
-    androidListenersRef.current = [];
+    expoListenersRef.current = [];
 
-    if (androidPlaylistRef.current) {
-      const pl = androidPlaylistRef.current;
-      androidPlaylistRef.current = null;
+    if (expoPlaylistRef.current) {
+      const pl = expoPlaylistRef.current;
+      expoPlaylistRef.current = null;
       try {
         pl.pause?.();
         pl.clearLockScreenControls?.();
@@ -110,17 +112,17 @@ export const useFocusAudioEngine = ({
     }
   };
 
-  const applyAndroidPlaylistVolume = () => {
-    const pl = androidPlaylistRef.current;
+  const applyExpoPlaylistVolume = () => {
+    const pl = expoPlaylistRef.current;
     if (!pl) return;
     const multiplier = appVolumeSettingRef.current.multiplier;
     const attenuation = multiplier <= 1.0 ? multiplier : 1.0;
     const scVol = soundCheckEnabledRef.current
-      ? gainDbToPlaybackVolume(androidCurrentSoundCheckDbRef.current)
+      ? gainDbToPlaybackVolume(expoCurrentSoundCheckDbRef.current)
       : 1.0;
     const boostDb = multiplier > 1.0 ? 20 * Math.log10(multiplier) : 0;
     setSoundCheckGain(
-      (soundCheckEnabledRef.current ? androidCurrentSoundCheckDbRef.current : 0) + boostDb
+      (soundCheckEnabledRef.current ? expoCurrentSoundCheckDbRef.current : 0) + boostDb
     );
     const finalVol = Math.min(1.0, Math.max(0, scVol * attenuation * fadeVolumeRef.current));
     try {
@@ -150,6 +152,83 @@ export const useFocusAudioEngine = ({
     } catch (e) {}
   };
 
+  const startExpoPlaylist = async (
+    queue: any[],
+    loopMode: LoopModeType,
+    sessionToken: number
+  ) => {
+    usingExpoFallbackRef.current = true;
+    clearExpoPlaylist();
+
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        interruptionMode: 'doNotMix',
+      });
+    } catch (e) {}
+
+    if (Platform.OS === 'android') {
+      await initEqualizer(0);
+    }
+    await syncNativeAudioEffects();
+
+    const sources = queue.map((s) => resolveExpoAudioSource(s.localMusicUri));
+    const loopStr = loopMode === 'ONE' ? 'single' : loopMode === 'ALL' ? 'all' : 'none';
+    const playlist = createAudioPlaylist({
+      sources,
+      updateInterval: 250,
+      loop: loopStr,
+    });
+
+    expoPlaylistRef.current = playlist;
+    try {
+      playlist.clearLockScreenControls?.();
+    } catch (e) {}
+
+    const updateTrackSoundCheck = async (song: any) => {
+      if (!soundCheckEnabledRef.current || !song?.localMusicUri) {
+        expoCurrentSoundCheckDbRef.current = 0;
+        applyExpoPlaylistVolume();
+        return;
+      }
+      try {
+        const db = await getSoundCheckGain(song.localMusicUri);
+        if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
+        expoCurrentSoundCheckDbRef.current = db;
+      } catch (e) {
+        expoCurrentSoundCheckDbRef.current = 0;
+      }
+      applyExpoPlaylistVolume();
+    };
+
+    try {
+      const subTrack = playlist.addListener('trackChanged', (event: any) => {
+        if (!isFocusActiveRef.current || sessionToken !== focusSessionTokenRef.current) return;
+        const idx = typeof event?.currentIndex === 'number' ? event.currentIndex : 0;
+        const song = focusQueueRef.current[idx];
+        if (song) {
+          onTrackChangeRef.current(song, idx, focusQueueRef.current);
+          void updateTrackSoundCheck(song);
+        }
+      });
+      if (subTrack) expoListenersRef.current.push(subTrack);
+
+      const subStatus = playlist.addListener('playlistStatusUpdate', (status: any) => {
+        if (!isFocusActiveRef.current || sessionToken !== focusSessionTokenRef.current) return;
+        if (typeof status?.playing === 'boolean') {
+          onPlayStateChangeRef.current(status.playing);
+        }
+      });
+      if (subStatus) expoListenersRef.current.push(subStatus);
+    } catch (e) {}
+
+    await updateTrackSoundCheck(queue[0]);
+    onTrackChangeRef.current(queue[0], 0, queue);
+    playlist.play();
+    onPlayStateChangeRef.current(true);
+  };
+
   const startFocusQueue = async (
     songs: any[],
     shuffle: boolean = false,
@@ -159,6 +238,7 @@ export const useFocusAudioEngine = ({
 
     const sessionToken = ++focusSessionTokenRef.current;
     isFocusActiveRef.current = true;
+    usingExpoFallbackRef.current = false;
     fadeVolumeRef.current = 1.0;
 
     let queue = [...songs];
@@ -170,122 +250,61 @@ export const useFocusAudioEngine = ({
     await syncNativeAudioEffects();
 
     if (Platform.OS === 'ios') {
-      const firstSong = queue[0];
-      let firstGain = 0;
-      if (soundCheckEnabledRef.current && firstSong?.localMusicUri) {
-        try {
-          firstGain = await getSoundCheckGain(firstSong.localMusicUri);
-        } catch (e) {
-          firstGain = 0;
-        }
-        if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
-      }
-
-      const filePaths = queue.map((s) => s.localMusicUri).filter(Boolean);
-      if (filePaths.length === 0) return;
-      const initialGains = filePaths.map((_, idx) => (idx === 0 ? firstGain : 0));
-
-      setFocusFadeVolumeIOS(1.0);
-      const ok = startFocusQueueIOS(filePaths, initialGains, 0, loopMode, shuffle);
-      if (ok) {
-        onTrackChangeRef.current(queue[0], 0, queue);
-        onPlayStateChangeRef.current(true);
-      }
-
-      // 2曲目以降の SoundCheck をバックグラウンドで順次解決し、ネイティブキューへ反映
-      if (soundCheckEnabledRef.current && queue.length > 1) {
-        void (async () => {
-          for (let i = 1; i < queue.length; i++) {
-            if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) break;
-            const uri = queue[i]?.localMusicUri;
-            if (!uri) continue;
-            try {
-              const db = await getSoundCheckGain(uri);
-              if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) break;
-              updateFocusTrackSoundCheckIOS(uri, db);
-            } catch (e) {}
+      const mod = getNativeModule();
+      if (typeof mod?.startFocusQueue === 'function') {
+        const firstSong = queue[0];
+        let firstGain = 0;
+        if (soundCheckEnabledRef.current && firstSong?.localMusicUri) {
+          try {
+            firstGain = await getSoundCheckGain(firstSong.localMusicUri);
+          } catch (e) {
+            firstGain = 0;
           }
-        })();
+          if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
+        }
+
+        const filePaths = queue.map((s) => s.localMusicUri).filter(Boolean);
+        if (filePaths.length === 0) return;
+        const initialGains = filePaths.map((_, idx) => (idx === 0 ? firstGain : 0));
+
+        setFocusFadeVolumeIOS(1.0);
+        const ok = startFocusQueueIOS(filePaths, initialGains, 0, loopMode, shuffle);
+        if (ok) {
+          onTrackChangeRef.current(queue[0], 0, queue);
+          onPlayStateChangeRef.current(true);
+
+          if (soundCheckEnabledRef.current && queue.length > 1) {
+            void (async () => {
+              for (let i = 1; i < queue.length; i++) {
+                if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) break;
+                const uri = queue[i]?.localMusicUri;
+                if (!uri) continue;
+                try {
+                  const db = await getSoundCheckGain(uri);
+                  if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) break;
+                  updateFocusTrackSoundCheckIOS(uri, db);
+                } catch (e) {}
+              }
+            })();
+          }
+          return;
+        }
+        console.warn('[FocusAudio] startFocusQueueIOS failed, falling back to expo-audio:', getEqualizerDebugInfo());
+      } else {
+        console.warn('[FocusAudio] Native startFocusQueue is unavailable (rebuild iOS app to enable EQ/SoundCheck in Focus mode). Falling back to expo-audio.');
       }
-      return;
     }
 
-    // Android: expo-audio の AudioPlaylist を排他モード・ロック画面非表示で使用
-    clearAndroidPlaylist();
-    try {
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        shouldPlayInBackground: true,
-        interruptionMode: 'doNotMix',
-      });
-    } catch (e) {}
-
-    await initEqualizer(0);
-    await syncNativeAudioEffects();
-
-    const sources = queue.map((s) => resolveExpoAudioSource(s.localMusicUri));
-    const loopStr = loopMode === 'ONE' ? 'single' : loopMode === 'ALL' ? 'all' : 'none';
-    const playlist = createAudioPlaylist({
-      sources,
-      updateInterval: 250,
-      loop: loopStr,
-    });
-
-    androidPlaylistRef.current = playlist;
-    try {
-      playlist.clearLockScreenControls?.();
-    } catch (e) {}
-
-    const updateAndroidTrackSoundCheck = async (song: any) => {
-      if (!soundCheckEnabledRef.current || !song?.localMusicUri) {
-        androidCurrentSoundCheckDbRef.current = 0;
-        applyAndroidPlaylistVolume();
-        return;
-      }
-      try {
-        const db = await getSoundCheckGain(song.localMusicUri);
-        if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
-        androidCurrentSoundCheckDbRef.current = db;
-      } catch (e) {
-        androidCurrentSoundCheckDbRef.current = 0;
-      }
-      applyAndroidPlaylistVolume();
-    };
-
-    try {
-      const subTrack = playlist.addListener('trackChanged', (event: any) => {
-        if (!isFocusActiveRef.current || sessionToken !== focusSessionTokenRef.current) return;
-        const idx = typeof event?.currentIndex === 'number' ? event.currentIndex : 0;
-        const song = focusQueueRef.current[idx];
-        if (song) {
-          onTrackChangeRef.current(song, idx, focusQueueRef.current);
-          void updateAndroidTrackSoundCheck(song);
-        }
-      });
-      if (subTrack) androidListenersRef.current.push(subTrack);
-
-      const subStatus = playlist.addListener('playlistStatusUpdate', (status: any) => {
-        if (!isFocusActiveRef.current || sessionToken !== focusSessionTokenRef.current) return;
-        if (typeof status?.playing === 'boolean') {
-          onPlayStateChangeRef.current(status.playing);
-        }
-      });
-      if (subStatus) androidListenersRef.current.push(subStatus);
-    } catch (e) {}
-
-    await updateAndroidTrackSoundCheck(queue[0]);
-    onTrackChangeRef.current(queue[0], 0, queue);
-    playlist.play();
-    onPlayStateChangeRef.current(true);
+    await startExpoPlaylist(queue, loopMode, sessionToken);
   };
 
   const pauseFocusAudio = async () => {
     if (!isFocusActiveRef.current) return;
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === 'ios' && !usingExpoFallbackRef.current) {
       pauseIOS();
-    } else if (androidPlaylistRef.current) {
+    } else if (expoPlaylistRef.current) {
       try {
-        androidPlaylistRef.current.pause();
+        expoPlaylistRef.current.pause();
       } catch (e) {}
     }
     onPlayStateChangeRef.current(false);
@@ -293,16 +312,16 @@ export const useFocusAudioEngine = ({
 
   const resumeFocusAudio = async () => {
     if (!isFocusActiveRef.current) return;
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === 'ios' && !usingExpoFallbackRef.current) {
       playIOS();
-    } else if (androidPlaylistRef.current) {
+    } else if (expoPlaylistRef.current) {
       try {
         await setAudioModeAsync({
           playsInSilentMode: true,
           shouldPlayInBackground: true,
           interruptionMode: 'doNotMix',
         });
-        androidPlaylistRef.current.play();
+        expoPlaylistRef.current.play();
       } catch (e) {}
     }
     onPlayStateChangeRef.current(true);
@@ -312,23 +331,23 @@ export const useFocusAudioEngine = ({
     const clamped = Math.max(0, Math.min(1, volume));
     fadeVolumeRef.current = clamped;
     if (!isFocusActiveRef.current) return;
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === 'ios' && !usingExpoFallbackRef.current) {
       setFocusFadeVolumeIOS(clamped);
     } else {
-      applyAndroidPlaylistVolume();
+      applyExpoPlaylistVolume();
     }
   };
 
   const stopFocusAudio = async () => {
     focusSessionTokenRef.current += 1;
     isFocusActiveRef.current = false;
+    usingExpoFallbackRef.current = false;
     fadeVolumeRef.current = 1.0;
 
     if (Platform.OS === 'ios') {
       stopFocusModeIOS();
-    } else {
-      clearAndroidPlaylist();
     }
+    clearExpoPlaylist();
     onPlayStateChangeRef.current(false);
   };
 

@@ -1,25 +1,22 @@
-import TrackPlayer, { Event, State } from 'react-native-track-player';
+import TrackPlayer, { Event } from 'react-native-track-player';
+
+const safeAddListener = (eventName: any, listener: (event: any) => void) => {
+  if (!eventName || typeof eventName !== 'string') return;
+  try {
+    TrackPlayer.addEventListener(eventName, listener);
+  } catch (e) {}
+};
 
 // ロック画面やイヤホンからの操作をハンドリングするサービス
 module.exports = async function() {
-  TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
-  TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
-  TrackPlayer.addEventListener(Event.RemoteTogglePlayPause, async () => {
+  safeAddListener(Event.RemotePlay, () => TrackPlayer.play());
+  safeAddListener(Event.RemotePause, () => TrackPlayer.pause());
+  safeAddListener(Event.RemoteStop, () => TrackPlayer.stop());
+  safeAddListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
+  safeAddListener(Event.RemotePrevious, async () => {
     try {
-      const playbackState = await TrackPlayer.getPlaybackState();
-      if (playbackState?.state === State.Playing) {
-        await TrackPlayer.pause();
-      } else {
-        await TrackPlayer.play();
-      }
-    } catch (e) {}
-  });
-  TrackPlayer.addEventListener(Event.RemoteStop, () => TrackPlayer.stop());
-  TrackPlayer.addEventListener(Event.RemoteNext, () => TrackPlayer.skipToNext());
-  TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-    try {
-      const progress = await TrackPlayer.getProgress();
-      if (progress && progress.position > 3) {
+      const position = await TrackPlayer.getPosition();
+      if (typeof position === 'number' && position > 3) {
         await TrackPlayer.seekTo(0);
       } else {
         await TrackPlayer.skipToPrevious();
@@ -28,5 +25,5 @@ module.exports = async function() {
       await TrackPlayer.skipToPrevious();
     }
   });
-  TrackPlayer.addEventListener(Event.RemoteSeek, (event) => TrackPlayer.seekTo(event.position));
+  safeAddListener(Event.RemoteSeek, (event) => TrackPlayer.seekTo(event.position));
 };

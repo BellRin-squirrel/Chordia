@@ -28,6 +28,7 @@ public class ChordiaEqualizerModule: Module {
   private var isNodesAttached: Bool = false
   private var isManualStop: Bool = false
   private var isInternalReconfiguring: Bool = false
+  private var ignoreConfigChangeUntil: TimeInterval = 0
   private var currentScheduleToken: Int = 0
 
   private var isNativePlayerActive: Bool = false
@@ -320,6 +321,7 @@ public class ChordiaEqualizerModule: Module {
     equalizerUnit.globalGain = 0.0
     equalizerUnit.bypass = !isEQEnabled
 
+    ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
     audioEngine.attach(playerNode)
     audioEngine.attach(equalizerUnit)
     isNodesAttached = true
@@ -380,10 +382,17 @@ public class ChordiaEqualizerModule: Module {
   }
 
   @objc private func handleEngineConfigurationChange(_ notification: Notification) {
+    let now = Date().timeIntervalSince1970
+    if isInternalReconfiguring || now < ignoreConfigChangeUntil {
+      return
+    }
+
     DispatchQueue.main.async { [weak self] in
       guard let self = self,
             !self.isInternalReconfiguring,
+            Date().timeIntervalSince1970 >= self.ignoreConfigChangeUntil,
             self.isNativePlayerActive,
+            !self.audioEngine.isRunning,
             let file = self.currentAudioFile else {
         return
       }
@@ -392,6 +401,7 @@ public class ChordiaEqualizerModule: Module {
       let shouldResumePlay = self.isNodePlaying
 
       self.isInternalReconfiguring = true
+      self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
       self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
@@ -418,6 +428,7 @@ public class ChordiaEqualizerModule: Module {
         try? self.audioEngine.start()
       }
 
+      self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
       self.isInternalReconfiguring = false
       self.updateEqualizerHardware()
       self.scheduleAudioSegment(fromSeconds: resumePos)
@@ -452,6 +463,7 @@ public class ChordiaEqualizerModule: Module {
     applyAudioSessionCategory(activate: true, forceExclusive: isFocusModeActive)
     if !audioEngine.isRunning {
       do {
+        ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
         try audioEngine.start()
       } catch {
         self.lastErrorMessage = "AudioEngine start error: \(error.localizedDescription)"
@@ -872,6 +884,7 @@ public class ChordiaEqualizerModule: Module {
       self.fileTotalFrames = file.length
 
       self.isInternalReconfiguring = true
+      self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
       self.currentScheduleToken += 1
       self.isManualStop = true
       if playerNode.isPlaying {
@@ -904,6 +917,7 @@ public class ChordiaEqualizerModule: Module {
         startSuccess = true
       }
 
+      self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
       self.isInternalReconfiguring = false
 
       if !startSuccess {
@@ -938,6 +952,7 @@ public class ChordiaEqualizerModule: Module {
       self.lastErrorMessage = "None (Playing successfully: \(url.lastPathComponent), rate=\(fileFormat.sampleRate), ch=\(fileFormat.channelCount))"
       return true
     } catch let err as NSError {
+      self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
       self.isInternalReconfiguring = false
       self.lastErrorMessage = "LoadAndPlay Error: \(err.localizedDescription) (code=\(err.code), domain=\(err.domain))"
       return false
