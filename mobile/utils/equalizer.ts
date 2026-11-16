@@ -213,6 +213,15 @@ export const setFocusFadeVolumeIOS = (volume: number): void => {
   } catch (e) {}
 };
 
+export const playAlarmBeepIOS = (dataUriOrBase64: string): boolean => {
+  if (Platform.OS !== 'ios' || !NativeModule?.playAlarmBeep) return false;
+  try {
+    return NativeModule.playAlarmBeep(dataUriOrBase64);
+  } catch (e) {
+    return false;
+  }
+};
+
 export const stopFocusModeIOS = (): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.stopFocusMode) return false;
   try {
@@ -299,6 +308,7 @@ export default {
   startFocusQueueIOS,
   updateFocusTrackSoundCheckIOS,
   setFocusFadeVolumeIOS,
+  playAlarmBeepIOS,
   stopFocusModeIOS,
   pauseIOS,
   playIOS,

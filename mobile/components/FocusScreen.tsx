@@ -8,6 +8,7 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { FocusSetupView } from './focus/FocusSetupView';
 import { FocusTimerView } from './focus/FocusTimerView';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
+import { playAlarmBeepIOS } from '../utils/equalizer';
 import { t } from '../utils/i18n';
 import { 
   addWorkHistoryApi, 
@@ -326,6 +327,10 @@ export const FocusScreen = ({
   const playAlarmSound = async () => {
     try {
       Vibration.vibrate([0, 500, 200, 500]);
+      if (Platform.OS === 'ios' && playAlarmBeepIOS(BEEP_SOUND_URI)) {
+        await new Promise(r => setTimeout(r, 800));
+        return;
+      }
       await setAudioModeAsync({
         playsInSilentMode: true,
         shouldPlayInBackground: true,
@@ -345,6 +350,7 @@ export const FocusScreen = ({
 
   const handlePhaseTransition = async () => {
     isTransitioningRef.current = true;
+    fadeTriggeredRef.current = false;
     try {
       await pauseFocusAudio?.();
       await playAlarmSound();

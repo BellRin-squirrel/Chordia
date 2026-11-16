@@ -18,6 +18,7 @@ public class ChordiaEqualizerModule: Module {
   private let playerNode = AVAudioPlayerNode()
   private let equalizerUnit = AVAudioUnitEQ(numberOfBands: 10)
   private var currentAudioFile: AVAudioFile?
+  private var alarmAudioPlayer: AVAudioPlayer?
 
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
@@ -116,6 +117,10 @@ public class ChordiaEqualizerModule: Module {
       self.updateEqualizerHardware()
     }
 
+    Function("playAlarmBeep") { (dataUriOrBase64: String) -> Bool in
+      return self.playAlarmBeepInternal(dataUriOrBase64: dataUriOrBase64)
+    }
+
     AsyncFunction("analyzeAudioLoudness") { (source: String) throws -> Double in
       return try self.analyzeAudioLoudness(source: source)
     }
@@ -199,6 +204,8 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("stopFocusMode") { () -> Bool in
+      self.alarmAudioPlayer?.stop()
+      self.alarmAudioPlayer = nil
       self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
@@ -230,6 +237,8 @@ public class ChordiaEqualizerModule: Module {
 
     Function("stop") { () -> Bool in
       _ = self.getCurrentPosition()
+      self.alarmAudioPlayer?.stop()
+      self.alarmAudioPlayer = nil
       self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
@@ -298,6 +307,27 @@ public class ChordiaEqualizerModule: Module {
         "diagnostics": self.debugDiagnostics,
         "lastError": self.lastErrorMessage
       ]
+    }
+  }
+
+  private func playAlarmBeepInternal(dataUriOrBase64: String) -> Bool {
+    var base64Str = dataUriOrBase64
+    if let range = base64Str.range(of: "base64,") {
+      base64Str = String(base64Str[range.upperBound...])
+    }
+    guard let data = Data(base64Encoded: base64Str, options: .ignoreUnknownCharacters) else {
+      return false
+    }
+    do {
+      applyAudioSessionCategory(activate: true, forceExclusive: true)
+      self.alarmAudioPlayer?.stop()
+      let player = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.wav.rawValue)
+      player.volume = 1.0
+      player.prepareToPlay()
+      self.alarmAudioPlayer = player
+      return player.play()
+    } catch {
+      return false
     }
   }
 
@@ -941,6 +971,24 @@ public class ChordiaEqualizerModule: Module {
       if autoPlay {
         playerNode.play()
         self.isNodePlaying = true
+
+        let expectedToken = self.currentScheduleToken
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+          guard let self = self,
+                self.isNativePlayerActive,
+                self.isNodePlaying,
+                self.currentScheduleToken == expectedToken else { return }
+          if !self.audioEngine.isRunning || !self.playerNode.isPlaying {
+            self.applyAudioSessionCategory(activate: true, forceExclusive: self.isFocusModeActive)
+            if !self.audioEngine.isRunning {
+              self.ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
+              try? self.audioEngine.start()
+            }
+            if !self.playerNode.isPlaying {
+              self.playerNode.play()
+            }
+          }
+        }
       } else {
         playerNode.pause()
         self.isNodePlaying = false
