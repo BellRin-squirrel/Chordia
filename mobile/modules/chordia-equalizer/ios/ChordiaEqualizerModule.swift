@@ -17,8 +17,9 @@ public class ChordiaEqualizerModule: Module {
   private let audioEngine = AVAudioEngine()
   private let playerNode = AVAudioPlayerNode()
   private let equalizerUnit = AVAudioUnitEQ(numberOfBands: 10)
+  private let alarmPlayerNode = AVAudioPlayerNode()
+  private let alarmFormat = AVAudioFormat(standardFormatWithSampleRate: 44100.0, channels: 2)!
   private var currentAudioFile: AVAudioFile?
-  private var alarmAudioPlayer: AVAudioPlayer?
 
   private var fileSampleRate: Double = 44100.0
   private var fileTotalFrames: AVAudioFramePosition = 0
@@ -204,8 +205,7 @@ public class ChordiaEqualizerModule: Module {
     }
 
     Function("stopFocusMode") { () -> Bool in
-      self.alarmAudioPlayer?.stop()
-      self.alarmAudioPlayer = nil
+      self.alarmPlayerNode.stop()
       self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
@@ -237,8 +237,7 @@ public class ChordiaEqualizerModule: Module {
 
     Function("stop") { () -> Bool in
       _ = self.getCurrentPosition()
-      self.alarmAudioPlayer?.stop()
-      self.alarmAudioPlayer = nil
+      self.alarmPlayerNode.stop()
       self.currentScheduleToken += 1
       self.isManualStop = true
       self.playerNode.stop()
@@ -310,25 +309,72 @@ public class ChordiaEqualizerModule: Module {
     }
   }
 
+  private func makeAlarmBeepBuffer() -> AVAudioPCMBuffer? {
+    let sampleRate = 44100.0
+    let totalDuration = 0.55
+    let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: alarmFormat, frameCapacity: frameCount) else {
+      return nil
+    }
+    buffer.frameLength = frameCount
+    guard let channels = buffer.floatChannelData else {
+      return nil
+    }
+
+    let left = channels[0]
+    let right = channels[1]
+
+    for i in 0..<Int(frameCount) {
+      let t = Double(i) / sampleRate
+      var sample: Double = 0.0
+
+      if t >= 0.0 && t < 0.16 {
+        let localT = t
+        let env = min(1.0, localT / 0.01) * min(1.0, (0.16 - localT) / 0.025)
+        sample = sin(2.0 * Double.pi * 880.0 * localT) * 0.45 * env
+      } else if t >= 0.24 && t < 0.46 {
+        let localT = t - 0.24
+        let env = min(1.0, localT / 0.01) * min(1.0, (0.22 - localT) / 0.03)
+        sample = sin(2.0 * Double.pi * 1046.5 * localT) * 0.45 * env
+      }
+
+      let f = Float(sample)
+      left[i] = f
+      right[i] = f
+    }
+
+    return buffer
+  }
+
   private func playAlarmBeepInternal(dataUriOrBase64: String) -> Bool {
-    var base64Str = dataUriOrBase64
-    if let range = base64Str.range(of: "base64,") {
-      base64Str = String(base64Str[range.upperBound...])
+    setupAudioEngineNodes()
+    applyAudioSessionCategory(activate: true, forceExclusive: true)
+
+    if audioEngine.outputConnectionPoints(for: alarmPlayerNode, outputBus: 0).isEmpty {
+      ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
+      audioEngine.connect(alarmPlayerNode, to: audioEngine.mainMixerNode, format: alarmFormat)
     }
-    guard let data = Data(base64Encoded: base64Str, options: .ignoreUnknownCharacters) else {
+
+    if !audioEngine.isRunning {
+      do {
+        ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
+        audioEngine.prepare()
+        try audioEngine.start()
+      } catch {
+        self.lastErrorMessage = "Alarm AudioEngine start error: \(error.localizedDescription)"
+        return false
+      }
+    }
+
+    guard let buffer = makeAlarmBeepBuffer() else {
       return false
     }
-    do {
-      applyAudioSessionCategory(activate: true, forceExclusive: true)
-      self.alarmAudioPlayer?.stop()
-      let player = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.wav.rawValue)
-      player.volume = 1.0
-      player.prepareToPlay()
-      self.alarmAudioPlayer = player
-      return player.play()
-    } catch {
-      return false
-    }
+
+    alarmPlayerNode.stop()
+    alarmPlayerNode.volume = 0.85
+    alarmPlayerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+    alarmPlayerNode.play()
+    return true
   }
 
   private func setupAudioEngineNodes() {
@@ -354,6 +400,8 @@ public class ChordiaEqualizerModule: Module {
     ignoreConfigChangeUntil = Date().timeIntervalSince1970 + 0.5
     audioEngine.attach(playerNode)
     audioEngine.attach(equalizerUnit)
+    audioEngine.attach(alarmPlayerNode)
+    audioEngine.connect(alarmPlayerNode, to: audioEngine.mainMixerNode, format: alarmFormat)
     isNodesAttached = true
   }
 
@@ -442,6 +490,10 @@ public class ChordiaEqualizerModule: Module {
 
       self.audioEngine.disconnectNodeOutput(self.playerNode)
       self.audioEngine.disconnectNodeOutput(self.equalizerUnit)
+
+      if self.audioEngine.outputConnectionPoints(for: self.alarmPlayerNode, outputBus: 0).isEmpty {
+        self.audioEngine.connect(self.alarmPlayerNode, to: self.audioEngine.mainMixerNode, format: self.alarmFormat)
+      }
 
       let fileFormat = file.processingFormat
       do {
@@ -927,6 +979,10 @@ public class ChordiaEqualizerModule: Module {
 
       audioEngine.disconnectNodeOutput(playerNode)
       audioEngine.disconnectNodeOutput(equalizerUnit)
+
+      if audioEngine.outputConnectionPoints(for: alarmPlayerNode, outputBus: 0).isEmpty {
+        audioEngine.connect(alarmPlayerNode, to: audioEngine.mainMixerNode, format: alarmFormat)
+      }
 
       let fileFormat = file.processingFormat
 
