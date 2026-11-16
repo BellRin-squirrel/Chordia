@@ -94,7 +94,7 @@ const AppContent = () => {
     toastVisible, toastMessage, toastAnim, showToast,
     navStackLength, setNavStackLength,
     startQueue, handleNext, handlePrev, togglePlayPause, stopPlayback,
-    startFocusQueue, pauseFocusAudio, resumeFocusAudio, setFocusFadeVolume, stopFocusAudio,
+    startFocusQueue, getFocusPlaybackSnapshot, pauseFocusAudio, resumeFocusAudio, setFocusFadeVolume, stopFocusAudio,
     slideAnim, queueTransitionAnim, closeFullPlayer,
     currentContext,
   } = useAudioPlayer(soundCheckEnabled);
@@ -499,6 +499,7 @@ const AppContent = () => {
             currentSong={currentSong} 
             startQueue={startQueue}
             startFocusQueue={startFocusQueue}
+            getFocusPlaybackSnapshot={getFocusPlaybackSnapshot}
             pauseFocusAudio={pauseFocusAudio}
             resumeFocusAudio={resumeFocusAudio}
             setFocusFadeVolume={setFocusFadeVolume}

@@ -188,14 +188,30 @@ export const startFocusQueueIOS = (
   filePaths: string[],
   initialGains: number[],
   startIndex: number,
+  startSeconds: number,
   loopMode: 'OFF' | 'ALL' | 'ONE',
   shuffle: boolean
 ): boolean => {
   if (Platform.OS !== 'ios' || !NativeModule?.startFocusQueue) return false;
   try {
-    return NativeModule.startFocusQueue(filePaths, initialGains, startIndex, loopMode, shuffle);
+    return NativeModule.startFocusQueue(filePaths, initialGains, startIndex, startSeconds, loopMode, shuffle);
   } catch (e) {
     return false;
+  }
+};
+
+export const getFocusStateIOS = (): { index: number; position: number; paths: string[] } | null => {
+  if (Platform.OS !== 'ios' || !NativeModule?.getFocusState) return null;
+  try {
+    const state = NativeModule.getFocusState();
+    if (!state) return null;
+    return {
+      index: typeof state.index === 'number' ? state.index : 0,
+      position: typeof state.position === 'number' ? state.position : 0,
+      paths: Array.isArray(state.paths) ? state.paths : [],
+    };
+  } catch (e) {
+    return null;
   }
 };
 
@@ -306,6 +322,7 @@ export default {
   getEqualizerDebugInfo,
   loadAndPlayIOS,
   startFocusQueueIOS,
+  getFocusStateIOS,
   updateFocusTrackSoundCheckIOS,
   setFocusFadeVolumeIOS,
   playAlarmBeepIOS,

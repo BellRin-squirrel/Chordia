@@ -163,7 +163,7 @@ public class ChordiaEqualizerModule: Module {
       return self.loadAndPlayFile(filePath: filePath, startSeconds: startSeconds, autoPlay: autoPlay)
     }
 
-    Function("startFocusQueue") { (filePaths: [String], initialGains: [Double], startIndex: Int, loopMode: String, shuffle: Bool) -> Bool in
+    Function("startFocusQueue") { (filePaths: [String], initialGains: [Double], startIndex: Int, startSeconds: Double, loopMode: String, shuffle: Bool) -> Bool in
       guard !filePaths.isEmpty else { return false }
 
       self.isFocusModeActive = true
@@ -189,7 +189,15 @@ public class ChordiaEqualizerModule: Module {
       self.disableAllRemoteCommandsAndNowPlaying()
       self.applyAudioSessionCategory(activate: true, forceExclusive: true)
 
-      return self.playFocusTrack(at: self.focusQueueIndex)
+      return self.playFocusTrack(at: self.focusQueueIndex, startSeconds: max(0.0, startSeconds))
+    }
+
+    Function("getFocusState") { () -> [String: Any] in
+      return [
+        "index": self.focusQueueIndex,
+        "position": self.getCurrentPosition(),
+        "paths": self.focusQueuePaths
+      ]
     }
 
     Function("updateFocusTrackSoundCheck") { (filePath: String, gainDb: Double) in
@@ -311,7 +319,7 @@ public class ChordiaEqualizerModule: Module {
 
   private func makeAlarmBeepBuffer() -> AVAudioPCMBuffer? {
     let sampleRate = 44100.0
-    let totalDuration = 0.55
+    let totalDuration = 1.12
     let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
     guard let buffer = AVAudioPCMBuffer(pcmFormat: alarmFormat, frameCapacity: frameCount) else {
       return nil
@@ -324,18 +332,30 @@ public class ChordiaEqualizerModule: Module {
     let left = channels[0]
     let right = channels[1]
 
+    // 目覚まし時計風の電子音「ピピピピ、ピピピピ」
+    let beepDuration = 0.065
+    let beepStarts: [Double] = [
+      0.00, 0.11, 0.22, 0.33,
+      0.62, 0.73, 0.84, 0.95
+    ]
+    let baseFreq = 2048.0
+
     for i in 0..<Int(frameCount) {
       let t = Double(i) / sampleRate
       var sample: Double = 0.0
 
-      if t >= 0.0 && t < 0.16 {
-        let localT = t
-        let env = min(1.0, localT / 0.01) * min(1.0, (0.16 - localT) / 0.025)
-        sample = sin(2.0 * Double.pi * 880.0 * localT) * 0.45 * env
-      } else if t >= 0.24 && t < 0.46 {
-        let localT = t - 0.24
-        let env = min(1.0, localT / 0.01) * min(1.0, (0.22 - localT) / 0.03)
-        sample = sin(2.0 * Double.pi * 1046.5 * localT) * 0.45 * env
+      for start in beepStarts {
+        if t >= start && t < start + beepDuration {
+          let localT = t - start
+          let fadeIn = min(1.0, localT / 0.004)
+          let fadeOut = min(1.0, (beepDuration - localT) / 0.008)
+          let env = fadeIn * fadeOut
+          let tone = sin(2.0 * Double.pi * baseFreq * localT)
+            + 0.25 * sin(2.0 * Double.pi * (baseFreq * 3.0) * localT)
+            + 0.10 * sin(2.0 * Double.pi * (baseFreq * 5.0) * localT)
+          sample = tone * 0.28 * env
+          break
+        }
       }
 
       let f = Float(sample)
@@ -901,14 +921,14 @@ public class ChordiaEqualizerModule: Module {
     return nil
   }
 
-  private func playFocusTrack(at index: Int, skipAttempts: Int = 0) -> Bool {
+  private func playFocusTrack(at index: Int, startSeconds: Double = 0.0, skipAttempts: Int = 0) -> Bool {
     guard isFocusModeActive, !focusQueuePaths.isEmpty else { return false }
     let safeIdx = max(0, min(index, focusQueuePaths.count - 1))
     focusQueueIndex = safeIdx
     let filePath = focusQueuePaths[safeIdx]
     soundCheckGain = Float(focusSoundCheckMap[filePath] ?? 0.0)
 
-    let ok = loadAndPlayFile(filePath: filePath, startSeconds: 0.0, autoPlay: true)
+    let ok = loadAndPlayFile(filePath: filePath, startSeconds: max(0.0, startSeconds), autoPlay: true)
     if ok {
       sendEvent("onFocusTrackChanged", ["index": safeIdx, "uri": filePath])
       return true
@@ -916,7 +936,7 @@ public class ChordiaEqualizerModule: Module {
 
     if skipAttempts + 1 < focusQueuePaths.count {
       let nextIdx = (safeIdx + 1) % focusQueuePaths.count
-      return playFocusTrack(at: nextIdx, skipAttempts: skipAttempts + 1)
+      return playFocusTrack(at: nextIdx, startSeconds: 0.0, skipAttempts: skipAttempts + 1)
     }
     return false
   }
@@ -925,13 +945,13 @@ public class ChordiaEqualizerModule: Module {
     guard isFocusModeActive, !focusQueuePaths.isEmpty else { return }
 
     if focusLoopMode == "ONE" {
-      _ = playFocusTrack(at: focusQueueIndex)
+      _ = playFocusTrack(at: focusQueueIndex, startSeconds: 0.0)
       return
     }
 
     let nextIdx = focusQueueIndex + 1
     if nextIdx < focusQueuePaths.count {
-      _ = playFocusTrack(at: nextIdx)
+      _ = playFocusTrack(at: nextIdx, startSeconds: 0.0)
       return
     }
 
@@ -943,7 +963,7 @@ public class ChordiaEqualizerModule: Module {
           focusQueuePaths.swapAt(0, focusQueuePaths.count - 1)
         }
       }
-      _ = playFocusTrack(at: 0)
+      _ = playFocusTrack(at: 0, startSeconds: 0.0)
     } else {
       isNodePlaying = false
     }

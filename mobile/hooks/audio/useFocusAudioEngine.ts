@@ -6,6 +6,7 @@ import { createAudioPlaylist, setAudioModeAsync } from 'expo-audio';
 import {
   applyEqualizerSettings,
   getEqualizerDebugInfo,
+  getFocusStateIOS,
   getNativeModule,
   initEqualizer,
   pauseIOS,
@@ -20,6 +21,12 @@ import {
 import { gainDbToPlaybackVolume, getSoundCheckGain } from '../../utils/soundCheck';
 import { VolumeMultiplierSetting } from '../../utils/appVolume';
 import { LoopModeType, resolveExpoAudioSource } from './types';
+
+export interface FocusPlaybackSnapshot {
+  queue: any[];
+  index: number;
+  positionSec: number;
+}
 
 interface UseFocusAudioEngineProps {
   soundCheckEnabledRef: React.MutableRefObject<boolean>;
@@ -39,6 +46,7 @@ export const useFocusAudioEngine = ({
   const isFocusActiveRef = useRef(false);
   const usingExpoFallbackRef = useRef(false);
   const focusQueueRef = useRef<any[]>([]);
+  const focusCurrentIndexRef = useRef(0);
   const focusSessionTokenRef = useRef(0);
   const fadeVolumeRef = useRef(1.0);
   const expoPlaylistRef = useRef<any>(null);
@@ -80,6 +88,7 @@ export const useFocusAudioEngine = ({
           }
         }
         if (matchedSong) {
+          focusCurrentIndexRef.current = idx;
           onTrackChangeRef.current(matchedSong, idx, queue);
           onPlayStateChangeRef.current(true);
         }
@@ -154,6 +163,8 @@ export const useFocusAudioEngine = ({
 
   const startExpoPlaylist = async (
     queue: any[],
+    startIndex: number,
+    startSeconds: number,
     loopMode: LoopModeType,
     sessionToken: number
   ) => {
@@ -172,6 +183,9 @@ export const useFocusAudioEngine = ({
       await initEqualizer(0);
     }
     await syncNativeAudioEffects();
+
+    const safeStartIdx = Math.max(0, Math.min(startIndex, queue.length - 1));
+    focusCurrentIndexRef.current = safeStartIdx;
 
     const sources = queue.map((s) => resolveExpoAudioSource(s.localMusicUri));
     const loopStr = loopMode === 'ONE' ? 'single' : loopMode === 'ALL' ? 'all' : 'none';
@@ -206,6 +220,7 @@ export const useFocusAudioEngine = ({
       const subTrack = playlist.addListener('trackChanged', (event: any) => {
         if (!isFocusActiveRef.current || sessionToken !== focusSessionTokenRef.current) return;
         const idx = typeof event?.currentIndex === 'number' ? event.currentIndex : 0;
+        focusCurrentIndexRef.current = idx;
         const song = focusQueueRef.current[idx];
         if (song) {
           onTrackChangeRef.current(song, idx, focusQueueRef.current);
@@ -223,59 +238,133 @@ export const useFocusAudioEngine = ({
       if (subStatus) expoListenersRef.current.push(subStatus);
     } catch (e) {}
 
-    await updateTrackSoundCheck(queue[0]);
-    onTrackChangeRef.current(queue[0], 0, queue);
+    if (safeStartIdx > 0) {
+      try {
+        playlist.skipTo(safeStartIdx);
+      } catch (e) {}
+    }
+
+    await updateTrackSoundCheck(queue[safeStartIdx]);
+    onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue);
     playlist.play();
+    if (startSeconds > 0) {
+      setTimeout(() => {
+        if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
+        try {
+          void playlist.seekTo(startSeconds);
+        } catch (e) {}
+      }, 150);
+    }
     onPlayStateChangeRef.current(true);
+  };
+
+  const getFocusPlaybackSnapshot = (): FocusPlaybackSnapshot | null => {
+    if (!isFocusActiveRef.current || focusQueueRef.current.length === 0) return null;
+
+    if (Platform.OS === 'ios' && !usingExpoFallbackRef.current) {
+      const nativeState = getFocusStateIOS();
+      if (nativeState) {
+        let orderedQueue = [...focusQueueRef.current];
+        if (nativeState.paths.length > 0) {
+          const songMap = new Map<string, any>();
+          focusQueueRef.current.forEach((s: any) => {
+            if (s?.localMusicUri) songMap.set(s.localMusicUri, s);
+          });
+          const rebuilt = nativeState.paths.map((p) => songMap.get(p)).filter(Boolean);
+          if (rebuilt.length > 0) {
+            orderedQueue = rebuilt;
+          }
+        }
+        const safeIdx = Math.max(0, Math.min(nativeState.index, orderedQueue.length - 1));
+        return {
+          queue: orderedQueue,
+          index: safeIdx,
+          positionSec: Math.max(0, nativeState.position || 0),
+        };
+      }
+    }
+
+    if (expoPlaylistRef.current) {
+      const pl = expoPlaylistRef.current;
+      const idx = typeof pl.currentIndex === 'number' ? pl.currentIndex : focusCurrentIndexRef.current;
+      const safeIdx = Math.max(0, Math.min(idx, focusQueueRef.current.length - 1));
+      const pos = typeof pl.currentTime === 'number' ? pl.currentTime : 0;
+      return {
+        queue: [...focusQueueRef.current],
+        index: safeIdx,
+        positionSec: Math.max(0, pos),
+      };
+    }
+
+    return {
+      queue: [...focusQueueRef.current],
+      index: Math.max(0, Math.min(focusCurrentIndexRef.current, focusQueueRef.current.length - 1)),
+      positionSec: 0,
+    };
   };
 
   const startFocusQueue = async (
     songs: any[],
     shuffle: boolean = false,
-    loopMode: LoopModeType = 'ALL'
+    loopMode: LoopModeType = 'ALL',
+    resumeSnapshot?: FocusPlaybackSnapshot | null
   ) => {
-    if (!songs || songs.length === 0) return;
+    if ((!songs || songs.length === 0) && (!resumeSnapshot || resumeSnapshot.queue.length === 0)) return;
 
     const sessionToken = ++focusSessionTokenRef.current;
     isFocusActiveRef.current = true;
     usingExpoFallbackRef.current = false;
     fadeVolumeRef.current = 1.0;
 
-    let queue = [...songs];
-    if (shuffle && queue.length > 1) {
-      queue = queue.sort(() => Math.random() - 0.5);
+    let queue: any[] = [];
+    let startIndex = 0;
+    let startSeconds = 0;
+
+    if (resumeSnapshot && resumeSnapshot.queue.length > 0) {
+      queue = [...resumeSnapshot.queue];
+      startIndex = Math.max(0, Math.min(resumeSnapshot.index, queue.length - 1));
+      startSeconds = Math.max(0, resumeSnapshot.positionSec || 0);
+    } else {
+      queue = [...songs];
+      if (shuffle && queue.length > 1) {
+        queue = queue.sort(() => Math.random() - 0.5);
+      }
     }
+
     focusQueueRef.current = queue;
+    focusCurrentIndexRef.current = startIndex;
 
     await syncNativeAudioEffects();
 
     if (Platform.OS === 'ios') {
       const mod = getNativeModule();
       if (typeof mod?.startFocusQueue === 'function') {
-        const firstSong = queue[0];
-        let firstGain = 0;
-        if (soundCheckEnabledRef.current && firstSong?.localMusicUri) {
+        const targetSong = queue[startIndex];
+        let targetGain = 0;
+        if (soundCheckEnabledRef.current && targetSong?.localMusicUri) {
           try {
-            firstGain = await getSoundCheckGain(firstSong.localMusicUri);
+            targetGain = await getSoundCheckGain(targetSong.localMusicUri);
           } catch (e) {
-            firstGain = 0;
+            targetGain = 0;
           }
           if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) return;
         }
 
         const filePaths = queue.map((s) => s.localMusicUri).filter(Boolean);
         if (filePaths.length === 0) return;
-        const initialGains = filePaths.map((_, idx) => (idx === 0 ? firstGain : 0));
+        const safeStartIdx = Math.max(0, Math.min(startIndex, filePaths.length - 1));
+        const initialGains = filePaths.map((_, idx) => (idx === safeStartIdx ? targetGain : 0));
 
         setFocusFadeVolumeIOS(1.0);
-        const ok = startFocusQueueIOS(filePaths, initialGains, 0, loopMode, shuffle);
+        const ok = startFocusQueueIOS(filePaths, initialGains, safeStartIdx, startSeconds, loopMode, shuffle);
         if (ok) {
-          onTrackChangeRef.current(queue[0], 0, queue);
+          onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue);
           onPlayStateChangeRef.current(true);
 
           if (soundCheckEnabledRef.current && queue.length > 1) {
             void (async () => {
-              for (let i = 1; i < queue.length; i++) {
+              for (let i = 0; i < queue.length; i++) {
+                if (i === safeStartIdx) continue;
                 if (sessionToken !== focusSessionTokenRef.current || !isFocusActiveRef.current) break;
                 const uri = queue[i]?.localMusicUri;
                 if (!uri) continue;
@@ -295,7 +384,7 @@ export const useFocusAudioEngine = ({
       }
     }
 
-    await startExpoPlaylist(queue, loopMode, sessionToken);
+    await startExpoPlaylist(queue, startIndex, startSeconds, loopMode, sessionToken);
   };
 
   const pauseFocusAudio = async () => {
@@ -354,6 +443,7 @@ export const useFocusAudioEngine = ({
   return {
     isFocusActiveRef,
     startFocusQueue,
+    getFocusPlaybackSnapshot,
     pauseFocusAudio,
     resumeFocusAudio,
     setFocusFadeVolume,

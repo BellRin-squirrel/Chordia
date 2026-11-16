@@ -32,7 +32,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export const FocusScreen = ({ 
   dynamicStyles, insets, themeColor, localLibrary = [], localPlaylists = [], 
   currentSong, startQueue,
-  startFocusQueue, pauseFocusAudio, resumeFocusAudio, setFocusFadeVolume, stopFocusAudio,
+  startFocusQueue, getFocusPlaybackSnapshot, pauseFocusAudio, resumeFocusAudio, setFocusFadeVolume, stopFocusAudio,
   stage, setStage, audioEngine, changeAudioEngine, 
   themeR, themeG, themeB, language = 'ja' 
 }: any) => {
@@ -103,8 +103,8 @@ export const FocusScreen = ({
   const [isExitingFocus, setIsExitingFocus] = useState(false);
   
   const playlistRefs = useRef<any>({});
-  const workProgressRef = useRef({ index: 0, position: 0 });
-  const breakProgressRef = useRef({ index: 0, position: 0 });
+  const workSnapshotRef = useRef<any>(null);
+  const breakSnapshotRef = useRef<any>(null);
   const introToastAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => { pomoStateRef.current = pomoState; }, [pomoState]);
@@ -271,6 +271,8 @@ export const FocusScreen = ({
     isExitingFocusRef.current = true;
     setIsExitingFocus(true);
     fadeTriggeredRef.current = false;
+    workSnapshotRef.current = null;
+    breakSnapshotRef.current = null;
     setStage('SETUP');
     void (async () => {
       try {
@@ -289,7 +291,7 @@ export const FocusScreen = ({
     setPickerVisible(false);
   }, [pickingTarget]);
 
-  const switchPhaseMusic = async (phase: 'WORK' | 'BREAK') => {
+  const switchPhaseMusic = async (phase: 'WORK' | 'BREAK', resumeSnapshot: any = null) => {
     const isWork = phase === 'WORK';
     const target = isWork 
       ? (pomoEnabledRef.current ? playlistRefs.current.workPlaylist : playlistRefs.current.mainPlaylist) 
@@ -316,7 +318,7 @@ export const FocusScreen = ({
 
       if (songs.length > 0) {
         if (startFocusQueue) {
-          await startFocusQueue(songs, shuffle, 'ALL');
+          await startFocusQueue(songs, shuffle, 'ALL', resumeSnapshot);
         } else {
           startQueue(songs, undefined, shuffle, null, 0, 'ALL');
         }
@@ -328,7 +330,7 @@ export const FocusScreen = ({
     try {
       Vibration.vibrate([0, 500, 200, 500]);
       if (Platform.OS === 'ios' && playAlarmBeepIOS(BEEP_SOUND_URI)) {
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 1200));
         return;
       }
       await setAudioModeAsync({
@@ -338,13 +340,13 @@ export const FocusScreen = ({
       });
       const alarmPlayer = createAudioPlayer(BEEP_SOUND_URI);
       alarmPlayer.play();
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise(r => setTimeout(r, 1200));
       try {
         alarmPlayer.pause();
         alarmPlayer.remove?.();
       } catch (_) {}
     } catch (e) { 
-      await new Promise(r => setTimeout(r, 600)); 
+      await new Promise(r => setTimeout(r, 800)); 
     }
   };
 
@@ -353,6 +355,22 @@ export const FocusScreen = ({
     fadeTriggeredRef.current = false;
     try {
       await pauseFocusAudio?.();
+
+      const wp = playlistRefs.current.workPlaylist;
+      const bp = playlistRefs.current.breakPlaylist;
+      const isSameCollection = !!(wp && bp && wp.id === bp.id && wp.type === bp.type);
+
+      if (!isSameCollection) {
+        const currentSnapshot = getFocusPlaybackSnapshot?.();
+        if (currentSnapshot) {
+          if (pomoStateRef.current === 'WORK') {
+            workSnapshotRef.current = currentSnapshot;
+          } else {
+            breakSnapshotRef.current = currentSnapshot;
+          }
+        }
+      }
+
       await playAlarmSound();
       if (isExitingFocusRef.current) return;
       
@@ -364,8 +382,27 @@ export const FocusScreen = ({
       phaseStartTimeRef.current = Date.now();
       totalPhasePausedMsRef.current = 0; 
       fadeTriggeredRef.current = false;
-      
-      await switchPhaseMusic(nextState);
+
+      if (isSameCollection) {
+        if (!isPausedRef.current) {
+          setFocusFadeVolume?.(0);
+          await resumeFocusAudio?.();
+          for (let i = 1; i <= 10; i++) {
+            if (isExitingFocusRef.current || isPausedRef.current) break;
+            setFocusFadeVolume?.(i / 10);
+            await new Promise(r => setTimeout(r, 150));
+          }
+          if (!isExitingFocusRef.current) {
+            setFocusFadeVolume?.(1.0);
+          }
+        } else {
+          setFocusFadeVolume?.(1.0);
+        }
+        return;
+      }
+
+      const resumeSnapshot = nextState === 'WORK' ? workSnapshotRef.current : breakSnapshotRef.current;
+      await switchPhaseMusic(nextState, resumeSnapshot);
       if (isExitingFocusRef.current) return;
 
       if (isPausedRef.current) {
@@ -471,6 +508,8 @@ export const FocusScreen = ({
     isExitingFocusRef.current = false;
     setIsExitingFocus(false);
     setFocusFadeVolume?.(1.0);
+    workSnapshotRef.current = null;
+    breakSnapshotRef.current = null;
     
     sessionStartTimeRef.current = Date.now();
     phaseStartTimeRef.current = Date.now();
@@ -480,9 +519,6 @@ export const FocusScreen = ({
     fadeTriggeredRef.current = false;
     isTransitioningRef.current = false;
 
-    workProgressRef.current = { index: 0, position: 0 };
-    breakProgressRef.current = { index: 0, position: 0 };
-
     setTotalWorkSeconds(0);
     setPausedSeconds(0);
     setPomoState('WORK');
@@ -491,7 +527,7 @@ export const FocusScreen = ({
     setShowHelp(false);
     setStage('FOCUS');
     
-    await switchPhaseMusic('WORK'); 
+    await switchPhaseMusic('WORK', null); 
   };
 
   const isReady = pomoEnabled ? (workPlaylist && breakPlaylist) : mainPlaylist;

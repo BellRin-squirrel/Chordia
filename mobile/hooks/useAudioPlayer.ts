@@ -13,7 +13,7 @@ import { useQueueManager } from './audio/useQueueManager';
 import { useRntpEngine } from './audio/useRntpEngine';
 import { useExpoAudioEngine } from './audio/useExpoAudioEngine';
 import { useIosEqualizerEngine } from './audio/useIosEqualizerEngine';
-import { useFocusAudioEngine } from './audio/useFocusAudioEngine';
+import { useFocusAudioEngine, FocusPlaybackSnapshot } from './audio/useFocusAudioEngine';
 import { usePlayerSync } from './audio/usePlayerSync';
 import { 
   initEqualizer, 
@@ -31,7 +31,7 @@ import {
   DEFAULT_VOLUME_SETTING 
 } from '../utils/appVolume';
 
-export type { PlayCollectionContext };
+export type { PlayCollectionContext, FocusPlaybackSnapshot };
 
 const { height } = Dimensions.get('window');
 
@@ -654,9 +654,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const startFocusQueue = async (
     songs: any[],
     shuffle: boolean = false,
-    loopMode: LoopModeType = 'ALL'
+    loopMode: LoopModeType = 'ALL',
+    resumeSnapshot?: FocusPlaybackSnapshot | null
   ) => {
-    if (!songs || songs.length === 0) return;
+    if ((!songs || songs.length === 0) && (!resumeSnapshot || resumeSnapshot.queue.length === 0)) return;
 
     iosEq.isIOSEQActiveRef.current = false;
     iosEq.clearIOSEQPolling();
@@ -665,14 +666,14 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
     currentContextRef.current = null;
     setCurrentContext(null);
-    queueMgr.originalQueueRef.current = [...songs];
+    queueMgr.originalQueueRef.current = songs && songs.length > 0 ? [...songs] : [...(resumeSnapshot?.queue || [])];
     queueMgr.setIsShuffle(shuffle);
     queueMgr.shuffleRef.current = shuffle;
     queueMgr.setLoopMode(loopMode);
     queueMgr.loopRef.current = loopMode;
     needsReloadFromFocusRef.current = true;
 
-    await focusEngine.startFocusQueue(songs, shuffle, loopMode);
+    await focusEngine.startFocusQueue(songs, shuffle, loopMode, resumeSnapshot);
   };
 
   const stopFocusAudio = async () => {
@@ -1108,6 +1109,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     togglePlayPause, 
     stopPlayback,
     startFocusQueue,
+    getFocusPlaybackSnapshot: focusEngine.getFocusPlaybackSnapshot,
     pauseFocusAudio: focusEngine.pauseFocusAudio,
     resumeFocusAudio: focusEngine.resumeFocusAudio,
     setFocusFadeVolume: focusEngine.setFocusFadeVolume,
