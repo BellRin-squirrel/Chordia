@@ -10,19 +10,12 @@ import { FocusTimerView } from './focus/FocusTimerView';
 import { getPlaylistSongs } from '../utils/playlistEvaluator';
 import { playAlarmBeepIOS } from '../utils/equalizer';
 import { t } from '../utils/i18n';
-import { 
-  addWorkHistoryApi, 
-  formatWorkSessionEndTime, 
-  formatWorkDuration, 
-  verifyChordiaSyncSession, 
-  ACCOUNT_STORAGE_KEY 
-} from '../utils/chordiaSync';
+import { recordWorkHistoryEntriesWithSync } from '../utils/chordiaSync';
 
 const BEEP_SOUND_URI = 'data:audio/wav;base64,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';
 
-const STORAGE_KEY = 'chordia_focus_settings';
-const HISTORY_KEY = 'chordia_focus_history';
 const TEMP_WORK_KEY = 'chordia_temp_work_seconds';
+const STORAGE_KEY = 'chordia_focus_settings';
 const showNativeAlert = Alert.alert;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -128,18 +121,15 @@ export const FocusScreen = ({
   const saveSessionToHistory = useCallback(async (seconds: number) => {
     if (seconds <= 0) return;
     try {
-      const historyJson = await AsyncStorage.getItem(HISTORY_KEY);
-      let history = historyJson ? JSON.parse(historyJson) : [];
-      
       const startTime = sessionStartTimeRef.current || (Date.now() - seconds * 1000);
       const endTime = Date.now();
       const totalElapsedMs = endTime - startTime;
 
-      const newEntries = [];
+      const newEntries: { id: string; date: string; duration: number }[] = [];
 
       if (totalElapsedMs <= 0) {
         newEntries.push({
-          id: Date.now().toString(),
+          id: `work_${Date.now()}_${Math.random()}`,
           date: new Date(endTime).toISOString(),
           duration: seconds
         });
@@ -162,7 +152,7 @@ export const FocusScreen = ({
           
           if (chunkDurationSeconds > 0) {
             newEntries.push({
-              id: Date.now().toString() + '_' + currentStartMs,
+              id: `work_${Date.now()}_${currentStartMs}_${Math.random()}`,
               date: new Date(chunkEndMs).toISOString(),
               duration: chunkDurationSeconds
             });
@@ -172,29 +162,15 @@ export const FocusScreen = ({
         }
       }
 
-      history = [...newEntries.reverse(), ...history].slice(0, 100);
-      
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-      await AsyncStorage.removeItem(TEMP_WORK_KEY);
-
-      const isValid = await verifyChordiaSyncSession(true, language);
-      if (isValid) {
-        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-        if (accountJson) {
-          const account = JSON.parse(accountJson);
-          if (account.sid) {
-            const endFormatted = formatWorkSessionEndTime(new Date(endTime));
-            const timeFormatted = formatWorkDuration(seconds);
-
-            console.log(`[FocusSession] 🏁 作業セッション終了 (${seconds}秒)。Chordia Sync に送信します...`);
-            addWorkHistoryApi(account.sid, endFormatted, timeFormatted);
-          }
-        }
+      if (newEntries.length > 0) {
+        // ログイン中は WAL 方式で先行一時保存 → オンライン送信成功時に自動削除（オフライン時は保持）
+        await recordWorkHistoryEntriesWithSync(newEntries);
       }
+      await AsyncStorage.removeItem(TEMP_WORK_KEY);
     } catch (e) {
       console.error("Failed to save focus history", e);
     }
-  }, [language]);
+  }, []);
 
   useEffect(() => {
     const init = async () => {

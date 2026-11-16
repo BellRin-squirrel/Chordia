@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking, NativeModules 
+  ActivityIndicator, Alert, StyleSheet, Keyboard, Platform, Linking
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
@@ -15,7 +15,8 @@ import {
   checkAuthStatusApi, 
   logoutApi,
   syncInitialLocalHistory,
-  getDeviceModelName 
+  getDeviceModelName,
+  OFFLINE_API_QUEUE_KEY
 } from '../../utils/chordiaSync';
 
 const ACCOUNT_STORAGE_KEY = 'chordia_sync_account';
@@ -95,6 +96,8 @@ export const InfoAccountView = ({
 
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const consecutiveNetworkErrorCountRef = useRef(0);
+  const isResyncingRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const stopPolling = () => {
     if (pollingTimerRef.current) {
@@ -104,10 +107,11 @@ export const InfoAccountView = ({
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     (async () => {
       try {
         const saved = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-        if (saved) {
+        if (saved && isMountedRef.current) {
           const parsed = JSON.parse(saved);
           if (parsed.username && parsed.sid) {
             setUsername(parsed.username);
@@ -119,7 +123,10 @@ export const InfoAccountView = ({
       } catch (e) {}
     })();
 
-    return () => stopPolling();
+    return () => {
+      isMountedRef.current = false;
+      stopPolling();
+    };
   }, []);
 
   useEffect(() => {
@@ -135,6 +142,7 @@ export const InfoAccountView = ({
 
           if (res.status === 'authenticated') {
             stopPolling();
+            if (!isMountedRef.current) return;
             setAuthStage('AUTHENTICATED');
             await AsyncStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify({
               username,
@@ -143,19 +151,30 @@ export const InfoAccountView = ({
               authenticatedAt: new Date().toISOString(),
             }));
 
-            setIsSyncingData(true);
+            if (isResyncingRef.current) return;
+            isResyncingRef.current = true;
+            if (isMountedRef.current) setIsSyncingData(true);
             try {
-              await syncInitialLocalHistory(sid, (msg) => setSyncProgressText(msg), language);
+              await syncInitialLocalHistory(
+                sid,
+                (msg) => {
+                  if (isMountedRef.current) setSyncProgressText(msg);
+                },
+                language
+              );
             } catch (err) {
               console.warn('[InitialSync Error]', err);
             } finally {
-              setIsSyncingData(false);
-              setSyncProgressText('');
+              isResyncingRef.current = false;
+              if (isMountedRef.current) {
+                setIsSyncingData(false);
+                setSyncProgressText('');
+              }
             }
 
           } else if (res.status === 'expired') {
             stopPolling();
-            setAuthStage('EXPIRED');
+            if (isMountedRef.current) setAuthStage('EXPIRED');
           }
         } else {
           consecutiveNetworkErrorCountRef.current += 1;
@@ -208,6 +227,7 @@ export const InfoAccountView = ({
     const modelName = getDeviceModelName();
     const result = await registerAuthCodeApi(username, deviceName, code, modelName);
 
+    if (!isMountedRef.current) return;
     setIsLoading(false);
 
     if (result.success && result.sid) {
@@ -231,7 +251,9 @@ export const InfoAccountView = ({
       if (Clipboard?.setStringAsync) {
         await Clipboard.setStringAsync(generatedCode);
         setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2500);
+        setTimeout(() => {
+          if (isMountedRef.current) setIsCopied(false);
+        }, 2500);
         return;
       }
     } catch (e: any) {
@@ -253,7 +275,9 @@ export const InfoAccountView = ({
       if (Clipboard?.setStringAsync) {
         await Clipboard.setStringAsync(generatedCode);
         setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2500);
+        setTimeout(() => {
+          if (isMountedRef.current) setIsCopied(false);
+        }, 2500);
       }
     } catch (e) {}
 
@@ -268,13 +292,20 @@ export const InfoAccountView = ({
   };
 
   const handleResyncAllData = async () => {
-    if (!sid) return;
+    if (!sid || isResyncingRef.current) return;
 
+    isResyncingRef.current = true;
     setIsSyncingData(true);
     setSyncProgressText(t('getting_info', language));
 
     try {
-      await syncInitialLocalHistory(sid, (msg) => setSyncProgressText(msg), language);
+      await syncInitialLocalHistory(
+        sid,
+        (msg) => {
+          if (isMountedRef.current) setSyncProgressText(msg);
+        },
+        language
+      );
       setTimeout(() => {
         Alert.alert(t('account_resync_complete_title', language), t('account_resync_complete_desc', language));
       }, 150);
@@ -283,8 +314,11 @@ export const InfoAccountView = ({
         Alert.alert(t('alert_timer_error_title', language), err?.message || t('account_resync_failed', language));
       }, 150);
     } finally {
-      setIsSyncingData(false);
-      setSyncProgressText('');
+      isResyncingRef.current = false;
+      if (isMountedRef.current) {
+        setIsSyncingData(false);
+        setSyncProgressText('');
+      }
     }
   };
 
@@ -312,7 +346,9 @@ export const InfoAccountView = ({
             await AsyncStorage.removeItem('chordia_playback_history');
             await AsyncStorage.removeItem('chordia_pending_play_history');
             await AsyncStorage.removeItem('chordia_pending_work_history');
+            await AsyncStorage.removeItem(OFFLINE_API_QUEUE_KEY);
 
+            if (!isMountedRef.current) return;
             setSid(null);
             setGeneratedCode(null);
             setUsername('');
@@ -367,7 +403,8 @@ export const InfoAccountView = ({
               <GlassActionButton
                 isDark={isDark}
                 glassTintColor={themeColor}
-                style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor }]}
+                style={[s.primaryBtn, { backgroundColor: useLiquidGlass ? 'transparent' : themeColor, opacity: isSyncingData ? 0.6 : 1 }]}
+                disabled={isSyncingData}
                 onPress={handleResyncAllData}
               >
                 <Ionicons name="cloud-upload-outline" size={19} color={textColor} style={{ marginRight: 8 }} />
@@ -380,7 +417,7 @@ export const InfoAccountView = ({
                 isDark={isDark}
                 style={{ height: 46, borderRadius: 23, backgroundColor: useLiquidGlass ? 'transparent' : 'rgba(239, 68, 68, 0.12)', justifyContent: 'center', alignItems: 'center' }}
                 onPress={handleLogoutPress}
-                disabled={isLoggingOut}
+                disabled={isLoggingOut || isSyncingData}
               >
                 {isLoggingOut ? (
                   <ActivityIndicator color="#ef4444" size="small" />
@@ -477,7 +514,6 @@ export const InfoAccountView = ({
             </View>
             <Text style={[s.codeCardDesc, { color: dynamicStyles.subText }]}>{t('account_code_issued_desc', language)}</Text>
             
-            {/* ★ ログイン対象のアカウント名とデバイス名を表示 */}
             <View style={{ 
               width: '100%', 
               backgroundColor: isDark ? '#2c2c2e' : '#f2f2f7', 
@@ -496,7 +532,6 @@ export const InfoAccountView = ({
               </View>
             </View>
 
-            {/* タップして直接コピーされるコードボックス */}
             <TouchableOpacity 
               style={[
                 s.codeBox, 
@@ -527,7 +562,6 @@ export const InfoAccountView = ({
               </View>
             </TouchableOpacity>
 
-            {/* ブラウザで認証ボタン */}
             <GlassActionButton
               isDark={isDark}
               glassTintColor={themeColor}

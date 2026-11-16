@@ -116,6 +116,7 @@ export const useFocusAudioEngine = ({
       try {
         pl.pause?.();
         pl.clearLockScreenControls?.();
+        pl.clear?.();
         pl.destroy?.();
       } catch (e) {}
     }
@@ -432,6 +433,8 @@ export const useFocusAudioEngine = ({
     isFocusActiveRef.current = false;
     usingExpoFallbackRef.current = false;
     fadeVolumeRef.current = 1.0;
+    focusQueueRef.current = [];
+    focusCurrentIndexRef.current = 0;
 
     if (Platform.OS === 'ios') {
       stopFocusModeIOS();

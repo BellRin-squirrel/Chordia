@@ -2,8 +2,7 @@ import { useRef, useEffect } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
-  addPlayHistoryApi, 
-  verifyChordiaSyncSession, 
+  recordPlayHistoryWithSync, 
   registerNowPlayingApi, 
   ACCOUNT_STORAGE_KEY 
 } from '../../utils/chordiaSync';
@@ -85,29 +84,8 @@ export const usePlayerSync = ({
       list = [song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
       await AsyncStorage.setItem('recently_played_songs', JSON.stringify(list));
 
-      const ph = await AsyncStorage.getItem('chordia_playback_history');
-      let playHistory = ph ? JSON.parse(ph) : [];
-      playHistory = [{
-        id: `${song.localMusicUri || 'song'}_${Date.now()}`,
-        title: song.title || 'Untitled',
-        artist: song.artist || 'Unknown Artist',
-        album: song.album || 'Unknown Album',
-        localMusicUri: song.localMusicUri,
-        localImageUri: song.localImageUri,
-        playedAt: new Date().toISOString(),
-      }, ...playHistory].slice(0, 500);
-      await AsyncStorage.setItem('chordia_playback_history', JSON.stringify(playHistory));
-
-      const isValid = await verifyChordiaSyncSession(false);
-      if (isValid) {
-        const accountJson = await AsyncStorage.getItem(ACCOUNT_STORAGE_KEY);
-        if (accountJson) {
-          const account = JSON.parse(accountJson);
-          if (account.sid) {
-            addPlayHistoryApi(account.sid, song.title || 'Untitled', song.artist || 'Unknown Artist', song.album || 'Unknown Album').catch(() => {});
-          }
-        }
-      }
+      // ログイン中は WAL 方式で先行一時保存 → オンライン送信成功時に自動削除（オフライン時は保持）
+      await recordPlayHistoryWithSync(song);
     } catch (e) {}
   };
 

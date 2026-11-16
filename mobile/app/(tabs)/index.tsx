@@ -292,21 +292,36 @@ const AppContent = () => {
   }, [showToast, language]);
 
   useEffect(() => {
-    processOfflineQueue();
+    void processOfflineQueue();
+
+    let netSub: { remove?: () => void } | null = null;
+    try {
+      const networkAny = Network as any;
+      if (typeof networkAny.addNetworkStateListener === 'function') {
+        netSub = networkAny.addNetworkStateListener((state: any) => {
+          if (state?.isConnected && state?.isInternetReachable !== false) {
+            void processOfflineQueue();
+          }
+        });
+      }
+    } catch (e) {}
 
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        processOfflineQueue();
+        void processOfflineQueue();
       }
     });
 
     const timer = setInterval(() => {
       if (AppState.currentState === 'active') {
-        processOfflineQueue();
+        void processOfflineQueue();
       }
     }, 20000);
 
     return () => {
+      try {
+        netSub?.remove?.();
+      } catch (e) {}
       sub.remove();
       clearInterval(timer);
     };

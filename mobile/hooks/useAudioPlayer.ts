@@ -53,7 +53,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const [currentContext, setCurrentContext] = useState<PlayCollectionContext | null>(null);
   const currentContextRef = useRef<PlayCollectionContext | null>(null);
   const isPlayingRef = useRef(false);
-  const needsReloadFromFocusRef = useRef(false);
 
   const soundCheckEnabledRef = useRef(soundCheckEnabled);
   const audioEngineRef = useRef<AudioEngineType>(audioEngine);
@@ -343,7 +342,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     if (focusEngine.isFocusActiveRef.current) {
       await focusEngine.stopFocusAudio();
     }
-    needsReloadFromFocusRef.current = false;
 
     const targetSeconds = startPositionMs > 0 ? startPositionMs / 1000 : 0;
     const engineToUse = targetEngine || audioEngineRef.current;
@@ -671,14 +669,41 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     queueMgr.shuffleRef.current = shuffle;
     queueMgr.setLoopMode(loopMode);
     queueMgr.loopRef.current = loopMode;
-    needsReloadFromFocusRef.current = true;
 
     await focusEngine.startFocusQueue(songs, shuffle, loopMode, resumeSnapshot);
   };
 
   const stopFocusAudio = async () => {
     await focusEngine.stopFocusAudio();
-    needsReloadFromFocusRef.current = !!queueMgr.currentSongRef.current;
+    iosEq.isIOSEQActiveRef.current = false;
+    iosEq.clearIOSEQPolling();
+    iosEq.setPlaybackStatusIOSEQ({
+      positionMillis: 0,
+      durationMillis: 0,
+      isPlaying: false,
+    });
+    expoAudio.clearExpoResources();
+    expoAudio.setPlaybackStatusExpo({
+      positionMillis: 0,
+      durationMillis: 0,
+      isPlaying: false,
+    });
+    await rntp.clearRNTPNotification();
+
+    queueMgr.setCurrentSong(null);
+    queueMgr.currentSongRef.current = null;
+    queueMgr.setPlayQueue([]);
+    queueMgr.queueRef.current = [];
+    queueMgr.originalQueueRef.current = [];
+    queueMgr.activeQueueRef.current = [];
+    queueMgr.setCurrentIndex(0);
+    queueMgr.indexRef.current = 0;
+    currentContextRef.current = null;
+    setCurrentContext(null);
+    setIsPlaying(false);
+    setIsFullPlayer(false);
+    setShowQueue(false);
+    setShowLyrics(false);
   };
 
   const startQueue = (
@@ -692,7 +717,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   ) => {
     if (songs.length === 0 && (!customQueue || customQueue.length === 0)) return;
 
-    needsReloadFromFocusRef.current = false;
     queueMgr.originalQueueRef.current = songs.length > 0 ? [...songs] : (customQueue ? [...customQueue] : []);
 
     const newShuffle = forceShuffle !== undefined ? forceShuffle : queueMgr.isShuffle;
@@ -813,10 +837,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     if (now - lastSkipTimeRef.current < 400) return;
     lastSkipTimeRef.current = now;
 
-    if (needsReloadFromFocusRef.current && queueMgr.currentSongRef.current) {
-      needsReloadFromFocusRef.current = false;
-    }
-
     const activeQueue = queueMgr.activeQueueRef.current;
     const currentSong = queueMgr.currentSongRef.current;
     const mode = queueMgr.loopRef.current;
@@ -910,18 +930,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const handlePrev = () => handlePrevInternal(false);
 
   const togglePlayPauseInternal = async () => {
-    if (needsReloadFromFocusRef.current && queueMgr.currentSongRef.current && !focusEngine.isFocusActiveRef.current) {
-      needsReloadFromFocusRef.current = false;
-      loadAndPlayInternal(
-        queueMgr.currentSongRef.current,
-        queueMgr.activeQueueRef.current,
-        queueMgr.indexRef.current,
-        0,
-        true
-      );
-      return;
-    }
-
     if (iosEq.isIOSEQActiveRef.current) {
       if (isPlayingRef.current) {
         iosEq.pauseIosEQ();
@@ -1065,14 +1073,21 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const stopPlayback = async () => {
     try {
       await focusEngine.stopFocusAudio();
-      needsReloadFromFocusRef.current = false;
       iosEq.isIOSEQActiveRef.current = false;
       iosEq.stopIosEQ();
       await TrackPlayer.stop();
       await TrackPlayer.reset();
       expoAudio.clearExpoResources();
       queueMgr.setCurrentSong(null);
+      queueMgr.currentSongRef.current = null;
       queueMgr.setPlayQueue([]);
+      queueMgr.queueRef.current = [];
+      queueMgr.originalQueueRef.current = [];
+      queueMgr.activeQueueRef.current = [];
+      queueMgr.setCurrentIndex(0);
+      queueMgr.indexRef.current = 0;
+      currentContextRef.current = null;
+      setCurrentContext(null);
       setIsPlaying(false);
     } catch (e) {}
   };
