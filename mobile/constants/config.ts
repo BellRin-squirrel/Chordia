@@ -1,7 +1,7 @@
 // =================================================================
 // Chordia アプリ設定・APIキー定義
 // =================================================================
-export const APP_VERSION = 'v6.2.0';
+export const APP_VERSION = 'v6.2.0-beta1';
 
 // ★ ここに手動でアクセスキーを設定してください
 export const HTTP_X_ACCESS_KEY = 'ucbancmuvmczvlxgycbvuwfasdyowwap';

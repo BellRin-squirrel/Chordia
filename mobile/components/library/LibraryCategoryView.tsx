@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  View, Text, FlatList, Image, TouchableOpacity,
+  View, Text, FlatList, Image, TouchableOpacity, Pressable,
   TouchableWithoutFeedback, Alert, Animated, Easing, 
-  Platform, useWindowDimensions 
+  Platform, useWindowDimensions, StyleSheet 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -10,6 +10,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { BlurView } from 'expo-blur';
+import { GlassView } from 'expo-glass-effect';
+import { SymbolView } from 'expo-symbols';
+import {
+  Button as SwiftUIButton,
+  Divider as SwiftUIDivider,
+  Host as SwiftUIHost,
+  Menu as SwiftUIMenu,
+  RNHostView,
+} from '@expo/ui/swift-ui';
 import { styles } from '../../styles/styles';
 import { MarqueeText } from '../MarqueeText';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../../utils/playlistEvaluator';
@@ -24,19 +34,19 @@ import { PlaylistEditModals } from './category/PlaylistEditModals';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
 
-const AnimatedMenuButton = ({ onPress, isDark, textStyle }: any) => {
+// Android 用フォールバックボタン
+const AndroidFallbackMenuButton = ({ onPress, isDark, themeColor }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () => Animated.spring(scale, { toValue: 0.82, useNativeDriver: true, speed: 30, bounciness: 4 }).start();
-  const handlePressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 8 }).start();
+  const handlePressIn = () => { Animated.spring(scale, { toValue: 0.9, useNativeDriver: true, bounciness: 10, speed: 25 }).start(); };
+  const handlePressOut = () => { Animated.spring(scale, { toValue: 1, useNativeDriver: true, bounciness: 10, speed: 25 }).start(); };
 
   return (
-    <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-      <Animated.View style={{
-        width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center',
-        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-        overflow: 'hidden', transform: [{ scale }]
-      }}>
-        <Ionicons name="ellipsis-horizontal" size={18} color={textStyle} />
+    <TouchableWithoutFeedback onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <View style={[styles.liquidGlassBackButton, { backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(255,255,255,0.5)', borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.7)' }]}>
+          <BlurView intensity={isDark ? 60 : 85} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <Ionicons name="ellipsis-horizontal" size={20} color={themeColor} />
+        </View>
       </Animated.View>
     </TouchableWithoutFeedback>
   );
@@ -391,9 +401,171 @@ export const LibraryCategoryView = ({
     return localLibrary.filter((sVal: any) => sVal.title?.toLowerCase().includes(q) || sVal.artist?.toLowerCase().includes(q) || sVal.album?.toLowerCase().includes(q));
   }, [localLibrary, editSongsSearchQuery]);
 
-  const headerRightButton = isPlaylistsTab ? (
-    <AnimatedMenuButton onPress={() => setHeaderMenuVisible(true)} isDark={isDark} textStyle={dynamicStyles.text} />
-  ) : undefined;
+  // ★ 右上メニューボタン（iOS: SwiftUIMenu で2つの作成メニューを表示 / Android: 従来モーダル）
+  const renderHeaderMenuButton = () => {
+    if (Platform.OS === 'ios') {
+      return (
+        <SwiftUIHost matchContents>
+          <SwiftUIMenu
+            label={
+              <RNHostView matchContents>
+                <Pressable accessibilityRole="button" accessibilityLabel={t('create_new_playlist', language)}>
+                  <GlassView
+                    glassEffectStyle="regular"
+                    isInteractive
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+                  >
+                    <SymbolView name="ellipsis" size={18} weight="medium" tintColor={themeColor} />
+                  </GlassView>
+                </Pressable>
+              </RNHostView>
+            }
+          >
+            <SwiftUIButton
+              label={t('create_new_playlist', language)}
+              systemImage="plus.circle"
+              onPress={() => {
+                setTimeout(() => {
+                  setNewPlaylistName('');
+                  setCreateNameModalVisible(true);
+                }, 100);
+              }}
+            />
+            <SwiftUIButton
+              label={t('create_smart_playlist', language)}
+              systemImage="bolt"
+              onPress={() => {
+                setTimeout(() => {
+                  setSmartEditorConfig({ visible: true, mode: 'CREATE', targetPlaylist: null });
+                }, 100);
+              }}
+            />
+          </SwiftUIMenu>
+        </SwiftUIHost>
+      );
+    }
+
+    return (
+      <AndroidFallbackMenuButton
+        onPress={() => setHeaderMenuVisible(true)}
+        isDark={isDark}
+        themeColor={themeColor}
+      />
+    );
+  };
+
+  // ★ 各プレイリスト行のメニューボタン（iOS: SwiftUIMenu で長押し時と同じメニュー一覧を表示 / Android: 従来モーダル）
+  const renderRowMenuButton = (item: any, rowKey: string) => {
+    if (Platform.OS === 'ios') {
+      const menuItems = item.isAll
+        ? [
+            <SwiftUIButton
+              key="cover"
+              label={t('change_cover_image', language)}
+              systemImage="photo"
+              onPress={() => setTimeout(() => setCoverPickerTarget(item), 100)}
+            />,
+            <SwiftUIButton
+              key="dup"
+              label={t('duplicate_playlist', language)}
+              systemImage="doc.on.doc"
+              onPress={() => setTimeout(() => handleDuplicatePlaylist(item), 100)}
+            />,
+          ]
+        : [
+            <SwiftUIButton
+              key="rename"
+              label={t('rename_playlist', language)}
+              systemImage="pencil"
+              onPress={() => setTimeout(() => { setRenameTarget(item); setRenameInput(item.playlistName); }, 100)}
+            />,
+            <SwiftUIButton
+              key="cover"
+              label={t('change_cover_image', language)}
+              systemImage="photo"
+              onPress={() => setTimeout(() => setCoverPickerTarget(item), 100)}
+            />,
+            ...(item.type === 'smart'
+              ? [
+                  <SwiftUIButton
+                    key="rules"
+                    label={t('edit_rules', language)}
+                    systemImage="slider.horizontal.3"
+                    onPress={() => setTimeout(() => setSmartEditorConfig({ visible: true, mode: 'EDIT', targetPlaylist: item }), 100)}
+                  />,
+                  <SwiftUIButton
+                    key="convert"
+                    label={t('convert_to_normal_playlist', language)}
+                    systemImage="arrow.left.arrow.right"
+                    onPress={() => setTimeout(() => handleConvertToNormalPlaylist(item), 100)}
+                  />,
+                ]
+              : [
+                  <SwiftUIButton
+                    key="songs"
+                    label={t('edit_playlist_songs', language)}
+                    systemImage="music.note.list"
+                    onPress={() => setTimeout(() => {
+                      const fnames = (Array.isArray(item.music) ? item.music : [])
+                        .map((m: any) => (typeof m === 'string' ? m : (m?.musicFilename || m?.path || '')).split(/[\\/]/).pop())
+                        .filter(Boolean);
+                      setEditSongsTargetPl(item);
+                      setEditSongsSelectedFilenames(new Set(fnames));
+                      setEditSongsSearchQuery('');
+                    }, 100)}
+                  />,
+                ]),
+            <SwiftUIButton
+              key="dup"
+              label={t('duplicate_playlist', language)}
+              systemImage="doc.on.doc"
+              onPress={() => setTimeout(() => handleDuplicatePlaylist(item), 100)}
+            />,
+            <SwiftUIDivider key="div" />,
+            <SwiftUIButton
+              key="del"
+              label={t('delete_playlist', language)}
+              systemImage="trash"
+              role="destructive"
+              onPress={() => setTimeout(() => handleDeletePlaylist(item), 100)}
+            />,
+          ];
+
+      return (
+        <SwiftUIHost matchContents>
+          <SwiftUIMenu
+            label={
+              <RNHostView matchContents>
+                <Pressable accessibilityRole="button" accessibilityLabel={item.playlistName}>
+                  <GlassView
+                    glassEffectStyle="regular"
+                    isInteractive
+                    colorScheme={isDark ? 'dark' : 'light'}
+                    style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}
+                  >
+                    <SymbolView name="ellipsis" size={18} weight="medium" tintColor={themeColor} />
+                  </GlassView>
+                </Pressable>
+              </RNHostView>
+            }
+          >
+            {menuItems}
+          </SwiftUIMenu>
+        </SwiftUIHost>
+      );
+    }
+
+    return (
+      <AndroidFallbackMenuButton
+        onPress={() => openRowActionSheet(item, undefined, rowKey)}
+        isDark={isDark}
+        themeColor={themeColor}
+      />
+    );
+  };
+
+  const headerRightButton = isPlaylistsTab ? renderHeaderMenuButton() : undefined;
 
   const getHeaderTitle = () => {
     if (category === 'PLAYLISTS') return t('cat_playlists', language);
@@ -434,46 +606,70 @@ export const LibraryCategoryView = ({
           const isRowPressing = pressingPlaylistKey === rowKey;
           const isRowHidden = activeMorphRowKey === rowKey;
 
+          if (!isPlaylistsTab) {
+            return (
+              <Animated.View style={{ backgroundColor: libraryBgColor }}>
+                <TouchableOpacity
+                  style={[styles.checkRow, { borderBottomWidth: 0, paddingVertical: 14 }]}
+                  onPress={() => {
+                    setCurrentSelectionType('ARTIST');
+                    setCurrentArtist(item.artistName);
+                    pushView('SONG_LIST');
+                  }}
+                >
+                  <Image source={artSource} style={[styles.playlistIconArt, { borderRadius: 35 }]} />
+                  <View style={{ flex: 1, marginLeft: 15, marginRight: 10, minWidth: 0, overflow: 'hidden' }}>
+                    <MarqueeText text={title} style={[styles.rowTitle, { color: dynamicStyles.text, marginLeft: 0 }]} />
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          }
+
           return (
             <Animated.View style={{
               backgroundColor: libraryBgColor,
               opacity: isRowHidden ? 0 : 1,
               transform: [{ scale: isRowPressing ? playlistPressChargeScale : 1 }],
             }}>
-              <TouchableOpacity 
+              <View
                 ref={(ref) => { playlistRowRefs.current[rowKey] = ref; }}
-                style={[styles.checkRow, { borderBottomWidth: 0, paddingVertical: 14 }]} 
-                onPressIn={isPlaylistsTab ? () => startPlaylistPressPreview(rowKey) : undefined}
-                onPressOut={isPlaylistsTab ? resetPlaylistPressPreview : undefined}
-                onPress={() => { 
-                  if (isPlaylistsTab) resetPlaylistPressPreview();
-                  if (isPlaylistsTab) { setCurrentSelectionType('PLAYLIST'); setCurrentPlaylist(item); }
-                  else { setCurrentSelectionType('ARTIST'); setCurrentArtist(item.artistName); }
-                  pushView('SONG_LIST'); 
-                }}
-                onLongPress={isPlaylistsTab ? () => handlePlaylistLongPress(item, rowKey) : undefined}
-                delayLongPress={300}
+                collapsable={false}
+                style={[styles.checkRow, { borderBottomWidth: 0, paddingVertical: 14 }]}
               >
-                <Image source={artSource} style={[styles.playlistIconArt, category === 'ARTISTS' && { borderRadius: 35 }]} />
-                <View style={{ flex: 1, marginLeft: 15, marginRight: 10, minWidth: 0, overflow: 'hidden' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {showPlaylistTypeIcon && isPlaylistsTab && (
-                      <Ionicons name={isSmart ? "flash" : "musical-notes"} size={16} color={themeColor} style={{ marginRight: 6 }} />
-                    )}
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <MarqueeText text={title} style={[styles.rowTitle, { color: dynamicStyles.text, marginLeft: 0 }]} />
+                <TouchableOpacity 
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 }}
+                  onPressIn={() => startPlaylistPressPreview(rowKey)}
+                  onPressOut={resetPlaylistPressPreview}
+                  onPress={() => { 
+                    resetPlaylistPressPreview();
+                    setCurrentSelectionType('PLAYLIST');
+                    setCurrentPlaylist(item);
+                    pushView('SONG_LIST'); 
+                  }}
+                  onLongPress={() => handlePlaylistLongPress(item, rowKey)}
+                  delayLongPress={300}
+                  activeOpacity={0.6}
+                >
+                  <Image source={artSource} style={styles.playlistIconArt} />
+                  <View style={{ flex: 1, marginLeft: 15, marginRight: 10, minWidth: 0, overflow: 'hidden' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {showPlaylistTypeIcon && (
+                        <Ionicons name={isSmart ? "flash" : "musical-notes"} size={16} color={themeColor} style={{ marginRight: 6 }} />
+                      )}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <MarqueeText text={title} style={[styles.rowTitle, { color: dynamicStyles.text, marginLeft: 0 }]} />
+                      </View>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
                 
-                {isPlaylistsTab ? (
-                  <AnimatedMenuButton onPress={() => openRowActionSheet(item, undefined, rowKey)} isDark={isDark} textStyle={dynamicStyles.text} />
-                ) : (
-                  <Ionicons name="chevron-forward" size={20} color={dynamicStyles.subText} />
-                )}
-              </TouchableOpacity>
+                {/* ★ 各プレイリスト行の右側メニューボタン（SwiftUIMenu で直接メニューを開く） */}
+                {renderRowMenuButton(item, rowKey)}
+              </View>
 
-              {isPlaylistsTab && !isLast && (
+              {!isLast && (
                 <View style={{ height: 1, backgroundColor: dynamicStyles.border, marginLeft: 95, marginRight: 20 }} />
               )}
             </Animated.View>
@@ -482,7 +678,7 @@ export const LibraryCategoryView = ({
         contentContainerStyle={safePadding}
       />
 
-      {/* 各プレイリスト行の3点メニュー＆モーフィングモーダル */}
+      {/* 長押し時に開くプレイリストプレビュー＆モーフィングモーダル */}
       <PlaylistRowActionModal 
         target={rowActionTarget}
         originLayout={rowActionOriginRef.current}
