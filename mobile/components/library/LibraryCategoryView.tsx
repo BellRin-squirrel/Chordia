@@ -488,6 +488,13 @@ export const LibraryCategoryView = ({
         originLayout={rowActionOriginRef.current}
         morphProgress={morphProgress}
         onClose={closeRowActionSheet}
+        onOpen={(t) => {
+          if (isPlaylistsTab) {
+            setCurrentSelectionType('PLAYLIST');
+            setCurrentPlaylist(t);
+            pushView('SONG_LIST');
+          }
+        }}
         onRename={(t) => { setRenameTarget(t); setRenameInput(t.playlistName); }}
         onChangeCover={(t) => setCoverPickerTarget(t)}
         onEditRules={(t) => setSmartEditorConfig({ visible: true, mode: 'EDIT', targetPlaylist: t })}

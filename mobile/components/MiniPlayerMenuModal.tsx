@@ -14,6 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { getPlaylistFirstArt, getPlaylistSongs } from '../utils/playlistEvaluator';
 import { LanguageCode, t } from '../utils/i18n';
@@ -43,23 +44,13 @@ interface MiniPlayerMenuModalProps {
   onAddSongToPlaylists: (selectedPlaylistIds: Set<string>) => Promise<void>;
 }
 
-const LiquidGlassMenuOption = ({ children, onPress, style, isDark }: any) => {
-  const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
+const LiquidGlassMenuOption = ({ children, onPress, style }: any) => {
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={useLiquidGlass ? 0.9 : 0.6}
-      style={[style, { overflow: 'hidden' }]}
+      activeOpacity={0.6}
+      style={style}
     >
-      {useLiquidGlass && (
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="regular"
-          isInteractive
-          colorScheme={isDark ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
       {children}
     </TouchableOpacity>
   );
@@ -90,9 +81,7 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   const [mode, setMode] = useState<'MENU' | 'ADD_TO_PLAYLIST'>('MENU');
   const landscapeMenuColumns = width >= 900 ? 3 : 2;
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-  const menuSurfaceColor = useLiquidGlass
-    ? (isDark ? 'rgba(32,32,36,0.78)' : 'rgba(248,248,252,0.82)')
-    : dynamicStyles.card;
+
   const [isNavExpanded, setIsNavExpanded] = useState(true);
   const [selectedPlaylistsForAdd, setSelectedPlaylistsForAdd] = useState<Set<string>>(new Set());
   const [confirmingSmartConvert, setConfirmingSmartConvert] = useState(false);
@@ -105,8 +94,9 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
   const morphProgress = useRef(new Animated.Value(0)).current;
   const isClosingRef = useRef(false);
 
-  const targetCardWidth = isLandscape ? Math.min(900, width - 24) : width - 24;
-  const targetCardHeight = 68;
+  // プレイリストプレビューと完全一致させるカードサイズ
+  const targetCardWidth = Math.min(isLandscape ? 900 : 500, width - 24);
+  const targetCardHeight = 96;
 
   const targetCenterX = width / 2;
   const targetCenterY = menuTopOffset + targetCardHeight / 2;
@@ -224,7 +214,6 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
         <Animated.View
           style={{
             flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.6)',
             opacity: morphProgress,
             justifyContent: mode === 'MENU' ? 'flex-start' : 'flex-end',
             paddingHorizontal: 12,
@@ -232,73 +221,119 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
             paddingBottom: Math.max(insets?.bottom || 0, 20) + 15,
           }}
         >
+          {/* ★ PlaylistRowActionModal と完全に同じぼかしオーバーレイ */}
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 35 : 45}
+            tint={isDark ? 'dark' : 'light'}
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)' }
+            ]}
+          />
+
           <TouchableWithoutFeedback>
             <View
               style={{
                 width: mode === 'MENU' ? targetCardWidth : undefined,
-                maxWidth: width - 24,
+                maxWidth: Math.min(isLandscape ? 900 : 500, width - 24),
                 alignSelf: 'center',
-                gap: mode === 'MENU' ? 8 : 10,
+                gap: 10,
                 maxHeight: '90%',
               }}
             >
               {mode === 'MENU' ? (
                 <>
-                  <View
-                    style={{
-                      backgroundColor: menuSurfaceColor,
-                      borderRadius: 20,
-                      overflow: 'hidden',
-                      borderWidth: 1,
-                      borderColor: dynamicStyles.border,
-                    }}
-                  >
-                    {useLiquidGlass && (
-                      <GlassView
-                        pointerEvents="none"
-                        glassEffectStyle="regular"
-                        colorScheme={isDark ? 'dark' : 'light'}
-                        style={StyleSheet.absoluteFill}
-                      />
-                    )}
-                    {/* プレビューカード（ミニプレイヤーの位置・形状から拡大移動し、閉じる時は戻る） */}
-                    <Animated.View
+                  {/* プレビューカード（PlaylistRowActionModal と全く同一のサイズ・角丸・影・エフェクト） */}
+                  <Animated.View style={{ transform: headerTransform }}>
+                    <TouchableOpacity
+                      activeOpacity={0.88}
+                      onPress={() => closeWithAnim(onNavigateToAlbum)}
                       style={{
-                        transform: headerTransform,
+                        borderRadius: 26,
+                        overflow: 'hidden',
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 10 },
+                        shadowOpacity: isDark ? 0.4 : 0.18,
+                        shadowRadius: 20,
+                        elevation: 10,
                       }}
                     >
+                      {useLiquidGlass ? (
+                        <GlassView
+                          pointerEvents="none"
+                          glassEffectStyle="regular"
+                          colorScheme={isDark ? 'dark' : 'light'}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      ) : (
+                        <BlurView
+                          intensity={isDark ? 80 : 95}
+                          tint={isDark ? 'dark' : 'light'}
+                          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(28,28,32,0.72)' : 'rgba(255,255,255,0.75)' }]}
+                        />
+                      )}
                       <View
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
                           padding: 12,
                           height: targetCardHeight,
-                          borderBottomWidth: 1,
-                          borderBottomColor: dynamicStyles.border,
                         }}
                       >
                         <Image
                           source={currentSong.localImageUri ? { uri: currentSong.localImageUri } : DEFAULT_ICON}
-                          style={{ width: 44, height: 44, borderRadius: 10, marginRight: 10 }}
+                          style={{ width: 72, height: 72, borderRadius: 16, marginRight: 12 }}
                         />
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ color: dynamicStyles.text, fontWeight: 'bold', fontSize: 15 }} numberOfLines={1}>
+                          <Text style={{ color: dynamicStyles.text, fontWeight: '700', fontSize: 17 }} numberOfLines={2}>
                             {currentSong.title || 'Untitled'}
                           </Text>
-                          <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                          <Text style={{ color: dynamicStyles.subText, fontSize: 13, marginTop: 4 }} numberOfLines={1}>
                             {currentSong.artist || 'Unknown Artist'}
                           </Text>
                         </View>
+                        <Ionicons name="chevron-forward" size={22} color={dynamicStyles.subText} style={{ marginLeft: 8 }} />
                       </View>
-                    </Animated.View>
+                    </TouchableOpacity>
+                  </Animated.View>
 
-                    {/* 下部メニュー一覧（フェード連動） */}
-                    <Animated.View style={{ opacity: menuOpacity }}>
+                  {/* 下部メニュー一覧コンテナ（PlaylistRowActionModal と全く同一のフロストガラス仕様） */}
+                  <Animated.View style={{ opacity: menuOpacity }}>
+                    <View
+                      style={{
+                        borderRadius: 24,
+                        overflow: 'hidden',
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 12 },
+                        shadowOpacity: isDark ? 0.45 : 0.2,
+                        shadowRadius: 24,
+                        elevation: 12,
+                      }}
+                    >
+                      {useLiquidGlass ? (
+                        <GlassView
+                          pointerEvents="none"
+                          glassEffectStyle="regular"
+                          colorScheme={isDark ? 'dark' : 'light'}
+                          style={StyleSheet.absoluteFill}
+                        />
+                      ) : (
+                        <BlurView
+                          intensity={isDark ? 80 : 95}
+                          tint={isDark ? 'dark' : 'light'}
+                          style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(28,28,32,0.72)' : 'rgba(255,255,255,0.75)' }]}
+                        />
+                      )}
+
                       <ScrollView
                         bounces={false}
                         style={{ flexGrow: 0 }}
                         contentContainerStyle={[
-                          { paddingBottom: 0 },
+                          { paddingVertical: 0 },
                           isLandscape && { flexDirection: 'row', flexWrap: 'wrap' },
                         ]}
                         showsVerticalScrollIndicator={false}
@@ -308,11 +343,11 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            padding: 12,
-                            gap: 10,
+                            padding: 14,
+                            gap: 12,
                             width: isLandscape ? `${50}%` : undefined,
-                            borderBottomWidth: 1,
-                            borderBottomColor: dynamicStyles.border,
+                            borderBottomWidth: StyleSheet.hairlineWidth,
+                            borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                           }}
                           onPress={() => setMode('ADD_TO_PLAYLIST')}
                         >
@@ -329,10 +364,10 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                             flexDirection: 'row',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: 12,
+                            padding: 14,
                             width: isLandscape ? `${50}%` : undefined,
-                            borderBottomWidth: 1,
-                            borderBottomColor: dynamicStyles.border,
+                            borderBottomWidth: StyleSheet.hairlineWidth,
+                            borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                           }}
                           onPress={() => setIsNavExpanded((prev) => !prev)}
                         >
@@ -348,9 +383,9 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                         {isNavExpanded && (
                           <View
                             style={{
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                              borderBottomWidth: 1,
-                              borderBottomColor: dynamicStyles.border,
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                              borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                               width: isLandscape ? '100%' : undefined,
                               flexDirection: isLandscape ? 'row' : undefined,
                               flexWrap: isLandscape ? 'wrap' : undefined,
@@ -361,13 +396,13 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                               style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
                                 paddingLeft: 24,
-                                gap: 10,
+                                gap: 12,
                                 width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
-                                borderBottomWidth: 1,
-                                borderBottomColor: dynamicStyles.border,
+                                borderBottomWidth: StyleSheet.hairlineWidth,
+                                borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
                               }}
                               onPress={() => closeWithAnim(onNavigateToPlaylist)}
                             >
@@ -383,13 +418,13 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                               style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
                                 paddingLeft: 24,
-                                gap: 10,
+                                gap: 12,
                                 width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
-                                borderBottomWidth: 1,
-                                borderBottomColor: dynamicStyles.border,
+                                borderBottomWidth: StyleSheet.hairlineWidth,
+                                borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
                               }}
                               onPress={() => closeWithAnim(onNavigateToAlbum)}
                             >
@@ -405,10 +440,10 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                               style={{
                                 flexDirection: 'row',
                                 alignItems: 'center',
-                                paddingVertical: 10,
-                                paddingHorizontal: 12,
+                                paddingVertical: 12,
+                                paddingHorizontal: 14,
                                 paddingLeft: 24,
-                                gap: 10,
+                                gap: 12,
                                 width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined,
                               }}
                               onPress={() => closeWithAnim(onNavigateToArtist)}
@@ -427,8 +462,8 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            padding: 12,
-                            gap: 10,
+                            padding: 14,
+                            gap: 12,
                             width: isLandscape ? `${50}%` : undefined,
                           }}
                           onPress={() => closeWithAnim(onDeleteFromLibrary)}
@@ -439,8 +474,8 @@ export const MiniPlayerMenuModal: React.FC<MiniPlayerMenuModalProps> = ({
                           </Text>
                         </LiquidGlassMenuOption>
                       </ScrollView>
-                    </Animated.View>
-                  </View>
+                    </View>
+                  </Animated.View>
                 </>
               ) : (
                 <View

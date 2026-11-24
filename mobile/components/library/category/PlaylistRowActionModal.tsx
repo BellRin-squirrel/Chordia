@@ -4,6 +4,7 @@ import {
   TouchableWithoutFeedback, Animated, ScrollView, Platform, type StyleProp, type ViewStyle 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { t } from '../../../utils/i18n';
 import { getPlaylistFirstArt } from '../../../utils/playlistEvaluator';
@@ -28,6 +29,7 @@ interface PlaylistRowActionModalProps {
   originLayout: { x: number; y: number; width: number; height: number } | null;
   morphProgress: Animated.Value;
   onClose: (callback?: () => void) => void;
+  onOpen?: (target: any) => void;
   onRename: (target: any) => void;
   onChangeCover: (target: any) => void;
   onEditRules: (target: any) => void;
@@ -52,6 +54,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
   originLayout,
   morphProgress,
   onClose,
+  onOpen,
   onRename,
   onChangeCover,
   onEditRules,
@@ -73,9 +76,6 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
   if (!target) return null;
 
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
-  const menuSurfaceColor = useLiquidGlass
-    ? (isDark ? 'rgba(32,32,36,0.78)' : 'rgba(248,248,252,0.82)')
-    : dynamicStyles.card;
 
   const landscapeMenuColumns = width >= 900 ? 3 : 2;
   const rowMenuColumns = target.isAll ? 2 : landscapeMenuColumns;
@@ -126,40 +126,70 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
     outputRange: [0, 0.2, 1],
   });
 
+  const handlePreviewPress = () => {
+    onClose(() => {
+      onOpen?.(target);
+    });
+  };
+
   return (
     <Modal visible={!!target} transparent animationType="none" supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <TouchableWithoutFeedback onPress={() => onClose()}>
         <Animated.View style={{ 
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.48)',
           opacity: morphProgress,
           justifyContent: 'flex-start',
           paddingHorizontal: 12,
           paddingTop: menuTopOffset,
           paddingBottom: Math.max(insets?.bottom || 0, 12) + 12,
         }}>
+          {/* ★ 統一された背景全体のフロストぼかしオーバーレイ */}
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 35 : 45}
+            tint={isDark ? 'dark' : 'light'}
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.18)' }
+            ]}
+          />
+
           <TouchableWithoutFeedback>
             <View style={{
               width: targetCardWidth,
               maxWidth: Math.min(isLandscape ? 900 : 500, width - 24),
               maxHeight: '100%',
               alignSelf: 'center',
-              gap: 8,
+              gap: 10,
             }}>
+              {/* プレビューカード（タップで該当プレイリストを開く） */}
               <Animated.View style={{ transform: headerTransform }}>
-                <View style={{
-                  backgroundColor: menuSurfaceColor,
-                  borderRadius: 28,
-                  overflow: 'hidden',
-                  borderWidth: 1,
-                  borderColor: dynamicStyles.border,
-                }}>
-                  {useLiquidGlass && (
+                <TouchableOpacity
+                  activeOpacity={0.88}
+                  onPress={handlePreviewPress}
+                  style={{
+                    borderRadius: 26,
+                    overflow: 'hidden',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 10 },
+                    shadowOpacity: isDark ? 0.4 : 0.18,
+                    shadowRadius: 20,
+                    elevation: 10,
+                  }}
+                >
+                  {useLiquidGlass ? (
                     <GlassView
                       pointerEvents="none"
                       glassEffectStyle="regular"
                       colorScheme={isDark ? 'dark' : 'light'}
                       style={StyleSheet.absoluteFill}
+                    />
+                  ) : (
+                    <BlurView
+                      intensity={isDark ? 80 : 95}
+                      tint={isDark ? 'dark' : 'light'}
+                      style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(28,28,32,0.72)' : 'rgba(255,255,255,0.75)' }]}
                     />
                   )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, height: targetCardHeight }}>
@@ -172,23 +202,34 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
                     </View>
                     <Ionicons name="chevron-forward" size={22} color={dynamicStyles.subText} style={{ marginLeft: 8 }} />
                   </View>
-                </View>
+                </TouchableOpacity>
               </Animated.View>
 
+              {/* メニュー項目一覧 */}
               <Animated.View style={{ opacity: menuOpacity, flexShrink: 1 }}>
                 <View style={{
-                  backgroundColor: menuSurfaceColor,
-                  borderRadius: 26,
+                  borderRadius: 24,
                   overflow: 'hidden',
                   borderWidth: 1,
-                  borderColor: dynamicStyles.border,
+                  borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.65)',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowOpacity: isDark ? 0.45 : 0.2,
+                  shadowRadius: 24,
+                  elevation: 12,
                 }}>
-                  {useLiquidGlass && (
+                  {useLiquidGlass ? (
                     <GlassView
                       pointerEvents="none"
                       glassEffectStyle="regular"
                       colorScheme={isDark ? 'dark' : 'light'}
                       style={StyleSheet.absoluteFill}
+                    />
+                  ) : (
+                    <BlurView
+                      intensity={isDark ? 80 : 95}
+                      tint={isDark ? 'dark' : 'light'}
+                      style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(28,28,32,0.72)' : 'rgba(255,255,255,0.75)' }]}
                     />
                   )}
                   <ScrollView
@@ -207,7 +248,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
                       <>
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                          style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                           onPress={() => onClose(() => onChangeCover(target))}
                         >
                           <Ionicons name="image-outline" size={22} color={themeColor} />
@@ -216,7 +257,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
 
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}
+                          style={{ width: isLandscape ? `${100 / rowMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}
                           onPress={() => onClose(() => onDuplicate(target))}
                         >
                           <Ionicons name="copy-outline" size={22} color={themeColor} />
@@ -227,7 +268,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
                       <>
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                           onPress={() => onClose(() => onRename(target))}
                         >
                           <Ionicons name="create-outline" size={22} color={themeColor} />
@@ -236,7 +277,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
 
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                           onPress={() => onClose(() => onChangeCover(target))}
                         >
                           <Ionicons name="image-outline" size={22} color={themeColor} />
@@ -247,7 +288,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
                           <>
                             <LiquidGlassMenuOption
                               isDark={isDark}
-                              style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                              style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                               onPress={() => onClose(() => onEditRules(target))}
                             >
                               <Ionicons name="options-outline" size={22} color={themeColor} />
@@ -256,7 +297,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
 
                             <LiquidGlassMenuOption
                               isDark={isDark}
-                              style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                              style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                               onPress={() => onClose(() => onConvertToNormal(target))}
                             >
                               <Ionicons name="swap-horizontal-outline" size={22} color={themeColor} />
@@ -266,7 +307,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
                         ) : (
                           <LiquidGlassMenuOption
                             isDark={isDark}
-                            style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                            style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                             onPress={() => onClose(() => onEditSongs(target))}
                           >
                             <Ionicons name="musical-notes-outline" size={22} color={themeColor} />
@@ -276,7 +317,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
 
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: dynamicStyles.border }}
+                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }}
                           onPress={() => onClose(() => onDuplicate(target))}
                         >
                           <Ionicons name="copy-outline" size={22} color={themeColor} />
@@ -285,7 +326,7 @@ export const PlaylistRowActionModal: React.FC<PlaylistRowActionModalProps> = ({
 
                         <LiquidGlassMenuOption
                           isDark={isDark}
-                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 }}
+                          style={{ width: isLandscape ? `${100 / landscapeMenuColumns}%` : undefined, flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}
                           onPress={() => onClose(() => onDelete(target))}
                         >
                           <Ionicons name="trash-outline" size={22} color="#ef4444" />

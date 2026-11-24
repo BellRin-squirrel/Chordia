@@ -59,6 +59,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
   const appVolumeSettingRef = useRef<VolumeMultiplierSetting>(DEFAULT_VOLUME_SETTING);
   const isEQEnabledRef = useRef<boolean>(false);
 
+  // RNTP の初期ロード時（add直後）に一瞬発生する先頭トラック（index 0）のゴミイベント破棄用ガード
+  const expectedTrackUriRef = useRef<string | null>(null);
+  const lastRecordedTrackUriRef = useRef<string | null>(null);
+
   useEffect(() => {
     soundCheckEnabledRef.current = soundCheckEnabled;
   }, [soundCheckEnabled]);
@@ -168,7 +172,6 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     }
   );
 
-  // service.ts と重複して TrackPlayer.play/pause/seekTo を呼ばない（状態同期のみ行う）
   const rntp = useRntpEngine({
     onPlay: () => {
       if (iosEq.isIOSEQActiveRef.current || focusEngine.isFocusActiveRef.current) return;
@@ -337,7 +340,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     startIndex: number = 0,
     startPositionMs: number = 0,
     shouldPlay: boolean = true,
-    targetEngine?: AudioEngineType
+    targetEngine?: AudioEngineType,
+    skipSaveHistory: boolean = false
   ) => {
     if (focusEngine.isFocusActiveRef.current) {
       await focusEngine.stopFocusAudio();
@@ -363,6 +367,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const hasVolumeSetting = appVolumeSettingRef.current.multiplier !== 1.0;
 
     if (Platform.OS === 'ios' && (isEQEnabled || soundCheckEnabledRef.current || hasVolumeSetting)) {
+      expectedTrackUriRef.current = null;
       iosEq.isIOSEQActiveRef.current = true;
       expoAudio.clearExpoResources();
       await rntp.clearRNTPNotification();
@@ -397,7 +402,9 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         queueMgr.setCurrentSong(song);
         queueMgr.currentSongRef.current = song;
         queueMgr.updateQueueIndexes(startIndex, activeQueue);
-        sync.saveHistory(song);
+        if (!skipSaveHistory) {
+          sync.saveHistory(song);
+        }
         return;
       }
       iosEq.isIOSEQActiveRef.current = false;
@@ -408,6 +415,10 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
     try {
       if (engineToUse === 'rntp') {
+        // ★ タップされた目的の曲の URI を待機対象としてセット
+        const targetUri = song?.localMusicUri || `${song?.title}:::${song?.artist}`;
+        expectedTrackUriRef.current = targetUri;
+
         await rntp.ensureRNTPInitialized();
         expoAudio.clearExpoResources();
         await TrackPlayer.reset();
@@ -468,6 +479,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         }, 200);
 
       } else {
+        expectedTrackUriRef.current = null;
         await rntp.clearRNTPNotification();
         const isLoopOne = queueMgr.loopRef.current === 'ONE';
         await expoAudio.initExpoAudioPlayer(song, isLoopOne, targetSeconds > 0 ? false : shouldPlay, setIsPlaying);
@@ -492,8 +504,15 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
       queueMgr.setCurrentSong(song);
       queueMgr.currentSongRef.current = song;
       queueMgr.updateQueueIndexes(startIndex, activeQueue);
-      sync.saveHistory(song);
-    } catch (e) {}
+
+      // ★ RNTP 以外のエンジン（Expo-Audio 等）の場合のみここで記録。
+      // RNTP は下の PlaybackActiveTrackChanged イベントで目的の曲到達時に確実に1回記録されます。
+      if (!skipSaveHistory && engineToUse !== 'rntp') {
+        sync.saveHistory(song);
+      }
+    } catch (e) {
+      expectedTrackUriRef.current = null;
+    }
   };
 
   const loadAndPlayInternalRef = useRef(loadAndPlayInternal);
@@ -521,7 +540,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
             else if (audioEngineRef.current === 'rntp') {
               try { posMs = (await TrackPlayer.getPosition()) * 1000; } catch (e) {}
             } else posMs = expoAudio.playbackStatusExpo.positionMillis || 0;
-            loadAndPlayInternalRef.current(cur, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, posMs, true);
+            loadAndPlayInternalRef.current(cur, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, posMs, true, undefined, true);
           })();
           return;
         }
@@ -545,7 +564,7 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         else if (audioEngineRef.current === 'rntp') {
           try { positionMs = (await TrackPlayer.getPosition()) * 1000; } catch (e) {}
         } else positionMs = expoAudio.playbackStatusExpo.positionMillis || 0;
-        loadAndPlayInternalRef.current(current, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, positionMs, true);
+        loadAndPlayInternalRef.current(current, queueMgr.activeQueueRef.current, queueMgr.indexRef.current, positionMs, true, undefined, true);
       })();
       return;
     }
@@ -591,7 +610,9 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
             queueMgr.activeQueueRef.current,
             queueMgr.indexRef.current,
             curMs,
-            isCurrentlyPlaying
+            isCurrentlyPlaying,
+            undefined,
+            true
           );
         })();
       }
@@ -643,7 +664,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
           queueMgr.indexRef.current,
           curPositionMs,
           wasPlaying,
-          newEngine
+          newEngine,
+          true
         );
       }, 100);
     }
@@ -656,6 +678,9 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     resumeSnapshot?: FocusPlaybackSnapshot | null
   ) => {
     if ((!songs || songs.length === 0) && (!resumeSnapshot || resumeSnapshot.queue.length === 0)) return;
+
+    expectedTrackUriRef.current = null;
+    lastRecordedTrackUriRef.current = null;
 
     iosEq.isIOSEQActiveRef.current = false;
     iosEq.clearIOSEQPolling();
@@ -675,6 +700,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
   const stopFocusAudio = async () => {
     await focusEngine.stopFocusAudio();
+    expectedTrackUriRef.current = null;
+    lastRecordedTrackUriRef.current = null;
     iosEq.isIOSEQActiveRef.current = false;
     iosEq.clearIOSEQPolling();
     iosEq.setPlaybackStatusIOSEQ({
@@ -1015,6 +1042,17 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
     const sub = TrackPlayer.addEventListener(Event.PlaybackActiveTrackChanged, async (event) => {
       if (!iosEq.isIOSEQActiveRef.current && !focusEngine.isFocusActiveRef.current && audioEngineRef.current === 'rntp' && event.track && event.track.originalData) {
         const newSong = event.track.originalData;
+        const currentTrackUri = newSong.localMusicUri || `${newSong.title}:::${newSong.artist}`;
+
+        // ★ 初期ロード時：目的の曲（expectedTrackUriRef）と一致しないゴミイベント（例: 先頭のHenceforth）を破棄
+        if (expectedTrackUriRef.current !== null) {
+          if (expectedTrackUriRef.current !== currentTrackUri) {
+            return;
+          }
+          // 目的の曲に到達したのでガードを解除
+          expectedTrackUriRef.current = null;
+        }
+
         queueMgr.setCurrentSong(newSong);
         queueMgr.currentSongRef.current = newSong;
         void applySoundCheckForSongRef.current(newSong);
@@ -1038,7 +1076,12 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
         if (idx !== -1) {
           queueMgr.updateQueueIndexes(idx, activeQueue);
         }
-        sync.saveHistory(newSong);
+
+        // 直前に記録した曲と同じなら重複記録しない
+        if (lastRecordedTrackUriRef.current !== currentTrackUri) {
+          lastRecordedTrackUriRef.current = currentTrackUri;
+          sync.saveHistory(newSong);
+        }
 
         if (Platform.OS === 'android') {
           setTimeout(rntp.syncAndroidEqualizerSession, 250);
@@ -1072,6 +1115,8 @@ export const useAudioPlayer = (soundCheckEnabled = false) => {
 
   const stopPlayback = async () => {
     try {
+      expectedTrackUriRef.current = null;
+      lastRecordedTrackUriRef.current = null;
       await focusEngine.stopFocusAudio();
       iosEq.isIOSEQActiveRef.current = false;
       iosEq.stopIosEQ();

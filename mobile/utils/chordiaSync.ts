@@ -115,7 +115,7 @@ const fetchWithTimeout = async (url: string, options: any = {}, timeoutMs: numbe
 };
 
 // =========================================================================
-// ★ ストレージ・通信の排他ミューテックス（並行実行・二重送信・上書き消失の完全防止）
+// ★ ストレージ・通信の排他ミューテックス（並行実行・二重送信の防止）
 // =========================================================================
 let storageMutexChain: Promise<any> = Promise.resolve();
 const runWithStorageLock = <T>(fn: () => Promise<T>): Promise<T> => {
@@ -128,6 +128,8 @@ let syncMutexChain: Promise<any> = Promise.resolve();
 let activeAutoFlushPromise: Promise<void> | null = null;
 let autoFlushRerunRequested = false;
 let isManualResyncRunning = false;
+const inFlightRecordIds = new Set<string>();
+const completedRecordIds = new Set<string>();
 
 const runWithSyncLock = <T>(fn: () => Promise<T>): Promise<T> => {
   const run = syncMutexChain.then(fn, fn);
@@ -177,8 +179,8 @@ const ensureItemIdsInStorage = async (key: string, idPrefix: string): Promise<an
   });
 };
 
-const removeSentItemsFromStorage = async (key: string, sentIds: Set<string>): Promise<void> => {
-  if (sentIds.size === 0) return;
+const removeSingleSentItemFromStorage = async (key: string, targetId: string): Promise<void> => {
+  if (!targetId) return;
   await runWithStorageLock(async () => {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return;
@@ -187,7 +189,7 @@ const removeSentItemsFromStorage = async (key: string, sentIds: Set<string>): Pr
       await AsyncStorage.removeItem(key);
       return;
     }
-    const remaining = parsed.filter((item: any) => !item?.id || !sentIds.has(String(item.id)));
+    const remaining = parsed.filter((item: any) => String(item?.id) !== targetId);
     if (remaining.length === 0) {
       await AsyncStorage.removeItem(key);
     } else {
@@ -217,7 +219,12 @@ const sendRawSyncOperation = async (operation: string, payload: any, timeoutMs: 
     throw new Error(`HTTP ${response.status}`);
   }
 
-  const data = await response.json();
+  const rawText = await response.text();
+  if (!rawText || !rawText.trim()) {
+    throw new Error('Empty response body');
+  }
+
+  const data = JSON.parse(rawText);
   if (data?.error) {
     return { ok: false, serverRejected: true, error: String(data.error) };
   }
@@ -247,7 +254,6 @@ export const enqueueOfflineRequest = async (operation: string, payload: any): Pr
   });
 };
 
-// ★ syncMutex 内部から呼ばれる、すべての未送信ローカル一時データを安全に送信＆削除するコア関数
 const flushAllPendingSyncDataInternal = async (
   sid: string,
   options?: {
@@ -262,126 +268,128 @@ const flushAllPendingSyncDataInternal = async (
   let playSent = 0;
   let queueSent = 0;
 
-  // 1. 一時保存された作業履歴 (chordia_focus_history) を送信＆送信成功分のみ削除
+  // 1. 一時保存された作業履歴 (chordia_focus_history)
   const focusItems = await ensureItemIdsInStorage(LOCAL_FOCUS_HISTORY_KEY, 'work');
   if (focusItems.length > 0) {
-    const sentWorkIds = new Set<string>();
-    let networkErrorObj: any = null;
-    try {
-      for (let i = 0; i < focusItems.length; i++) {
-        const item = focusItems[i];
-        if (onProgress) {
-          onProgress(`[1/4] ${t('account_sync_step_work', language).replace('{current}', String(i + 1)).replace('{total}', String(focusItems.length))}`);
-        }
-        if (item.duration && item.duration > 0) {
-          const endStr = formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date());
-          const timeStr = formatWorkDuration(item.duration);
-          try {
-            const res = await sendRawSyncOperation('addWorkHistory', { SID: sid, end: endStr, time: timeStr }, 7000);
-            if (!res.ok && res.serverRejected) {
-              console.warn('[OfflineSync] Server rejected addWorkHistory:', res.error);
-            }
-            sentWorkIds.add(String(item.id));
-            workSent++;
-          } catch (err) {
-            networkErrorObj = err;
-            break;
-          }
-        } else {
-          sentWorkIds.add(String(item.id));
-        }
+    for (let i = 0; i < focusItems.length; i++) {
+      const item = focusItems[i];
+      const itemId = String(item.id);
+      if (inFlightRecordIds.has(itemId) || completedRecordIds.has(itemId)) {
+        await removeSingleSentItemFromStorage(LOCAL_FOCUS_HISTORY_KEY, itemId);
+        continue;
       }
-    } finally {
-      await removeSentItemsFromStorage(LOCAL_FOCUS_HISTORY_KEY, sentWorkIds);
-    }
-    if (networkErrorObj && options?.throwOnNetworkError) {
-      throw networkErrorObj;
-    }
-    if (networkErrorObj) {
-      return { workSent, playSent, queueSent };
+
+      if (onProgress) {
+        onProgress(`[1/4] ${t('account_sync_step_work', language).replace('{current}', String(i + 1)).replace('{total}', String(focusItems.length))}`);
+      }
+
+      if (item.duration && item.duration > 0) {
+        inFlightRecordIds.add(itemId);
+        const endStr = formatWorkSessionEndTime(item.date ? new Date(item.date) : new Date());
+        const timeStr = formatWorkDuration(item.duration);
+        try {
+          const res = await sendRawSyncOperation('addWorkHistory', { SID: sid, end: endStr, time: timeStr }, 7000);
+          if (!res.ok && res.serverRejected) {
+            console.warn('[OfflineSync] Server rejected addWorkHistory:', res.error);
+          }
+          completedRecordIds.add(itemId);
+          await removeSingleSentItemFromStorage(LOCAL_FOCUS_HISTORY_KEY, itemId);
+          workSent++;
+        } catch (err) {
+          if (options?.throwOnNetworkError) throw err;
+          return { workSent, playSent, queueSent };
+        } finally {
+          inFlightRecordIds.delete(itemId);
+        }
+      } else {
+        await removeSingleSentItemFromStorage(LOCAL_FOCUS_HISTORY_KEY, itemId);
+      }
     }
   }
 
-  // 2. 一時保存された再生履歴 (chordia_playback_history) を送信＆送信成功分のみ削除
+  // 2. 一時保存された再生履歴 (chordia_playback_history)
   const playItems = await ensureItemIdsInStorage(LOCAL_PLAYBACK_HISTORY_KEY, 'play');
   if (playItems.length > 0) {
-    const sentPlayIds = new Set<string>();
-    let networkErrorObj: any = null;
-    try {
-      for (let i = 0; i < playItems.length; i++) {
-        const item = playItems[i];
-        if (onProgress) {
-          onProgress(`[2/4] ${t('account_sync_step_play', language).replace('{current}', String(i + 1)).replace('{total}', String(playItems.length))}`);
-        }
-        if (item.title || item.artist) {
-          try {
-            const res = await sendRawSyncOperation(
-              'addPlayHistory',
-              {
-                SID: sid,
-                title: item.title || 'Untitled',
-                artist: item.artist || 'Unknown Artist',
-                album: item.album || 'Unknown Album',
-              },
-              7000
-            );
-            if (!res.ok && res.serverRejected) {
-              console.warn('[OfflineSync] Server rejected addPlayHistory:', res.error);
-            }
-            sentPlayIds.add(String(item.id));
-            playSent++;
-          } catch (err) {
-            networkErrorObj = err;
-            break;
-          }
-        } else {
-          sentPlayIds.add(String(item.id));
-        }
+    for (let i = 0; i < playItems.length; i++) {
+      const item = playItems[i];
+      const itemId = String(item.id);
+      if (inFlightRecordIds.has(itemId) || completedRecordIds.has(itemId)) {
+        await removeSingleSentItemFromStorage(LOCAL_PLAYBACK_HISTORY_KEY, itemId);
+        continue;
       }
-    } finally {
-      await removeSentItemsFromStorage(LOCAL_PLAYBACK_HISTORY_KEY, sentPlayIds);
-    }
-    if (networkErrorObj && options?.throwOnNetworkError) {
-      throw networkErrorObj;
-    }
-    if (networkErrorObj) {
-      return { workSent, playSent, queueSent };
+
+      if (onProgress) {
+        onProgress(`[2/4] ${t('account_sync_step_play', language).replace('{current}', String(i + 1)).replace('{total}', String(playItems.length))}`);
+      }
+
+      if (item.title || item.artist) {
+        inFlightRecordIds.add(itemId);
+        try {
+          const res = await sendRawSyncOperation(
+            'addPlayHistory',
+            {
+              SID: sid,
+              title: item.title || 'Untitled',
+              artist: item.artist || 'Unknown Artist',
+              album: item.album || 'Unknown Album',
+            },
+            7000
+          );
+          if (!res.ok && res.serverRejected) {
+            console.warn('[OfflineSync] Server rejected addPlayHistory:', res.error);
+          }
+          completedRecordIds.add(itemId);
+          await removeSingleSentItemFromStorage(LOCAL_PLAYBACK_HISTORY_KEY, itemId);
+          playSent++;
+        } catch (err) {
+          if (options?.throwOnNetworkError) throw err;
+          return { workSent, playSent, queueSent };
+        } finally {
+          inFlightRecordIds.delete(itemId);
+        }
+      } else {
+        await removeSingleSentItemFromStorage(LOCAL_PLAYBACK_HISTORY_KEY, itemId);
+      }
     }
   }
 
-  // 3. 汎用オフライン API キュー (chordia_offline_api_queue) を送信＆送信成功分のみ削除
+  // 3. 汎用オフライン API キュー (chordia_offline_api_queue)
   const queueItems = await ensureItemIdsInStorage(OFFLINE_API_QUEUE_KEY, 'queue');
   if (queueItems.length > 0) {
-    const sentQueueIds = new Set<string>();
-    let networkErrorObj: any = null;
-    try {
-      for (let i = 0; i < queueItems.length; i++) {
-        const item: QueuedApiRequest = queueItems[i];
-        try {
-          const payloadWithSid = { ...(item.payload || {}), SID: sid };
-          const res = await sendRawSyncOperation(item.operation, payloadWithSid, 10000);
-          if (!res.ok && res.serverRejected) {
-            console.warn('[OfflineQueue] Server rejected request:', item.operation, res.error);
-          }
-          sentQueueIds.add(String(item.id));
-          queueSent++;
-        } catch (err) {
-          networkErrorObj = err;
-          break;
-        }
+    for (let i = 0; i < queueItems.length; i++) {
+      const item: QueuedApiRequest = queueItems[i];
+      const itemId = String(item.id);
+      if (inFlightRecordIds.has(itemId) || completedRecordIds.has(itemId)) {
+        await removeSingleSentItemFromStorage(OFFLINE_API_QUEUE_KEY, itemId);
+        continue;
       }
-    } finally {
-      await removeSentItemsFromStorage(OFFLINE_API_QUEUE_KEY, sentQueueIds);
+
+      inFlightRecordIds.add(itemId);
+      try {
+        const payloadWithSid = { ...(item.payload || {}), SID: sid };
+        const res = await sendRawSyncOperation(item.operation, payloadWithSid, 10000);
+        if (!res.ok && res.serverRejected) {
+          console.warn('[OfflineQueue] Server rejected request:', item.operation, res.error);
+        }
+        completedRecordIds.add(itemId);
+        await removeSingleSentItemFromStorage(OFFLINE_API_QUEUE_KEY, itemId);
+        queueSent++;
+      } catch (err) {
+        if (options?.throwOnNetworkError) throw err;
+        return { workSent, playSent, queueSent };
+      } finally {
+        inFlightRecordIds.delete(itemId);
+      }
     }
-    if (networkErrorObj && options?.throwOnNetworkError) {
-      throw networkErrorObj;
-    }
+  }
+
+  if (completedRecordIds.size > 1000) {
+    completedRecordIds.clear();
   }
 
   return { workSent, playSent, queueSent };
 };
 
-// ★ インターネット接続自動検知・フォアグラウンド復帰等から呼ばれる安全なフラッシュ関数
 export const processOfflineQueue = async (): Promise<void> => {
   if (isManualResyncRunning) {
     return;
@@ -410,7 +418,6 @@ export const processOfflineQueue = async (): Promise<void> => {
         });
       } catch (e) {}
 
-      // ループ中に新データが追加され、かつネット接続が維持されていれば再チェック
       if (autoFlushRerunRequested && !isManualResyncRunning) {
         const stillOnline = await isInternetAvailable();
         if (!stillOnline) break;
@@ -424,7 +431,6 @@ export const processOfflineQueue = async (): Promise<void> => {
   return runPromise;
 };
 
-// ★ 楽曲再生時の記録（未ログイン時はローカル保存のみ、ログイン時は WAL 方式で先行保存 → 送信成功なら即ローカル削除）
 export const recordPlayHistoryWithSync = async (song: {
   title?: string;
   artist?: string;
@@ -462,7 +468,6 @@ export const recordPlayHistoryWithSync = async (song: {
   }
 };
 
-// ★ 作業セッション終了時の記録（未ログイン時はローカル保存のみ、ログイン時は先行保存 → オンラインなら送信＆ローカル削除）
 export const recordWorkHistoryEntriesWithSync = async (
   entries: { id?: string; date: string; duration: number }[]
 ): Promise<void> => {
@@ -858,8 +863,6 @@ export const addWorkHistoryApi = async (sid: string, end: string, time: string):
   }
 };
 
-// ★ Chordia Sync ログイン時およびアカウント画面「データを再送信」用：
-//   自動送信と厳密に排他ロックを共有し、ローカルの一時保存データを送信後に削除して二重送信を防ぐ
 export const syncInitialLocalHistory = async (
   sid: string,
   onProgress?: (msg: string) => void,
@@ -874,14 +877,12 @@ export const syncInitialLocalHistory = async (
         throw new Error(t('toast_no_internet', language));
       }
 
-      // [1/4], [2/4] & オフラインAPIキューの送信およびローカル削除（送信成功分だけ安全に削除）
       await flushAllPendingSyncDataInternal(sid, {
         onProgress,
         language,
         throwOnNetworkError: true,
       });
 
-      // [3/4] 所有楽曲一覧の送信
       let localLibraryList: any[] = [];
       const localLibraryRaw = await AsyncStorage.getItem('local_library');
       if (localLibraryRaw) {
@@ -907,7 +908,6 @@ export const syncInitialLocalHistory = async (
         }
       }
 
-      // [4/4] プレイリスト一覧の送信
       const localPlaylistsRaw = await AsyncStorage.getItem('local_playlists');
       if (localPlaylistsRaw) {
         const rawPlaylists: any[] = JSON.parse(localPlaylistsRaw);

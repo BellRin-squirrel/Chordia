@@ -32,7 +32,7 @@ interface UseFocusAudioEngineProps {
   soundCheckEnabledRef: React.MutableRefObject<boolean>;
   appVolumeSettingRef: React.MutableRefObject<VolumeMultiplierSetting>;
   isEQEnabledRef: React.MutableRefObject<boolean>;
-  onTrackChange: (song: any, index: number, queue: any[]) => void;
+  onTrackChange: (song: any, index: number, queue: any[], sourceTag?: string) => void;
   onPlayStateChange: (playing: boolean) => void;
 }
 
@@ -48,6 +48,7 @@ export const useFocusAudioEngine = ({
   const focusQueueRef = useRef<any[]>([]);
   const focusCurrentIndexRef = useRef(0);
   const focusSessionTokenRef = useRef(0);
+  const initialFocusTrackKeyToConsumeRef = useRef<string | null>(null);
   const fadeVolumeRef = useRef(1.0);
   const expoPlaylistRef = useRef<any>(null);
   const expoListenersRef = useRef<any[]>([]);
@@ -87,9 +88,18 @@ export const useFocusAudioEngine = ({
             matchedSong = queue[foundIdx];
           }
         }
+
+        // startFocusQueueIOS 開始直後に発火する初回イベントは重複記録を防ぐためスキップ
+        const eventKey = `${idx}:${event.uri || matchedSong?.localMusicUri || ''}`;
+        if (initialFocusTrackKeyToConsumeRef.current === eventKey) {
+          initialFocusTrackKeyToConsumeRef.current = null;
+          return;
+        }
+        initialFocusTrackKeyToConsumeRef.current = null;
+
         if (matchedSong) {
           focusCurrentIndexRef.current = idx;
-          onTrackChangeRef.current(matchedSong, idx, queue);
+          onTrackChangeRef.current(matchedSong, idx, queue, 'FOCUS_NATIVE_EVT');
           onPlayStateChangeRef.current(true);
         }
       });
@@ -224,7 +234,7 @@ export const useFocusAudioEngine = ({
         focusCurrentIndexRef.current = idx;
         const song = focusQueueRef.current[idx];
         if (song) {
-          onTrackChangeRef.current(song, idx, focusQueueRef.current);
+          onTrackChangeRef.current(song, idx, focusQueueRef.current, 'FOCUS_EXPO_EVT');
           void updateTrackSoundCheck(song);
         }
       });
@@ -246,7 +256,7 @@ export const useFocusAudioEngine = ({
     }
 
     await updateTrackSoundCheck(queue[safeStartIdx]);
-    onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue);
+    onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue, 'FOCUS_EXPO_START');
     playlist.play();
     if (startSeconds > 0) {
       setTimeout(() => {
@@ -356,10 +366,11 @@ export const useFocusAudioEngine = ({
         const safeStartIdx = Math.max(0, Math.min(startIndex, filePaths.length - 1));
         const initialGains = filePaths.map((_, idx) => (idx === safeStartIdx ? targetGain : 0));
 
+        initialFocusTrackKeyToConsumeRef.current = `${safeStartIdx}:${filePaths[safeStartIdx]}`;
         setFocusFadeVolumeIOS(1.0);
         const ok = startFocusQueueIOS(filePaths, initialGains, safeStartIdx, startSeconds, loopMode, shuffle);
         if (ok) {
-          onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue);
+          onTrackChangeRef.current(queue[safeStartIdx], safeStartIdx, queue, 'FOCUS_NATIVE_START');
           onPlayStateChangeRef.current(true);
 
           if (soundCheckEnabledRef.current && queue.length > 1) {
@@ -379,6 +390,7 @@ export const useFocusAudioEngine = ({
           }
           return;
         }
+        initialFocusTrackKeyToConsumeRef.current = null;
         console.warn('[FocusAudio] startFocusQueueIOS failed, falling back to expo-audio:', getEqualizerDebugInfo());
       } else {
         console.warn('[FocusAudio] Native startFocusQueue is unavailable (rebuild iOS app to enable EQ/SoundCheck in Focus mode). Falling back to expo-audio.');
@@ -432,6 +444,7 @@ export const useFocusAudioEngine = ({
     focusSessionTokenRef.current += 1;
     isFocusActiveRef.current = false;
     usingExpoFallbackRef.current = false;
+    initialFocusTrackKeyToConsumeRef.current = null;
     fadeVolumeRef.current = 1.0;
     focusQueueRef.current = [];
     focusCurrentIndexRef.current = 0;

@@ -31,9 +31,9 @@ export const usePlayerSync = ({
 }: UsePlayerSyncProps) => {
   const isSendingNowPlayingRef = useRef(false);
   const relayCooldownRef = useRef(false);
+  const lastRecordedSongRef = useRef<{ key: string; time: number }>({ key: '', time: 0 });
 
   const sendNowPlayingUpdate = async (overrideTimeSec?: number) => {
-    // バックグラウンド移行時は無差別な通信を控えて安定化
     if (AppState.currentState !== 'active') return;
 
     if (!currentContextRef.current) return;
@@ -78,13 +78,20 @@ export const usePlayerSync = ({
   const saveHistory = async (song: any) => {
     if (!song) return;
 
+    // 同一曲に対する短時間（10秒以内）の重複呼び出しを確実にブロック
+    const songKey = song.localMusicUri || `${song.title || ''}:::${song.artist || ''}`;
+    const now = Date.now();
+    if (lastRecordedSongRef.current.key === songKey && now - lastRecordedSongRef.current.time < 10000) {
+      return;
+    }
+    lastRecordedSongRef.current = { key: songKey, time: now };
+
     try {
       const rs = await AsyncStorage.getItem('recently_played_songs');
       let list = rs ? JSON.parse(rs) : [];
       list = [song, ...list.filter((s: any) => s.localMusicUri !== song.localMusicUri)].slice(0, 10);
       await AsyncStorage.setItem('recently_played_songs', JSON.stringify(list));
 
-      // ログイン中は WAL 方式で先行一時保存 → オンライン送信成功時に自動削除（オフライン時は保持）
       await recordPlayHistoryWithSync(song);
     } catch (e) {}
   };
@@ -93,7 +100,6 @@ export const usePlayerSync = ({
     let interval: NodeJS.Timeout | null = null;
     if (isPlaying && currentSong && currentContextRef.current) {
       interval = setInterval(() => {
-        // フォアグラウンド時のみ定期送信
         if (AppState.currentState === 'active' && !relayCooldownRef.current) {
           sendNowPlayingUpdate();
         }
