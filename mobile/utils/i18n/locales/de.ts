@@ -533,4 +533,8 @@ export const de: Record<string, string> = {
   volume_boost_times: 'x',
   volume_boost_notice_title: 'Digitale Grenzwerte & Schutzmechanismen',
   volume_boost_notice_desc: 'Aufgrund digitaler Maximalpegel (0 dBFS) und hardwarebasierter Schutzbegrenzer des Betriebssystems (zur Vermeidung von Verzerrungen und Lautsprecherschäden) stößt die Lautstärkeverstärkung ab ca. 2x bis 4x an ihre Grenze. Eine weitere Erhöhung verstärkt den Ton nicht weiter. Bitte erhöhen Sie für mehr Lautstärke die Hauptlautstärke des Geräts.',
+
+  duration_minutes: '{value} Min.',
+  duration_hours: '{value} Std.',
+  duration_days: '{value} Tage',
 };

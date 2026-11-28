@@ -533,4 +533,8 @@ export const es: Record<string, string> = {
   volume_boost_times: 'x',
   volume_boost_notice_title: 'Límites digitales y protección de hardware',
   volume_boost_notice_desc: 'Debido a los límites de escala completa digital (0 dBFS) y los limitadores de protección de hardware del sistema operativo (para evitar distorsiones y daños en los altavoces), el aumento de volumen se satura entre 2x y 4x. Más allá de esto, el volumen no aumentará. Si necesita más volumen, aumente el volumen maestro de su dispositivo.',
+
+  duration_minutes: '{value} min',
+  duration_hours: '{value} h',
+  duration_days: '{value} días',
 };

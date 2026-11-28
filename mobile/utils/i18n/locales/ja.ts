@@ -532,4 +532,8 @@ export const ja: Record<string, string> = {
   volume_boost_times: '倍',
   volume_boost_notice_title: 'デジタル上限と保護機構について',
   volume_boost_notice_desc: 'デジタルオーディオには最大出力上限（0 dBFS）が存在し、端末やOSのハードウェア保護リミッター（音割れ・スピーカー破損防止）が働くため、約2〜4倍程度で音量の増加は頭打ちになります。それ以上は音量は大きくならず、音が圧縮されたように感じられます。さらに大きな音量が必要な場合は、端末本体の音量を上げてください。',
+
+  duration_minutes: '{value}分',
+  duration_hours: '{value}時間',
+  duration_days: '{value}日',
 };

@@ -532,4 +532,8 @@ export const fr: Record<string, string> = {
   volume_boost_times: 'x',
   volume_boost_notice_title: 'Limites numériques et protection matérielle',
   volume_boost_notice_desc: 'En raison des limites numériques (0 dBFS) et des limiteurs de protection matérielle de l\'OS (évitant la distorsion et les dommages aux haut-parleurs), le boost de volume plafonne naturellement vers 2x à 4x. Au-delà, le volume n\'augmente plus. Si vous avez besoin de plus de volume, veuillez augmenter le volume principal de votre appareil.',
+
+  duration_minutes: '{value} min',
+  duration_hours: '{value} h',
+  duration_days: '{value} j',
 };

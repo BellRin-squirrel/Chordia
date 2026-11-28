@@ -1,17 +1,40 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   View, Text, FlatList, Image, TouchableOpacity, TextInput, 
   Keyboard, Platform, StyleSheet, Animated, useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { styles } from '../../styles/styles';
 import { MarqueeText } from '../MarqueeText';
-import { t } from '../../utils/i18n';
+import { t, LanguageCode } from '../../utils/i18n';
 import { GlassActionButton } from '../ui/GlassActionButton';
+import { getAudioDurationSeconds } from '../../utils/id3Parser';
 
 const DEFAULT_ICON = require('../../assets/images/icon.png');
+const DURATION_CACHE_KEY = 'chordia_song_durations_cache';
+
+const formatCollectionTotalDuration = (totalSeconds: number, language: LanguageCode): string => {
+  const safeSec = Math.max(0, totalSeconds);
+
+  // 1時間未満: ◯分（分単位まで・切り捨てで60分にならないよう制御）
+  if (safeSec < 3600) {
+    const mins = Math.min(59, Math.floor(safeSec / 60));
+    return t('duration_minutes', language).replace('{value}', String(mins));
+  }
+
+  // 1時間以上 24時間未満: ◯.◯時間（小数第一位まで・24.0へ繰り上がらないよう小数第1位切り捨て）
+  if (safeSec < 86400) {
+    const hours = (Math.floor((safeSec / 3600) * 10) / 10).toFixed(1);
+    return t('duration_hours', language).replace('{value}', hours);
+  }
+
+  // 24時間以上: ◯.◯日（小数第一位まで）
+  const days = (Math.floor((safeSec / 86400) * 10) / 10).toFixed(1);
+  return t('duration_days', language).replace('{value}', days);
+};
 
 export const LibrarySongListView = ({
   dynamicStyles, themeColor, isDark, isLandscape, height, insets,
@@ -27,9 +50,10 @@ export const LibrarySongListView = ({
   const isSmartPlaylist = isPlaylist && currentPlaylist?.type === 'smart';
   const useLiquidGlass = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const isPad = Platform.OS === 'ios' && Platform.isPad;
-  const padTopOffset = isPad ? 36 : 8;
   const { width } = useWindowDimensions();
   const searchExpandAnim = React.useRef(new Animated.Value(0)).current;
+
+  const [cachedDurations, setCachedDurations] = useState<Record<string, number>>({});
 
   const onFocusSearch = () => setIsSearching(true);
   const onCancelSearch = () => { setIsSearching(false); setSearchQuery(''); Keyboard.dismiss(); };
@@ -42,6 +66,80 @@ export const LibrarySongListView = ({
       bounciness: 4,
     }).start();
   }, [isSearching, searchExpandAnim]);
+
+  // song.duration が未保存の楽曲の再生時間をバックグラウンドで安全に解析・キャッシュ
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveMissingDurations = async () => {
+      if (!Array.isArray(songs) || songs.length === 0) return;
+
+      let storedCache: Record<string, number> = {};
+      try {
+        const raw = await AsyncStorage.getItem(DURATION_CACHE_KEY);
+        if (raw) storedCache = JSON.parse(raw);
+      } catch (e) {}
+
+      if (!cancelled && Object.keys(storedCache).length > 0) {
+        setCachedDurations((prev) => ({ ...storedCache, ...prev }));
+      }
+
+      const missingSongs = songs.filter((s: any) => {
+        if (!s?.localMusicUri) return false;
+        const directDur = Number(s.duration) || 0;
+        if (directDur > 0) return false;
+        const cacheKey = s.musicFilename?.split(/[\\/]/).pop() || s.localMusicUri;
+        return !(storedCache[cacheKey] > 0);
+      });
+
+      if (missingSongs.length === 0) return;
+
+      const updatedCache = { ...storedCache };
+      let hasNewEntries = false;
+
+      for (const s of missingSongs) {
+        if (cancelled) break;
+        const cacheKey = s.musicFilename?.split(/[\\/]/).pop() || s.localMusicUri;
+        const dur = await getAudioDurationSeconds(s.localMusicUri);
+        if (dur > 0) {
+          updatedCache[cacheKey] = dur;
+          hasNewEntries = true;
+          if (!cancelled) {
+            setCachedDurations((prev) => ({ ...prev, [cacheKey]: dur }));
+          }
+        }
+      }
+
+      if (hasNewEntries) {
+        try {
+          await AsyncStorage.setItem(DURATION_CACHE_KEY, JSON.stringify(updatedCache));
+        } catch (e) {}
+      }
+    };
+
+    void resolveMissingDurations();
+    return () => { cancelled = true; };
+  }, [songs]);
+
+  const totalDurationSeconds = useMemo(() => {
+    if (!Array.isArray(songs) || songs.length === 0) return 0;
+    return songs.reduce((sum: number, s: any) => {
+      const directDur = Number(s?.duration) || 0;
+      if (directDur > 0) return sum + directDur;
+      const cacheKey = s?.musicFilename?.split(/[\\/]/).pop() || s?.localMusicUri || '';
+      const cached = Number(cachedDurations[cacheKey]) || 0;
+      return sum + cached;
+    }, 0);
+  }, [songs, cachedDurations]);
+
+  const collectionMetaText = useMemo(() => {
+    const count = Array.isArray(songs) ? songs.length : 0;
+    const countPart = (language === 'ja' || language === 'ko')
+      ? `${count}${t('songs_count', language)}`
+      : `${count} ${t('songs_count', language)}`;
+    const durationPart = formatCollectionTotalDuration(totalDurationSeconds, language as LanguageCode);
+    return `${countPart} • ${durationPart}`;
+  }, [songs, totalDurationSeconds, language]);
 
   const searchControl = (
     <Animated.View
@@ -104,12 +202,11 @@ export const LibrarySongListView = ({
   const landscapeArtSize = height * 0.4;
   const heroSectionElement = isSearching ? null : (
     <View style={isLandscape ? { padding: 10, alignItems: 'center', width: '100%' } : styles.plHero}>
-      {currentSelectionType !== 'ARTIST' && (
-        <Image 
-          source={heroArtSource} 
-          style={isLandscape ? { width: landscapeArtSize, height: landscapeArtSize, borderRadius: 12 } : styles.plHeroArt} 
-        />
-      )}
+      {/* アルバム・プレイリスト・アーティストすべてで一番上の楽曲等のカバーアートを表示 */}
+      <Image 
+        source={heroArtSource} 
+        style={isLandscape ? { width: landscapeArtSize, height: landscapeArtSize, borderRadius: 12 } : styles.plHeroArt} 
+      />
       <View style={{ width: '100%', paddingHorizontal: 20, alignItems: 'center', marginTop: isLandscape ? 10 : 15, minWidth: 0, overflow: 'hidden' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', maxWidth: '100%' }}>
           {showPlaylistTypeIcon && isPlaylist && (
@@ -119,6 +216,19 @@ export const LibrarySongListView = ({
             <MarqueeText text={heroTitle} align="center" style={[styles.plHeroTitle, { color: dynamicStyles.text, marginTop: 0, paddingHorizontal: 0 }, isLandscape && { fontSize: 18 }]} />
           </View>
         </View>
+        <Text
+          style={{
+            color: dynamicStyles.subText,
+            fontSize: isLandscape ? 12 : 13,
+            fontWeight: '600',
+            marginTop: 6,
+            textAlign: 'center',
+            fontVariant: ['tabular-nums'],
+          }}
+          numberOfLines={1}
+        >
+          {collectionMetaText}
+        </Text>
       </View>
       
       <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'center', gap: 10, marginTop: 15, paddingHorizontal: 10 }}>

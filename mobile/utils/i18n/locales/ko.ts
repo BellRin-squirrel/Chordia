@@ -533,4 +533,8 @@ export const ko: Record<string, string> = {
   volume_boost_times: '배',
   volume_boost_notice_title: '디지털 한계 및 하드웨어 보호 안내',
   volume_boost_notice_desc: '디지털 신호의 최대 한계(0 dBFS) 및 기기/OS의 하드웨어 보호 리미터(음 왜곡 및 스피커 손상 방지)가 동작하므로 약 2~4배 부근에서 음량 증가가 한계에 도달합니다. 그 이상에서는 음량이 더 커지지 않고 압축되어 들릴 수 있습니다. 더 큰 음량이 필요한 경우 기기 본체의 미디어 볼륨을 높여주세요.',
+
+  duration_minutes: '{value}분',
+  duration_hours: '{value}시간',
+  duration_days: '{value}일',
 };
